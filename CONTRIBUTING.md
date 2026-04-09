@@ -57,7 +57,7 @@ ctest --test-dir build
 ### FetchContent
 
 Instead of installing the project's dependencies via a package manager, you can optionally
-configure beman.std-big-int to fetch them automatically via CMake FetchContent.
+configure beman.big_int to fetch them automatically via CMake FetchContent.
 
 To do so, specify
 `-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=./infra/cmake/use-fetch-content.cmake`. This will
@@ -80,32 +80,32 @@ acquired by FetchContent.
 
 ## Project-specific configure arguments
 
-Project-specific options are prefixed with `BEMAN_STD-BIG-INT`.
+Project-specific options are prefixed with `BEMAN_BIG_INT`.
 You can see the list of available options with:
 
 ```bash
-cmake -LH -S . -B build | grep "BEMAN_STD-BIG-INT" -C 2
+cmake -LH -S . -B build | grep "BEMAN_BIG_INT" -C 2
 ```
 
 <details>
 
 <summary>Some project-specific configure arguments</summary>
 
-### `BEMAN_STD-BIG-INT_BUILD_TESTS`
+### `BEMAN_BIG_INT_BUILD_TESTS`
 
 Enable building tests and test infrastructure. Default: `ON`.
 Values: `{ ON, OFF }`.
 
-### `BEMAN_STD-BIG-INT_BUILD_EXAMPLES`
+### `BEMAN_BIG_INT_BUILD_EXAMPLES`
 
 Enable building examples. Default: `ON`. Values: `{ ON, OFF }`.
 
-### `BEMAN_STD-BIG-INT_INSTALL_CONFIG_FILE_PACKAGE`
+### `BEMAN_BIG_INT_INSTALL_CONFIG_FILE_PACKAGE`
 
 Enable installing the CMake config file package. Default: `ON`.
 Values: `{ ON, OFF }`.
 
-This is required so that users of `beman.std-big-int` can use
-`find_package(beman.std-big-int)` to locate the library.
+This is required so that users of `beman.big_int` can use
+`find_package(beman.big_int)` to locate the library.
 
 </details>
