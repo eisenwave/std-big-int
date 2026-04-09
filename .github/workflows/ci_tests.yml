@@ -52,7 +52,7 @@ jobs:
                 }
               ]
             },
-            { "versions": ["14", "13"],
+            { "versions": ["14"],
               "tests": [
                 { "cxxversions": ["c++26", "c++23"],
                   "tests": [{ "stdlibs": ["libstdc++"], "tests": ["Release.Default"]}]
@@ -89,16 +89,6 @@ jobs:
                 }
               ]
             },
-            { "versions": ["18", "17"],
-              "tests": [
-                { "cxxversions": ["c++26", "c++23"],
-                  "tests": [{"stdlibs": ["libc++"], "tests": ["Release.Default"]}]
-                },
-                { "cxxversions": ["c++23"],
-                  "tests": [{"stdlibs": ["libstdc++"], "tests": ["Release.Default"]}]
-                }
-              ]
-            }
           ],
           "appleclang": [
             { "versions": ["latest"],
