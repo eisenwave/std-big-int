@@ -38,6 +38,7 @@ include(infra/cmake/beman-install-library.cmake)
 
 add_library(beman.big_int INTERFACE)
 add_library(beman::big_int ALIAS beman.big_int)
+target_compile_features(beman.big_int INTERFACE cxx_std_23)
 
 target_sources(
     beman.big_int
