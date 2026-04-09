@@ -111,9 +111,9 @@ class basic_big_int {
 
   public:
     // [big.int.cons], construct/copy/destroy
-    constexpr basic_big_int() noexcept(noexcept(Allocator())) : m_data{}, m_limbs{}, m_sign{}, m_internal{false} {}
+    constexpr basic_big_int() noexcept(noexcept(Allocator())) : m_data{}, m_limbs{1}, m_sign{}, m_internal{true} {}
     constexpr explicit basic_big_int(const Allocator& a) noexcept
-        : m_data{}, m_limbs{}, m_sign{}, m_internal{false}, m_alloc{a} {}
+        : m_data{}, m_limbs{1}, m_sign{}, m_internal{true}, m_alloc{a} {}
     constexpr basic_big_int(const basic_big_int& x)     = default;
     constexpr basic_big_int(basic_big_int&& x) noexcept = default;
 
@@ -122,25 +122,22 @@ class basic_big_int {
     constexpr ~basic_big_int() {
         // TODO(mborland): This will probably need to get sliced out into a free_storage() function
         // Good enough to run basic construction tests for now
-        if (!m_internal && m_limbs > 0) {
+        if (!m_internal) {
             alloc_traits::deallocate(m_alloc, m_data.ld.data, m_data.ld.capacity);
         }
     }
 
     // [big.int.ops]
     [[nodiscard]] constexpr std::size_t width_mag() const noexcept {
-        if (m_limbs == 0) {
+        const auto top = m_internal ? m_data.la[m_limbs - 1] : m_data.ld.data[m_limbs - 1];
+        if (top == 0) {
             return 0;
         }
 
-        const auto top = m_internal ? m_data.la[m_limbs - 1] : m_data.ld.data[m_limbs - 1];
         return (m_limbs - 1) * bits_per_limb + (bits_per_limb - static_cast<std::size_t>(std::countl_zero(top)) - 1);
     }
 
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept {
-        if (m_limbs == 0) {
-            return {};
-        }
         if (m_internal) {
             return {m_data.la, m_limbs};
         }
