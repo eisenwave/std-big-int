@@ -5,6 +5,7 @@
 #define BEMAN_BIG_INT_BIG_INT_HPP
 
 #include <algorithm>
+#include <bit>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -128,6 +129,30 @@ public:
             alloc_traits::deallocate(m_alloc, m_data.ld.data, m_data.ld.capacity);
         }
     }
+
+    // [big.int.ops]
+    [[nodiscard]] constexpr std::size_t width_mag() const noexcept {
+        if (m_limbs == 0) {
+            return 0;
+        }
+
+        const auto top = m_internal ? m_data.la[m_limbs - 1] : m_data.ld.data[m_limbs - 1];
+        return (m_limbs - 1) * bits_per_limb + (bits_per_limb - static_cast<std::size_t>(std::countl_zero(top)) - 1);
+    }
+
+    [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept {
+        if (m_internal) {
+            return {m_data.la, m_limbs};
+        }
+
+        return {m_data.ld.data, m_limbs};
+    }
+
+    [[nodiscard]] constexpr allocator_type get_allocator() const noexcept {
+        return m_alloc;
+    }
+
+    // constexpr void shrink_to_fit()
 };
 
 template <class Allocator = std::allocator<uint_multiprecision_t>>
