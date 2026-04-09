@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-find_package(GTest REQUIRED)
 
 add_executable(beman.std-big-int.tests.todo)
 target_sources(beman.std-big-int.tests.todo PRIVATE todo.test.cpp)
