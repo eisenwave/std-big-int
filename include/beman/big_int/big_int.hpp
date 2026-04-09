@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <memory>
 #include <type_traits>
+#include <span>
+#include <concepts>
 
 #ifdef _MSC_VER
 
@@ -108,6 +110,24 @@ class basic_big_int {
     bool        m_sign;      // true = negative (sign + magnitude)
     bool        m_internal;  // true = using la[], false = using ld
     [[no_unique_address]] allocator_type m_alloc;
+
+public:
+
+    // [big.int.cons], construct/copy/destroy
+    constexpr basic_big_int() noexcept(noexcept(Allocator())) : m_data{}, m_limbs{}, m_sign{}, m_internal{false} {}
+    constexpr explicit basic_big_int(const Allocator& a) noexcept : m_data{}, m_limbs{}, m_sign{}, m_internal{false}, m_alloc{a} {}
+    constexpr basic_big_int(const basic_big_int& x) = default;
+    constexpr basic_big_int(basic_big_int&& x) noexcept = default;
+
+    // TODO(mborland): Add additional constructors from P4444
+
+    constexpr ~basic_big_int() {
+        // TODO(mborland): This will probably need to get sliced out into a free_storage() function
+        // Good enough to run basic construction tests for now
+        if (!m_internal) {
+            alloc_traits::deallocate(m_alloc, m_data.ld.data, m_data.ld.capacity);
+        }
+    }
 };
 
 template <class Allocator = std::allocator<uint_multiprecision_t>>
