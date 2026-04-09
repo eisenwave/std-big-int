@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
-add_executable(beman.big_int.tests.todo)
-target_sources(beman.big_int.tests.todo PRIVATE todo.test.cpp)
-target_link_libraries(
-    beman.big_int.tests.todo
-    PRIVATE beman::big_int GTest::gtest_main
-)
+# SPDX-License-Identifier: BSL-1.0
 
 include(GoogleTest)
-gtest_discover_tests(beman.big_int.tests.todo)
+
+file(GLOB TEST_SOURCES "*.test.cpp")
+
+foreach(test_source ${TEST_SOURCES})
+    get_filename_component(test_name ${test_source} NAME_WE)
+    set(test_target beman.big_int.tests.${test_name})
+
+    add_executable(${test_target})
+    target_sources(${test_target} PRIVATE ${test_source})
+    target_link_libraries(${test_target} PRIVATE beman::big_int GTest::gtest_main)
+    gtest_discover_tests(${test_target})
+endforeach()
