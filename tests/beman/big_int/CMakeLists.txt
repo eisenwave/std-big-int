@@ -11,6 +11,9 @@ foreach(test_source ${TEST_SOURCES})
 
     add_executable(${test_target})
     target_sources(${test_target} PRIVATE ${test_source})
-    target_link_libraries(${test_target} PRIVATE beman::big_int GTest::gtest_main)
+    target_link_libraries(
+        ${test_target}
+        PRIVATE beman::big_int GTest::gtest_main
+    )
     gtest_discover_tests(${test_target})
 endforeach()

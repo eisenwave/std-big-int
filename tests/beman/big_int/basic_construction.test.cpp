@@ -14,7 +14,7 @@ static_assert(test_default_construction());
 
 consteval bool test_allocator_construction() {
     std::allocator<beman::big_int::uint_multiprecision_t> a;
-    beman::big_int::big_int x(a);
+    beman::big_int::big_int                               x(a);
     return x.width_mag() == 0 && x.representation().size() == 0;
 }
 static_assert(test_allocator_construction());
@@ -43,7 +43,7 @@ TEST(BasicConstruction, DefaultConstruction) {
 
 TEST(BasicConstruction, AllocatorConstruction) {
     std::allocator<beman::big_int::uint_multiprecision_t> a;
-    beman::big_int::big_int x(a);
+    beman::big_int::big_int                               x(a);
     EXPECT_EQ(x.width_mag(), 0U);
     EXPECT_EQ(x.representation().size(), 0U);
 }
