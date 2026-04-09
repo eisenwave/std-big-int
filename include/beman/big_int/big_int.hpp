@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
-#ifndef BEMAN_STD_BIG_INT_STD_BIG_INT_HPP
-#define BEMAN_STD_BIG_INT_STD_BIG_INT_HPP
+#ifndef BEMAN_BIG_INT_BIG_INT_HPP
+#define BEMAN_BIG_INT_BIG_INT_HPP
 
 #include <algorithm>
 #include <climits>
@@ -74,4 +74,4 @@ using big_int = basic_big_int<128U, Allocator>;
 
 } // namespace beman
 
-#endif // BEMAN_STD_BIG_INT_STD_BIG_INT_HPP
+#endif // BEMAN_BIG_INT_BIG_INT_HPP
