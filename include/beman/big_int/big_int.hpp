@@ -11,7 +11,13 @@
 #include <memory>
 #include <type_traits>
 
-namespace beman {
+#ifdef _MSC_VER
+
+#include <__msvc_int128.hpp>
+
+#endif // _MSC_VER
+
+namespace beman::big_int {
 
 // alias uint_multiprecision_t
 using uint_multiprecision_t = std::uint64_t;
@@ -22,13 +28,22 @@ using uint_multiprecision_t = std::uint64_t;
 template <std::size_t inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
 class basic_big_int {
 
-public:
-
     using limb_type = uint_multiprecision_t;
-    using double_limb_type = unsigned __int128;
-    using allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<limb_type>;
+    using signed_limb_type = std::make_signed_t<limb_type>;
 
-private:
+    #ifdef _MSC_VER
+
+    using double_limb_type = std::_Unsigned128;
+    using signed_double_limb_type = std::_Signed128;
+
+    #else
+
+    using double_limb_type = unsigned __int128;
+    using signed_double_limb_type = __int128;
+
+    #endif
+
+    using allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<limb_type>;
 
     using alloc_traits = std::allocator_traits<allocator_type>;
     using limb_pointer = typename std::allocator_traits<allocator_type>::pointer;
