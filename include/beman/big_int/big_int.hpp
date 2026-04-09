@@ -22,10 +22,34 @@ namespace beman::big_int {
 // alias uint_multiprecision_t
 using uint_multiprecision_t = std::uint64_t;
 
+// Forward decl so that we can define our concepts
+template <std::size_t inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
+class basic_big_int;
+
+namespace detail {
+
+template <class>
+struct is_basic_big_int : std::false_type {};
+
+template <std::size_t inplace_bits, class Allocator>
+struct is_basic_big_int<basic_big_int<inplace_bits, Allocator>> : std::true_type {};
+
+template <class T>
+inline constexpr bool is_basic_big_int_v = is_basic_big_int<std::remove_cvref_t<T>>::value;
+
+} // namespace detail
+
+// [big.ing.expos]
+template <class T>
+concept signed_or_unsigned = std::is_signed_v<T> || std::is_unsigned_v<T>;
+
+template <class T>
+concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail::is_basic_big_int_v<T>;
+
 // [big.int.class], class template basic_big_int
 //  template<size_t inplace_bits, class Allocator = allocator<uint_multiprecision_t>>
 //    class basic_big_int;
-template <std::size_t inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
+template <std::size_t inplace_bits, class Allocator>
 class basic_big_int {
 
     using limb_type = uint_multiprecision_t;
