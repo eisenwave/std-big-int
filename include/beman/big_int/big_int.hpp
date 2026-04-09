@@ -40,14 +40,14 @@ struct is_basic_big_int<basic_big_int<inplace_bits, Allocator>> : std::true_type
 template <class T>
 inline constexpr bool is_basic_big_int_v = is_basic_big_int<std::remove_cvref_t<T>>::value;
 
-} // namespace detail
-
 // [big.ing.expos]
 template <class T>
 concept signed_or_unsigned = std::is_signed_v<T> || std::is_unsigned_v<T>;
 
 template <class T>
 concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail::is_basic_big_int_v<T>;
+
+} // namespace detail
 
 // [big.int.class], class template basic_big_int
 //  template<size_t inplace_bits, class Allocator = allocator<uint_multiprecision_t>>
