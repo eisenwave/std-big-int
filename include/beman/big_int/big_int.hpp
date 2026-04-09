@@ -74,7 +74,9 @@ class basic_big_int {
         limb_type la[inplace_bits];
         limb_data ld;
 
-        constexpr data_type() : la {} {}
+        constexpr data_type() noexcept : la {} {}
+        explicit constexpr data_type(const limb_type i) noexcept : la {} { la[0] = i; }
+        constexpr data_type(limb_type* limbs, std::size_t len) noexcept : ld {len, limbs } {}
     };
 
     data_type   m_data;
