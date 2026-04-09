@@ -125,7 +125,7 @@ public:
     constexpr ~basic_big_int() {
         // TODO(mborland): This will probably need to get sliced out into a free_storage() function
         // Good enough to run basic construction tests for now
-        if (!m_internal) {
+        if (!m_internal && m_limbs > 0) {
             alloc_traits::deallocate(m_alloc, m_data.ld.data, m_data.ld.capacity);
         }
     }
@@ -141,6 +141,9 @@ public:
     }
 
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept {
+        if (m_limbs == 0) {
+            return {};
+        }
         if (m_internal) {
             return {m_data.la, m_limbs};
         }
