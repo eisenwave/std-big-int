@@ -10,8 +10,3 @@
 
 # ignore vscode settings
 .vscode
-
-# Clion settings
-*.idea
-
-CLAUDE.md
