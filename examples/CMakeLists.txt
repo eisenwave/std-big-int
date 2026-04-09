@@ -4,10 +4,10 @@ set(ALL_EXAMPLES todo)
 message("Examples to be built: ${ALL_EXAMPLES}")
 
 foreach(example ${ALL_EXAMPLES})
-    add_executable(beman.std-big-int.examples.${example})
-    target_sources(beman.std-big-int.examples.${example} PRIVATE ${example}.cpp)
+    add_executable(beman.big_int.examples.${example})
+    target_sources(beman.big_int.examples.${example} PRIVATE ${example}.cpp)
     target_link_libraries(
-        beman.std-big-int.examples.${example}
-        PRIVATE beman::std-big-int
+        beman.big_int.examples.${example}
+        PRIVATE beman::big_int
     )
 endforeach()

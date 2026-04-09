@@ -1,13 +1,13 @@
-# beman.std-big-int: Reference implementation of std::big_int
+# beman.big_int: Reference implementation of std::big_int
 
 <!--
 SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 -->
 
 <!-- markdownlint-disable-next-line line-length -->
-![Library Status](https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg) ![Continuous Integration Tests](https://github.com/bemanproject/std-big-int/actions/workflows/ci_tests.yml/badge.svg) ![Lint Check (pre-commit)](https://github.com/bemanproject/std-big-int/actions/workflows/pre-commit-check.yml/badge.svg) [![Coverage](https://coveralls.io/repos/github/bemanproject/std-big-int/badge.svg?branch=main)](https://coveralls.io/github/bemanproject/std-big-int?branch=main) ![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
+![Library Status](https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg) ![Continuous Integration Tests](https://github.com/bemanproject/big_int/actions/workflows/ci_tests.yml/badge.svg) ![Lint Check (pre-commit)](https://github.com/bemanproject/big_int/actions/workflows/pre-commit-check.yml/badge.svg) [![Coverage](https://coveralls.io/repos/github/bemanproject/big_int/badge.svg?branch=main)](https://coveralls.io/github/bemanproject/big_int?branch=main) ![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
 
-`beman.std-big-int` is a minimal C++ library conforming to [The Beman Standard](https://github.com/bemanproject/beman/blob/main/docs/beman_standard.md).
+`beman.big_int` is a minimal C++ library conforming to [The Beman Standard](https://github.com/bemanproject/beman/blob/main/docs/beman_standard.md).
 This can be used as a template for those intending to write Beman libraries.
 It may also find use as a minimal and modern  C++ project structure.
 
@@ -17,7 +17,7 @@ It may also find use as a minimal and modern  C++ project structure.
 
 ## License
 
-`beman.std-big-int` is licensed under the Apache License v2.0 with LLVM Exceptions.
+`beman.big_int` is licensed under the Apache License v2.0 with LLVM Exceptions.
 
 ## Usage
 
@@ -35,7 +35,7 @@ This project requires at least the following to build:
 * CMake 3.30 or later
 * (Test Only) GoogleTest
 
-You can disable building tests by setting CMake option `BEMAN_STD-BIG-INT_BUILD_TESTS` to
+You can disable building tests by setting CMake option `BEMAN_BIG_INT_BUILD_TESTS` to
 `OFF` when configuring the project.
 
 ### Supported Platforms
@@ -54,11 +54,11 @@ You can disable building tests by setting CMake option `BEMAN_STD-BIG-INT_BUILD_
 
 See the [Contributing Guidelines](CONTRIBUTING.md).
 
-## Integrate beman.std-big-int into your project
+## Integrate beman.big_int into your project
 
 ### Build
 
-You can build std-big-int using a CMake workflow preset:
+You can build big_int using a CMake workflow preset:
 
 ```bash
 cmake --workflow --preset gcc-release
@@ -70,12 +70,12 @@ To list available workflow presets, you can invoke:
 cmake --list-presets=workflow
 ```
 
-For details on building beman.std-big-int without using a CMake preset, refer to the
+For details on building beman.big_int without using a CMake preset, refer to the
 [Contributing Guidelines](CONTRIBUTING.md).
 
 ### Installation
 
-To install beman.std-big-int globally after building with the `gcc-release` preset, you can
+To install beman.big_int globally after building with the `gcc-release` preset, you can
 run:
 
 ```bash
@@ -94,47 +94,47 @@ This will generate the following directory structure:
 /opt/beman
 ├── include
 │   └── beman
-│       └── std-big-int
-│           ├── std-big-int.hpp
+│       └── big_int
+│           ├── big_int.hpp
 │           └── ...
 └── lib
     └── cmake
-        └── beman.std-big-int
-            ├── beman.std-big-int-config-version.cmake
-            ├── beman.std-big-int-config.cmake
-            └── beman.std-big-int-targets.cmake
+        └── beman.big_int
+            ├── beman.big_int-config-version.cmake
+            ├── beman.big_int-config.cmake
+            └── beman.big_int-targets.cmake
 ```
 
 ### CMake Configuration
 
-If you installed beman.std-big-int to a prefix, you can specify that prefix to your CMake
+If you installed beman.big_int to a prefix, you can specify that prefix to your CMake
 project using `CMAKE_PREFIX_PATH`; for example, `-DCMAKE_PREFIX_PATH=/opt/beman`.
 
-You need to bring in the `beman.std-big-int` package to define the `beman::std-big-int` CMake
+You need to bring in the `beman.big_int` package to define the `beman::big_int` CMake
 target:
 
 ```cmake
-find_package(beman.std-big-int REQUIRED)
+find_package(beman.big_int REQUIRED)
 ```
 
-You will then need to add `beman::std-big-int` to the link libraries of any libraries or
-executables that include `beman.std-big-int` headers.
+You will then need to add `beman::big_int` to the link libraries of any libraries or
+executables that include `beman.big_int` headers.
 
 ```cmake
-target_link_libraries(yourlib PUBLIC beman::std-big-int)
+target_link_libraries(yourlib PUBLIC beman::big_int)
 ```
 
-### Using beman.std-big-int
+### Using beman.big_int
 
-To use `beman.std-big-int` in your C++ project,
-include an appropriate `beman.std-big-int` header from your source code.
+To use `beman.big_int` in your C++ project,
+include an appropriate `beman.big_int` header from your source code.
 
 ```c++
-#include <beman/std-big-int/std-big-int.hpp>
+#include <beman/big_int/big_int.hpp>
 ```
 
 > [!NOTE]
 >
-> `beman.std-big-int` headers are to be included with the `beman/std-big-int/` prefix.
+> `beman.big_int` headers are to be included with the `beman/big_int/` prefix.
 > Altering include search paths to spell the include target another way (e.g.
-> `#include <std-big-int.hpp>`) is unsupported.
+> `#include <big_int.hpp>`) is unsupported.
