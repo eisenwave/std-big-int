@@ -266,11 +266,7 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(std::from_range_
 
 template <std::size_t inplace_bits, class Allocator>
 constexpr basic_big_int<inplace_bits, Allocator>::~basic_big_int() {
-    // TODO(mborland): This will probably need to get sliced out into a free_storage() function
-    // Good enough to run basic construction tests for now
-    if (!is_storage_static()) {
-        alloc_traits::deallocate(m_alloc, m_storage.data, m_capacity);
-    }
+    free_storage();
 }
 
 // [big.int.ops]
