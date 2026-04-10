@@ -84,40 +84,40 @@ class basic_big_int {
 
     static constexpr std::size_t inplace_limbs = []() constexpr {
         constexpr std::size_t from_bits = (inplace_bits + bits_per_limb - 1) / bits_per_limb;
-        // never fewer limbs than would fit in the pointer+size_t footprint
-        // of limb_data, so the union doesn't waste space
-        constexpr std::size_t from_struct =
-            (sizeof(limb_pointer) + sizeof(std::size_t) + sizeof(limb_type) - 1) / sizeof(limb_type);
-        return from_bits > from_struct ? from_bits : from_struct;
+        // never fewer limbs than would fit in the pointer footprint
+        // of the union, so the union doesn't waste space
+        constexpr std::size_t from_pointer = (sizeof(limb_type*) + sizeof(limb_type) - 1) / sizeof(limb_type);
+        return from_bits > from_pointer ? from_bits : from_pointer;
     }();
 
     static_assert(inplace_bits > 0, "inplace_bits must be positive");
 
-    struct limb_data {
-        std::size_t  capacity;
-        limb_pointer data;
-    };
-
     union data_type {
-        limb_type la[inplace_bits];
-        limb_data ld;
+        limb_type* data;
+        limb_type  limbs[inplace_limbs];
 
-        constexpr data_type() noexcept : la{} {}
-        explicit constexpr data_type(const limb_type i) noexcept : la{} { la[0] = i; }
-        constexpr data_type(limb_type* limbs, std::size_t len) noexcept : ld{len, limbs} {}
+        constexpr data_type() noexcept : limbs{} {}
     };
 
-    data_type                            m_data;
-    std::size_t                          m_limbs;    // number of active limbs
-    bool                                 m_sign;     // true = negative (sign + magnitude)
-    bool                                 m_internal; // true = using la[], false = using ld
+    std::uint32_t                        m_capacity;       // 0 = static storage, >0 = heap capacity
+    std::uint32_t                        m_size_and_sign;  // bit 31 = sign, bits 0-30 = limb count
+    data_type                            m_storage;
     [[no_unique_address]] allocator_type m_alloc;
+
+    // Internal accessors for the packed representation
+    [[nodiscard]] constexpr bool              is_storage_static() const noexcept;
+    [[nodiscard]] constexpr std::uint32_t     limb_count() const noexcept;
+    [[nodiscard]] constexpr bool              is_negative() const noexcept;
+                  constexpr void              set_limb_count(std::uint32_t n) noexcept;
+                  constexpr void              set_sign(bool s) noexcept;
+    [[nodiscard]] constexpr limb_type*        limb_ptr() noexcept;
+    [[nodiscard]] constexpr const limb_type*  limb_ptr() const noexcept;
 
   public:
     // [big.int.cons], construct/copy/destroy
-    constexpr basic_big_int() noexcept(noexcept(Allocator())) : m_data{}, m_limbs{1}, m_sign{}, m_internal{true} {}
+    constexpr basic_big_int() noexcept(noexcept(Allocator())) : m_capacity{0}, m_size_and_sign{1}, m_storage{} {}
     constexpr explicit basic_big_int(const Allocator& a) noexcept
-        : m_data{}, m_limbs{1}, m_sign{}, m_internal{true}, m_alloc{a} {}
+        : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {}
     constexpr basic_big_int(const basic_big_int& x)     = default;
     constexpr basic_big_int(basic_big_int&& x) noexcept = default;
 
@@ -160,6 +160,45 @@ class basic_big_int {
 // Out-of-class definitions
 // =============================================================================
 
+// Internal accessors
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr bool basic_big_int<inplace_bits, Allocator>::is_storage_static() const noexcept {
+    return m_capacity == 0;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr std::uint32_t basic_big_int<inplace_bits, Allocator>::limb_count() const noexcept {
+    return m_size_and_sign & 0x7FFF'FFFFU;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr bool basic_big_int<inplace_bits, Allocator>::is_negative() const noexcept {
+    return (m_size_and_sign & 0x8000'0000U) != 0;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::set_limb_count(std::uint32_t n) noexcept {
+    m_size_and_sign = (m_size_and_sign & 0x8000'0000U) | n;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::set_sign(bool s) noexcept {
+    m_size_and_sign = (m_size_and_sign & 0x7FFF'FFFFU) | (static_cast<std::uint32_t>(s) << 31);
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr basic_big_int<inplace_bits, Allocator>::limb_type*
+basic_big_int<inplace_bits, Allocator>::limb_ptr() noexcept {
+    return is_storage_static() ? m_storage.limbs : m_storage.data;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr const basic_big_int<inplace_bits, Allocator>::limb_type*
+basic_big_int<inplace_bits, Allocator>::limb_ptr() const noexcept {
+    return is_storage_static() ? m_storage.limbs : m_storage.data;
+}
+
 // [big.int.cons] — constructors
 
 template <std::size_t inplace_bits, class Allocator>
@@ -167,7 +206,7 @@ template <detail::arbitrary_arithmetic T>
     requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>)
 constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(T&& value) noexcept(
     detail::no_alloc_constructible_from<inplace_bits, T>)
-    : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{} {
+    : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{} {
     if constexpr (std::is_floating_point_v<T>) {
         // TODO: Implement this
         // I think we can go down the RYU route to separate a floating point value into significant, exponent, sign
@@ -176,9 +215,9 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(T&& value) noexc
         static_assert(false, "This has not been implemented yet");
     } else {
         if constexpr (std::is_signed_v<T>) {
-            m_sign  = value < T{0};
+            set_sign(value < T{0});
             using U = std::make_unsigned_t<T>;
-            assign_magnitude(m_sign ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+            assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
         } else {
             assign_magnitude(value);
         }
@@ -189,16 +228,16 @@ template <std::size_t inplace_bits, class Allocator>
 template <detail::arbitrary_arithmetic T>
 constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const T& value, const Allocator& a) noexcept(
     detail::no_alloc_constructible_from<inplace_bits, T>)
-    : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
+    : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
     if constexpr (std::is_floating_point_v<T>) {
         // TODO: Implement this
         // See implementation note above
         static_assert(false, "This has not been implemented yet");
     } else {
         if constexpr (std::is_signed_v<T>) {
-            m_sign  = value < T{0};
+            set_sign(value < T{0});
             using U = std::make_unsigned_t<T>;
-            assign_magnitude(m_sign ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+            assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
         } else {
             assign_magnitude(value);
         }
@@ -209,15 +248,25 @@ template <std::size_t inplace_bits, class Allocator>
 template <std::ranges::input_range R>
     requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
 constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(std::from_range_t, R&& r, const Allocator& a)
-    : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
+    : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
     std::size_t i = 0;
-    for (auto&& elem : r) {
-        using U        = std::make_unsigned_t<std::ranges::range_value_t<R>>;
-        m_data.la[i++] = static_cast<limb_type>(static_cast<U>(elem));
+
+    if constexpr (std::ranges::sized_range<R>) {
+        const auto count = std::ranges::size(r);
+        if (count > inplace_limbs) {
+            m_capacity     = static_cast<std::uint32_t>(count);
+            m_storage.data = alloc_traits::allocate(m_alloc, count);
+        }
     }
-    m_limbs = i == 0 ? 1 : i;
-    while (m_limbs > 1 && m_data.la[m_limbs - 1] == 0) {
-        --m_limbs;
+
+    auto* dst = limb_ptr();
+    for (auto&& elem : r) {
+        using U  = std::make_unsigned_t<std::ranges::range_value_t<R>>;
+        dst[i++] = static_cast<limb_type>(static_cast<U>(elem));
+    }
+    set_limb_count(static_cast<std::uint32_t>(i == 0 ? 1 : i));
+    while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
+        set_limb_count(limb_count() - 1);
     }
 }
 
@@ -225,8 +274,8 @@ template <std::size_t inplace_bits, class Allocator>
 constexpr basic_big_int<inplace_bits, Allocator>::~basic_big_int() {
     // TODO(mborland): This will probably need to get sliced out into a free_storage() function
     // Good enough to run basic construction tests for now
-    if (!m_internal) {
-        alloc_traits::deallocate(m_alloc, m_data.ld.data, m_data.ld.capacity);
+    if (!is_storage_static()) {
+        alloc_traits::deallocate(m_alloc, m_storage.data, m_capacity);
     }
 }
 
@@ -234,22 +283,19 @@ constexpr basic_big_int<inplace_bits, Allocator>::~basic_big_int() {
 
 template <std::size_t inplace_bits, class Allocator>
 constexpr std::size_t basic_big_int<inplace_bits, Allocator>::width_mag() const noexcept {
-    const auto top = m_internal ? m_data.la[m_limbs - 1] : m_data.ld.data[m_limbs - 1];
+    const auto count = limb_count();
+    const auto top   = limb_ptr()[count - 1];
     if (top == 0) {
         return 0;
     }
 
-    return (m_limbs - 1) * bits_per_limb + (bits_per_limb - static_cast<std::size_t>(std::countl_zero(top)) - 1);
+    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<std::size_t>(std::countl_zero(top)) - 1);
 }
 
 template <std::size_t inplace_bits, class Allocator>
 constexpr std::span<const uint_multiprecision_t>
 basic_big_int<inplace_bits, Allocator>::representation() const noexcept {
-    if (m_internal) {
-        return {m_data.la, m_limbs};
-    }
-
-    return {m_data.ld.data, m_limbs};
+    return {limb_ptr(), limb_count()};
 }
 
 template <std::size_t inplace_bits, class Allocator>
@@ -272,15 +318,15 @@ constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, All
 
 template <std::size_t inplace_bits, class Allocator>
 constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, Allocator>::operator-() const& {
-    auto copy   = *this;
-    copy.m_sign = !copy.m_sign;
+    auto copy = *this;
+    copy.set_sign(!copy.is_negative());
     return copy;
 }
 
 template <std::size_t inplace_bits, class Allocator>
 constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, Allocator>::operator-() && noexcept {
-    auto copy   = std::move(*this);
-    copy.m_sign = !copy.m_sign;
+    auto copy = std::move(*this);
+    copy.set_sign(!copy.is_negative());
     return copy;
 }
 
@@ -290,17 +336,17 @@ template <std::size_t inplace_bits, class Allocator>
 template <std::unsigned_integral T>
 constexpr void basic_big_int<inplace_bits, Allocator>::assign_magnitude(T value) noexcept {
     if constexpr (sizeof(T) <= sizeof(limb_type)) {
-        m_data.la[0] = static_cast<limb_type>(value);
-        m_limbs      = 1;
+        m_storage.limbs[0] = static_cast<limb_type>(value);
+        set_limb_count(1);
     } else {
         constexpr std::size_t n = sizeof(T) / sizeof(limb_type);
         for (std::size_t i = 0; i < n; ++i) {
-            m_data.la[i] = static_cast<limb_type>(value);
+            m_storage.limbs[i] = static_cast<limb_type>(value);
             value >>= bits_per_limb;
         }
-        m_limbs = n;
-        while (m_limbs > 1 && m_data.la[m_limbs - 1] == 0) {
-            --m_limbs;
+        set_limb_count(static_cast<std::uint32_t>(n));
+        while (limb_count() > 1 && m_storage.limbs[limb_count() - 1] == 0) {
+            set_limb_count(limb_count() - 1);
         }
     }
 }
