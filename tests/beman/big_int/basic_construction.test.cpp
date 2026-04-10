@@ -148,7 +148,7 @@ TEST(FloatConstruction, DoubleExact) {
 
 TEST(FloatConstruction, DoubleWithAllocator) {
     std::allocator<beman::big_int::uint_multiprecision_t> a;
-    beman::big_int::big_int x(42.7, a);
+    beman::big_int::big_int                               x(42.7, a);
     EXPECT_EQ(x.representation()[0], 42U);
 }
 
