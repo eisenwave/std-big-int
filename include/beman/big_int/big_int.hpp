@@ -130,10 +130,10 @@ class basic_big_int {
         if constexpr (std::is_floating_point_v<T>) {
             // TODO: Implement this
             // I think we can go down the RYU route to separate a floating point value into significant, exponent, sign
-            // Regardless of method, each of the STLs has a method of accomplishing this already as an implementation detail to <charconv>
+            // Regardless of method, each of the STLs has a method of accomplishing this already as an implementation
+            // detail to <charconv>
             static_assert(false, "This has not been implemented yet");
-        }
-        else {
+        } else {
             if constexpr (std::is_signed_v<T>) {
                 m_sign  = value < T{0};
                 using U = std::make_unsigned_t<T>;
@@ -145,14 +145,15 @@ class basic_big_int {
     }
 
     template <detail::arbitrary_arithmetic T>
-    constexpr basic_big_int(const T& value, const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+    constexpr basic_big_int(const T&         value,
+                            const Allocator& a)
+    noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
         if constexpr (std::is_floating_point_v<T>) {
             // TODO: Implement this
             // See implementation note above
             static_assert(false, "This has not been implemented yet");
-        }
-        else {
+        } else {
             if constexpr (std::is_signed_v<T>) {
                 m_sign  = value < T{0};
                 using U = std::make_unsigned_t<T>;
