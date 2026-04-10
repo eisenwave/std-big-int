@@ -33,6 +33,26 @@ consteval bool test_move_construction() {
 }
 static_assert(test_move_construction());
 
+// consteval bool test_integral_construction() {
+//     beman::big_int::big_int x{42U};
+//     return x.width_mag() == 5 && x.representation()[0] == 42U;
+// }
+// static_assert(test_integral_construction());
+
+consteval bool test_integral_construction_with_allocator() {
+    std::allocator<beman::big_int::uint_multiprecision_t> a;
+    beman::big_int::big_int x(42, a);
+    return x.width_mag() == 5 && x.representation()[0] == 42U;
+}
+static_assert(test_integral_construction_with_allocator());
+
+consteval bool test_from_range_construction() {
+    std::array<beman::big_int::uint_multiprecision_t, 2> limbs{0xDEADBEEFU, 0xCAFEBABEU};
+    beman::big_int::big_int x(std::from_range, limbs);
+    return x.representation().size() == 2;
+}
+static_assert(test_from_range_construction());
+
 // ----- runtime tests -----
 
 TEST(BasicConstruction, DefaultConstruction) {
@@ -65,5 +85,37 @@ TEST(BasicConstruction, MoveConstruction) {
 TEST(BasicConstruction, NonDefaultInplaceBits) {
     beman::big_int::basic_big_int<256> x;
     EXPECT_EQ(x.width_mag(), 0U);
+    EXPECT_EQ(x.representation().size(), 1U);
+}
+
+// TEST(BasicConstruction, IntegralConstruction) {
+//     beman::big_int::big_int x(42);
+//     EXPECT_EQ(x.width_mag(), 5U);
+//     EXPECT_EQ(x.representation()[0], 42U);
+// }
+
+// TEST(BasicConstruction, IntegralConstructionNegative) {
+//     beman::big_int::big_int x(-1);
+//     EXPECT_EQ(x.representation()[0], 1U);
+// }
+
+TEST(BasicConstruction, IntegralConstructionWithAllocator) {
+    std::allocator<beman::big_int::uint_multiprecision_t> a;
+    beman::big_int::big_int x(42, a);
+    EXPECT_EQ(x.width_mag(), 5U);
+    EXPECT_EQ(x.representation()[0], 42U);
+}
+
+TEST(BasicConstruction, FromRangeConstruction) {
+    std::array<beman::big_int::uint_multiprecision_t, 2> limbs{0xDEADBEEFU, 0xCAFEBABEU};
+    beman::big_int::big_int x(std::from_range, limbs);
+    EXPECT_EQ(x.representation().size(), 2U);
+    EXPECT_EQ(x.representation()[0], 0xDEADBEEFU);
+    EXPECT_EQ(x.representation()[1], 0xCAFEBABEU);
+}
+
+TEST(BasicConstruction, FromRangeConstructionTrimsLeadingZeros) {
+    std::array<beman::big_int::uint_multiprecision_t, 3> limbs{1U, 0U, 0U};
+    beman::big_int::big_int x(std::from_range, limbs);
     EXPECT_EQ(x.representation().size(), 1U);
 }
