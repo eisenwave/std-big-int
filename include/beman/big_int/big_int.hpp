@@ -144,8 +144,7 @@ class basic_big_int {
     // constexpr void shrink_to_fit()
 };
 
-template <class Allocator = std::allocator<uint_multiprecision_t>>
-using big_int = basic_big_int<128U, Allocator>;
+using big_int = basic_big_int<128U, std::allocator<uint_multiprecision_t>>;
 
 } // namespace beman::big_int
 

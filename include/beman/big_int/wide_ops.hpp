@@ -66,7 +66,10 @@ template <signed_or_unsigned T>
 template <signed_or_unsigned T>
 [[nodiscard]] constexpr T funnel_shl(wide<T> x, unsigned s) {
     // Design similar to P4010R0.
-    return static_cast<T>(x.to_int() << s);
+    if (s == 0) {
+        return x.high_bits;
+    }
+    return (x.high_bits << s) | (x.low_bits >> (width_v<T> - s));
 }
 
 // Returns `x.low_bits >> s`,
@@ -138,9 +141,9 @@ template <unsigned_integer T>
 [[nodiscard]] constexpr carry_result<T> carrying_add(T x, T y, bool carry = false) noexcept {
     static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
 #ifdef BEMAN_BIG_INT_GNUC
-    bool               carry_out;
+    unsigned long long carry_out;
     unsigned long long value = __builtin_addcll(x, y, carry, &carry_out);
-    return {.value = value, .carry = carry_out};
+    return {.value = value, .carry = carry_out != 0};
 #else
     auto result    = static_cast<uint128_t>(x) + static_cast<uint128_t>(y) + carry;
     bool carry_out = (result >> 64) != 0;
@@ -158,19 +161,14 @@ template <unsigned_integer T>
 [[nodiscard]] constexpr borrow_result<T> borrowing_sub(T x, T y, bool borrow = false) noexcept {
     static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
 #ifdef BEMAN_BIG_INT_GNUC
-    bool               borrow_out;
+    unsigned long long borrow_out;
     unsigned long long value = __builtin_subcll(x, y, borrow, &borrow_out);
-    return {.value = value, .borrow = borrow_out};
+    return {.value = value, .borrow = borrow_out != 0};
 #else
     auto result     = static_cast<uint128_t>(x) - static_cast<uint128_t>(y) - borrow;
     bool borrow_out = (result >> 64) != 0;
     return {.value = static_cast<T>(result), .borrow = borrow_out};
 #endif // BEMAN_BIG_INT_GNUC
-}
-
-template <class T>
-[[nodiscard]] constexpr bool is_div_wide_defined(wide<T> x, T divisor) noexcept {
-    return x.high_bits < divisor;
 }
 
 template <signed_or_unsigned T>
