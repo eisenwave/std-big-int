@@ -75,11 +75,10 @@ class basic_big_int {
 
 #endif
 
-    using allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<limb_type>;
-
+    using allocator_type     = std::allocator_traits<Allocator>::template rebind_alloc<limb_type>;
     using alloc_traits       = std::allocator_traits<allocator_type>;
-    using limb_pointer       = typename std::allocator_traits<allocator_type>::pointer;
-    using const_limb_pointer = typename std::allocator_traits<allocator_type>::const_pointer;
+    using limb_pointer       = std::allocator_traits<allocator_type>::pointer;
+    using const_limb_pointer = std::allocator_traits<allocator_type>::const_pointer;
 
     static constexpr std::size_t bits_per_limb = sizeof(limb_type) * CHAR_BIT;
 
