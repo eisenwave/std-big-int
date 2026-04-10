@@ -25,7 +25,9 @@ jobs:
           {"preset": "llvm-debug", "image": "ghcr.io/bemanproject/infra-containers-clang:latest"},
           {"preset": "llvm-release", "image": "ghcr.io/bemanproject/infra-containers-clang:latest"},
           {"preset": "appleclang-debug", "runner": "macos-latest"},
-          {"preset": "appleclang-release", "runner": "macos-latest"}
+          {"preset": "appleclang-release", "runner": "macos-latest"},
+          {"preset": "msvc-debug", "runner": "windows-latest"},
+          {"preset": "msvc-release", "runner": "windows-latest"}
         ]
 
   build-and-test:
@@ -95,6 +97,19 @@ jobs:
               "tests": [
                 { "cxxversions": ["c++26", "c++23"],
                   "tests": [{ "stdlibs": ["libc++"], "tests": ["Release.Default"]}]
+                }
+              ]
+            }
+          ],
+          "msvc": [
+            { "versions": ["latest"],
+              "tests": [
+                { "cxxversions": ["c++23"],
+                  "tests": [
+                    { "stdlibs": ["stl"],
+                      "tests": ["Debug.Default", "Release.Default", "Release.MaxSan"]
+                    }
+                  ]
                 }
               ]
             }

@@ -111,4 +111,14 @@ concept signed_integer = signed_or_unsigned<T> && std::is_signed_v<T>;
 
 } // namespace beman::big_int::detail
 
+// Trivial ABI ==================================================================
+
+#if defined(BEMAN_BIG_INT_CLANG)
+    #define BEMAN_BIG_INT_TRIVIAL_ABI [[clang::trivial_abi]]
+#elif defined(BEMAN_BIG_INT_MSVC)
+    #define BEMAN_BIG_INT_TRIVIAL_ABI [[msvc::trivial_abi]]
+#else
+    #define BEMAN_BIG_INT_TRIVIAL_ABI
+#endif
+
 #endif // BEMAN_BIG_INT_CONFIG_HPP
