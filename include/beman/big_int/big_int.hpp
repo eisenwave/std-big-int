@@ -42,6 +42,9 @@ inline constexpr bool is_basic_big_int_v = is_basic_big_int<std::remove_cvref_t<
 template <class T>
 concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail::is_basic_big_int_v<T>;
 
+template <class T>
+concept arbitrary_arithmetic = std::is_floating_point_v<T> || arbitrary_integer<T>;
+
 template <std::size_t inplace_bits, class T>
 inline constexpr bool no_alloc_constructible_from = width_v<std::remove_cvref_t<T>> <= inplace_bits;
 
