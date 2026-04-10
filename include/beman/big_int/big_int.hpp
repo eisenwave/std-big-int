@@ -99,19 +99,19 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         constexpr data_type() noexcept : limbs{} {}
     };
 
-    std::uint32_t                        m_capacity;       // 0 = static storage, >0 = heap capacity
-    std::uint32_t                        m_size_and_sign;  // bit 31 = sign, bits 0-30 = limb count
+    std::uint32_t                        m_capacity;      // 0 = static storage, >0 = heap capacity
+    std::uint32_t                        m_size_and_sign; // bit 31 = sign, bits 0-30 = limb count
     data_type                            m_storage;
     [[no_unique_address]] allocator_type m_alloc;
 
     // Internal accessors for the packed representation
-    [[nodiscard]] constexpr bool              is_storage_static() const noexcept;
-    [[nodiscard]] constexpr std::uint32_t     limb_count() const noexcept;
-    [[nodiscard]] constexpr bool              is_negative() const noexcept;
-                  constexpr void              set_limb_count(std::uint32_t n) noexcept;
-                  constexpr void              set_sign(bool s) noexcept;
-    [[nodiscard]] constexpr limb_type*        limb_ptr() noexcept;
-    [[nodiscard]] constexpr const limb_type*  limb_ptr() const noexcept;
+    [[nodiscard]] constexpr bool             is_storage_static() const noexcept;
+    [[nodiscard]] constexpr std::uint32_t    limb_count() const noexcept;
+    [[nodiscard]] constexpr bool             is_negative() const noexcept;
+    constexpr void                           set_limb_count(std::uint32_t n) noexcept;
+    constexpr void                           set_sign(bool s) noexcept;
+    [[nodiscard]] constexpr limb_type*       limb_ptr() noexcept;
+    [[nodiscard]] constexpr const limb_type* limb_ptr() const noexcept;
 
   public:
     // [big.int.cons], construct/copy/destroy
