@@ -188,7 +188,7 @@ template <unsigned_integer T>
             // TODO: add assertion; this is the UB case.
             return {.quotient = 0, .remainder = 0};
         }
-#if defined(BEMAN_BIG_INT_GNUC)
+#if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
         T q, r;
         __asm__("idiv %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
         return {.quotient = q, .remainder = r};
