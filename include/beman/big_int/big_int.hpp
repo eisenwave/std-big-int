@@ -43,7 +43,7 @@ template <class T>
 concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail::is_basic_big_int_v<T>;
 
 template <std::size_t inplace_bits, class T>
-inline constexpr bool no_alloc_constructible_from = sizeof(std::remove_cvref_t<T>) * CHAR_BIT <= inplace_bits;
+inline constexpr bool no_alloc_constructible_from = width_v<std::remove_cvref_t<T>> <= inplace_bits;
 
 template <std::size_t inplace_bits, class Allocator, class T>
 inline constexpr bool is_implicit_constructible_from =
