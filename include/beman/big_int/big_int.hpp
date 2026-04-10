@@ -128,8 +128,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             if constexpr (std::is_signed_v<T>) {
                 set_sign(value < T{0});
                 using U = std::make_unsigned_t<T>;
-                assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value)))
-                                               : static_cast<U>(value));
+                assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
             } else {
                 assign_magnitude(value);
             }
