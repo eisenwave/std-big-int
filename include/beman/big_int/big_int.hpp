@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <span>
 #include <concepts>
+#include <ranges>
 
 #include <beman/big_int/config.hpp>
 #include <beman/big_int/wide_ops.hpp>
@@ -41,6 +42,8 @@ inline constexpr bool is_basic_big_int_v = is_basic_big_int<std::remove_cvref_t<
 template <class T>
 concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail::is_basic_big_int_v<T>;
 
+template <std::size_t inplace_bits, class T>
+inline constexpr bool no_alloc_constructible_from = sizeof(std::remove_cvref_t<T>) * CHAR_BIT <= inplace_bits;
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -110,6 +113,43 @@ class basic_big_int {
         : m_data{}, m_limbs{1}, m_sign{}, m_internal{true}, m_alloc{a} {}
     constexpr basic_big_int(const basic_big_int& x)     = default;
     constexpr basic_big_int(basic_big_int&& x) noexcept = default;
+    template <detail::signed_or_unsigned T>
+    // TODO(alcxpr): this should be explicit conditionally when `T` is anything that's not standard integral type
+    constexpr explicit(false) basic_big_int(T value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+        : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{} {
+        if constexpr (std::is_signed_v<T>) {
+            m_sign  = value < T{0};
+            using U = std::make_unsigned_t<T>;
+            assign_magnitude(m_sign ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+        } else {
+            assign_magnitude(value);
+        }
+    }
+    template <detail::signed_or_unsigned T>
+    constexpr basic_big_int(T value, const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+        : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
+        if constexpr (std::is_signed_v<T>) {
+            m_sign  = value < T{0};
+            using U = std::make_unsigned_t<T>;
+            assign_magnitude(m_sign ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+        } else {
+            assign_magnitude(value);
+        }
+    }
+    template <std::ranges::input_range R>
+        requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
+    constexpr explicit basic_big_int(std::from_range_t, R&& r, const Allocator& a = Allocator())
+        : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
+        std::size_t i = 0;
+        for (auto&& elem : r) {
+            using U        = std::make_unsigned_t<std::ranges::range_value_t<R>>;
+            m_data.la[i++] = static_cast<limb_type>(static_cast<U>(elem));
+        }
+        m_limbs = i == 0 ? 1 : i;
+        while (m_limbs > 1 && m_data.la[m_limbs - 1] == 0) {
+            --m_limbs;
+        }
+    }
 
     // TODO(mborland): Add additional constructors from P4444
 
@@ -156,6 +196,25 @@ class basic_big_int {
         auto copy = std::move(*this);
         copy.m_sign ^= 1;
         return copy;
+    }
+
+  private:
+    template <std::unsigned_integral T>
+    constexpr void assign_magnitude(T value) noexcept {
+        if constexpr (sizeof(T) <= sizeof(limb_type)) {
+            m_data.la[0] = static_cast<limb_type>(value);
+            m_limbs      = 1;
+        } else {
+            constexpr std::size_t n = sizeof(T) / sizeof(limb_type);
+            for (std::size_t i = 0; i < n; ++i) {
+                m_data.la[i] = static_cast<limb_type>(value);
+                value >>= bits_per_limb;
+            }
+            m_limbs = n;
+            while (m_limbs > 1 && m_data.la[m_limbs - 1] == 0) {
+                --m_limbs;
+            }
+        }
     }
 };
 
