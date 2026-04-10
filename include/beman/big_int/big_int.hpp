@@ -111,10 +111,30 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int(const basic_big_int& x)     = default;
     constexpr basic_big_int(basic_big_int&& x) noexcept = default;
 
+    // Defined inline: MSVC cannot match out-of-line definitions
+    // of constructors with conditional explicit + requires.
     template <detail::arbitrary_arithmetic T>
         requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
     constexpr explicit(!detail::is_implicit_constructible_from<inplace_bits, Allocator, T>)
-        basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
+        basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+        : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{} {
+        if constexpr (std::is_floating_point_v<T>) {
+            // TODO: Implement this
+            // I think we can go down the RYU route to separate a floating point value into significant, exponent,
+            // sign. Regardless of method, each of the STLs has a method of accomplishing this already as an
+            // implementation detail to <charconv>
+            static_assert(false, "This has not been implemented yet");
+        } else {
+            if constexpr (std::is_signed_v<T>) {
+                set_sign(value < T{0});
+                using U = std::make_unsigned_t<T>;
+                assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value)))
+                                               : static_cast<U>(value));
+            } else {
+                assign_magnitude(value);
+            }
+        }
+    }
 
     template <detail::arbitrary_arithmetic T>
     constexpr basic_big_int(const T&         value,
@@ -190,29 +210,6 @@ basic_big_int<inplace_bits, Allocator>::limb_ptr() const noexcept {
 }
 
 // [big.int.cons] — constructors
-
-template <std::size_t inplace_bits, class Allocator>
-template <detail::arbitrary_arithmetic T>
-    requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>)
-constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(T&& value) noexcept(
-    detail::no_alloc_constructible_from<inplace_bits, T>)
-    : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{} {
-    if constexpr (std::is_floating_point_v<T>) {
-        // TODO: Implement this
-        // I think we can go down the RYU route to separate a floating point value into significant, exponent, sign
-        // Regardless of method, each of the STLs has a method of accomplishing this already as an implementation
-        // detail to <charconv>
-        static_assert(false, "This has not been implemented yet");
-    } else {
-        if constexpr (std::is_signed_v<T>) {
-            set_sign(value < T{0});
-            using U = std::make_unsigned_t<T>;
-            assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
-        } else {
-            assign_magnitude(value);
-        }
-    }
-}
 
 template <std::size_t inplace_bits, class Allocator>
 template <detail::arbitrary_arithmetic T>
