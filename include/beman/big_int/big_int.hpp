@@ -108,8 +108,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int() noexcept(noexcept(Allocator())) : m_capacity{0}, m_size_and_sign{1}, m_storage{} {}
     constexpr explicit basic_big_int(const Allocator& a) noexcept
         : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {}
-    constexpr basic_big_int(const basic_big_int& x)     = default;
-    constexpr basic_big_int(basic_big_int&& x) noexcept = default;
+    constexpr basic_big_int(const basic_big_int& x);
+    constexpr basic_big_int(basic_big_int&& x) noexcept;
+    constexpr basic_big_int& operator=(const basic_big_int& x);
+    constexpr basic_big_int& operator=(basic_big_int&& x) noexcept;
 
     // Defined inline: MSVC cannot match out-of-line definitions
     // of constructors with conditional explicit + requires.
@@ -217,6 +219,85 @@ basic_big_int<inplace_bits, Allocator>::limb_ptr() const noexcept {
 }
 
 // [big.int.cons] — constructors
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const basic_big_int& x)
+    : m_capacity{0}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{x.m_alloc} {
+    if (x.is_storage_static()) {
+        for (std::size_t i = 0; i < inplace_limbs; ++i) {
+            m_storage.limbs[i] = x.m_storage.limbs[i];
+        }
+    } else {
+        m_capacity     = x.m_capacity;
+        m_storage.data = alloc_limbs(m_capacity);
+        std::copy_n(x.m_storage.data, x.limb_count(), m_storage.data);
+    }
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(basic_big_int&& x) noexcept
+    : m_capacity{x.m_capacity}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{std::move(x.m_alloc)} {
+    if (x.is_storage_static()) {
+        for (std::size_t i = 0; i < inplace_limbs; ++i) {
+            m_storage.limbs[i] = x.m_storage.limbs[i];
+        }
+    } else {
+        m_storage.data    = x.m_storage.data;
+        x.m_capacity      = 0;
+        x.m_size_and_sign = 1;
+    }
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr basic_big_int<inplace_bits, Allocator>&
+basic_big_int<inplace_bits, Allocator>::operator=(const basic_big_int& x) {
+    if (this == &x) {
+        return *this;
+    }
+
+    free_storage();
+    m_size_and_sign = x.m_size_and_sign;
+    m_alloc         = x.m_alloc;
+
+    if (x.is_storage_static()) {
+        m_capacity = 0;
+        for (std::size_t i = 0; i < inplace_limbs; ++i) {
+            m_storage.limbs[i] = x.m_storage.limbs[i];
+        }
+    } else {
+        m_capacity     = x.m_capacity;
+        m_storage.data = alloc_limbs(m_capacity);
+        std::copy_n(x.m_storage.data, x.limb_count(), m_storage.data);
+    }
+
+    return *this;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr basic_big_int<inplace_bits, Allocator>&
+basic_big_int<inplace_bits, Allocator>::operator=(basic_big_int&& x) noexcept {
+    if (this == &x) {
+        return *this;
+    }
+
+    free_storage();
+    m_size_and_sign = x.m_size_and_sign;
+    m_alloc         = std::move(x.m_alloc);
+
+    if (x.is_storage_static()) {
+        m_capacity = 0;
+        for (std::size_t i = 0; i < inplace_limbs; ++i) {
+            m_storage.limbs[i] = x.m_storage.limbs[i];
+        }
+    } else {
+        m_capacity        = x.m_capacity;
+        m_storage.data    = x.m_storage.data;
+        x.m_capacity      = 0;
+        x.m_size_and_sign = 1;
+    }
+
+    return *this;
+}
 
 template <std::size_t inplace_bits, class Allocator>
 template <detail::arbitrary_arithmetic T>
