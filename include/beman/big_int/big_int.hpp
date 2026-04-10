@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <span>
 #if __has_include(<stdfloat>)
-#include <stdfloat>
+    #include <stdfloat>
 #endif
 
 #include <beman/big_int/config.hpp>
