@@ -60,20 +60,10 @@ inline constexpr bool is_implicit_constructible_from =
 template <std::size_t inplace_bits, class Allocator>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
-    using limb_type        = uint_multiprecision_t;
-    using signed_limb_type = std::make_signed_t<limb_type>;
-
-#ifdef _MSC_VER
-
-    using double_limb_type        = std::_Unsigned128;
-    using signed_double_limb_type = std::_Signed128;
-
-#else
-
-    using double_limb_type        = unsigned __int128;
-    using signed_double_limb_type = __int128;
-
-#endif
+    using limb_type               = uint_multiprecision_t;
+    using double_limb_type        = detail::uint128_t;
+    using signed_limb_type        = std::make_signed_t<limb_type>;
+    using signed_double_limb_type = detail::int128_t;
 
     using allocator_type     = std::allocator_traits<Allocator>::template rebind_alloc<limb_type>;
     using alloc_traits       = std::allocator_traits<allocator_type>;
