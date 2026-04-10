@@ -163,6 +163,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
   private:
     template <std::unsigned_integral T>
     constexpr void assign_magnitude(T value) noexcept;
+
+    [[nodiscard]] constexpr limb_pointer       alloc_limbs(std::size_t n);
+    constexpr void                             free_limbs(limb_pointer p, std::size_t n);
+    constexpr void                             free_storage();
+    constexpr void                             grow(std::size_t limbs_needed);
 };
 
 // =============================================================================
@@ -337,6 +342,52 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_magnitude(T value)
     }
 }
 
+template <std::size_t inplace_bits, class Allocator>
+constexpr basic_big_int<inplace_bits, Allocator>::limb_pointer
+basic_big_int<inplace_bits, Allocator>::alloc_limbs(const std::size_t n) {
+    if consteval {
+        return new limb_type[n]{};
+    } else {
+        return alloc_traits::allocate(m_alloc, n);
+    }
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::free_limbs(limb_pointer p, const std::size_t n) {
+    if consteval {
+        delete[] p;
+    } else {
+        alloc_traits::deallocate(m_alloc, p, n);
+    }
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::free_storage() {
+    if (!is_storage_static()) {
+        free_limbs(m_storage.data, m_capacity);
+    }
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::grow(const std::size_t limbs_needed) {
+    const std::size_t current_cap = is_storage_static() ? inplace_limbs : m_capacity;
+    if (limbs_needed <= current_cap) {
+        return;
+    }
+
+    // libstdc++ and libc++ normally double storage each allocation
+    // MSVC does 1.5x instead of 2x
+    const std::size_t new_cap  = std::max(limbs_needed, 2 * current_cap);
+    limb_pointer      new_data = alloc_limbs(new_cap);
+
+    std::copy_n(limb_ptr(), limb_count(), new_data);
+    free_storage();
+
+    m_storage.data = new_data;
+    m_capacity     = static_cast<std::uint32_t>(new_cap);
+}
+
+// Standard public alias for defaulted type
 using big_int = basic_big_int<128U, std::allocator<uint_multiprecision_t>>;
 
 } // namespace beman::big_int
