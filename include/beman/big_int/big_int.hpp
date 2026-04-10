@@ -321,9 +321,26 @@ constexpr std::size_t basic_big_int<inplace_bits, Allocator>::capacity() const n
 
 template <std::size_t inplace_bits, class Allocator>
 constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
-    if (m_capacity > limb_count()) {
-        const std::uint32_t limbs_to_remove = m_capacity - limb_count();
-        free_limbs(limb_ptr(), limbs_to_remove);
+    const auto count = limb_count();
+
+    if (is_storage_static() || m_capacity <= count) {
+        return;
+    }
+
+    if (count <= inplace_limbs) {
+        // Move back to inline storage
+        limb_pointer old_data = m_storage.data;
+        const auto   old_cap  = m_capacity;
+        std::copy_n(old_data, count, m_storage.limbs);
+        m_capacity = 0;
+        free_limbs(old_data, old_cap);
+    } else {
+        // Reallocate to a smaller heap buffer
+        limb_pointer new_data = alloc_limbs(count);
+        std::copy_n(m_storage.data, count, new_data);
+        free_limbs(m_storage.data, m_capacity);
+        m_storage.data = new_data;
+        m_capacity     = static_cast<std::uint32_t>(count);
     }
 }
 
