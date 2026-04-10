@@ -249,7 +249,7 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(std::from_range_
         const auto count = std::ranges::size(r);
         if (count > inplace_limbs) {
             m_capacity     = static_cast<std::uint32_t>(count);
-            m_storage.data = alloc_traits::allocate(m_alloc, count);
+            m_storage.data = alloc_limbs(count);
         }
     }
 
