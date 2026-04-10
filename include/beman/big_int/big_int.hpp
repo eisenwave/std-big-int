@@ -58,7 +58,7 @@ inline constexpr bool is_implicit_constructible_from =
 //  template<size_t inplace_bits, class Allocator = allocator<uint_multiprecision_t>>
 //    class basic_big_int;
 template <std::size_t inplace_bits, class Allocator>
-class basic_big_int {
+class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     using limb_type        = uint_multiprecision_t;
     using signed_limb_type = std::make_signed_t<limb_type>;
