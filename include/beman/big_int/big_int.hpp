@@ -148,11 +148,14 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr ~basic_big_int();
 
     // [big.int.ops]
-    [[nodiscard]] constexpr std::size_t                            width_mag() const noexcept;
-    [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
-    [[nodiscard]] constexpr allocator_type                         get_allocator() const noexcept;
-
-    // constexpr void shrink_to_fit()
+    [[nodiscard]] constexpr        std::size_t                            width_mag() const noexcept;
+    [[nodiscard]] constexpr        std::span<const uint_multiprecision_t> representation() const noexcept;
+    [[nodiscard]] constexpr        allocator_type                         get_allocator() const noexcept;
+    [[nodiscard]] constexpr        std::size_t                            size() const noexcept;
+    [[nodiscard]] static constexpr std::size_t                            max_size() noexcept;
+    constexpr void                                                        reserve(std::size_t n);
+    [[nodiscard]] constexpr        std::size_t                            capacity() const noexcept;
+    constexpr void                                                        shrink_to_fit();
 
     // [big.int.unary]
     [[nodiscard]] constexpr basic_big_int operator+() const&;
@@ -293,6 +296,39 @@ template <std::size_t inplace_bits, class Allocator>
 constexpr basic_big_int<inplace_bits, Allocator>::allocator_type
 basic_big_int<inplace_bits, Allocator>::get_allocator() const noexcept {
     return m_alloc;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr std::size_t basic_big_int<inplace_bits, Allocator>::size() const noexcept {
+    if (is_storage_static()) {
+        return inplace_limbs;
+    } else {
+        return limb_count();
+    }
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr std::size_t basic_big_int<inplace_bits, Allocator>::max_size() noexcept {
+    // We use the high bit to encode the sign, so we are limited to 2^31
+    return std::numeric_limits<std::uint32_t>::max() >> 1U;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::reserve(const std::size_t n) {
+    grow(n);
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr std::size_t basic_big_int<inplace_bits, Allocator>::capacity() const noexcept {
+    return m_capacity;
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
+    if (m_capacity > limb_count()) {
+        const std::uint32_t limbs_to_remove = m_capacity - limb_count();
+        free_limbs(limb_ptr(), limbs_to_remove);
+    }
 }
 
 // [big.int.unary]
