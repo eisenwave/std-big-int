@@ -146,8 +146,7 @@ class basic_big_int {
 
     template <detail::arbitrary_arithmetic T>
     constexpr basic_big_int(const T&         value,
-                            const Allocator& a)
-    noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+                            const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
         if constexpr (std::is_floating_point_v<T>) {
             // TODO: Implement this
