@@ -410,10 +410,17 @@ constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
 
     if (count <= inplace_limbs) {
         // Move back to inline storage
+        // We need a manual loop to switch the active union member in consteval context
+        // At runtime this should become equivalent to std::copy_n
         limb_pointer old_data = m_storage.data;
         const auto   old_cap  = m_capacity;
-        std::copy_n(old_data, count, m_storage.limbs);
         m_capacity = 0;
+        for (std::uint32_t i = 0; i < count; ++i) {
+            m_storage.limbs[i] = old_data[i];
+        }
+        for (std::size_t i = count; i < inplace_limbs; ++i) {
+            m_storage.limbs[i] = 0;
+        }
         free_limbs(old_data, old_cap);
     } else {
         // Reallocate to a smaller heap buffer
