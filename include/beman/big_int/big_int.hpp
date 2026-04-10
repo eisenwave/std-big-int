@@ -216,12 +216,12 @@ class basic_big_int {
 
     [[nodiscard]] constexpr basic_big_int operator-() const& {
         auto copy = *this;
-        copy.m_sign ^= 1;
+        copy.m_sign = !copy.m_sign;
         return copy;
     }
     [[nodiscard]] constexpr basic_big_int operator-() && noexcept {
         auto copy = std::move(*this);
-        copy.m_sign ^= 1;
+        copy.m_sign = !copy.m_sign;
         return copy;
     }
 

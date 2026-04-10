@@ -15,5 +15,8 @@ foreach(test_source ${TEST_SOURCES})
         ${test_target}
         PRIVATE beman::big_int GTest::gtest_main
     )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(${test_target} PRIVATE -Wall -Werror -Wextra)
+    endif()
     gtest_discover_tests(${test_target})
 endforeach()
