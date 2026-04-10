@@ -127,8 +127,8 @@ class basic_big_int {
         basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
     template <detail::arbitrary_arithmetic T>
-    constexpr basic_big_int(const T& value, const Allocator& a) noexcept(
-        detail::no_alloc_constructible_from<inplace_bits, T>);
+    constexpr basic_big_int(const T&         value,
+                            const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
@@ -165,8 +165,8 @@ class basic_big_int {
 template <std::size_t inplace_bits, class Allocator>
 template <detail::arbitrary_arithmetic T>
     requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>)
-constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(
-    T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(T&& value) noexcept(
+    detail::no_alloc_constructible_from<inplace_bits, T>)
     : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{} {
     if constexpr (std::is_floating_point_v<T>) {
         // TODO: Implement this
@@ -187,8 +187,8 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(
 
 template <std::size_t inplace_bits, class Allocator>
 template <detail::arbitrary_arithmetic T>
-constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(
-    const T& value, const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const T& value, const Allocator& a) noexcept(
+    detail::no_alloc_constructible_from<inplace_bits, T>)
     : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
     if constexpr (std::is_floating_point_v<T>) {
         // TODO: Implement this
