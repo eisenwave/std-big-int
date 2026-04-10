@@ -142,6 +142,21 @@ class basic_big_int {
     [[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_alloc; }
 
     // constexpr void shrink_to_fit()
+
+    // [big.int.unary]
+    [[nodiscard]] constexpr basic_big_int operator+() const& { return *this; }
+    [[nodiscard]] constexpr basic_big_int operator+() && noexcept { return std::move(*this); }
+
+    [[nodiscard]] constexpr basic_big_int operator-() const& {
+        auto copy = *this;
+        copy.m_sign ^= 1;
+        return copy;
+    }
+    [[nodiscard]] constexpr basic_big_int operator-() && noexcept {
+        auto copy = std::move(*this);
+        copy.m_sign ^= 1;
+        return copy;
+    }
 };
 
 using big_int = basic_big_int<128U, std::allocator<uint_multiprecision_t>>;
