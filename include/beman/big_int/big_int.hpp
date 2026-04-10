@@ -147,6 +147,8 @@ class basic_big_int {
 
     [[nodiscard]] constexpr allocator_type get_allocator() const noexcept { return m_alloc; }
 
+    // constexpr void shrink_to_fit()
+
     // [big.int.unary]
     [[nodiscard]] constexpr basic_big_int operator+() const& { return *this; }
     [[nodiscard]] constexpr basic_big_int operator+() && noexcept { return std::move(*this); }
@@ -161,8 +163,6 @@ class basic_big_int {
         copy.m_sign ^= 1;
         return copy;
     }
-
-    // constexpr void shrink_to_fit()
 };
 
 template <class Allocator = std::allocator<uint_multiprecision_t>>
