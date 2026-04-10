@@ -14,16 +14,13 @@
 #include <span>
 #include <concepts>
 
-#ifdef _MSC_VER
-
-    #include <__msvc_int128.hpp>
-
-#endif // _MSC_VER
+#include <beman/big_int/config.hpp>
+#include <beman/big_int/wide_ops.hpp>
 
 namespace beman::big_int {
 
 // alias uint_multiprecision_t
-using uint_multiprecision_t = std::uint64_t;
+using beman::big_int::uint_multiprecision_t;
 
 // Forward decl so that we can define our concepts
 template <std::size_t inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
@@ -41,9 +38,6 @@ template <class T>
 inline constexpr bool is_basic_big_int_v = is_basic_big_int<std::remove_cvref_t<T>>::value;
 
 // [big.ing.expos]
-template <class T>
-concept signed_or_unsigned = std::is_signed_v<T> || std::is_unsigned_v<T>;
-
 template <class T>
 concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail::is_basic_big_int_v<T>;
 
@@ -150,8 +144,7 @@ class basic_big_int {
     // constexpr void shrink_to_fit()
 };
 
-template <class Allocator = std::allocator<uint_multiprecision_t>>
-using big_int = basic_big_int<128U, Allocator>;
+using big_int = basic_big_int<128U, std::allocator<uint_multiprecision_t>>;
 
 } // namespace beman::big_int
 

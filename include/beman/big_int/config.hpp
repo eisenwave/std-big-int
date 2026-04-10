@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+#ifndef BEMAN_BIG_INT_CONFIG_HPP
+#define BEMAN_BIG_INT_CONFIG_HPP
+
+// Compiler identification =====================================================
+
+#if defined(_MSC_VER)
+    #define BEMAN_BIG_INT_MSVC _MSC_VER
+#elif defined(__clang__)
+    #define BEMAN_BIG_INT_CLANG __clang__
+#elif defined(__GNUC__)
+    #define BEMAN_BIG_INT_GCC __GNUC__
+#else
+    #error "Unknown compiler (none of MSVC, Clang, GCC)."
+#endif
+
+#ifdef __GNUC__
+    // Separate case for any GNU-C-compliant compilers,
+    // which is both GCC and Clang.
+    #define BEMAN_BIG_INT_GNUC __GNUC__
+#endif
+
+// _BitInt detection ===========================================================
+
+#include <climits> // for BITINT_MAXWIDTH
+
+#ifdef BITINT_MAXWIDTH
+    // Once _BitInt is a standard feature and available on all compilers,
+    // this case should be selected for all compilers.
+    #define BEMAN_BIG_INT_BITINT_MAXWIDTH BITINT_MAXWIDTH
+    #define BEMAN_BIG_INT_HAS_BITINT 1
+#elif defined(__BITINT_MAXWIDTH__)
+    // This case is for Clang when it provides _BitInt as an extension.
+    #define BEMAN_BIG_INT_BITINT_MAXWIDTH __BITINT_MAXWIDTH__
+    #define BEMAN_BIG_INT_HAS_BITINT 1
+#else
+    // Prevent warnings for use of undefined macros.
+    #define BEMAN_BIG_INT_BITINT_MAXWIDTH 0
+#endif // BITINT_MAXWIDTH
+
+// 128-bit integer support =====================================================
+
+#ifdef BEMAN_BIG_INT_MSVC
+    #include <__msvc_int128.hpp>
+#endif // BEMAN_BIG_INT_MSVC
+
+namespace beman::big_int::detail {
+
+#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
+using int128_t  = _BitInt(128);
+using uint128_t = unsigned _BitInt(128);
+#elif defined(BEMAN_BIG_INT_GNUC)
+using int128_t  = __int128;
+using uint128_t = unsigned __int128;
+#elif defined(BEMAN_BIG_INT_MSVC)
+using int128_t  = std::_Signed128;
+using uint128_t = std::_Unsigned128;
+#else
+    #error "128-bit integer support is required."
+#endif
+
+} // namespace beman::big_int::detail
+
+// Limb type selection =========================================================
+
+namespace beman::big_int {
+
+// We currently assume 64-bit,
+// so we just hardcode using unsigned long long.
+
+using uint_multiprecision_t = unsigned long long;
+
+namespace detail {
+
+// Signed counterpart to uint_multiprecision_t.
+using int_multiprecision_t = long long;
+// Unsigned integer type with twice the width of uint_multiprecision_t.
+using uint_wide_t = uint128_t;
+// Signed integer type with twice the width of int_multiprecision_t.
+using int_wide_t = int128_t;
+
+} // namespace detail
+
+} // namespace beman::big_int
+
+// Concepts ====================================================================
+
+#include <type_traits>
+
+namespace beman::big_int::detail {
+
+template <class T>
+concept cv_unqualified = !std::is_const_v<T> && !std::is_volatile_v<T>;
+
+// Modeled if `T` is a signed or unsigned integer type.
+// That is, a standard integer type, extended integer type, or bit-precise integer type.
+template <class T>
+concept signed_or_unsigned =
+    std::is_integral_v<T> && cv_unqualified<T> //
+    && !std::is_same_v<T, bool> && !std::is_same_v<T, char> && !std::is_same_v<T, wchar_t> &&
+    !std::is_same_v<T, char8_t> && !std::is_same_v<T, char16_t> && !std::is_same_v<T, char32_t>;
+
+// Modeled if `T` is a standard unsigned, extended unsigned, or bit-precise unsigned integer type.
+template <class T>
+concept unsigned_integer = signed_or_unsigned<T> && std::is_unsigned_v<T>;
+// Modeled if `T` is a standard signed, extended signed, or bit-precise signed integer type.
+template <class T>
+concept signed_integer = signed_or_unsigned<T> && std::is_signed_v<T>;
+
+} // namespace beman::big_int::detail
+
+#endif // BEMAN_BIG_INT_CONFIG_HPP
