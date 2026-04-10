@@ -14,7 +14,9 @@
 #include <ranges>
 #include <type_traits>
 #include <span>
+#if __has_include(<stdfloat>)
 #include <stdfloat>
+#endif
 
 #include <beman/big_int/config.hpp>
 #include <beman/big_int/wide_ops.hpp>
