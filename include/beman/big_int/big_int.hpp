@@ -118,9 +118,10 @@ class basic_big_int {
         : m_data{}, m_limbs{1}, m_sign{}, m_internal{true}, m_alloc{a} {}
     constexpr basic_big_int(const basic_big_int& x)     = default;
     constexpr basic_big_int(basic_big_int&& x) noexcept = default;
+
     template <detail::signed_or_unsigned T>
     constexpr explicit(!detail::is_implicit_constructible_from<inplace_bits, Allocator, T>)
-        basic_big_int(T value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+        basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{} {
         if constexpr (std::is_signed_v<T>) {
             m_sign  = value < T{0};
@@ -130,8 +131,9 @@ class basic_big_int {
             assign_magnitude(value);
         }
     }
+
     template <detail::signed_or_unsigned T>
-    constexpr basic_big_int(T value, const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+    constexpr basic_big_int(const T& value, const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{a} {
         if constexpr (std::is_signed_v<T>) {
             m_sign  = value < T{0};
@@ -141,6 +143,7 @@ class basic_big_int {
             assign_magnitude(value);
         }
     }
+
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
     constexpr explicit basic_big_int(std::from_range_t, R&& r, const Allocator& a = Allocator())
