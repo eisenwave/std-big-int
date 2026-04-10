@@ -44,6 +44,11 @@ concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail
 
 template <std::size_t inplace_bits, class T>
 inline constexpr bool no_alloc_constructible_from = sizeof(std::remove_cvref_t<T>) * CHAR_BIT <= inplace_bits;
+
+template <std::size_t inplace_bits, class Allocator, class T>
+inline constexpr bool is_implicit_constructible_from =
+    detail::signed_or_unsigned<std::remove_cvref_t<T>> ||
+    std::is_same_v<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>;
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -114,8 +119,8 @@ class basic_big_int {
     constexpr basic_big_int(const basic_big_int& x)     = default;
     constexpr basic_big_int(basic_big_int&& x) noexcept = default;
     template <detail::signed_or_unsigned T>
-    // TODO(alcxpr): this should be explicit conditionally when `T` is anything that's not standard integral type
-    constexpr explicit(false) basic_big_int(T value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
+    constexpr explicit(!detail::is_implicit_constructible_from<inplace_bits, Allocator, T>)
+        basic_big_int(T value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{} {
         if constexpr (std::is_signed_v<T>) {
             m_sign  = value < T{0};
