@@ -123,6 +123,7 @@ class basic_big_int {
     constexpr basic_big_int(basic_big_int&& x) noexcept = default;
 
     template <detail::arbitrary_arithmetic T>
+        requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
     constexpr explicit(!detail::is_implicit_constructible_from<inplace_bits, Allocator, T>)
         basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_data{}, m_limbs{1}, m_sign{false}, m_internal{true}, m_alloc{} {
