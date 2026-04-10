@@ -14,28 +14,67 @@ namespace beman::big_int::detail {
 template <std::integral T>
 inline constexpr std::size_t width_v = std::numeric_limits<std::make_unsigned_t<T>>::digits;
 
+// Denotes the integer type with twice the width of `T`
+// and with the same signedness.
+// For now, only integers with the same width as `uint_multiprecision_t` are supported.
+template <signed_or_unsigned T>
+    requires(width_v<T> == width_v<uint_multiprecision_t>)
+using wider_t = std::conditional_t<std::is_signed_v<T>, int_wide_t, uint_wide_t>;
+
+template <signed_or_unsigned T>
 struct wide {
-    uint_multiprecision_t low_bits;
-    uint_multiprecision_t high_bits;
+    T low_bits;
+    T high_bits;
+
+    [[nodiscard]] static constexpr wide from_int(wider_t<T> x) noexcept {
+        if constexpr (std::endian::native == std::endian::little) {
+            return std::bit_cast<wide>(x);
+        } else {
+            return {
+                .low_bits  = static_cast<T>(x),
+                .high_bits = static_cast<T>(x >> width_v<T>),
+            };
+        }
+    }
+
+    [[nodiscard]] constexpr wider_t<T> to_int() const noexcept {
+        if constexpr (std::endian::native == std::endian::little) {
+            return std::bit_cast<wider_t<T>>(*this);
+        } else {
+            return (static_cast<wider_t<T>>(high_bits) << width_v<T>) | low_bits;
+        }
+    }
+
+    [[nodiscard]] friend constexpr bool operator==(const wide& x, const wide& y) noexcept = default;
 };
 
-[[nodiscard]] constexpr wide widening_mul(uint_multiprecision_t x, uint_multiprecision_t y) noexcept {
+template <signed_or_unsigned T>
+[[nodiscard]] constexpr wide<T> widening_mul(T x, T y) noexcept {
     // Based on mul_wide from P3161R4, but with different names.
     // P4052R0 renamed "mul_sat" to "saturating_mul",
     // and the corresponding Rust-style rename for "mul_wide" is "widening_mul".
     //
-    // Currently, it would be fine if we just returning uint_wide_t,
-    // but enshrines the assumption that we have a 128-bit integer type everywhere.
+    // Currently, it would be fine if we just returned an integer,
+    // but that enshrines the assumption that we have a 128-bit integer type everywhere.
     // Also, we often need to break up the result into limbs anyway.
-    auto product = static_cast<uint_wide_t>(x) * static_cast<uint_wide_t>(y);
-    if constexpr (std::endian::native == std::endian::little) {
-        return std::bit_cast<wide>(product);
-    } else {
-        return {
-            .low_bits  = static_cast<uint_multiprecision_t>(product),
-            .high_bits = static_cast<uint_multiprecision_t>(product >> 64),
-        };
-    }
+    auto product = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
+    return wide<T>::from_int(product);
+}
+
+// Returns `x.high_bits << s`,
+// except that the low bits are filled with `x.low_bits` instead of zeroes.
+template <signed_or_unsigned T>
+[[nodiscard]] constexpr T funnel_shl(wide<T> x, unsigned s) {
+    // Design similar to P4010R0.
+    return static_cast<T>(x.to_int() << s);
+}
+
+// Returns `x.low_bits >> s`,
+// except that the high bits are filled with `x.high_bits` instead sign bits.
+template <signed_or_unsigned T>
+[[nodiscard]] constexpr T funnel_shr(wide<T> x, unsigned s) {
+    // Design similar to P4010R0.
+    return static_cast<T>(x.to_int() >> s);
 }
 
 template <class T>
@@ -96,7 +135,7 @@ struct carry_result {
 };
 
 template <unsigned_integer T>
-[[nodiscard]] constexpr carry_result<T> carrying_add(T x, T y, bool carry) noexcept {
+[[nodiscard]] constexpr carry_result<T> carrying_add(T x, T y, bool carry = false) noexcept {
     static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
 #ifdef BEMAN_BIG_INT_GNUC
     bool               carry_out;
@@ -116,7 +155,7 @@ struct borrow_result {
 };
 
 template <unsigned_integer T>
-[[nodiscard]] constexpr borrow_result<T> borrowing_sub(T x, T y, bool borrow) noexcept {
+[[nodiscard]] constexpr borrow_result<T> borrowing_sub(T x, T y, bool borrow = false) noexcept {
     static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
 #ifdef BEMAN_BIG_INT_GNUC
     bool               borrow_out;
@@ -127,6 +166,45 @@ template <unsigned_integer T>
     bool borrow_out = (result >> 64) != 0;
     return {.value = static_cast<T>(result), .borrow = borrow_out};
 #endif // BEMAN_BIG_INT_GNUC
+}
+
+template <class T>
+[[nodiscard]] constexpr bool is_div_wide_defined(wide<T> x, T divisor) noexcept {
+    return x.high_bits < divisor;
+}
+
+template <signed_or_unsigned T>
+struct div_result {
+    T quotient;
+    T remainder;
+};
+
+// Returns the quotient and remainder of the division `x / y`.
+// The behavior is undefined if the quotient is not representable as `T`,
+// which is the case if and only if `x.high_bits < y`.
+template <unsigned_integer T>
+[[nodiscard]] constexpr div_result<T> narrowing_div(wide<T> x, T y) noexcept {
+    static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
+    if (!std::is_constant_evaluated()) {
+        if (x.high_bits >= y) {
+            // TODO: add assertion; this is the UB case.
+            return {.quotient = 0, .remainder = 0};
+        }
+#if defined(BEMAN_BIG_INT_GNUC)
+        T q, r;
+        __asm__("idiv %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
+        return {.quotient = q, .remainder = r};
+#elif defined(_WIN32)
+        T r;
+        T q = _udiv128(static_cast<T>(x.high_bits), static_cast<T>(x.low_bits), static_cast<T>(y), &r);
+        return {.quotient = static_cast<T>(q), .remainder = static_cast<T>(r)};
+#endif
+    }
+    auto x_int = x.to_int();
+    return {
+        .quotient  = static_cast<T>(x_int / y),
+        .remainder = static_cast<T>(x_int % y),
+    };
 }
 
 } // namespace beman::big_int::detail
