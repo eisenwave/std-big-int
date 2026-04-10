@@ -59,8 +59,8 @@ static_assert(test_reserve_doubling());
 
 consteval bool test_reserve_grows_geometrically() {
     beman::big_int::big_int x;
-    x.reserve(3);              // cap = max(3, 2*2) = 4
-    x.reserve(5);              // cap = max(5, 2*4) = 8
+    x.reserve(3); // cap = max(3, 2*2) = 4
+    x.reserve(5); // cap = max(5, 2*4) = 8
     return x.capacity() == 8;
 }
 static_assert(test_reserve_grows_geometrically());
@@ -129,8 +129,8 @@ TEST(Allocation, ReserveDoubling) {
 
 TEST(Allocation, ReserveGrowsGeometrically) {
     beman::big_int::big_int x;
-    x.reserve(3);  // cap = 4
-    x.reserve(5);  // cap = max(5, 2*4) = 8
+    x.reserve(3); // cap = 4
+    x.reserve(5); // cap = max(5, 2*4) = 8
     EXPECT_EQ(x.capacity(), 8U);
 }
 
@@ -178,7 +178,7 @@ TEST(Allocation, CopyConstructHeapAllocated) {
 TEST(Allocation, MoveConstructHeapAllocated) {
     beman::big_int::big_int x{42U};
     x.reserve(8);
-    auto cap = x.capacity();
+    auto                    cap = x.capacity();
     beman::big_int::big_int y(std::move(x));
     EXPECT_EQ(y.representation()[0], 42U);
     EXPECT_EQ(y.capacity(), cap);
@@ -222,7 +222,7 @@ TEST(Allocation, SelfAssignment) {
     beman::big_int::big_int x{42U};
     x.reserve(8);
     auto& ref = x;
-    x = ref;
+    x         = ref;
     EXPECT_EQ(x.representation()[0], 42U);
 }
 
@@ -250,7 +250,7 @@ TEST(Allocation, ShrinkToFitWhenCapacityEqualsCount) {
 
 TEST(Allocation, FromRangeLargeAllocatesThenDestroys) {
     std::array<beman::big_int::uint_multiprecision_t, 8> limbs{1, 2, 3, 4, 5, 6, 7, 8};
-    beman::big_int::big_int x(std::from_range, limbs);
+    beman::big_int::big_int                              x(std::from_range, limbs);
     EXPECT_EQ(x.representation().size(), 8U);
     EXPECT_EQ(x.representation()[0], 1U);
     EXPECT_EQ(x.representation()[7], 8U);

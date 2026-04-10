@@ -150,14 +150,14 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr ~basic_big_int();
 
     // [big.int.ops]
-    [[nodiscard]] constexpr        std::size_t                            width_mag() const noexcept;
-    [[nodiscard]] constexpr        std::span<const uint_multiprecision_t> representation() const noexcept;
-    [[nodiscard]] constexpr        allocator_type                         get_allocator() const noexcept;
-    [[nodiscard]] constexpr        std::size_t                            size() const noexcept;
-    [[nodiscard]] static constexpr std::size_t                            max_size() noexcept;
-    constexpr void                                                        reserve(std::size_t n);
-    [[nodiscard]] constexpr        std::size_t                            capacity() const noexcept;
-    constexpr void                                                        shrink_to_fit();
+    [[nodiscard]] constexpr std::size_t                            width_mag() const noexcept;
+    [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
+    [[nodiscard]] constexpr allocator_type                         get_allocator() const noexcept;
+    [[nodiscard]] constexpr std::size_t                            size() const noexcept;
+    [[nodiscard]] static constexpr std::size_t                     max_size() noexcept;
+    constexpr void                                                 reserve(std::size_t n);
+    [[nodiscard]] constexpr std::size_t                            capacity() const noexcept;
+    constexpr void                                                 shrink_to_fit();
 
     // [big.int.unary]
     [[nodiscard]] constexpr basic_big_int operator+() const&;
@@ -169,10 +169,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::unsigned_integral T>
     constexpr void assign_magnitude(T value) noexcept;
 
-    [[nodiscard]] constexpr limb_pointer       alloc_limbs(std::size_t n);
-    constexpr void                             free_limbs(limb_pointer p, std::size_t n);
-    constexpr void                             free_storage();
-    constexpr void                             grow(std::size_t limbs_needed);
+    [[nodiscard]] constexpr limb_pointer alloc_limbs(std::size_t n);
+    constexpr void                       free_limbs(limb_pointer p, std::size_t n);
+    constexpr void                       free_storage();
+    constexpr void                       grow(std::size_t limbs_needed);
 };
 
 // =============================================================================
@@ -414,7 +414,7 @@ constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
         // At runtime this should become equivalent to std::copy_n
         limb_pointer old_data = m_storage.data;
         const auto   old_cap  = m_capacity;
-        m_capacity = 0;
+        m_capacity            = 0;
         for (std::uint32_t i = 0; i < count; ++i) {
             m_storage.limbs[i] = old_data[i];
         }
