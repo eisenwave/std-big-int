@@ -87,6 +87,7 @@ using int_wide_t = int128_t;
 
 // Concepts ====================================================================
 
+#include <cstdint>
 #include <type_traits>
 
 namespace beman::big_int::detail {
@@ -111,6 +112,97 @@ concept signed_integer = signed_or_unsigned<T> && std::is_signed_v<T>;
 
 } // namespace beman::big_int::detail
 
+// Traits =======================================================================
+
+#if __has_include(<stdfloat>)
+    #include <stdfloat>
+#endif
+
+namespace beman::big_int::detail {
+template <class F>
+struct ieee_traits;
+
+template <>
+struct ieee_traits<float> {
+    using bits_type                        = std::uint32_t;
+    static constexpr int  mantissa_bits    = 23;
+    static constexpr int  exponent_bits    = 8;
+    static constexpr int  bias             = 127;
+    static constexpr bool explicit_int_bit = false;
+};
+
+template <>
+struct ieee_traits<double> {
+    using bits_type                        = std::uint64_t;
+    static constexpr int  mantissa_bits    = 52;
+    static constexpr int  exponent_bits    = 11;
+    static constexpr int  bias             = 1023;
+    static constexpr bool explicit_int_bit = false;
+};
+
+#ifdef __STDCPP_FLOAT16_T__
+template <>
+struct ieee_traits<std::float16_t> {
+    using bits_type                        = std::uint16_t;
+    static constexpr int  mantissa_bits    = 10;
+    static constexpr int  exponent_bits    = 5;
+    static constexpr int  bias             = 15;
+    static constexpr bool explicit_int_bit = false;
+};
+#endif
+
+#ifdef __STDCPP_BFLOAT16_T__
+template <>
+struct ieee_traits<std::bfloat16_t> {
+    using bits_type                        = std::uint16_t;
+    static constexpr int  mantissa_bits    = 7;
+    static constexpr int  exponent_bits    = 8;
+    static constexpr int  bias             = 127;
+    static constexpr bool explicit_int_bit = false;
+};
+#endif
+
+#ifdef __STDCPP_FLOAT128_T__
+template <>
+struct ieee_traits<std::float128_t> {
+    using bits_type                        = uint128_t;
+    static constexpr int  mantissa_bits    = 112;
+    static constexpr int  exponent_bits    = 15;
+    static constexpr int  bias             = 16383;
+    static constexpr bool explicit_int_bit = false;
+};
+#endif
+
+#if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
+struct long_double_bits {
+    std::uint64_t mantissa : 64;
+    std::uint16_t exponent : 15;
+    std::uint16_t sign : 1;
+};
+template <>
+struct ieee_traits<long double> {
+    using bits_type                        = long_double_bits;
+    static constexpr int  mantissa_bits    = 63;
+    static constexpr int  exponent_bits    = 15;
+    static constexpr int  bias             = 16383;
+    static constexpr bool explicit_int_bit = true;
+};
+#elif __LDBL_MANT_DIG__ == 113 && __LDBL_MAX_EXP__ == 16384
+template <>
+struct ieee_traits<long double> {
+    using bits_type                        = uint128_t;
+    static constexpr int  mantissa_bits    = 112;
+    static constexpr int  exponent_bits    = 15;
+    static constexpr int  bias             = 16383;
+    static constexpr bool explicit_int_bit = false;
+};
+#elif __LDBL_MANT_DIG__ == 53 && __LDBL_MAX_EXP__ == 1024
+template <>
+struct ieee_traits<long double> : ieee_traits<double> {};
+#else
+    #define BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
+#endif
+} // namespace beman::big_int::detail
 // Trivial ABI ==================================================================
 
 #if defined(BEMAN_BIG_INT_CLANG)

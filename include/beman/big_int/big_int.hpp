@@ -7,13 +7,13 @@
 #include <algorithm>
 #include <bit>
 #include <climits>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <ranges>
 #include <type_traits>
 #include <span>
-#include <concepts>
-#include <ranges>
 
 #include <beman/big_int/config.hpp>
 #include <beman/big_int/wide_ops.hpp>
@@ -46,7 +46,13 @@ template <class T>
 concept arbitrary_arithmetic = std::is_floating_point_v<T> || arbitrary_integer<T>;
 
 template <std::size_t inplace_bits, class T>
-inline constexpr bool no_alloc_constructible_from = width_v<std::remove_cvref_t<T>> <= inplace_bits;
+inline constexpr bool no_alloc_constructible_from = []() {
+    if constexpr (std::integral<std::remove_cvref_t<T>>) {
+        return width_v<std::remove_cvref_t<T>> <= inplace_bits;
+    } else {
+        return false;
+    }
+}();
 
 template <std::size_t inplace_bits, class Allocator, class T>
 inline constexpr bool is_implicit_constructible_from =
@@ -120,16 +126,16 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr explicit(!detail::is_implicit_constructible_from<inplace_bits, Allocator, T>)
         basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{} {
-        if constexpr (std::is_floating_point_v<T>) {
-            // TODO: Implement this
-            // I think we can go down the RYU route to separate a floating point value into significant, exponent,
-            // sign. Regardless of method, each of the STLs has a method of accomplishing this already as an
-            // implementation detail to <charconv>
-            static_assert(false, "This has not been implemented yet");
+        if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
+#ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
+            static_assert(!std::is_same_v<std::remove_cvref_t<T>, long double>,
+                          "long double is not supported on this platform");
+#endif
+            assign_from_float(static_cast<std::remove_cvref_t<T>>(value));
         } else {
-            if constexpr (std::is_signed_v<T>) {
-                set_sign(value < T{0});
-                using U = std::make_unsigned_t<T>;
+            if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
+                set_sign(value < std::remove_cvref_t<T>{0});
+                using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
                 assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
             } else {
                 assign_magnitude(value);
@@ -168,6 +174,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
   private:
     template <std::unsigned_integral T>
     constexpr void assign_magnitude(T value) noexcept;
+
+    template <std::floating_point F>
+    constexpr void assign_from_float(F value) noexcept;
 
     [[nodiscard]] constexpr limb_pointer alloc_limbs(std::size_t n);
     constexpr void                       free_limbs(limb_pointer p, std::size_t n);
@@ -304,14 +313,16 @@ template <detail::arbitrary_arithmetic T>
 constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const T& value, const Allocator& a) noexcept(
     detail::no_alloc_constructible_from<inplace_bits, T>)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
-    if constexpr (std::is_floating_point_v<T>) {
-        // TODO: Implement this
-        // See implementation note above
-        static_assert(false, "This has not been implemented yet");
+    if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
+#ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
+        static_assert(!std::is_same_v<std::remove_cvref_t<T>, long double>,
+                      "long double is not supported on this platform");
+#endif
+        assign_from_float(static_cast<std::remove_cvref_t<T>>(value));
     } else {
-        if constexpr (std::is_signed_v<T>) {
-            set_sign(value < T{0});
-            using U = std::make_unsigned_t<T>;
+        if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
+            set_sign(value < std::remove_cvref_t<T>{0});
+            using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
             assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
         } else {
             assign_magnitude(value);
@@ -476,6 +487,89 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_magnitude(T value)
         while (limb_count() > 1 && m_storage.limbs[limb_count() - 1] == 0) {
             set_limb_count(limb_count() - 1);
         }
+    }
+}
+
+template <std::size_t inplace_bits, class Allocator>
+template <std::floating_point F>
+constexpr void basic_big_int<inplace_bits, Allocator>::assign_from_float(F value) noexcept {
+    using traits = detail::ieee_traits<F>;
+    using bits_t = typename traits::bits_type;
+
+    constexpr int mb   = traits::mantissa_bits;
+    constexpr int bias = traits::bias;
+
+    bits_t        bits;
+    std::uint32_t ieee_exp;
+    std::uint64_t ieee_mantissa;
+
+#if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
+    if constexpr (std::is_same_v<bits_t, detail::long_double_bits>) {
+        // UB on x86 due to 6 padding bytes.
+        if consteval {
+            return;
+        }
+        __builtin_memcpy(&bits, &value, sizeof(bits));
+        set_sign(static_cast<bool>(bits.sign));
+        ieee_exp      = static_cast<std::uint32_t>(bits.exponent);
+        ieee_mantissa = bits.mantissa;
+    } else {
+        bits = std::bit_cast<bits_t>(value);
+        set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
+        ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
+        ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
+    }
+#else
+    {
+        bits = std::bit_cast<bits_t>(value);
+        set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
+        ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
+        ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
+    }
+#endif
+
+    std::int32_t  e2;
+    std::uint64_t m2;
+
+    if (ieee_exp == 0) {
+        e2 = 1 - bias - mb;
+        m2 = ieee_mantissa;
+    } else {
+        e2 = static_cast<std::int32_t>(ieee_exp) - bias - mb;
+        if constexpr (traits::explicit_int_bit) {
+            m2 = ieee_mantissa;
+        } else {
+            m2 = ieee_mantissa | (std::uint64_t{1} << mb);
+        }
+    }
+
+    if (e2 < -mb) {
+        return;
+    }
+
+    if (e2 < 0) {
+        assign_magnitude(m2 >> static_cast<unsigned>(-e2));
+        return;
+    }
+
+    // TODO(alcxpr): call grow() if limb_idx >= inplace_limbs
+    auto  limb_idx = static_cast<std::size_t>(static_cast<unsigned>(e2) / bits_per_limb);
+    auto  bit_off  = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
+    auto* dst      = limb_ptr();
+
+    dst[limb_idx] |= m2 << bit_off;
+    if (bit_off > 0 && limb_idx + 1 < inplace_limbs) {
+        dst[limb_idx + 1] |= m2 >> (static_cast<int>(bits_per_limb) - bit_off);
+    }
+
+    auto count = static_cast<std::uint32_t>(limb_idx + 1);
+    if (bit_off > 0 && dst[limb_idx + 1] != 0) {
+        count = static_cast<std::uint32_t>(limb_idx + 2);
+    }
+
+    set_limb_count(count);
+    while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
+        set_limb_count(limb_count() - 1);
     }
 }
 
