@@ -19,7 +19,17 @@ foreach(test_source ${TEST_SOURCES})
         CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
         OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"
     )
-        target_compile_options(${test_target} PRIVATE -Wall -Werror -Wextra)
+        # These options work with both GCC and Clang
+        target_compile_options(${test_target} PRIVATE -Werror -Wall -Wextra -Wsign-conversion -Wconversion -Wundef -Wold-style-cast -Wfloat-equal)
+    endif()
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # GCC specific options that are a little bit more aggressive
+        target_compile_options(${test_target} PRIVATE -Wundef -Wduplicated-branches -Wshadow -Wextra-semi -Wuseless-cast -Wpadded)
+    endif()
+    if(MSVC)
+        # Use W4 instead of Wall because it includes noise from system headers
+        # /WX = -Werror
+        target_compile_options(${test_target} PRIVATE /WX /W4)
     endif()
     gtest_discover_tests(${test_target})
 endforeach()
