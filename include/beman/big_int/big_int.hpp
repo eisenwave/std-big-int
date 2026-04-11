@@ -158,9 +158,38 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& operator=(const basic_big_int& x);
     constexpr basic_big_int& operator=(basic_big_int&& x) noexcept;
 
+    // Defined inline: see note above
     template <detail::arbitrary_integer T>
         requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
-    constexpr basic_big_int& operator=(T&& x) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
+    constexpr basic_big_int& operator=(T&& x) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>) {
+        if constexpr (detail::is_basic_big_int_v<T>) {
+            const auto count = x.limb_count();
+            grow(count);
+            auto* dst = limb_ptr();
+            std::copy_n(x.limb_ptr(), count, dst);
+            for (std::size_t i = count; i < limb_count(); ++i) {
+                dst[i] = 0;
+            }
+            set_limb_count(count);
+            set_sign(x.is_negative());
+        } else {
+            using U                   = std::make_unsigned_t<std::remove_cvref_t<T>>;
+            const bool            neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
+            const U               mag = neg ? static_cast<U>(-(static_cast<U>(x))) : static_cast<U>(x);
+            constexpr std::size_t n   = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
+            grow(n);
+            const auto old_count = limb_count();
+            assign_magnitude(mag);
+            auto* dst = limb_ptr();
+            for (std::size_t i = limb_count(); i < old_count; ++i) {
+                dst[i] = 0;
+            }
+            set_sign(neg);
+        }
+        return *this;
+    }
+
+    // TODO(alcxpr): compound operators
 
     // [big.int.ops]
     [[nodiscard]] constexpr std::size_t                            width_mag() const noexcept;
@@ -312,38 +341,6 @@ basic_big_int<inplace_bits, Allocator>::operator=(basic_big_int&& x) noexcept {
         x.m_size_and_sign = 1;
     }
 
-    return *this;
-}
-
-template <std::size_t inplace_bits, class Allocator>
-template <detail::arbitrary_integer T>
-    requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>)
-constexpr basic_big_int<inplace_bits, Allocator>& basic_big_int<inplace_bits, Allocator>::operator=(T&& x) noexcept(
-    detail::no_alloc_constructible_from<inplace_bits, T>) {
-    if constexpr (detail::is_basic_big_int_v<T>) {
-        const auto count = x.limb_count();
-        grow(count);
-        auto* dst = limb_ptr();
-        std::copy_n(x.limb_ptr(), count, dst);
-        for (std::size_t i = count; i < limb_count(); ++i) {
-            dst[i] = 0;
-        }
-        set_limb_count(count);
-        set_sign(x.is_negative());
-    } else {
-        using U                   = std::make_unsigned_t<std::remove_cvref_t<T>>;
-        const bool            neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
-        const U               mag = neg ? static_cast<U>(-(static_cast<U>(x))) : static_cast<U>(x);
-        constexpr std::size_t n   = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
-        grow(n);
-        const auto old_count = limb_count();
-        assign_magnitude(mag);
-        auto* dst = limb_ptr();
-        for (std::size_t i = limb_count(); i < old_count; ++i) {
-            dst[i] = 0;
-        }
-        set_sign(neg);
-    }
     return *this;
 }
 
