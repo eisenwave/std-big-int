@@ -76,6 +76,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     using limb_pointer       = std::allocator_traits<allocator_type>::pointer;
     using const_limb_pointer = std::allocator_traits<allocator_type>::const_pointer;
 
+    template <std::size_t, class>
+    friend class basic_big_int;
+
     static constexpr std::size_t bits_per_limb = sizeof(limb_type) * CHAR_BIT;
 
     static constexpr std::size_t inplace_limbs = []() constexpr {
@@ -119,6 +122,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& operator=(const basic_big_int& x);
     constexpr basic_big_int& operator=(basic_big_int&& x) noexcept;
 
+    template <detail::arbitrary_integer T>
+        requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
+    constexpr basic_big_int& operator=(T&& x) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
+    
     // Defined inline: MSVC cannot match out-of-line definitions
     // of constructors with conditional explicit + requires.
     template <detail::arbitrary_arithmetic T>
@@ -150,7 +157,6 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
     constexpr explicit basic_big_int(std::from_range_t, R&& r, const Allocator& a = Allocator());
-
     // TODO(mborland): Add additional constructors from P4444
 
     constexpr ~basic_big_int();
@@ -308,6 +314,37 @@ basic_big_int<inplace_bits, Allocator>::operator=(basic_big_int&& x) noexcept {
     return *this;
 }
 
+template <std::size_t inplace_bits, class Allocator>
+template <detail::arbitrary_integer T>
+    requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>)
+constexpr basic_big_int<inplace_bits, Allocator>& basic_big_int<inplace_bits, Allocator>::operator=(T&& x) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>) {
+    if constexpr (detail::is_basic_big_int_v<T>) {
+        const auto count = x.limb_count();
+        grow(count);
+        auto* dst = limb_ptr();
+        std::copy_n(x.limb_ptr(), count, dst);
+        for (std::size_t i = count; i < limb_count(); ++i) {
+            dst[i] = 0;
+        }
+        set_limb_count(count);
+        set_sign(x.is_negative());
+    } else {
+        using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
+        const bool neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
+        const U    mag = neg ? static_cast<U>(-(static_cast<U>(x))) : static_cast<U>(x);
+        constexpr std::size_t n = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
+        grow(n);
+        const auto old_count = limb_count();
+        assign_magnitude(mag);
+        auto* dst = limb_ptr();
+        for (std::size_t i = limb_count(); i < old_count; ++i) {
+            dst[i] = 0;
+        }
+        set_sign(neg);
+    }
+    return *this;
+}
+    
 template <std::size_t inplace_bits, class Allocator>
 template <detail::arbitrary_arithmetic T>
 constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const T& value, const Allocator& a) noexcept(
@@ -475,16 +512,17 @@ template <std::size_t inplace_bits, class Allocator>
 template <std::unsigned_integral T>
 constexpr void basic_big_int<inplace_bits, Allocator>::assign_magnitude(T value) noexcept {
     if constexpr (sizeof(T) <= sizeof(limb_type)) {
-        m_storage.limbs[0] = static_cast<limb_type>(value);
+        limb_ptr()[0] = static_cast<limb_type>(value);
         set_limb_count(1);
     } else {
         constexpr std::size_t n = sizeof(T) / sizeof(limb_type);
+        auto* dst = limb_ptr();
         for (std::size_t i = 0; i < n; ++i) {
-            m_storage.limbs[i] = static_cast<limb_type>(value);
+            dst[i] = static_cast<limb_type>(value);
             value >>= bits_per_limb;
         }
         set_limb_count(static_cast<std::uint32_t>(n));
-        while (limb_count() > 1 && m_storage.limbs[limb_count() - 1] == 0) {
+        while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
             set_limb_count(limb_count() - 1);
         }
     }
