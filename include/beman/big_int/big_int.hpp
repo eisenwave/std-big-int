@@ -517,7 +517,7 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_magnitude(T value)
         limb_ptr()[0] = static_cast<limb_type>(value);
         set_limb_count(1);
     } else {
-        constexpr std::size_t n = sizeof(T) / sizeof(limb_type);
+        constexpr std::size_t n   = sizeof(T) / sizeof(limb_type);
         auto*                 dst = limb_ptr();
         for (std::size_t i = 0; i < n; ++i) {
             dst[i] = static_cast<limb_type>(value);
