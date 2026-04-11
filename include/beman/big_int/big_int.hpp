@@ -623,10 +623,50 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
     }
 }
 
+namespace detail {
+
+template <signed_integer T>
+constexpr std::make_unsigned_t<T> uabs(T x) {
+    if constexpr (std::is_unsigned_v<T>) {
+        return x;
+    } else {
+        using U = std::make_unsigned_t<T>;
+        return x < 0 ? -static_cast<U>(x) : static_cast<U>(x);
+    }
+}
+
+template <signed_or_unsigned T>
+constexpr auto to_limbs(const T x) {
+    const std::size_t limb_count =
+        width_v<T> / width_v<uint_multiprecision_t> + (width_v<T> % width_v<uint_multiprecision_t> ? 1 : 0);
+    using Result = std::array<uint_multiprecision_t, limb_count>;
+    if constexpr (sizeof(Result) == sizeof(T) && std::endian::native == std::endian::little) {
+        return std::bit_cast<Result>(x);
+    } else {
+        Result result;
+        for (std::size_t i = 0; i < limb_count; ++i) {
+            result[i] = static_cast<uint_multiprecision_t>(x >> (i * width_v<uint_multiprecision_t>));
+        }
+    }
+}
+
+} // namespace detail
+
 template <std::size_t b, class A>
 template <detail::signed_or_unsigned Integer>
 constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexcept {
-    // TODO: implement
+    if constexpr (std::is_unsigned_v<Integer>) {
+        if (is_negative()) {
+            return false;
+        }
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+        if (is_storage_static()) {
+            return inplace_to_bit_uint() == x;
+        }
+#endif
+        return equals_limbs(detail::to_limbs(x));
+    }
+    // TODO: implement rest
 }
 
 template <std::size_t b, class A>
@@ -643,7 +683,17 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
 template <std::size_t b, class A>
 template <detail::signed_or_unsigned Integer>
 constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Integer x) const noexcept {
-    // TODO: implement
+    if constexpr (std::is_unsigned_v<Integer>) {
+        if (is_negative()) {
+            return std::strong_ordering::less;
+        }
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+        if (is_storage_static()) {
+            return inplace_to_bit_uint() <=> x;
+        }
+#endif
+        return compare_limbs(detail::to_limbs(x));
+    }
 }
 
 template <std::size_t b, class A>
