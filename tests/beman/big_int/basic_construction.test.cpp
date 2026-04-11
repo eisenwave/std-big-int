@@ -47,9 +47,13 @@ consteval bool test_integral_construction_with_allocator() {
 static_assert(test_integral_construction_with_allocator());
 
 consteval bool test_from_range_construction() {
+#if __cpp_lib_containers_ranges >= 202202L
     std::array<beman::big_int::uint_multiprecision_t, 2> limbs{0xDEADBEEFU, 0xCAFEBABEU};
     beman::big_int::big_int                              x(std::from_range, limbs);
     return x.representation().size() == 2;
+#else
+    return true;
+#endif
 }
 static_assert(test_from_range_construction());
 
@@ -107,15 +111,19 @@ TEST(BasicConstruction, IntegralConstructionWithAllocator) {
 }
 
 TEST(BasicConstruction, FromRangeConstruction) {
+#if __cpp_lib_containers_ranges >= 202202L
     std::array<beman::big_int::uint_multiprecision_t, 2> limbs{0xDEADBEEFU, 0xCAFEBABEU};
     beman::big_int::big_int                              x(std::from_range, limbs);
     EXPECT_EQ(x.representation().size(), 2U);
     EXPECT_EQ(x.representation()[0], 0xDEADBEEFU);
     EXPECT_EQ(x.representation()[1], 0xCAFEBABEU);
+#endif
 }
 
 TEST(BasicConstruction, FromRangeConstructionTrimsLeadingZeros) {
+#if __cpp_lib_containers_ranges >= 202202L
     std::array<beman::big_int::uint_multiprecision_t, 3> limbs{1U, 0U, 0U};
     beman::big_int::big_int                              x(std::from_range, limbs);
     EXPECT_EQ(x.representation().size(), 1U);
+#endif
 }

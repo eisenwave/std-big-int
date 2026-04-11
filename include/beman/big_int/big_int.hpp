@@ -167,9 +167,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int(const T&              value,
                             const allocator_type& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
+#if __cpp_lib_containers_ranges >= 202202L
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
     constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
+#endif
 
     constexpr ~basic_big_int();
 
@@ -394,6 +396,7 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
     }
 }
 
+#if __cpp_lib_containers_ranges >= 202202L
 template <std::size_t b, class A>
 template <std::ranges::input_range R>
     requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
@@ -418,6 +421,7 @@ constexpr basic_big_int<b, A>::basic_big_int(std::from_range_t, R&& r, const all
         set_limb_count(limb_count() - 1);
     }
 }
+#endif
 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>::~basic_big_int() {
@@ -614,10 +618,13 @@ constexpr void basic_big_int<b, A>::assign_from_float(F value) noexcept {
         return;
     }
 
-    // TODO(alcxpr): call grow() if limb_idx >= inplace_limbs
-    auto  limb_idx = static_cast<std::size_t>(static_cast<unsigned>(e2) / bits_per_limb);
-    auto  bit_off  = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
-    auto* dst      = limb_ptr();
+    const auto limb_idx = static_cast<std::size_t>(static_cast<unsigned>(e2) / bits_per_limb);
+    // TODO(alcxpr): Only grow if actually needed.
+    //               This hotfix was needed to prevent stack buffer overflow in tests.
+    grow(limb_idx + 2);
+
+    const auto  bit_off = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
+    auto* const dst     = limb_ptr();
 
     dst[limb_idx] |= m2 << bit_off;
     if (bit_off > 0 && limb_idx + 1 < inplace_limbs) {
