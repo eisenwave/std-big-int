@@ -81,6 +81,13 @@ template <signed_or_unsigned T>
     return static_cast<T>(x.to_int() >> s);
 }
 
+// These are going to be the standardized forms
+// padding is expected and acceptable
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wpadded"
+#endif
+
 template <class T>
 struct overflow_result {
     T    value;
@@ -157,6 +164,10 @@ struct borrow_result {
     T    value;
     bool borrow;
 };
+
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif
 
 template <unsigned_integer T>
 [[nodiscard]] constexpr borrow_result<T> borrowing_sub(T x, T y, bool borrow = false) noexcept {

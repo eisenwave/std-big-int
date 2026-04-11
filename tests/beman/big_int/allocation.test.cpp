@@ -259,7 +259,7 @@ TEST(Allocation, ShrinkToFitWhenCapacityEqualsCount) {
 // ----- from_range with heap allocation -----
 
 TEST(Allocation, FromRangeLargeAllocatesThenDestroys) {
-#if __cpp_lib_containers_ranges >= 202202L
+#if defined(__cpp_lib_containers_ranges) && __cpp_lib_containers_ranges >= 202202L
     std::array<beman::big_int::uint_multiprecision_t, 8> limbs{1, 2, 3, 4, 5, 6, 7, 8};
     beman::big_int::big_int                              x(std::from_range, limbs);
     EXPECT_EQ(x.representation().size(), 8U);

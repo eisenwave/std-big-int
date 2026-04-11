@@ -58,7 +58,7 @@ template <std::size_t b, class A, class T>
 inline constexpr bool is_implicit_constructible_from =
     detail::signed_or_unsigned<std::remove_cvref_t<T>> || std::is_same_v<std::remove_cvref_t<T>, basic_big_int<b, A>>;
 
-#if __cpp_lib_allocate_at_least >= 202302L
+#if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
 using std::allocation_result;
 #else
 template <class Pointer, class SizeType = std::size_t>
@@ -156,7 +156,15 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
                 set_sign(value < std::remove_cvref_t<T>{0});
                 using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
-                assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+
+#ifdef BEMAN_BIG_INT_MSVC
+    #pragma warning(push)
+    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
+#endif
+                assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
+#ifdef BEMAN_BIG_INT_MSVC
+    #pragma warning(pop)
+#endif
             } else {
                 assign_magnitude(value);
             }
@@ -167,7 +175,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int(const T&              value,
                             const allocator_type& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
-#if __cpp_lib_containers_ranges >= 202202L
+#if defined(__cpp_lib_containers_ranges) && __cpp_lib_containers_ranges >= 202202L
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
     constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
@@ -196,7 +204,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         } else {
             using U                   = std::make_unsigned_t<std::remove_cvref_t<T>>;
             const bool            neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
-            const U               mag = neg ? static_cast<U>(-(static_cast<U>(x))) : static_cast<U>(x);
+            const U               mag = neg ? static_cast<U>(U{0} - static_cast<U>(x)) : static_cast<U>(x);
             constexpr std::size_t n   = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
             grow(n);
             const auto old_count = limb_count();
@@ -305,7 +313,7 @@ constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
     } else {
         const alloc_result allocation = alloc_limbs(x.limb_count());
         copy_n_to_allocation(x.m_storage.data, x.limb_count(), allocation);
-        m_capacity     = allocation.count;
+        m_capacity     = static_cast<std::uint32_t>(allocation.count);
         m_storage.data = allocation.ptr;
     }
 }
@@ -342,7 +350,7 @@ constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(const basic_big_in
     } else {
         const alloc_result allocation = alloc_limbs(x.limb_count());
         copy_n_to_allocation(x.m_storage.data, x.limb_count(), allocation);
-        m_capacity     = allocation.count;
+        m_capacity     = static_cast<std::uint32_t>(allocation.count);
         m_storage.data = allocation.ptr;
     }
 
@@ -389,14 +397,22 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
         if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
             set_sign(value < std::remove_cvref_t<T>{0});
             using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
-            assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+
+#ifdef BEMAN_BIG_INT_MSVC
+    #pragma warning(push)
+    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
+#endif
+            assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
+#ifdef BEMAN_BIG_INT_MSVC
+    #pragma warning(pop)
+#endif
         } else {
             assign_magnitude(value);
         }
     }
 }
 
-#if __cpp_lib_containers_ranges >= 202202L
+#if defined(__cpp_lib_containers_ranges) && __cpp_lib_containers_ranges >= 202202L
 template <std::size_t b, class A>
 template <std::ranges::input_range R>
     requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
@@ -618,7 +634,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(F value) noexcept {
         return;
     }
 
-    const auto limb_idx = static_cast<std::size_t>(static_cast<unsigned>(e2) / bits_per_limb);
+    const auto limb_idx = static_cast<unsigned>(e2) / bits_per_limb;
     // TODO(alcxpr): Only grow if actually needed.
     //               This hotfix was needed to prevent stack buffer overflow in tests.
     grow(limb_idx + 2);
@@ -644,7 +660,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(F value) noexcept {
 
 template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::alloc_limbs(const std::size_t n) -> alloc_result {
-#if __cpp_lib_allocate_at_least >= 202302L
+#if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
     return alloc_traits::allocate_at_least(m_alloc, n);
 #else
     return {.ptr = alloc_traits::allocate(m_alloc, n), .count = n};
@@ -691,12 +707,12 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::s
 // it is always important that all elements in the allocation are initialized
 // because we don't keep track of "requested" vs "received" capacity
 // (these may not be the same with allocate_at_least).
-#if __cpp_lib_raw_memory_algorithms < 202411L
+#if !defined(__cpp_lib_raw_memory_algorithms) || __cpp_lib_raw_memory_algorithms < 202411L
     if !consteval {
 #endif
         std::uninitialized_copy_n(p, n, out.ptr);
         std::uninitialized_value_construct_n(out.ptr + n, out.count - n);
-#if __cpp_lib_raw_memory_algorithms < 202411L
+#if !defined(__cpp_lib_raw_memory_algorithms) || __cpp_lib_raw_memory_algorithms < 202411L
     } else {
         for (std::size_t i = 0; i < n; ++i) {
             std::construct_at(out.ptr + i, p[i]);
