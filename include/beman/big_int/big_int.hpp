@@ -158,12 +158,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                 using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
 
 #ifdef BEMAN_BIG_INT_MSVC
-#pragma warning(push)
-#pragma warning(disable : 4146) // unary minus on unsigned is intentional
+    #pragma warning(push)
+    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
 #endif
                 assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
 #ifdef BEMAN_BIG_INT_MSVC
-#pragma warning(pop)
+    #pragma warning(pop)
 #endif
             } else {
                 assign_magnitude(value);
@@ -399,12 +399,12 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
             using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
 
 #ifdef BEMAN_BIG_INT_MSVC
-#pragma warning(push)
-#pragma warning(disable : 4146) // unary minus on unsigned is intentional
+    #pragma warning(push)
+    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
 #endif
             assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
 #ifdef BEMAN_BIG_INT_MSVC
-#pragma warning(pop)
+    #pragma warning(pop)
 #endif
         } else {
             assign_magnitude(value);

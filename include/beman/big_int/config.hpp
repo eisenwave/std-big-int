@@ -178,11 +178,11 @@ struct ieee_traits<std::float128_t> {
 
 #if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
 
-// These are 80-bits so no real way around it being padded
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
-#endif
+    // These are 80-bits so no real way around it being padded
+    #if defined(__GNUC__) && !defined(__clang__)
+        #pragma GCC diagnostic push
+        #pragma GCC diagnostic ignored "-Wpadded"
+    #endif
 
 struct long_double_bits {
     std::uint64_t mantissa : 64;
@@ -190,9 +190,9 @@ struct long_double_bits {
     std::uint16_t sign : 1;
 };
 
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
+    #if defined(__GNUC__) && !defined(__clang__)
+        #pragma GCC diagnostic pop
+    #endif
 
 template <>
 struct ieee_traits<long double> {

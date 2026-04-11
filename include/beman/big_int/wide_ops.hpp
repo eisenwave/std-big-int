@@ -84,8 +84,8 @@ template <signed_or_unsigned T>
 // These are going to be the standardized forms
 // padding is expected and acceptable
 #if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpadded"
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wpadded"
 #endif
 
 template <class T>
@@ -166,7 +166,7 @@ struct borrow_result {
 };
 
 #if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
+    #pragma GCC diagnostic pop
 #endif
 
 template <unsigned_integer T>
