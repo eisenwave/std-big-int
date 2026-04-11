@@ -276,13 +276,14 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr bool equals_integer(Integer x) const noexcept;
     [[nodiscard]] constexpr bool equals_big_int(const basic_big_int& other) const noexcept;
-    [[nodiscard]] constexpr bool equals_limbs(std::span<const uint_multiprecision_t> limbs) const noexcept;
+    [[nodiscard]] constexpr bool equals_limbs(std::span<const uint_multiprecision_t> limbs,
+                                              bool                                   limbs_negative) const noexcept;
 
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr std::strong_ordering compare_integer(Integer x) const noexcept;
     [[nodiscard]] constexpr std::strong_ordering compare_big_int(const basic_big_int& other) const noexcept;
-    [[nodiscard]] constexpr std::strong_ordering
-    compare_limbs(std::span<const uint_multiprecision_t> limbs) const noexcept;
+    [[nodiscard]] constexpr std::strong_ordering compare_limbs(std::span<const uint_multiprecision_t> limbs,
+                                                               bool limbs_negative) const noexcept;
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
     [[nodiscard]] unsigned _BitInt(inplace_bits) inplace_to_bit_uint() const noexcept {
@@ -635,8 +636,8 @@ constexpr std::make_unsigned_t<T> uabs(T x) {
     }
 }
 
-template <signed_or_unsigned T>
-constexpr auto to_limbs(const T x) {
+template <unsigned_integer T>
+[[nodiscard]] constexpr auto to_limbs(const T x) noexcept {
     const std::size_t limb_count =
         width_v<T> / width_v<uint_multiprecision_t> + (width_v<T> % width_v<uint_multiprecision_t> ? 1 : 0);
     using Result = std::array<uint_multiprecision_t, limb_count>;
@@ -647,6 +648,7 @@ constexpr auto to_limbs(const T x) {
         for (std::size_t i = 0; i < limb_count; ++i) {
             result[i] = static_cast<uint_multiprecision_t>(x >> (i * width_v<uint_multiprecision_t>));
         }
+        return result;
     }
 }
 
@@ -664,20 +666,51 @@ constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexce
             return inplace_to_bit_uint() == x;
         }
 #endif
-        return equals_limbs(detail::to_limbs(x));
+        return equals_limbs(detail::to_limbs(x), false);
+    } else {
+        const auto limbs = detail::to_limbs(detail::uabs(x));
+        return equals_limbs(limbs, x < 0);
     }
-    // TODO: implement rest
 }
 
 template <std::size_t b, class A>
 constexpr bool basic_big_int<b, A>::equals_big_int(const basic_big_int& x) const noexcept {
     // We can do fancier things in the future, but this works for now.
-    return equals_limbs(x.representation());
+    return equals_limbs(x.representation(), x.is_negative());
 }
 
 template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_multiprecision_t> limbs) const noexcept {
-    // TODO: implement
+constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_multiprecision_t> limbs,
+                                                 const bool limbs_negative) const noexcept {
+    if (is_negative() != limbs_negative) {
+        return false;
+    }
+    if (limbs.size() == 1) {
+        return *limb_ptr() == limbs[0];
+    }
+
+    std::size_t       i    = 0;
+    const auto* const self = limb_ptr();
+    // In the limbs that are common,
+    // there can be no mismatch.
+    for (; i < limbs.size() && i < limb_count(); ++i) {
+        if (self[i] != limbs[i]) {
+            return false;
+        }
+    }
+    // The provided limbs can have additional ignored zeroes.
+    for (; i < limbs.size(); ++i) {
+        if (limbs[i] != 0) {
+            return false;
+        }
+    }
+    // Our own limbs can have additional ignored zeroes.
+    for (; i < limb_count(); ++i) {
+        if (self[i] != 0) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template <std::size_t b, class A>
@@ -699,12 +732,12 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
 template <std::size_t b, class A>
 constexpr std::strong_ordering basic_big_int<b, A>::compare_big_int(const basic_big_int& x) const noexcept {
     // We can do fancier things in the future, but this works for now.
-    return compare_limbs(x.representation());
+    return compare_limbs(x.representation(), x.is_negative());
 }
 
 template <std::size_t b, class A>
-constexpr std::strong_ordering
-basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t> limbs) const noexcept {
+constexpr std::strong_ordering basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t> limbs,
+                                                                  bool is_negative) const noexcept {
     // TODO: implement
 }
 
