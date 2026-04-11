@@ -114,7 +114,9 @@ concept signed_integer = signed_or_unsigned<T> && std::is_signed_v<T>;
 
 // Traits =======================================================================
 
-#include <stdfloat>
+#if __has_include(<stdfloat>)
+    #include <stdfloat>
+#endif
 
 namespace beman::big_int::detail {
 template <class F>
