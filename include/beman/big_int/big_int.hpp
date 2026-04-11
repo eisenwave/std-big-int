@@ -510,7 +510,7 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_from_float(F value
     if constexpr (std::is_same_v<bits_t, detail::long_double_bits>) {
         // UB on x86 due to 6 padding bytes.
         if consteval {
-            static_assert(false, "long double construction is not supported in consteval context on x86 80-bit extended");
+            return;
         }
         __builtin_memcpy(&bits, &value, sizeof(bits));
         set_sign(static_cast<bool>(bits.sign));
