@@ -169,10 +169,19 @@ TEST(Allocation, ReserveLargeValue) {
 
 TEST(Allocation, CopyConstructHeapAllocated) {
     beman::big_int::big_int x{42U};
+    EXPECT_EQ(x.representation().size(), 1);
     x.reserve(8); // force heap
+    // GE instead of EQ because allocate_at_least may be used.
+    EXPECT_GE(x.capacity(), 8);
+    EXPECT_EQ(x.representation().size(), 1);
+
     beman::big_int::big_int y(x);
+    // y should have no heap allocation
+    // because the integer value can be represented using a single limb,
+    // irrespective of what the capacity of x is.
+    EXPECT_EQ(y.capacity(), 0);
+    EXPECT_EQ(y.representation().size(), 1);
     EXPECT_EQ(y.representation()[0], 42U);
-    EXPECT_EQ(y.capacity(), x.capacity());
 }
 
 TEST(Allocation, MoveConstructHeapAllocated) {

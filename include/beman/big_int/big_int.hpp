@@ -58,6 +58,17 @@ template <std::size_t inplace_bits, class Allocator, class T>
 inline constexpr bool is_implicit_constructible_from =
     detail::signed_or_unsigned<std::remove_cvref_t<T>> ||
     std::is_same_v<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>;
+
+#if __cpp_lib_allocate_at_least >= 202302L
+using std::allocation_result;
+#else
+template <class Pointer, class SizeType = std::size_t>
+struct allocation_result {
+    Pointer  ptr;
+    SizeType count;
+};
+#endif // __cpp_lib_allocate_at_least
+
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -71,33 +82,40 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     using signed_limb_type        = std::make_signed_t<limb_type>;
     using signed_double_limb_type = detail::int128_t;
 
-    using allocator_type     = std::allocator_traits<Allocator>::template rebind_alloc<limb_type>;
-    using alloc_traits       = std::allocator_traits<allocator_type>;
-    using limb_pointer       = std::allocator_traits<allocator_type>::pointer;
-    using const_limb_pointer = std::allocator_traits<allocator_type>::const_pointer;
+  public:
+    using allocator_type = Allocator;
+    using pointer        = std::allocator_traits<Allocator>::pointer;
+    using const_pointer  = std::allocator_traits<Allocator>::const_pointer;
+    static_assert(std::is_same_v<typename Allocator::value_type, uint_multiprecision_t>,
+                  "Allocator::value_type must be uint_multiprecision_t.");
 
     template <std::size_t, class>
     friend class basic_big_int;
 
-    static constexpr std::size_t bits_per_limb = sizeof(limb_type) * CHAR_BIT;
+  private:
+    using alloc_traits = std::allocator_traits<Allocator>;
+    using alloc_result = detail::allocation_result<pointer>;
+
+    static constexpr std::size_t bits_per_limb = detail::width_v<limb_type>;
 
     static constexpr std::size_t inplace_limbs = []() constexpr {
         constexpr std::size_t from_bits = (inplace_bits + bits_per_limb - 1) / bits_per_limb;
         // never fewer limbs than would fit in the pointer footprint
         // of the union, so the union doesn't waste space
-        constexpr std::size_t from_pointer = (sizeof(limb_type*) + sizeof(limb_type) - 1) / sizeof(limb_type);
+        constexpr std::size_t from_pointer = (sizeof(pointer) + sizeof(limb_type) - 1) / sizeof(limb_type);
         return from_bits > from_pointer ? from_bits : from_pointer;
     }();
 
     static_assert(inplace_bits > 0, "inplace_bits must be positive");
 
     union data_type {
-        limb_type* data;
-        limb_type  limbs[inplace_limbs];
+        pointer   data;
+        limb_type limbs[inplace_limbs];
 
         constexpr data_type() noexcept : limbs{} {}
     };
 
+  private:
     std::uint32_t                        m_capacity;      // 0 = static storage, >0 = heap capacity
     std::uint32_t                        m_size_and_sign; // bit 31 = sign, bits 0-30 = limb count
     data_type                            m_storage;
@@ -210,14 +228,14 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
   private:
     template <std::unsigned_integral T>
     constexpr void assign_magnitude(T value) noexcept;
-
     template <std::floating_point F>
     constexpr void assign_from_float(F value) noexcept;
 
-    [[nodiscard]] constexpr limb_pointer alloc_limbs(std::size_t n);
-    constexpr void                       free_limbs(limb_pointer p, std::size_t n);
+    [[nodiscard]] constexpr alloc_result alloc_limbs(std::size_t n);
+    constexpr void                       free_limbs(pointer p, std::size_t n);
     constexpr void                       free_storage();
     constexpr void                       grow(std::size_t limbs_needed);
+    constexpr void                       copy_n_to_allocation(const limb_type* p, std::size_t n, alloc_result out);
 };
 
 // =============================================================================
@@ -268,14 +286,26 @@ basic_big_int<inplace_bits, Allocator>::limb_ptr() const noexcept {
 template <std::size_t inplace_bits, class Allocator>
 constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const basic_big_int& x)
     : m_capacity{0}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{x.m_alloc} {
-    if (x.is_storage_static()) {
-        for (std::size_t i = 0; i < inplace_limbs; ++i) {
-            m_storage.limbs[i] = x.m_storage.limbs[i];
+    if (x.limb_count() <= inplace_limbs) {
+        if (x.is_storage_static()) {
+            for (std::size_t i = 0; i < inplace_limbs; ++i) {
+                m_storage.limbs[i] = x.m_storage.limbs[i];
+            }
+        } else {
+            // This case can happen if e.g. `x.reserve(100)` was called
+            // but the integer value of `x` fits into inplace storage.
+            for (std::size_t i = 0; i < x.limb_count(); ++i) {
+                m_storage.limbs[i] = x.m_storage.data[i];
+            }
+            for (std::size_t i = x.limb_count(); i < inplace_limbs; ++i) {
+                m_storage.limbs[i] = {};
+            }
         }
     } else {
-        m_capacity     = x.m_capacity;
-        m_storage.data = alloc_limbs(m_capacity);
-        std::copy_n(x.m_storage.data, x.limb_count(), m_storage.data);
+        const alloc_result allocation = alloc_limbs(x.limb_count());
+        copy_n_to_allocation(x.m_storage.data, x.limb_count(), allocation);
+        m_capacity     = allocation.count;
+        m_storage.data = allocation.ptr;
     }
 }
 
@@ -310,9 +340,10 @@ basic_big_int<inplace_bits, Allocator>::operator=(const basic_big_int& x) {
             m_storage.limbs[i] = x.m_storage.limbs[i];
         }
     } else {
-        m_capacity     = x.m_capacity;
-        m_storage.data = alloc_limbs(m_capacity);
-        std::copy_n(x.m_storage.data, x.limb_count(), m_storage.data);
+        const alloc_result allocation = alloc_limbs(x.limb_count());
+        copy_n_to_allocation(x.m_storage.data, x.limb_count(), allocation);
+        m_capacity     = allocation.count;
+        m_storage.data = allocation.ptr;
     }
 
     return *this;
@@ -376,8 +407,9 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(std::from_range_
     if constexpr (std::ranges::sized_range<R>) {
         const auto count = std::ranges::size(r);
         if (count > inplace_limbs) {
-            m_capacity     = static_cast<std::uint32_t>(count);
-            m_storage.data = alloc_limbs(count);
+            const alloc_result allocation = alloc_limbs(count);
+            m_capacity                    = static_cast<std::uint32_t>(allocation.count);
+            m_storage.data                = allocation.ptr;
         }
     }
 
@@ -458,10 +490,10 @@ constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
     if (count <= inplace_limbs) {
         // Move back to inline storage
         // We need a manual loop to switch the active union member in consteval context
-        // At runtime this should become equivalent to std::copy_n
-        limb_pointer old_data = m_storage.data;
-        const auto   old_cap  = m_capacity;
-        m_capacity            = 0;
+        // At runtime this should become equivalent to std::uninitialized_copy_n
+        pointer    old_data = m_storage.data;
+        const auto old_cap  = m_capacity;
+        m_capacity          = 0;
         for (std::uint32_t i = 0; i < count; ++i) {
             m_storage.limbs[i] = old_data[i];
         }
@@ -471,11 +503,11 @@ constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
         free_limbs(old_data, old_cap);
     } else {
         // Reallocate to a smaller heap buffer
-        limb_pointer new_data = alloc_limbs(count);
-        std::copy_n(m_storage.data, count, new_data);
+        const alloc_result allocation = alloc_limbs(count);
+        copy_n_to_allocation(m_storage.data, count, allocation);
         free_limbs(m_storage.data, m_capacity);
-        m_storage.data = new_data;
-        m_capacity     = static_cast<std::uint32_t>(count);
+        m_storage.data = allocation.ptr;
+        m_capacity     = static_cast<std::uint32_t>(allocation.count);
     }
 }
 
@@ -611,22 +643,17 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_from_float(F value
 }
 
 template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>::limb_pointer
-basic_big_int<inplace_bits, Allocator>::alloc_limbs(const std::size_t n) {
-    if consteval {
-        return new limb_type[n]{};
-    } else {
-        return alloc_traits::allocate(m_alloc, n);
-    }
+constexpr auto basic_big_int<inplace_bits, Allocator>::alloc_limbs(const std::size_t n) -> alloc_result {
+#if __cpp_lib_allocate_at_least >= 202302L
+    return alloc_traits::allocate_at_least(m_alloc, n);
+#else
+    return {.ptr = alloc_traits::allocate(m_alloc, n), .count = n};
+#endif
 }
 
 template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::free_limbs(limb_pointer p, const std::size_t n) {
-    if consteval {
-        delete[] p;
-    } else {
-        alloc_traits::deallocate(m_alloc, p, n);
-    }
+constexpr void basic_big_int<inplace_bits, Allocator>::free_limbs(pointer p, const std::size_t n) {
+    alloc_traits::deallocate(m_alloc, p, n);
 }
 
 template <std::size_t inplace_bits, class Allocator>
@@ -645,14 +672,41 @@ constexpr void basic_big_int<inplace_bits, Allocator>::grow(const std::size_t li
 
     // libstdc++ and libc++ normally double storage each allocation
     // MSVC does 1.5x instead of 2x
-    const std::size_t new_cap  = std::max(limbs_needed, 2 * current_cap);
-    limb_pointer      new_data = alloc_limbs(new_cap);
+    const std::size_t  new_cap    = std::max(limbs_needed, 2 * current_cap);
+    const alloc_result allocation = alloc_limbs(new_cap);
+    copy_n_to_allocation(limb_ptr(), limb_count(), allocation);
 
-    std::copy_n(limb_ptr(), limb_count(), new_data);
     free_storage();
 
-    m_storage.data = new_data;
-    m_capacity     = static_cast<std::uint32_t>(new_cap);
+    m_storage.data = allocation.ptr;
+    m_capacity     = static_cast<std::uint32_t>(allocation.count);
+}
+
+template <std::size_t inplace_bits, class Allocator>
+constexpr void basic_big_int<inplace_bits, Allocator>::copy_n_to_allocation(const limb_type* const p,
+                                                                            const std::size_t      n,
+                                                                            const alloc_result     out) {
+// If __cpp_lib_raw_memory_algorithms is available,
+// we don't need to differentiate between constant evaluation and runtime.
+// Even when we need this fallback case,
+// it is always important that all elements in the allocation are initialized
+// because we don't keep track of "requested" vs "received" capacity
+// (these may not be the same with allocate_at_least).
+#if __cpp_lib_raw_memory_algorithms < 202411L
+    if !consteval {
+#endif
+        std::uninitialized_copy_n(p, n, out.ptr);
+        std::uninitialized_value_construct_n(out.ptr + n, out.count - n);
+#if __cpp_lib_raw_memory_algorithms < 202411L
+    } else {
+        for (std::size_t i = 0; i < n; ++i) {
+            std::construct_at(out.ptr + i, p[i]);
+        }
+        for (std::size_t i = n; i < out.count; ++i) {
+            std::construct_at(out.ptr + i);
+        }
+    }
+#endif
 }
 
 // Standard public alias for defaulted type
