@@ -114,6 +114,8 @@ concept signed_integer = signed_or_unsigned<T> && std::is_signed_v<T>;
 
 // Traits =======================================================================
 
+#include <stdfloat>
+
 namespace beman::big_int::detail {
 template <class F>
 struct ieee_traits;
