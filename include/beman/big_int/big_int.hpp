@@ -24,7 +24,7 @@ namespace beman::big_int {
 using beman::big_int::uint_multiprecision_t;
 
 // Forward decl so that we can define our concepts
-template <std::size_t inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
+template <std::size_t min_inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
 class basic_big_int;
 
 namespace detail {
@@ -32,8 +32,8 @@ namespace detail {
 template <class>
 struct is_basic_big_int : std::false_type {};
 
-template <std::size_t inplace_bits, class Allocator>
-struct is_basic_big_int<basic_big_int<inplace_bits, Allocator>> : std::true_type {};
+template <std::size_t b, class A>
+struct is_basic_big_int<basic_big_int<b, A>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_basic_big_int_v = is_basic_big_int<std::remove_cvref_t<T>>::value;
@@ -54,10 +54,9 @@ inline constexpr bool no_alloc_constructible_from = []() {
     }
 }();
 
-template <std::size_t inplace_bits, class Allocator, class T>
+template <std::size_t b, class A, class T>
 inline constexpr bool is_implicit_constructible_from =
-    detail::signed_or_unsigned<std::remove_cvref_t<T>> ||
-    std::is_same_v<std::remove_cvref_t<T>, basic_big_int<inplace_bits, Allocator>>;
+    detail::signed_or_unsigned<std::remove_cvref_t<T>> || std::is_same_v<std::remove_cvref_t<T>, basic_big_int<b, A>>;
 
 #if __cpp_lib_allocate_at_least >= 202302L
 using std::allocation_result;
@@ -72,9 +71,7 @@ struct allocation_result {
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
-//  template<size_t inplace_bits, class Allocator = allocator<uint_multiprecision_t>>
-//    class basic_big_int;
-template <std::size_t inplace_bits, class Allocator>
+template <std::size_t min_inplace_bits, class Allocator>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     using limb_type               = uint_multiprecision_t;
@@ -98,16 +95,21 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     static constexpr std::size_t bits_per_limb = detail::width_v<limb_type>;
 
+  private:
+    static_assert(min_inplace_bits > 0);
     static constexpr std::size_t inplace_limbs = []() constexpr {
-        constexpr std::size_t from_bits = (inplace_bits + bits_per_limb - 1) / bits_per_limb;
+        constexpr std::size_t from_bits = (min_inplace_bits + bits_per_limb - 1) / bits_per_limb;
         // never fewer limbs than would fit in the pointer footprint
         // of the union, so the union doesn't waste space
         constexpr std::size_t from_pointer = (sizeof(pointer) + sizeof(limb_type) - 1) / sizeof(limb_type);
         return from_bits > from_pointer ? from_bits : from_pointer;
     }();
+    static_assert(inplace_limbs > 0);
 
-    static_assert(inplace_bits > 0, "inplace_bits must be positive");
+  public:
+    static constexpr std::size_t inplace_bits = inplace_limbs * bits_per_limb;
 
+  private:
     union data_type {
         pointer   data;
         limb_type limbs[inplace_limbs];
@@ -115,7 +117,6 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         constexpr data_type() noexcept : limbs{} {}
     };
 
-  private:
     std::uint32_t                        m_capacity;      // 0 = static storage, >0 = heap capacity
     std::uint32_t                        m_size_and_sign; // bit 31 = sign, bits 0-30 = limb count
     data_type                            m_storage;
@@ -163,12 +164,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     }
 
     template <detail::arbitrary_arithmetic T>
-    constexpr basic_big_int(const T&         value,
-                            const Allocator& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
+    constexpr basic_big_int(const T&              value,
+                            const allocator_type& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
-    constexpr explicit basic_big_int(std::from_range_t, R&& r, const Allocator& a = Allocator());
+    constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
 
     constexpr ~basic_big_int();
 
@@ -244,47 +245,45 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
 // Internal accessors
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr bool basic_big_int<inplace_bits, Allocator>::is_storage_static() const noexcept {
+template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::is_storage_static() const noexcept {
     return m_capacity == 0;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr std::uint32_t basic_big_int<inplace_bits, Allocator>::limb_count() const noexcept {
+template <std::size_t b, class A>
+constexpr std::uint32_t basic_big_int<b, A>::limb_count() const noexcept {
     return m_size_and_sign & 0x7FFF'FFFFU;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr bool basic_big_int<inplace_bits, Allocator>::is_negative() const noexcept {
+template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::is_negative() const noexcept {
     return (m_size_and_sign & 0x8000'0000U) != 0;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::set_limb_count(std::uint32_t n) noexcept {
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::set_limb_count(std::uint32_t n) noexcept {
     m_size_and_sign = (m_size_and_sign & 0x8000'0000U) | n;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::set_sign(bool s) noexcept {
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::set_sign(bool s) noexcept {
     m_size_and_sign = (m_size_and_sign & 0x7FFF'FFFFU) | (static_cast<std::uint32_t>(s) << 31);
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>::limb_type*
-basic_big_int<inplace_bits, Allocator>::limb_ptr() noexcept {
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::limb_ptr() noexcept -> limb_type* {
     return is_storage_static() ? m_storage.limbs : m_storage.data;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr const basic_big_int<inplace_bits, Allocator>::limb_type*
-basic_big_int<inplace_bits, Allocator>::limb_ptr() const noexcept {
+template <std::size_t b, class A>
+constexpr const basic_big_int<b, A>::limb_type* basic_big_int<b, A>::limb_ptr() const noexcept {
     return is_storage_static() ? m_storage.limbs : m_storage.data;
 }
 
 // [big.int.cons] — constructors
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const basic_big_int& x)
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
     : m_capacity{0}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{x.m_alloc} {
     if (x.limb_count() <= inplace_limbs) {
         if (x.is_storage_static()) {
@@ -309,8 +308,8 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const basic_big_
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(basic_big_int&& x) noexcept
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
     : m_capacity{x.m_capacity}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{std::move(x.m_alloc)} {
     if (x.is_storage_static()) {
         for (std::size_t i = 0; i < inplace_limbs; ++i) {
@@ -323,9 +322,8 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(basic_big_int&& 
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>&
-basic_big_int<inplace_bits, Allocator>::operator=(const basic_big_int& x) {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(const basic_big_int& x) {
     if (this == &x) {
         return *this;
     }
@@ -349,9 +347,8 @@ basic_big_int<inplace_bits, Allocator>::operator=(const basic_big_int& x) {
     return *this;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>&
-basic_big_int<inplace_bits, Allocator>::operator=(basic_big_int&& x) noexcept {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x) noexcept {
     if (this == &x) {
         return *this;
     }
@@ -375,9 +372,9 @@ basic_big_int<inplace_bits, Allocator>::operator=(basic_big_int&& x) noexcept {
     return *this;
 }
 
-template <std::size_t inplace_bits, class Allocator>
+template <std::size_t b, class A>
 template <detail::arbitrary_arithmetic T>
-constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const T& value, const Allocator& a) noexcept(
+constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_type& a) noexcept(
     detail::no_alloc_constructible_from<inplace_bits, T>)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
     if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
@@ -397,26 +394,24 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(const T& value, 
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
+template <std::size_t b, class A>
 template <std::ranges::input_range R>
     requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
-constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(std::from_range_t, R&& r, const Allocator& a)
+constexpr basic_big_int<b, A>::basic_big_int(std::from_range_t, R&& r, const allocator_type& a)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
     std::size_t i = 0;
 
     if constexpr (std::ranges::sized_range<R>) {
-        const auto count = std::ranges::size(r);
-        if (count > inplace_limbs) {
-            const alloc_result allocation = alloc_limbs(count);
-            m_capacity                    = static_cast<std::uint32_t>(allocation.count);
-            m_storage.data                = allocation.ptr;
-        }
+        reserve(std::ranges::size(r));
     }
 
-    auto* dst = limb_ptr();
+    // FIXME: Buffer overflow for the unsized range case.
+    //        What we actually need here is some kind of push_back_limb() function.
+
+    auto* const dst = limb_ptr();
     for (auto&& elem : r) {
-        using U  = std::make_unsigned_t<std::ranges::range_value_t<R>>;
-        dst[i++] = static_cast<limb_type>(static_cast<U>(elem));
+        using U = std::make_unsigned_t<std::ranges::range_value_t<R>>;
+        std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(elem)));
     }
     set_limb_count(static_cast<std::uint32_t>(i == 0 ? 1 : i));
     while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
@@ -424,15 +419,15 @@ constexpr basic_big_int<inplace_bits, Allocator>::basic_big_int(std::from_range_
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>::~basic_big_int() {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A>::~basic_big_int() {
     free_storage();
 }
 
 // [big.int.ops]
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr std::size_t basic_big_int<inplace_bits, Allocator>::width_mag() const noexcept {
+template <std::size_t b, class A>
+constexpr std::size_t basic_big_int<b, A>::width_mag() const noexcept {
     const auto count = limb_count();
     const auto top   = limb_ptr()[count - 1];
     if (top == 0) {
@@ -442,20 +437,18 @@ constexpr std::size_t basic_big_int<inplace_bits, Allocator>::width_mag() const 
     return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<std::size_t>(std::countl_zero(top)) - 1);
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr std::span<const uint_multiprecision_t>
-basic_big_int<inplace_bits, Allocator>::representation() const noexcept {
+template <std::size_t b, class A>
+constexpr std::span<const uint_multiprecision_t> basic_big_int<b, A>::representation() const noexcept {
     return {limb_ptr(), limb_count()};
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator>::allocator_type
-basic_big_int<inplace_bits, Allocator>::get_allocator() const noexcept {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator() const noexcept {
     return m_alloc;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr std::size_t basic_big_int<inplace_bits, Allocator>::size() const noexcept {
+template <std::size_t b, class A>
+constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
     if (is_storage_static()) {
         return inplace_limbs;
     } else {
@@ -463,24 +456,24 @@ constexpr std::size_t basic_big_int<inplace_bits, Allocator>::size() const noexc
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr std::size_t basic_big_int<inplace_bits, Allocator>::max_size() noexcept {
+template <std::size_t b, class A>
+constexpr std::size_t basic_big_int<b, A>::max_size() noexcept {
     // We use the high bit to encode the sign, so we are limited to 2^31
     return std::numeric_limits<std::uint32_t>::max() >> 1U;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::reserve(const std::size_t n) {
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::reserve(const std::size_t n) {
     grow(n);
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr std::size_t basic_big_int<inplace_bits, Allocator>::capacity() const noexcept {
+template <std::size_t b, class A>
+constexpr std::size_t basic_big_int<b, A>::capacity() const noexcept {
     return m_capacity;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::shrink_to_fit() {
     const auto count = limb_count();
 
     if (is_storage_static() || m_capacity <= count) {
@@ -513,25 +506,25 @@ constexpr void basic_big_int<inplace_bits, Allocator>::shrink_to_fit() {
 
 // [big.int.unary]
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, Allocator>::operator+() const& {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A> basic_big_int<b, A>::operator+() const& {
     return *this;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, Allocator>::operator+() && noexcept {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A> basic_big_int<b, A>::operator+() && noexcept {
     return std::move(*this);
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, Allocator>::operator-() const& {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() const& {
     auto copy = *this;
     copy.set_sign(!copy.is_negative());
     return copy;
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, Allocator>::operator-() && noexcept {
+template <std::size_t b, class A>
+constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() && noexcept {
     auto copy = std::move(*this);
     copy.set_sign(!copy.is_negative());
     return copy;
@@ -539,9 +532,9 @@ constexpr basic_big_int<inplace_bits, Allocator> basic_big_int<inplace_bits, All
 
 // private helpers
 
-template <std::size_t inplace_bits, class Allocator>
+template <std::size_t b, class A>
 template <std::unsigned_integral T>
-constexpr void basic_big_int<inplace_bits, Allocator>::assign_magnitude(T value) noexcept {
+constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
     if constexpr (sizeof(T) <= sizeof(limb_type)) {
         limb_ptr()[0] = static_cast<limb_type>(value);
         set_limb_count(1);
@@ -559,9 +552,9 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_magnitude(T value)
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
+template <std::size_t b, class A>
 template <std::floating_point F>
-constexpr void basic_big_int<inplace_bits, Allocator>::assign_from_float(F value) noexcept {
+constexpr void basic_big_int<b, A>::assign_from_float(F value) noexcept {
     using traits = detail::ieee_traits<F>;
     using bits_t = typename traits::bits_type;
 
@@ -642,8 +635,8 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_from_float(F value
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr auto basic_big_int<inplace_bits, Allocator>::alloc_limbs(const std::size_t n) -> alloc_result {
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::alloc_limbs(const std::size_t n) -> alloc_result {
 #if __cpp_lib_allocate_at_least >= 202302L
     return alloc_traits::allocate_at_least(m_alloc, n);
 #else
@@ -651,20 +644,20 @@ constexpr auto basic_big_int<inplace_bits, Allocator>::alloc_limbs(const std::si
 #endif
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::free_limbs(pointer p, const std::size_t n) {
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::free_limbs(pointer p, const std::size_t n) {
     alloc_traits::deallocate(m_alloc, p, n);
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::free_storage() {
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::free_storage() {
     if (!is_storage_static()) {
         free_limbs(m_storage.data, m_capacity);
     }
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::grow(const std::size_t limbs_needed) {
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::grow(const std::size_t limbs_needed) {
     const std::size_t current_cap = is_storage_static() ? inplace_limbs : m_capacity;
     if (limbs_needed <= current_cap) {
         return;
@@ -682,10 +675,9 @@ constexpr void basic_big_int<inplace_bits, Allocator>::grow(const std::size_t li
     m_capacity     = static_cast<std::uint32_t>(allocation.count);
 }
 
-template <std::size_t inplace_bits, class Allocator>
-constexpr void basic_big_int<inplace_bits, Allocator>::copy_n_to_allocation(const limb_type* const p,
-                                                                            const std::size_t      n,
-                                                                            const alloc_result     out) {
+template <std::size_t b, class A>
+constexpr void
+basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::size_t n, const alloc_result out) {
 // If __cpp_lib_raw_memory_algorithms is available,
 // we don't need to differentiate between constant evaluation and runtime.
 // Even when we need this fallback case,
@@ -710,7 +702,7 @@ constexpr void basic_big_int<inplace_bits, Allocator>::copy_n_to_allocation(cons
 }
 
 // Standard public alias for defaulted type
-using big_int = basic_big_int<128U, std::allocator<uint_multiprecision_t>>;
+using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
 
 } // namespace beman::big_int
 
