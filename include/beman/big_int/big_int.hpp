@@ -117,10 +117,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         constexpr data_type() noexcept : limbs{} {}
     };
 
-    std::uint32_t                        m_capacity;      // 0 = static storage, >0 = heap capacity
-    std::uint32_t                        m_size_and_sign; // bit 31 = sign, bits 0-30 = limb count
-    data_type                            m_storage;
-    [[no_unique_address]] allocator_type m_alloc;
+    std::uint32_t                                  m_capacity;      // 0 = static storage, >0 = heap capacity
+    std::uint32_t                                  m_size_and_sign; // bit 31 = sign, bits 0-30 = limb count
+    data_type                                      m_storage;
+    BEMAN_BIG_INT_NO_UNIQUE_ADDRESS allocator_type m_alloc;
 
     // Internal accessors for the packed representation
     [[nodiscard]] constexpr bool             is_storage_static() const noexcept;

@@ -206,7 +206,8 @@ struct ieee_traits<long double> : ieee_traits<double> {};
     #define BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
 #endif
 } // namespace beman::big_int::detail
-// Trivial ABI ==================================================================
+
+// Trivial ABI =================================================================
 
 #if defined(BEMAN_BIG_INT_CLANG)
     #define BEMAN_BIG_INT_TRIVIAL_ABI [[clang::trivial_abi]]
@@ -215,5 +216,15 @@ struct ieee_traits<long double> : ieee_traits<double> {};
 #else
     #define BEMAN_BIG_INT_TRIVIAL_ABI
 #endif
+
+// no_unique_address ===========================================================
+
+#ifdef BEMAN_BIG_INT_MSVC
+    #define BEMAN_BIG_INT_NO_UNIQUE_ADDRESS [[no_unique_address, msvc::no_unique_address]]
+#else
+    #define BEMAN_BIG_INT_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#endif
+
+// =============================================================================
 
 #endif // BEMAN_BIG_INT_CONFIG_HPP
