@@ -161,7 +161,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 #pragma warning(push)
 #pragma warning(disable : 4146) // unary minus on unsigned is intentional
 #endif
-                assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+                assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
 #ifdef BEMAN_BIG_INT_MSVC
 #pragma warning(pop)
 #endif
@@ -204,7 +204,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         } else {
             using U                   = std::make_unsigned_t<std::remove_cvref_t<T>>;
             const bool            neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
-            const U               mag = neg ? static_cast<U>(-(static_cast<U>(x))) : static_cast<U>(x);
+            const U               mag = neg ? static_cast<U>(U{0} - static_cast<U>(x)) : static_cast<U>(x);
             constexpr std::size_t n   = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
             grow(n);
             const auto old_count = limb_count();
@@ -402,7 +402,7 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
 #pragma warning(push)
 #pragma warning(disable : 4146) // unary minus on unsigned is intentional
 #endif
-            assign_magnitude(is_negative() ? static_cast<U>(-(static_cast<U>(value))) : static_cast<U>(value));
+            assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
 #ifdef BEMAN_BIG_INT_MSVC
 #pragma warning(pop)
 #endif
