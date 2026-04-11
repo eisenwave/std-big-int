@@ -119,12 +119,6 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {}
     constexpr basic_big_int(const basic_big_int& x);
     constexpr basic_big_int(basic_big_int&& x) noexcept;
-    constexpr basic_big_int& operator=(const basic_big_int& x);
-    constexpr basic_big_int& operator=(basic_big_int&& x) noexcept;
-
-    template <detail::arbitrary_integer T>
-        requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
-    constexpr basic_big_int& operator=(T&& x) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
     // Defined inline: MSVC cannot match out-of-line definitions
     // of constructors with conditional explicit + requires.
@@ -157,9 +151,16 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
     constexpr explicit basic_big_int(std::from_range_t, R&& r, const Allocator& a = Allocator());
-    // TODO(mborland): Add additional constructors from P4444
 
     constexpr ~basic_big_int();
+
+    // [big.int.modifiers]
+    constexpr basic_big_int& operator=(const basic_big_int& x);
+    constexpr basic_big_int& operator=(basic_big_int&& x) noexcept;
+
+    template <detail::arbitrary_integer T>
+        requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
+    constexpr basic_big_int& operator=(T&& x) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
     // [big.int.ops]
     [[nodiscard]] constexpr std::size_t                            width_mag() const noexcept;
