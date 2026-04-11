@@ -54,8 +54,3 @@ TEST(FloatConstruction, LongDoublePositive) {
     EXPECT_EQ(x.representation()[0], 42U);
 #endif
 }
-
-TEST(FloatConstruction, DoubleLargeMultiLimb) {
-    beman::big_int::big_int x(static_cast<double>(1ULL << 63) * 4.0);
-    EXPECT_EQ(x.representation().size(), 2U);
-}

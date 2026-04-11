@@ -517,14 +517,14 @@ constexpr void basic_big_int<inplace_bits, Allocator>::assign_from_float(F value
         ieee_exp      = static_cast<std::uint32_t>(bits.exponent);
         ieee_mantissa = bits.mantissa;
     } else {
-        bits          = std::bit_cast<bits_t>(value);
+        bits = std::bit_cast<bits_t>(value);
         set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
         ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
         ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
     }
 #else
     {
-        bits          = std::bit_cast<bits_t>(value);
+        bits = std::bit_cast<bits_t>(value);
         set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
         ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
         ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));

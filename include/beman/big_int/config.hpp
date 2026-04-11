@@ -198,7 +198,7 @@ struct ieee_traits<long double> : ieee_traits<double> {};
 #else
     #define BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
 #endif
-}
+} // namespace beman::big_int::detail
 // Trivial ABI ==================================================================
 
 #if defined(BEMAN_BIG_INT_CLANG)
