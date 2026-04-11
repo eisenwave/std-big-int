@@ -45,6 +45,25 @@ concept arbitrary_integer = signed_or_unsigned<std::remove_cvref_t<T>> || detail
 template <class T>
 concept arbitrary_arithmetic = std::is_floating_point_v<T> || arbitrary_integer<T>;
 
+template <class LT, class RT>
+auto common_big_int_type_impl() {
+    if constexpr (is_basic_big_int_v<LT>) {
+        if constexpr ((is_basic_big_int_v<RT> && std::is_same_v<LT, RT>)) {
+            return std::type_identity<LT>{};
+        } else if constexpr (signed_or_unsigned<RT>) {
+            return std::type_identity<LT>{};
+        }
+    } else if constexpr (is_basic_big_int_v<RT> && signed_or_unsigned<LT>) {
+        return std::type_identity<RT>{};
+    }
+}
+
+template <class L, class R>
+using common_big_int_type = decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
+
+template <class T, class U>
+concept common_big_int_type_with = requires { typename common_big_int_type<T, U>; };
+
 template <std::size_t inplace_bits, class T>
 inline constexpr bool no_alloc_constructible_from = []() {
     if constexpr (std::integral<std::remove_cvref_t<T>>) {
@@ -236,6 +255,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr basic_big_int operator-() const&;
     [[nodiscard]] constexpr basic_big_int operator-() && noexcept;
 
+    // [big.int.cmp]
+    template <class L, detail::common_big_int_type_with<L> R>
+    friend constexpr bool operator==(const L& lhs, const R& rhs) noexcept;
+    template <class L, detail::common_big_int_type_with<L> R>
+    friend constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept;
+
   private:
     template <std::unsigned_integral T>
     constexpr void assign_magnitude(T value) noexcept;
@@ -247,6 +272,24 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr void                       free_storage();
     constexpr void                       grow(std::size_t limbs_needed);
     constexpr void                       copy_n_to_allocation(const limb_type* p, std::size_t n, alloc_result out);
+
+    template <detail::signed_or_unsigned Integer>
+    [[nodiscard]] constexpr bool equals_integer(Integer x) const noexcept;
+    [[nodiscard]] constexpr bool equals_big_int(const basic_big_int& other) const noexcept;
+    [[nodiscard]] constexpr bool equals_limbs(std::span<const uint_multiprecision_t> limbs) const noexcept;
+
+    template <detail::signed_or_unsigned Integer>
+    [[nodiscard]] constexpr std::strong_ordering compare_integer(Integer x) const noexcept;
+    [[nodiscard]] constexpr std::strong_ordering compare_big_int(const basic_big_int& other) const noexcept;
+    [[nodiscard]] constexpr std::strong_ordering
+    compare_limbs(std::span<const uint_multiprecision_t> limbs) const noexcept;
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+    [[nodiscard]] unsigned _BitInt(inplace_bits) inplace_to_bit_uint() const noexcept {
+        return std::bit_cast<_BitInt(inplace_bits)>(m_storage.limbs);
+    }
+#endif
+    static constexpr std::size_t count_trailing_zeroes(std::span<const uint_multiprecision_t> limbs) noexcept;
 };
 
 // =============================================================================
@@ -548,6 +591,71 @@ constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() && noexcept {
     auto copy = std::move(*this);
     copy.set_sign(!copy.is_negative());
     return copy;
+}
+
+template <class L, detail::common_big_int_type_with<L> R>
+constexpr bool operator==(const L& lhs, const R& rhs) noexcept {
+    if constexpr (detail::is_basic_big_int_v<L>) {
+        if constexpr (detail::is_basic_big_int_v<R>) {
+            return lhs.equals_limbs(rhs.representation());
+        } else {
+            return lhs.equals_integer(rhs);
+        }
+    } else {
+        static_assert(detail::is_basic_big_int_v<R>);
+        return rhs.equals_integer(lhs);
+    }
+}
+
+template <class L, detail::common_big_int_type_with<L> R>
+constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept {
+    if constexpr (detail::is_basic_big_int_v<L>) {
+        if constexpr (detail::is_basic_big_int_v<R>) {
+            return lhs.compare_big_int(rhs);
+        } else {
+            return lhs.compare_integer(rhs);
+        }
+    } else {
+        static_assert(detail::is_basic_big_int_v<R>);
+        static_assert((0 <=> std::strong_ordering::less) == std::strong_ordering::greater,
+                      "This trick to flip the ordering should work.");
+        return 0 <=> rhs.compare_integer(lhs);
+    }
+}
+
+template <std::size_t b, class A>
+template <detail::signed_or_unsigned Integer>
+constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexcept {
+    // TODO: implement
+}
+
+template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::equals_big_int(const basic_big_int& x) const noexcept {
+    // We can do fancier things in the future, but this works for now.
+    return equals_limbs(x.representation());
+}
+
+template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_multiprecision_t> limbs) const noexcept {
+    // TODO: implement
+}
+
+template <std::size_t b, class A>
+template <detail::signed_or_unsigned Integer>
+constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Integer x) const noexcept {
+    // TODO: implement
+}
+
+template <std::size_t b, class A>
+constexpr std::strong_ordering basic_big_int<b, A>::compare_big_int(const basic_big_int& x) const noexcept {
+    // We can do fancier things in the future, but this works for now.
+    return compare_limbs(x.representation());
+}
+
+template <std::size_t b, class A>
+constexpr std::strong_ordering
+basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t> limbs) const noexcept {
+    // TODO: implement
 }
 
 // private helpers

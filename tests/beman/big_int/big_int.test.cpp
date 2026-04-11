@@ -22,4 +22,14 @@ static_assert(is_exact_big_int<big_int>::value,
               "though it can differ for other specializations.");
 static_assert(sizeof(void*) != 8 || sizeof(big_int) == 16, "On 64-bit, big_int must be two pointers large.");
 
+static_assert(detail::common_big_int_type_with<big_int, big_int>);
+static_assert(detail::common_big_int_type_with<big_int, int>);
+static_assert(detail::common_big_int_type_with<big_int, unsigned>);
+static_assert(!detail::common_big_int_type_with<big_int, basic_big_int<1, std::allocator<uint_multiprecision_t>>>,
+              "There must be no common type for mixed allocators.");
+static_assert(!detail::common_big_int_type_with<big_int, float>,
+              "There must be no common type between big_int and floating-point types.");
+static_assert(!detail::common_big_int_type_with<int, int>,
+              "There must be no common big_int type between two fundamental types.");
+
 } // namespace beman::big_int
