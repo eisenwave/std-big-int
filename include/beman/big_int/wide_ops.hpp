@@ -141,7 +141,7 @@ struct carry_result {
 template <unsigned_integer T>
 [[nodiscard]] constexpr carry_result<T> carrying_add(T x, T y, bool carry = false) noexcept {
     static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
-#if defined(BEMAN_BIG_INT_GNUC) && __has_builtin(__builtin_addcll)
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addcll)
     unsigned long long carry_out;
     unsigned long long value = __builtin_addcll(x, y, carry, &carry_out);
     return {.value = value, .carry = carry_out != 0};
@@ -161,7 +161,7 @@ struct borrow_result {
 template <unsigned_integer T>
 [[nodiscard]] constexpr borrow_result<T> borrowing_sub(T x, T y, bool borrow = false) noexcept {
     static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
-#if defined(BEMAN_BIG_INT_GNUC) && __has_builtin(__builtin_subcll)
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subcll)
     unsigned long long borrow_out;
     unsigned long long value = __builtin_subcll(x, y, borrow, &borrow_out);
     return {.value = value, .borrow = borrow_out != 0};

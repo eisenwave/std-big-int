@@ -20,7 +20,10 @@
     // Separate case for any GNU-C-compliant compilers,
     // which is both GCC and Clang.
     #define BEMAN_BIG_INT_GNUC __GNUC__
-#endif
+    #define BEMAN_BIG_INT_HAS_BUILTIN(...) __has_builtin(__VA_ARGS__)
+#else
+    #define BEMAN_BIG_INT_HAS_BUILTIN(...) 0
+#endif // __GNUC__
 
 // _BitInt detection ===========================================================
 
