@@ -27,6 +27,17 @@ struct wide {
     T low_bits;
     T high_bits;
 
+    [[nodiscard]] friend constexpr bool operator==(const wide& x, const wide& y) noexcept = default;
+};
+
+template <signed_or_unsigned T>
+    requires requires { typename wider_t<T>; }
+struct wide<T> {
+    T low_bits;
+    T high_bits;
+
+    [[nodiscard]] friend constexpr bool operator==(const wide& x, const wide& y) noexcept = default;
+
     [[nodiscard]] static constexpr wide from_int(wider_t<T> x) noexcept {
         if constexpr (std::endian::native == std::endian::little) {
             return std::bit_cast<wide>(x);
@@ -45,8 +56,6 @@ struct wide {
             return (static_cast<wider_t<T>>(high_bits) << width_v<T>) | low_bits;
         }
     }
-
-    [[nodiscard]] friend constexpr bool operator==(const wide& x, const wide& y) noexcept = default;
 };
 
 template <signed_or_unsigned T>
@@ -81,12 +90,10 @@ template <signed_or_unsigned T>
     return static_cast<T>(x.to_int() >> s);
 }
 
-// These are going to be the standardized forms
-// padding is expected and acceptable
-#if defined(__GNUC__) && !defined(__clang__)
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wpadded"
-#endif
+// These are going to be the standardized forms.
+// Padding is expected and acceptable.
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 
 template <class T>
 struct overflow_result {
@@ -96,45 +103,39 @@ struct overflow_result {
 
 template <signed_or_unsigned T>
 [[nodiscard]] constexpr overflow_result<T> overflowing_add(T x, T y) noexcept {
-#ifdef BEMAN_BIG_INT_GNUC
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_add_overflow)
     T    value;
     bool overflow = __builtin_add_overflow(x, y, &value);
     return {.value = value, .overflow = overflow};
 #else
-    static_assert(width_v<T> <= 64, "Don't need more than 64-bit checked operations for now.");
-    using Wide = std::conditional_t<std::is_signed_v<T>, int128_t, uint128_t>;
-    Wide wide  = static_cast<Wide>(x) + static_cast<Wide>(y);
-    auto value = static_cast<T>(wide);
+    const auto wide  = static_cast<wider_t<T>>(x) + static_cast<wider_t<T>>(y);
+    const auto value = static_cast<T>(wide);
     return {.value = value, .overflow = wide != value};
 #endif // BEMAN_BIG_INT_GNUC
 }
 
 template <signed_or_unsigned T>
 [[nodiscard]] constexpr overflow_result<T> overflowing_sub(T x, T y) noexcept {
-#ifdef BEMAN_BIG_INT_GNUC
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_sub_overflow)
     T    value;
     bool overflow = __builtin_sub_overflow(x, y, &value);
     return {.value = value, .overflow = overflow};
 #else
-    static_assert(width_v<T> <= 64, "Don't need more than 64-bit checked operations for now.");
-    using Wide = std::conditional_t<std::is_signed_v<T>, int128_t, uint128_t>;
-    Wide wide  = static_cast<Wide>(x) - static_cast<Wide>(y);
-    auto value = static_cast<T>(wide);
+    const auto wide  = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y);
+    const auto value = static_cast<T>(wide);
     return {.value = value, .overflow = wide != value};
 #endif // BEMAN_BIG_INT_GNUC
 }
 
 template <signed_or_unsigned T>
 [[nodiscard]] constexpr overflow_result<T> overflowing_mul(T x, T y) noexcept {
-#ifdef BEMAN_BIG_INT_GNUC
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_mul_overflow)
     T    value;
     bool overflow = __builtin_mul_overflow(x, y, &value);
     return {.value = value, .overflow = overflow};
 #else
-    static_assert(width_v<T> <= 64, "Don't need more than 64-bit checked operations for now.");
-    using Wide = std::conditional_t<std::is_signed_v<T>, int128_t, uint128_t>;
-    Wide wide  = static_cast<Wide>(x) * static_cast<Wide>(y);
-    auto value = static_cast<T>(wide);
+    const auto wide  = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
+    const auto value = static_cast<T>(wide);
     return {.value = value, .overflow = wide != value};
 #endif // BEMAN_BIG_INT_GNUC
 }
@@ -147,14 +148,17 @@ struct carry_result {
 
 template <unsigned_integer T>
 [[nodiscard]] constexpr carry_result<T> carrying_add(T x, T y, bool carry = false) noexcept {
-    static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
-#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addcll)
+#if BEMAN_BIG_INT_LIMB_WIDTH == 32 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addc)
+    unsigned carry_out;
+    unsigned value = __builtin_addc(x, y, carry, &carry_out);
+    return {.value = value, .carry = carry_out != 0};
+#elif BEMAN_BIG_INT_LIMB_WIDTH == 64 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addcll)
     unsigned long long carry_out;
     unsigned long long value = __builtin_addcll(x, y, carry, &carry_out);
     return {.value = value, .carry = carry_out != 0};
 #else
-    auto result    = static_cast<uint128_t>(x) + static_cast<uint128_t>(y) + carry;
-    bool carry_out = (result >> 64) != 0;
+    auto result    = static_cast<wider_t<T>>(x) + static_cast<wider_t<T>>(y) + carry;
+    bool carry_out = (result >> width_v<T>) != 0;
     return {.value = static_cast<T>(result), .carry = carry_out};
 #endif // BEMAN_BIG_INT_GNUC
 }
@@ -165,20 +169,21 @@ struct borrow_result {
     bool borrow;
 };
 
-#if defined(__GNUC__) && !defined(__clang__)
-    #pragma GCC diagnostic pop
-#endif
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <unsigned_integer T>
 [[nodiscard]] constexpr borrow_result<T> borrowing_sub(T x, T y, bool borrow = false) noexcept {
-    static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
-#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subcll)
+#if BEMAN_BIG_INT_LIMB_WIDTH == 32 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subc)
+    unsigned borrow_out;
+    unsigned value = __builtin_subc(x, y, borrow, &borrow_out);
+    return {.value = value, .borrow = borrow_out != 0};
+#elif BEMAN_BIG_INT_LIMB_WIDTH == 64 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subcll)
     unsigned long long borrow_out;
     unsigned long long value = __builtin_subcll(x, y, borrow, &borrow_out);
     return {.value = value, .borrow = borrow_out != 0};
 #else
-    auto result     = static_cast<uint128_t>(x) - static_cast<uint128_t>(y) - borrow;
-    bool borrow_out = (result >> 64) != 0;
+    auto result     = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y) - borrow;
+    bool borrow_out = (result >> width_v<T>) != 0;
     return {.value = static_cast<T>(result), .borrow = borrow_out};
 #endif // BEMAN_BIG_INT_GNUC
 }
@@ -194,27 +199,39 @@ struct div_result {
 // which is the case if and only if `x.high_bits < y`.
 template <unsigned_integer T>
 [[nodiscard]] constexpr div_result<T> narrowing_div(wide<T> x, T y) noexcept {
-    static_assert(width_v<T> == 64, "Don't need anything but 64-bit for now.");
-    if (!std::is_constant_evaluated()) {
-        if (x.high_bits >= y) {
-            // TODO: add assertion; this is the UB case.
-            return {.quotient = 0, .remainder = 0};
+    if constexpr (width_v<T> == 64) {
+#if BEMAN_BIG_INT_LIMB_WIDTH == 64
+        if (!std::is_constant_evaluated()) {
+            if (x.high_bits >= y) {
+                // TODO: add assertion; this is the UB case.
+                return {.quotient = 0, .remainder = 0};
+            }
+    #if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
+            T q, r;
+            __asm__("idiv %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
+            return {.quotient = q, .remainder = r};
+    #elif defined(_WIN32)
+            T r;
+            T q = _udiv128(static_cast<T>(x.high_bits), static_cast<T>(x.low_bits), static_cast<T>(y), &r);
+            return {.quotient = static_cast<T>(q), .remainder = static_cast<T>(r)};
+    #endif
         }
-#if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
-        T q, r;
-        __asm__("idiv %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
-        return {.quotient = q, .remainder = r};
-#elif defined(_WIN32)
-        T r;
-        T q = _udiv128(static_cast<T>(x.high_bits), static_cast<T>(x.low_bits), static_cast<T>(y), &r);
-        return {.quotient = static_cast<T>(q), .remainder = static_cast<T>(r)};
-#endif
+#elif defined(BEMAN_BIG_INT_HAS_INT128)
+        const uint128_t x_int = x.to_int();
+        return {
+            .quotient  = static_cast<T>(x_int / y),
+            .remainder = static_cast<T>(x_int % y),
+        };
+#else
+        static_assert(false, "64-bit narrowing_div is not provided without hardware support.");
+#endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
+    } else {
+        const auto x_int = x.to_int();
+        return {
+            .quotient  = static_cast<T>(x_int / y),
+            .remainder = static_cast<T>(x_int % y),
+        };
     }
-    auto x_int = x.to_int();
-    return {
-        .quotient  = static_cast<T>(x_int / y),
-        .remainder = static_cast<T>(x_int % y),
-    };
 }
 
 } // namespace beman::big_int::detail

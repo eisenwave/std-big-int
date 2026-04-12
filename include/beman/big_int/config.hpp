@@ -164,6 +164,8 @@ using int_wide_t = long long;
     #error BEMAN_BIG_INT_LIMB_WIDTH must be either 32 or 64!
 #endif
 
+#define BEMAN_BIG_INT_DOUBLE_LIMB_WIDTH (BEMAN_BIG_INT_LIMB_WIDTH * 2)
+
 } // namespace beman::big_int
 
 // Concepts ====================================================================
