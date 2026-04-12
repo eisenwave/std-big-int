@@ -10,6 +10,10 @@
 
 #include <beman/big_int/config.hpp>
 
+#if !defined(BEMAN_BIG_INT_HAS_INT128) && defined(BEMAN_BIG_INT_MSVC)
+    #include <intrin.h>
+#endif
+
 namespace beman::big_int::detail {
 
 template <std::integral T>
@@ -58,8 +62,70 @@ struct wide<T> {
     }
 };
 
+// Returns the high 64 bits of the multiplication `x * y`.
 template <signed_or_unsigned T>
-[[nodiscard]] constexpr wide<T> widening_mul(T x, T y) noexcept {
+    requires(width_v<T> <= 64)
+inline static T high_mul(const T x, const T y) noexcept {
+    // We don't want to use 128-bit on MSVC because intrinsics are better
+    // than the `std::_Unsigned128` type you get.
+#if defined(BEMAN_BIG_INT_HAS_INT128) && !defined(BEMAN_BIG_INT_MSVC)
+    return (x * static_cast<wider_t<T>>(y)) >> width_v<T>;
+#else
+    if constexpr (width_v<T> <= 32) {
+        return (x * static_cast<wider_t<T>>(y)) >> width_v<T>;
+    } else {
+    #if defined(BEMAN_BIG_INT_MSVC)
+        if constexpr (std::is_signed_v<T>) {
+            return __mulh(x, y);
+        } else {
+            return __umulh(x, y);
+        }
+    #elif defined(_M_IA64)
+        if constexpr (std::is_signed_v<T>) {
+            __int64 result;
+            void(_mul128(a, b, &result));
+            return result;
+        } else {
+            unsigned __int64 result;
+            void(_umul128(a, b, &result));
+            return result;
+        }
+    #else
+        if constexpr (std::is_signed_v<T>) {
+            if constexpr (width_v<T> == 64) {
+                // https://stackoverflow.com/a/28904636/5740428
+                const T a_lo = static_cast<unsigned>(a);
+                const T a_hi = static_cast<unsigned>(a >> 32);
+                const T b_lo = static_cast<unsigned>(b);
+                const T b_hi = static_cast<unsigned>(b >> 32);
+
+                const T a_x_b_hi  = a_hi * b_hi;
+                const T a_x_b_mid = a_hi * b_lo;
+                const T b_x_a_mid = b_hi * a_lo;
+                const T a_x_b_lo  = a_lo * b_lo;
+
+                const T carry_bit = (static_cast<T>(static_cast<unsigned>(a_x_b_mid)) + //
+                                     static_cast<T>(static_cast<unsigned>(b_x_a_mid)) + //
+                                     (a_x_b_lo >> 32))                                  //
+                                    >> 32;
+
+                return a_x_b_hi + (a_x_b_mid >> 32) + (b_x_a_mid >> 32) + carry_bit;
+            } else {
+                static_assert(width_v<unsigned long long> == 64);
+                return high_mul<unsigned long long>(x, y);
+            }
+        } else {
+            static_assert(false, "Sorry, signed 64-bit high multiplication not implemented in this case.");
+        }
+    #endif
+    }
+#endif
+}
+
+// Returns both the low and the high bits of the multiplication `x * y`.
+template <signed_or_unsigned T>
+    requires(width_v<T> <= 64)
+[[nodiscard]] constexpr wide<T> widening_mul(const T x, const T y) noexcept {
     // Based on mul_wide from P3161R4, but with different names.
     // P4052R0 renamed "mul_sat" to "saturating_mul",
     // and the corresponding Rust-style rename for "mul_wide" is "widening_mul".
@@ -67,27 +133,76 @@ template <signed_or_unsigned T>
     // Currently, it would be fine if we just returned an integer,
     // but that enshrines the assumption that we have a 128-bit integer type everywhere.
     // Also, we often need to break up the result into limbs anyway.
-    auto product = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
+
+    // We don't want to use 128-bit on MSVC because intrinsics are better
+    // than the `std::_Unsigned128` type you get.
+#if defined(BEMAN_BIG_INT_HAS_INT128) && !defined(BEMAN_BIG_INT_MSVC)
+    const auto product = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
     return wide<T>::from_int(product);
+#else
+    if constexpr (width_v<T> <= 32) {
+        const auto product = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
+        return wide<T>::from_int(product);
+    } else {
+    #if defined(_M_IA64)
+        if constexpr (std::is_signed_v<T>) {
+            __int64 high;
+            __int64 low = _mul128(x, y, &high);
+            return {low, high};
+        } else {
+            unsigned __int64 high;
+            unsigned __int64 low = _umul128(x, y, &high);
+            return {low, high};
+        }
+    #else
+        using U = std::make_unsigned_t<T>;
+        return {
+            .low_bits  = static_cast<T>(static_cast<U>(x) * static_cast<U>(y)),
+            .high_bits = high_mul(x, y),
+        };
+    #endif
+    }
+#endif
 }
+
+// Design for funnel shifts is similar to P4010R0.
 
 // Returns `x.high_bits << s`,
 // except that the low bits are filled with `x.low_bits` instead of zeroes.
 template <signed_or_unsigned T>
-[[nodiscard]] constexpr T funnel_shl(wide<T> x, unsigned s) {
-    // Design similar to P4010R0.
+[[nodiscard]] constexpr T funnel_shl(const wide<T> x, const unsigned s) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(s < width_v<T>);
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_elementwise_fshl)
+    return __builtin_elementwise_fshl(x.high_bits, x.low_bits, static_cast<T>(s));
+#else
     if (s == 0) {
         return x.high_bits;
     }
     return (x.high_bits << s) | (x.low_bits >> (width_v<T> - s));
+#endif
 }
 
 // Returns `x.low_bits >> s`,
 // except that the high bits are filled with `x.high_bits` instead sign bits.
 template <signed_or_unsigned T>
-[[nodiscard]] constexpr T funnel_shr(wide<T> x, unsigned s) {
-    // Design similar to P4010R0.
-    return static_cast<T>(x.to_int() >> s);
+[[nodiscard]] constexpr T funnel_shr(const wide<T> x, const unsigned s) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(s < width_v<T>);
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_elementwise_fshr)
+    return __builtin_elementwise_fshr(x.high_bits, x.low_bits, static_cast<T>(s));
+#else
+    // It usually makes sense to implement this in terms of a right-shift of a wider type.
+    // However, the 128-bit version optimizes poorly;
+    // Clang recognizes the else case as a funnel shift and optimizes that better.
+    // In general, the 128-bit shift provides little benefit here.
+    if constexpr (width_v<T> < 64 && requires { x.to_int(); }) {
+        return static_cast<T>(x.to_int() >> s);
+    } else {
+        if (s == 0) {
+            return x.low_bits;
+        }
+        return (x.low_bits >> s) | (x.high_bits << (width_v<T> - s));
+    }
+#endif
 }
 
 // These are going to be the standardized forms.
