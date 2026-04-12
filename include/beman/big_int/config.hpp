@@ -92,19 +92,23 @@ using int_wide_t = int128_t;
 
 #include <cstdint>
 #include <type_traits>
+#include <concepts>
 
 namespace beman::big_int::detail {
 
 template <class T>
 concept cv_unqualified = !std::is_const_v<T> && !std::is_volatile_v<T>;
 
+template <class T>
+concept character_type =                                     //
+    std::is_same_v<T, char> || std::is_same_v<T, wchar_t> || //
+    std::is_same_v<T, char8_t> || std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>;
+
 // Modeled if `T` is a signed or unsigned integer type.
 // That is, a standard integer type, extended integer type, or bit-precise integer type.
 template <class T>
-concept signed_or_unsigned =
-    std::is_integral_v<T> && cv_unqualified<T> //
-    && !std::is_same_v<T, bool> && !std::is_same_v<T, char> && !std::is_same_v<T, wchar_t> &&
-    !std::is_same_v<T, char8_t> && !std::is_same_v<T, char16_t> && !std::is_same_v<T, char32_t>;
+concept signed_or_unsigned = std::is_integral_v<T> && cv_unqualified<T> //
+                             && !std::is_same_v<T, bool> && !character_type<T>;
 
 // Modeled if `T` is a standard unsigned, extended unsigned, or bit-precise unsigned integer type.
 template <class T>
@@ -112,6 +116,23 @@ concept unsigned_integer = signed_or_unsigned<T> && std::is_unsigned_v<T>;
 // Modeled if `T` is a standard signed, extended signed, or bit-precise signed integer type.
 template <class T>
 concept signed_integer = signed_or_unsigned<T> && std::is_signed_v<T>;
+
+// Alias template that maps a cv-unqualified integral type onto the underlying
+// signed or unsigned integer type.
+// For example, this converts `char8_t` to `unsigned char`, `int` to `int`, etc.
+// The goal is to reduce redundant template instantiations.
+template <class T>
+    requires std::integral<T> && cv_unqualified<T>
+using make_signed_or_unsigned_t =
+    std::conditional_t<std::is_signed_v<T>, std::make_signed_t<T>, std::make_unsigned_t<T>>;
+
+template <class T>
+concept cv_unqualified_floating_point = cv_unqualified<T> && std::floating_point<T>;
+
+template <class T>
+[[nodiscard, maybe_unused]] constexpr make_signed_or_unsigned_t<T> to_signed_or_unsigned(const T x) {
+    return static_cast<make_signed_or_unsigned_t<T>>(x);
+}
 
 } // namespace beman::big_int::detail
 
