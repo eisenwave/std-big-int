@@ -883,7 +883,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
 #if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
     if constexpr (std::is_same_v<bits_t, detail::long_double_bits>) {
         // UB on x86 due to 6 padding bytes.
-        if consteval {
+        if BEMAN_BIG_INT_IS_CONSTEVAL {
             return;
         }
         __builtin_memcpy(&bits, &value, sizeof(bits));
