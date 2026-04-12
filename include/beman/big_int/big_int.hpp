@@ -192,20 +192,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             static_assert(!std::is_same_v<std::remove_cvref_t<T>, long double>,
                           "long double is not supported on this platform");
 #endif
-            assign_from_float(static_cast<std::remove_cvref_t<T>>(value));
+            assign_from_float(value);
         } else {
             if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
                 set_sign(value < std::remove_cvref_t<T>{0});
-                using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
-
-#ifdef BEMAN_BIG_INT_MSVC
-    #pragma warning(push)
-    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
-#endif
-                assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
-#ifdef BEMAN_BIG_INT_MSVC
-    #pragma warning(pop)
-#endif
+                assign_magnitude(detail::uabs(value));
             } else {
                 assign_magnitude(value);
             }
