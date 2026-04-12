@@ -1100,6 +1100,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wuser-defined-literals")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wreserved-user-defined-literal")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wliteral-suffix")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4455)
 
 // Formatting suppressions are needed to prevent insertion of space between `""` and `n`.
 // clang-format off
