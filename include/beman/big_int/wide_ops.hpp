@@ -102,7 +102,7 @@ struct overflow_result {
 };
 
 template <signed_or_unsigned T>
-[[nodiscard]] constexpr overflow_result<T> overflowing_add(T x, T y) noexcept {
+[[nodiscard]] constexpr overflow_result<T> overflowing_add(const T x, const T y) noexcept {
 #if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_add_overflow)
     T    value;
     bool overflow = __builtin_add_overflow(x, y, &value);
@@ -115,7 +115,7 @@ template <signed_or_unsigned T>
 }
 
 template <signed_or_unsigned T>
-[[nodiscard]] constexpr overflow_result<T> overflowing_sub(T x, T y) noexcept {
+[[nodiscard]] constexpr overflow_result<T> overflowing_sub(const T x, const T y) noexcept {
 #if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_sub_overflow)
     T    value;
     bool overflow = __builtin_sub_overflow(x, y, &value);
@@ -128,7 +128,7 @@ template <signed_or_unsigned T>
 }
 
 template <signed_or_unsigned T>
-[[nodiscard]] constexpr overflow_result<T> overflowing_mul(T x, T y) noexcept {
+[[nodiscard]] constexpr overflow_result<T> overflowing_mul(const T x, const T y) noexcept {
 #if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_mul_overflow)
     T    value;
     bool overflow = __builtin_mul_overflow(x, y, &value);
@@ -147,7 +147,7 @@ struct carry_result {
 };
 
 template <unsigned_integer T>
-[[nodiscard]] constexpr carry_result<T> carrying_add(T x, T y, bool carry = false) noexcept {
+[[nodiscard]] constexpr carry_result<T> carrying_add(const T x, const T y, const bool carry = false) noexcept {
 #if BEMAN_BIG_INT_LIMB_WIDTH == 32 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addc)
     unsigned carry_out;
     unsigned value = __builtin_addc(x, y, carry, &carry_out);
@@ -172,7 +172,7 @@ struct borrow_result {
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <unsigned_integer T>
-[[nodiscard]] constexpr borrow_result<T> borrowing_sub(T x, T y, bool borrow = false) noexcept {
+[[nodiscard]] constexpr borrow_result<T> borrowing_sub(const T x, const T y, const bool borrow = false) noexcept {
 #if BEMAN_BIG_INT_LIMB_WIDTH == 32 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subc)
     unsigned borrow_out;
     unsigned value = __builtin_subc(x, y, borrow, &borrow_out);
@@ -198,16 +198,17 @@ struct div_result {
 // The behavior is undefined if the quotient is not representable as `T`,
 // which is the case if and only if `x.high_bits < y`.
 template <unsigned_integer T>
-[[nodiscard]] constexpr div_result<T> narrowing_div(wide<T> x, T y) noexcept {
+[[nodiscard]] constexpr div_result<T> narrowing_div(const wide<T> x, const T y) noexcept {
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        BEMAN_BIG_INT_ASSERT(x.high_bits >= y);
+    }
+
+#if BEMAN_BIG_INT_LIMB_WIDTH == 64
     // For 64-bit, there potentially exists the optimization opportunity of using a `div` instruction.
     // This is only available on x86_64, and traps if the quotient does not fit into 64 bits.
     if constexpr (width_v<T> == 64) {
-#if BEMAN_BIG_INT_LIMB_WIDTH == 64
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            if (x.high_bits >= y) {
-                // TODO: add assertion; this is the UB case.
-                return {.quotient = 0, .remainder = 0};
-            }
+            BEMAN_BIG_INT_DEBUG_ASSERT(x.high_bits >= y);
     #if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
             T q, r;
             __asm__("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
@@ -218,10 +219,8 @@ template <unsigned_integer T>
             return {.quotient = static_cast<T>(q), .remainder = static_cast<T>(r)};
     #endif
         }
-#else
-        static_assert(false, "64-bit narrowing_div is not provided without hardware support.");
-#endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
     }
+#endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
 
     // In the general case, we rely on `wider_t<T>` and `to_int()` existing.
     // There is no software fallback, so this might fail due to lack of 128-bit support
