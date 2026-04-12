@@ -79,6 +79,18 @@
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH 0
 #endif // BITINT_MAXWIDTH
 
+// 32-bit/64-bit ===============================================================
+
+#include <cstdint>
+
+#if INTPTR_MAX == INT64_MAX || defined(__wasm__) || defined(__EMSCRIPTEN__)
+    #define BEMAN_BIG_INT_WORD_BITS 64
+#elif INTPTR_MAX == INT32_MAX
+    #define BEMAN_BIG_INT_WORD_BITS 32
+#else
+    #error Unknown pointer size or missing size macros!
+#endif
+
 // 128-bit integer support =====================================================
 
 #ifdef BEMAN_BIG_INT_MSVC
@@ -88,16 +100,17 @@
 namespace beman::big_int::detail {
 
 #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
+    #define BEMAN_BIG_INT_HAS_INT128 1
 using int128_t  = _BitInt(128);
 using uint128_t = unsigned _BitInt(128);
-#elif defined(BEMAN_BIG_INT_GNUC)
+#elif defined(__SIZEOF_INT128__)
+    #define BEMAN_BIG_INT_HAS_INT128 1
 using int128_t  = __int128;
 using uint128_t = unsigned __int128;
 #elif defined(BEMAN_BIG_INT_MSVC)
+    #define BEMAN_BIG_INT_HAS_INT128 1
 using int128_t  = std::_Signed128;
 using uint128_t = std::_Unsigned128;
-#else
-    #error "128-bit integer support is required."
 #endif
 
 } // namespace beman::big_int::detail
@@ -106,21 +119,50 @@ using uint128_t = std::_Unsigned128;
 
 namespace beman::big_int {
 
-// We currently assume 64-bit,
-// so we just hardcode using unsigned long long.
+#ifdef BEMAN_BIG_INT_FORCED_LIMB_WIDTH
+    #if BEMAN_BIG_INT_FORCED_LIMB_WIDTH != 32 && BEMAN_BIG_INT_FORCED_LIMB_WIDTH != 64
+        #error BEMAN_BIG_INT_FORCED_LIMB_WIDTH must be either 32 or 64!
+    #endif
+    #define BEMAN_BIG_INT_LIMB_WIDTH BEMAN_BIG_INT_FORCED_LIMB_WIDTH
+#else
+    #define BEMAN_BIG_INT_LIMB_WIDTH BEMAN_BIG_INT_WORD_BITS
+#endif // BEMAN_BIG_INT_FORCED_LIMB_WIDTH
+
+#if BEMAN_BIG_INT_LIMB_WIDTH == 64
 
 using uint_multiprecision_t = unsigned long long;
-
+static_assert(sizeof(uint_multiprecision_t) == 8);
 namespace detail {
-
 // Signed counterpart to uint_multiprecision_t.
 using int_multiprecision_t = long long;
+    #ifdef BEMAN_BIG_INT_HAS_INT128
+        // Indicates that `uint_wide_t` and `int_wide_t` exist.
+        #define BEMAN_BIG_INT_HAS_WIDE_INT 1
 // Unsigned integer type with twice the width of uint_multiprecision_t.
 using uint_wide_t = uint128_t;
 // Signed integer type with twice the width of int_multiprecision_t.
 using int_wide_t = int128_t;
-
+    #endif
 } // namespace detail
+
+#elif BEMAN_BIG_INT_LIMB_WIDTH == 32
+
+using uint_multiprecision_t = unsigned int;
+static_assert(sizeof(uint_multiprecision_t) == 4);
+namespace detail {
+// Signed counterpart to uint_multiprecision_t.
+using int_multiprecision_t = int;
+    // Indicates that `uint_wide_t` and `int_wide_t` exist.
+    #define BEMAN_BIG_INT_HAS_WIDE_INT 1
+// Unsigned integer type with twice the width of uint_multiprecision_t.
+using uint_wide_t = unsigned long long;
+// Signed integer type with twice the width of int_multiprecision_t.
+using int_wide_t = long long;
+} // namespace detail
+
+#else
+    #error BEMAN_BIG_INT_LIMB_WIDTH must be either 32 or 64!
+#endif
 
 } // namespace beman::big_int
 
