@@ -10,7 +10,7 @@
 
 #include <beman/big_int/config.hpp>
 
-#if !defined(BEMAN_BIG_INT_HAS_INT128) && defined(BEMAN_BIG_INT_MSVC)
+#ifdef BEMAN_BIG_INT_MSVC
     #include <intrin.h>
 #endif
 
