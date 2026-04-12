@@ -367,10 +367,17 @@ namespace beman::big_int {
 
 #if defined(__cpp_if_consteval) && __cpp_if_consteval >= 202106L
     #define BEMAN_BIG_INT_IS_CONSTEVAL consteval
-    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL !consteval
+    #ifdef BEMAN_BIG_INT_MSVC
+  // In MSVC, all code following `if !consteval` is considered unreachable.
+  // The warning is also impossible to suppress, so NEVER use `if !consteval` on MSVC.
+  // https://developercommunity.microsoft.com/t/Code-following-if-consteval-is-unreac/11073119
+        #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!__builtin_is_constant_evaluated())
+    #else
+        #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL !consteval
+    #endif // BEMAN_BIG_INT_MSVC
 #elif BEMAN_BIG_INT_HAS_BUILTIN(__builtin_is_constant_evaluated)
     #define BEMAN_BIG_INT_IS_CONSTEVAL (__builtin_is_constant_evaluated())
-    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (__builtin_is_constant_evaluated())
+    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!__builtin_is_constant_evaluated())
 #else
     #include <type_traits>
     #define BEMAN_BIG_INT_IS_CONSTEVAL (::std::is_constant_evaluated())

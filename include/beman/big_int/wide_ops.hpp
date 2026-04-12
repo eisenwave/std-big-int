@@ -199,11 +199,6 @@ struct div_result {
 // which is the case if and only if `x.high_bits < y`.
 template <unsigned_integer T>
 [[nodiscard]] constexpr div_result<T> narrowing_div(const wide<T> x, const T y) noexcept {
-    // In MSVC, all code following `if !consteval` is considered unreachable.
-    // https://developercommunity.microsoft.com/t/Code-following-if-consteval-is-unreac/11073119
-    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
-
     const bool quotient_fits = x.high_bits < y;
     if BEMAN_BIG_INT_IS_CONSTEVAL {
         BEMAN_BIG_INT_ASSERT(quotient_fits);
@@ -236,7 +231,6 @@ template <unsigned_integer T>
         .quotient  = static_cast<T>(x_int / y),
         .remainder = static_cast<T>(x_int % y),
     };
-    BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
 } // namespace beman::big_int::detail
