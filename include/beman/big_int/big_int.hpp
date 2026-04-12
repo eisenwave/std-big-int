@@ -116,9 +116,9 @@ template <std::size_t min_inplace_bits, class Allocator>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     using limb_type               = uint_multiprecision_t;
-    using double_limb_type        = detail::uint128_t;
-    using signed_limb_type        = std::make_signed_t<limb_type>;
-    using signed_double_limb_type = detail::int128_t;
+    using double_limb_type        = detail::uint_wide_t;
+    using signed_limb_type        = detail::int_multiprecision_t;
+    using signed_double_limb_type = detail::int_wide_t;
 
   public:
     using allocator_type = Allocator;
