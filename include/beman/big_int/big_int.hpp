@@ -979,7 +979,16 @@ template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::free_limbs(pointer p, const std::size_t n) {
     BEMAN_BIG_INT_ASSERT(p != nullptr);
     BEMAN_BIG_INT_ASSERT(n != 0);
+    // Need to suppress known false positive warning.
+    // See also https://github.com/llvm/llvm-project/issues/53007
+#ifdef BEMAN_BIG_INT_GCC
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#endif
     alloc_traits::deallocate(m_alloc, p, n);
+#ifdef BEMAN_BIG_INT_GCC
+    #pragma GCC diagnostic pop
+#endif
 }
 
 template <std::size_t b, class A>
