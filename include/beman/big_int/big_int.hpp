@@ -87,6 +87,22 @@ struct allocation_result {
 };
 #endif // __cpp_lib_allocate_at_least
 
+// Returns the quotient of the division `x / y`,
+// rounded towards positive infinity.
+template <unsigned_integer T>
+[[nodiscard]] constexpr T div_to_pos_inf(const T x, const T y) {
+    return (x / y) + T(x % y != 0);
+}
+
+// Returns the mathematically correct `abs(x)` for a given signed integer `x`,
+// where the result is an unsigned integer.
+// Unlike `std::abs`, this function has no undefined behavior in e.g. `uabs(INT_MIN)`.
+template <signed_integer T>
+[[nodiscard]] constexpr std::make_unsigned_t<T> uabs(const T x) noexcept {
+    using U = std::make_unsigned_t<T>;
+    return x < 0 ? -static_cast<U>(x) : static_cast<U>(x);
+}
+
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -113,16 +129,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     using alloc_result = detail::allocation_result<pointer>;
 
     static constexpr std::size_t bits_per_limb = detail::width_v<limb_type>;
-
-  private:
+    // Never fewer limbs than would fit in the pointer footprint  of the union,
+    // so the union doesn't waste space.
+    static constexpr std::size_t inplace_limbs = std::max(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
+                                                          detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
     static_assert(min_inplace_bits > 0);
-    static constexpr std::size_t inplace_limbs = []() constexpr {
-        constexpr std::size_t from_bits = (min_inplace_bits + bits_per_limb - 1) / bits_per_limb;
-        // never fewer limbs than would fit in the pointer footprint
-        // of the union, so the union doesn't waste space
-        constexpr std::size_t from_pointer = (sizeof(pointer) + sizeof(limb_type) - 1) / sizeof(limb_type);
-        return from_bits > from_pointer ? from_bits : from_pointer;
-    }();
     static_assert(inplace_limbs > 0);
 
   public:
@@ -276,13 +287,15 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr bool equals_integer(Integer x) const noexcept;
     [[nodiscard]] constexpr bool equals_big_int(const basic_big_int& other) const noexcept;
-    [[nodiscard]] constexpr bool equals_limbs(std::span<const uint_multiprecision_t> limbs,
-                                              bool                                   limbs_negative) const noexcept;
+    template <std::size_t extent>
+    [[nodiscard]] constexpr bool equals_limbs(std::span<const uint_multiprecision_t, extent> limbs,
+                                              bool limbs_negative) const noexcept;
 
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr std::strong_ordering compare_integer(Integer x) const noexcept;
     [[nodiscard]] constexpr std::strong_ordering compare_big_int(const basic_big_int& other) const noexcept;
-    [[nodiscard]] constexpr std::strong_ordering compare_limbs(std::span<const uint_multiprecision_t> limbs,
+    template <std::size_t extent>
+    [[nodiscard]] constexpr std::strong_ordering compare_limbs(std::span<const uint_multiprecision_t, extent> limbs,
                                                                bool limbs_negative) const noexcept;
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
@@ -598,7 +611,7 @@ template <class L, detail::common_big_int_type_with<L> R>
 constexpr bool operator==(const L& lhs, const R& rhs) noexcept {
     if constexpr (detail::is_basic_big_int_v<L>) {
         if constexpr (detail::is_basic_big_int_v<R>) {
-            return lhs.equals_limbs(rhs.representation());
+            return lhs.equals_big_int(rhs);
         } else {
             return lhs.equals_integer(rhs);
         }
@@ -626,30 +639,46 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
 
 namespace detail {
 
-template <signed_integer T>
-constexpr std::make_unsigned_t<T> uabs(T x) {
-    if constexpr (std::is_unsigned_v<T>) {
-        return x;
-    } else {
-        using U = std::make_unsigned_t<T>;
-        return x < 0 ? -static_cast<U>(x) : static_cast<U>(x);
-    }
-}
-
+// Converts a given unsigned integer to a `std::array<uint_multiprecision_t, N>`,
+// where `N` is sufficiently large to store the value of `x`.
 template <unsigned_integer T>
 [[nodiscard]] constexpr auto to_limbs(const T x) noexcept {
-    const std::size_t limb_count =
-        width_v<T> / width_v<uint_multiprecision_t> + (width_v<T> % width_v<uint_multiprecision_t> ? 1 : 0);
-    using Result = std::array<uint_multiprecision_t, limb_count>;
-    if constexpr (sizeof(Result) == sizeof(T) && std::endian::native == std::endian::little) {
+    constexpr std::size_t bits_per_limb = width_v<uint_multiprecision_t>;
+    constexpr std::size_t limb_count    = div_to_pos_inf(width_v<T>, bits_per_limb);
+    static_assert(limb_count != 0);
+    using Result                         = std::array<uint_multiprecision_t, limb_count>;
+    constexpr bool eligible_for_bit_cast = sizeof(Result) == sizeof(T) && //
+                                           width_v<T> % bits_per_limb == 0 &&
+                                           std::endian::native == std::endian::little;
+    if constexpr (eligible_for_bit_cast) {
+        // While `std::bit_cast` should be the fastest form of conversion
+        // (especially in constant evaluation and on debug builds),
+        // many conditions must be met.
+        // For example, `_BitInt(100)` is not eligible due to padding bits,
+        // (this could change with a `std::bit_cast_clear_padding` function in the future)
+        // `_BitInt(32)` is too small to be eligible on 64-bit, and
+        // `_BitInt(128)` is eligible, but (as in all other cases),
+        // only on little-endian architectures.
         return std::bit_cast<Result>(x);
     } else {
         Result result;
         for (std::size_t i = 0; i < limb_count; ++i) {
-            result[i] = static_cast<uint_multiprecision_t>(x >> (i * width_v<uint_multiprecision_t>));
+            result[i] = static_cast<uint_multiprecision_t>(x >> (i * bits_per_limb));
         }
         return result;
     }
+}
+
+// Creates a span with fixed extent rather than dynamic extent,
+// while deducing the size from the argument.
+// This is useful for all kinds of binary operations between `big_int` and integers,
+// where the integer is converted to a fixed amount of limbs.
+// That fixed amount is often just `1`,
+// which can be special-cased using `if constexpr` in various algorithms,
+// and even without special casing, a fixed extent assists in constant folding/propagation.
+template <class T, std::size_t N>
+[[nodiscard]] constexpr std::span<const T, N> to_fixed_span(const std::array<T, N>& arr) noexcept {
+    return std::span<const T, N>(arr);
 }
 
 } // namespace detail
@@ -666,10 +695,10 @@ constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexce
             return inplace_to_bit_uint() == x;
         }
 #endif
-        return equals_limbs(detail::to_limbs(x), false);
+        return equals_limbs(detail::to_fixed_span(detail::to_limbs(x)), false);
     } else {
         const auto limbs = detail::to_limbs(detail::uabs(x));
-        return equals_limbs(limbs, x < 0);
+        return equals_limbs(detail::to_fixed_span(limbs), x < 0);
     }
 }
 
@@ -680,13 +709,11 @@ constexpr bool basic_big_int<b, A>::equals_big_int(const basic_big_int& x) const
 }
 
 template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_multiprecision_t> limbs,
+template <std::size_t extent>
+constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_multiprecision_t, extent> limbs,
                                                  const bool limbs_negative) const noexcept {
     if (is_negative() != limbs_negative) {
         return false;
-    }
-    if (limbs.size() == 1) {
-        return *limb_ptr() == limbs[0];
     }
 
     std::size_t       i    = 0;
@@ -726,6 +753,18 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
         }
 #endif
         return compare_limbs(detail::to_limbs(x));
+    } else {
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+        if (is_storage_static()) {
+            const auto sign_compare = (x < 0) <=> is_negative();
+            if (sign_compare != 0) {
+                return sign_compare;
+            }
+            return inplace_to_bit_uint() <=> detail::uabs(x);
+        }
+#endif
+        const auto limbs = detail::to_limbs(detail::uabs(x));
+        return compare_limbs(detail::to_fixed_span(limbs), x < 0);
     }
 }
 
@@ -736,9 +775,41 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_big_int(const basic_
 }
 
 template <std::size_t b, class A>
-constexpr std::strong_ordering basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t> limbs,
-                                                                  bool is_negative) const noexcept {
-    // TODO: implement
+template <std::size_t extent>
+constexpr std::strong_ordering
+basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, extent> limbs,
+                                   const bool limbs_negative) const noexcept {
+    // A mismatch between signs lets us short-circuit without comparing the magnitudes.
+    const auto sign_compare = limbs_negative <=> is_negative();
+    if (sign_compare != 0) {
+        return sign_compare;
+    }
+    const auto rep = representation();
+
+    // If there are more significant nonzero digits in limbs, this integer is lower.
+    // Decimal example: 23 < 123
+    for (std::size_t i = limbs.size(); i-- > rep.size();) {
+        if (limbs[i] != 0) {
+            return std::strong_ordering::less;
+        }
+    }
+    // If there are more significant nonzero digits in this integer, it is greater.
+    // Decimal example: 123 > 23
+    for (std::size_t i = rep.size(); i-- > limbs.size();) {
+        if (rep[i] != 0) {
+            return std::strong_ordering::greater;
+        }
+    }
+    // Otherwise, we nee need to compare the common digits to one another,
+    // from most significant to least significant.
+    for (std::size_t i = std::min(limbs.size(), rep.size()); i-- > 0;) {
+        const auto result = limbs[i] <=> rep[i];
+        if (result != 0) {
+            return result;
+        }
+    }
+    // Having eliminated any possible mismatch, the two sides are equal.
+    return std::strong_ordering::equal;
 }
 
 // private helpers
