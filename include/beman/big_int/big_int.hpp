@@ -284,9 +284,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept;
 
   private:
-    template <std::unsigned_integral T>
+    template <detail::unsigned_integer T>
     constexpr void assign_magnitude(T value) noexcept;
-    template <std::floating_point F>
+    template <detail::cv_unqualified_floating_point F>
     constexpr void assign_from_float(F value) noexcept;
 
     [[nodiscard]] constexpr alloc_result alloc_limbs(std::size_t n);
@@ -858,8 +858,8 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
 // private helpers
 
 template <std::size_t b, class A>
-template <std::unsigned_integral T>
-constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
+template <detail::unsigned_integer T>
+constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
     if constexpr (sizeof(T) <= sizeof(limb_type)) {
         limb_ptr()[0] = static_cast<limb_type>(value);
         set_limb_count(1);
@@ -878,7 +878,7 @@ constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
 }
 
 template <std::size_t b, class A>
-template <std::floating_point F>
+template <detail::cv_unqualified_floating_point F>
 constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
     BEMAN_BIG_INT_ASSERT(std::isfinite(value));
 
