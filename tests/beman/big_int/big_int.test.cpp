@@ -32,4 +32,13 @@ static_assert(!detail::common_big_int_type_with<big_int, float>,
 static_assert(!detail::common_big_int_type_with<int, int>,
               "There must be no common big_int type between two fundamental types.");
 
+using namespace beman::big_int::literals;
+
+static_assert(0_n == 0_n);
+static_assert(1_n != 0_n);
+static_assert(0xff_n == 255_n);
+static_assert(0XFF_n == 255_n);
+static_assert(0b1111_n == 15_n);
+static_assert(0B1111_n == 15_n);
+
 } // namespace beman::big_int

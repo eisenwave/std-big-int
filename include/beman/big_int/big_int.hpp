@@ -8,6 +8,7 @@
 #include <bit>
 #include <climits>
 #include <cmath>
+#include <charconv>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -102,14 +103,10 @@ template <unsigned_integer T>
 template <signed_integer T>
 [[nodiscard]] constexpr std::make_unsigned_t<T> uabs(const T x) noexcept {
     using U = std::make_unsigned_t<T>;
-#ifdef BEMAN_BIG_INT_MSVC
-    #pragma warning(push)
-    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
-#endif
+    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4146) // unary minus on unsigned is intentional
     return x < 0 ? -static_cast<U>(x) : static_cast<U>(x);
-#ifdef BEMAN_BIG_INT_MSVC
-    #pragma warning(pop)
-#endif
+    BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
 } // namespace detail
@@ -972,14 +969,10 @@ constexpr void basic_big_int<b, A>::free_limbs(pointer p, const std::size_t n) {
     BEMAN_BIG_INT_ASSERT(n != 0);
     // Need to suppress known false positive warning.
     // See also https://github.com/llvm/llvm-project/issues/53007
-#ifdef BEMAN_BIG_INT_GCC
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wfree-nonheap-object"
-#endif
+    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfree-nonheap-object")
     alloc_traits::deallocate(m_alloc, p, n);
-#ifdef BEMAN_BIG_INT_GCC
-    #pragma GCC diagnostic pop
-#endif
+    BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
 template <std::size_t b, class A>
@@ -1039,6 +1032,110 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::s
 
 // Standard public alias for defaulted type
 using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
+
+// [big.int.literal]
+namespace detail {
+
+// Like `std::from_chars`, but detects the base automatically
+// based on the `0x`, `0b`, or `0` prefix.
+template <unsigned_integer T>
+[[nodiscard]] constexpr std::from_chars_result
+from_chars_auto_base(const char* const begin, const char* const end, T& out) {
+    if (begin == end) {
+        return {end, std::errc::invalid_argument};
+    }
+    if (*begin != '0' || end - begin <= 1) {
+        return std::from_chars(begin, end, out);
+    }
+    switch (begin[1]) {
+    case 'b':
+    case 'B':
+        return std::from_chars(begin + 2, end, out, 2);
+    // In the future, this will also have a case for 'o'
+    // https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p0085r3.html
+    case 'x':
+    case 'X':
+        return std::from_chars(begin + 2, end, out, 16);
+    default:
+        break;
+    }
+    // This case (leading zero for octal) is deprecated,
+    // but we have no real way to communicate that and raise a warning here.
+    return std::from_chars(begin, end, out, 8);
+}
+
+struct big_int_and_errc {
+    big_int   value;
+    std::errc ec;
+};
+
+[[nodiscard]] constexpr big_int_and_errc parse_non_allocating(const char* const begin, const char* const end) {
+    // TODO(eisenwave): This should support more than a single limb.
+    uint_multiprecision_t parsed_limb = 0;
+    const auto [p, ec]                = detail::from_chars_auto_base(begin, end, parsed_limb);
+    if (ec != std::errc{}) {
+        return {0, ec};
+    }
+    return {.value = parsed_limb, .ec = {}};
+}
+
+// Helper variable template which prevents multiple constant evaluations of parse_non_allocating,
+// in case compilers don't memoize.
+// It also provides some convenience.
+template <char... digits>
+inline constexpr big_int_and_errc parse_non_allocating_v = [] {
+    static constexpr char buffer[]{digits...};
+    return parse_non_allocating(buffer, buffer + sizeof(buffer));
+}();
+
+} // namespace detail
+
+inline namespace literals {
+inline namespace big_int_literals {
+
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wuser-defined-literals")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wliteral-suffix")
+
+template <char... digits>
+[[nodiscard]] constexpr big_int operator"" n() noexcept(detail::parse_non_allocating_v<digits...>.ec == std::errc{}) {
+    // For this user-defined literal, there are two radically distinct situations.
+    // We are either able to fit the parsed value into the inplace storage,
+    // in which case `operator"" n()` simply copies the resulting `big_int`
+    // out of a `constexpr` variable;
+    // or the parsed value doesn't fit and needs to be dynamically allocated on the fly.
+    //
+    // This weirdness is caused only by the fact that we don't have non-transient allocations,
+    // meaning that we cannot create a `constexpr` variable that holds an allocation.
+    // This also prevents us from making `operator"" n()` `consteval` rather than `constexpr`.
+    // Because it is only `constexpr`, it is important to handle the "small case" specially,
+    // so that no runtime parsing takes place.
+    if constexpr (detail::parse_non_allocating_v<digits...>.ec == std::errc{}) {
+        return detail::parse_non_allocating_v<digits...>.value;
+    } else if constexpr (detail::parse_non_allocating_v<digits...>.ec == std::errc::invalid_argument) {
+        static_assert(false,
+                      "The given literal is not a valid integer-literal. "
+                      "This should not even be possible "
+                      "without explicitly providing template arguments to the user-defined literal.");
+    } else {
+        static_assert(detail::parse_non_allocating_v<digits...>.ec == std::errc::result_out_of_range);
+        static_assert(false, "Sorry, allocating literals are not supported yet.");
+        // TODO: 1. Create a pre-computed constexpr limb array and sign bit.
+        //       2. At runtime, create a `big_int` using the constructor taking a limb array.
+    }
+}
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
+
+// UDLs without underscore don't work on Clang:
+// https://github.com/llvm/llvm-project/issues/76394
+template <char... digits>
+[[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator"" n<digits...>())) {
+    return operator"" n<digits...>();
+}
+
+} // namespace big_int_literals
+} // namespace literals
 
 } // namespace beman::big_int
 
