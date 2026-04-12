@@ -298,12 +298,18 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr std::strong_ordering compare_limbs(std::span<const uint_multiprecision_t, extent> limbs,
                                                                bool limbs_negative) const noexcept;
 
+    static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
+    [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
-    [[nodiscard]] unsigned _BitInt(inplace_bits) inplace_to_bit_uint() const noexcept {
-        return std::bit_cast<_BitInt(inplace_bits)>(m_storage.limbs);
+        requires has_inplace_to_bit_uint
+    {
+        static_assert(std::has_unique_object_representations_v<decltype(m_storage.limbs)>,
+                      "Bit-casting doesn't work when there is padding.");
+        return std::bit_cast<unsigned _BitInt(inplace_bits)>(m_storage.limbs);
     }
-#endif
-    static constexpr std::size_t count_trailing_zeroes(std::span<const uint_multiprecision_t> limbs) noexcept;
+#else
+        = delete;
+#endif // BEMAN_BIG_INT_HAS_BITINT
 };
 
 // =============================================================================
@@ -690,11 +696,11 @@ constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexce
         if (is_negative()) {
             return false;
         }
-#ifdef BEMAN_BIG_INT_HAS_BITINT
-        if (is_storage_static()) {
-            return inplace_to_bit_uint() == x;
+        if constexpr (has_inplace_to_bit_uint) {
+            if (is_storage_static()) {
+                return inplace_to_bit_uint() == x;
+            }
         }
-#endif
         return equals_limbs(detail::to_fixed_span(detail::to_limbs(x)), false);
     } else {
         const auto limbs = detail::to_limbs(detail::uabs(x));
@@ -747,22 +753,22 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
         if (is_negative()) {
             return std::strong_ordering::less;
         }
-#ifdef BEMAN_BIG_INT_HAS_BITINT
-        if (is_storage_static()) {
-            return inplace_to_bit_uint() <=> x;
+        if constexpr (has_inplace_to_bit_uint) {
+            if (is_storage_static()) {
+                return inplace_to_bit_uint() <=> x;
+            }
         }
-#endif
         return compare_limbs(detail::to_limbs(x));
     } else {
-#ifdef BEMAN_BIG_INT_HAS_BITINT
-        if (is_storage_static()) {
-            const auto sign_compare = (x < 0) <=> is_negative();
-            if (sign_compare != 0) {
-                return sign_compare;
+        if constexpr (has_inplace_to_bit_uint) {
+            if (is_storage_static()) {
+                const auto sign_compare = (x < 0) <=> is_negative();
+                if (sign_compare != 0) {
+                    return sign_compare;
+                }
+                return inplace_to_bit_uint() <=> detail::uabs(x);
             }
-            return inplace_to_bit_uint() <=> detail::uabs(x);
         }
-#endif
         const auto limbs = detail::to_limbs(detail::uabs(x));
         return compare_limbs(detail::to_fixed_span(limbs), x < 0);
     }
