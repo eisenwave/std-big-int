@@ -1064,10 +1064,13 @@ from_chars_auto_base(const char* const begin, const char* const end, T& out) {
     return std::from_chars(begin, end, out, 8);
 }
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 struct big_int_and_errc {
     big_int   value;
     std::errc ec;
 };
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 [[nodiscard]] constexpr big_int_and_errc parse_non_allocating(const char* const begin, const char* const end) {
     // TODO(eisenwave): This should support more than a single limb.
@@ -1095,10 +1098,15 @@ inline namespace big_int_literals {
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wuser-defined-literals")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wreserved-user-defined-literal")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wliteral-suffix")
 
+// clang-format off
 template <char... digits>
-[[nodiscard]] constexpr big_int operator"" n() noexcept(detail::parse_non_allocating_v<digits...>.ec == std::errc{}) {
+[[nodiscard]] constexpr big_int operator""n()
+  noexcept(detail::parse_non_allocating_v<digits...>.ec == std::errc{}) {
+    // clang-format on
+
     // For this user-defined literal, there are two radically distinct situations.
     // We are either able to fit the parsed value into the inplace storage,
     // in which case `operator"" n()` simply copies the resulting `big_int`
