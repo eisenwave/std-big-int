@@ -199,8 +199,9 @@ struct div_result {
 // which is the case if and only if `x.high_bits < y`.
 template <unsigned_integer T>
 [[nodiscard]] constexpr div_result<T> narrowing_div(const wide<T> x, const T y) noexcept {
+    const bool quotient_fits = x.high_bits < y;
     if BEMAN_BIG_INT_IS_CONSTEVAL {
-        BEMAN_BIG_INT_ASSERT(x.high_bits >= y);
+        BEMAN_BIG_INT_ASSERT(quotient_fits);
     }
 
 #if BEMAN_BIG_INT_LIMB_WIDTH == 64
@@ -208,7 +209,7 @@ template <unsigned_integer T>
     // This is only available on x86_64, and traps if the quotient does not fit into 64 bits.
     if constexpr (width_v<T> == 64) {
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            BEMAN_BIG_INT_DEBUG_ASSERT(x.high_bits >= y);
+            BEMAN_BIG_INT_DEBUG_ASSERT(quotient_fits);
     #if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
             T q, r;
             __asm__("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
