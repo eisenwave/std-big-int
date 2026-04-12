@@ -163,8 +163,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr bool             is_storage_static() const noexcept;
     [[nodiscard]] constexpr std::uint32_t    limb_count() const noexcept;
     [[nodiscard]] constexpr bool             is_negative() const noexcept;
+    [[nodiscard]] constexpr bool             is_zero() const noexcept;
     constexpr void                           set_limb_count(std::uint32_t n) noexcept;
     constexpr void                           set_sign(bool s) noexcept;
+    constexpr void                           negate() noexcept;
     [[nodiscard]] constexpr limb_type*       limb_ptr() noexcept;
     [[nodiscard]] constexpr const limb_type* limb_ptr() const noexcept;
 
@@ -341,6 +343,21 @@ constexpr bool basic_big_int<b, A>::is_negative() const noexcept {
 }
 
 template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::is_zero() const noexcept {
+    // We have the invariant that the sign bit is never set for zero magnitude,
+    // so negative numbers short-circuit here.
+    if (is_negative()) {
+        return false;
+    }
+    for (const uint_multiprecision_t limb : representation()) {
+        if (limb != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::set_limb_count(std::uint32_t n) noexcept {
     m_size_and_sign = (m_size_and_sign & 0x8000'0000U) | n;
 }
@@ -348,6 +365,13 @@ constexpr void basic_big_int<b, A>::set_limb_count(std::uint32_t n) noexcept {
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::set_sign(bool s) noexcept {
     m_size_and_sign = (m_size_and_sign & 0x7FFF'FFFFU) | (static_cast<std::uint32_t>(s) << 31);
+}
+
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::negate() noexcept {
+    if (!is_zero()) {
+        m_size_and_sign ^= 0x8000'0000U;
+    }
 }
 
 template <std::size_t b, class A>
@@ -609,14 +633,14 @@ constexpr basic_big_int<b, A> basic_big_int<b, A>::operator+() && noexcept {
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() const& {
     auto copy = *this;
-    copy.set_sign(!copy.is_negative());
+    copy.negate();
     return copy;
 }
 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() && noexcept {
     auto copy = std::move(*this);
-    copy.set_sign(!copy.is_negative());
+    copy.negate();
     return copy;
 }
 
