@@ -758,7 +758,7 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
                 return inplace_to_bit_uint() <=> x;
             }
         }
-        return compare_limbs(detail::to_limbs(x));
+        return compare_limbs(detail::to_fixed_span(detail::to_limbs(x)), false);
     } else {
         if constexpr (has_inplace_to_bit_uint) {
             if (is_storage_static()) {
@@ -809,7 +809,7 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     // Otherwise, we nee need to compare the common digits to one another,
     // from most significant to least significant.
     for (std::size_t i = std::min(limbs.size(), rep.size()); i-- > 0;) {
-        const auto result = limbs[i] <=> rep[i];
+        const auto result = rep[i] <=> limbs[i];
         if (result != 0) {
             return result;
         }
