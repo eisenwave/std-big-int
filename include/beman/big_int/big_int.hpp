@@ -100,7 +100,14 @@ template <unsigned_integer T>
 template <signed_integer T>
 [[nodiscard]] constexpr std::make_unsigned_t<T> uabs(const T x) noexcept {
     using U = std::make_unsigned_t<T>;
+#ifdef BEMAN_BIG_INT_MSVC
+    #pragma warning(push)
+    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
+#endif
     return x < 0 ? -static_cast<U>(x) : static_cast<U>(x);
+#ifdef BEMAN_BIG_INT_MSVC
+    #pragma warning(pop)
+#endif
 }
 
 } // namespace detail
