@@ -1101,6 +1101,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wuser-defined-literals")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wreserved-user-defined-literal")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wliteral-suffix")
 
+// Formatting suppressions are needed to prevent insertion of space between `""` and `n`.
 // clang-format off
 template <char... digits>
 [[nodiscard]] constexpr big_int operator""n()
@@ -1109,13 +1110,13 @@ template <char... digits>
 
     // For this user-defined literal, there are two radically distinct situations.
     // We are either able to fit the parsed value into the inplace storage,
-    // in which case `operator"" n()` simply copies the resulting `big_int`
+    // in which case `operator""n()` simply copies the resulting `big_int`
     // out of a `constexpr` variable;
     // or the parsed value doesn't fit and needs to be dynamically allocated on the fly.
     //
     // This weirdness is caused only by the fact that we don't have non-transient allocations,
     // meaning that we cannot create a `constexpr` variable that holds an allocation.
-    // This also prevents us from making `operator"" n()` `consteval` rather than `constexpr`.
+    // This also prevents us from making `operator""n()` `consteval` rather than `constexpr`.
     // Because it is only `constexpr`, it is important to handle the "small case" specially,
     // so that no runtime parsing takes place.
     if constexpr (detail::parse_non_allocating_v<digits...>.ec == std::errc{}) {
@@ -1133,14 +1134,16 @@ template <char... digits>
     }
 }
 
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
-
 // UDLs without underscore don't work on Clang:
 // https://github.com/llvm/llvm-project/issues/76394
+// clang-format off
 template <char... digits>
-[[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator"" n<digits...>())) {
-    return operator"" n<digits...>();
+[[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator""n<digits...>())) {
+    return operator""n<digits...>();
 }
+// clang-format on
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 } // namespace big_int_literals
 } // namespace literals
