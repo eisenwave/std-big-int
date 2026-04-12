@@ -199,16 +199,18 @@ struct div_result {
 // which is the case if and only if `x.high_bits < y`.
 template <unsigned_integer T>
 [[nodiscard]] constexpr div_result<T> narrowing_div(wide<T> x, T y) noexcept {
+    // For 64-bit, there potentially exists the optimization opportunity of using a `div` instruction.
+    // This is only available on x86_64, and traps if the quotient does not fit into 64 bits.
     if constexpr (width_v<T> == 64) {
 #if BEMAN_BIG_INT_LIMB_WIDTH == 64
-        if (!std::is_constant_evaluated()) {
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
             if (x.high_bits >= y) {
                 // TODO: add assertion; this is the UB case.
                 return {.quotient = 0, .remainder = 0};
             }
     #if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
             T q, r;
-            __asm__("idiv %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
+            __asm__("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
             return {.quotient = q, .remainder = r};
     #elif defined(_WIN32)
             T r;
@@ -216,22 +218,20 @@ template <unsigned_integer T>
             return {.quotient = static_cast<T>(q), .remainder = static_cast<T>(r)};
     #endif
         }
-#elif defined(BEMAN_BIG_INT_HAS_INT128)
-        const uint128_t x_int = x.to_int();
-        return {
-            .quotient  = static_cast<T>(x_int / y),
-            .remainder = static_cast<T>(x_int % y),
-        };
 #else
         static_assert(false, "64-bit narrowing_div is not provided without hardware support.");
 #endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
-    } else {
-        const auto x_int = x.to_int();
-        return {
-            .quotient  = static_cast<T>(x_int / y),
-            .remainder = static_cast<T>(x_int % y),
-        };
     }
+
+    // In the general case, we rely on `wider_t<T>` and `to_int()` existing.
+    // There is no software fallback, so this might fail due to lack of 128-bit support
+    // if the function is instantiated with a 64-bit type.
+    const auto x_int = x.to_int();
+    __builtin_is_constant_evaluated();
+    return {
+        .quotient  = static_cast<T>(x_int / y),
+        .remainder = static_cast<T>(x_int % y),
+    };
 }
 
 } // namespace beman::big_int::detail

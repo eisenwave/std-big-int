@@ -363,6 +363,20 @@ namespace beman::big_int {
     #define BEMAN_BIG_INT_DEBUG_ASSERT(...) void(requires { __VA_ARGS__; })
 #endif
 
+// if consteval ================================================================
+
+#if defined(__cpp_if_consteval) && __cpp_if_consteval >= 202106L
+    #define BEMAN_BIG_INT_IS_CONSTEVAL consteval
+    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL !consteval
+#elif BEMAN_BIG_INT_HAS_BUILTIN(__builtin_is_constant_evaluated)
+    #define BEMAN_BIG_INT_IS_CONSTEVAL (__builtin_is_constant_evaluated())
+    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (__builtin_is_constant_evaluated())
+#else
+    #include <type_traits>
+    #define BEMAN_BIG_INT_IS_CONSTEVAL (::std::is_constant_evaluated())
+    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!::std::is_constant_evaluated())
+#endif
+
 // =============================================================================
 
 #endif // BEMAN_BIG_INT_CONFIG_HPP
