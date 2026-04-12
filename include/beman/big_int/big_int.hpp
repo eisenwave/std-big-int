@@ -1079,6 +1079,9 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
     if (ec != std::errc{}) {
         return {0, ec};
     }
+    if (p != end) {
+        return {0, std::errc::invalid_argument};
+    }
     return {.value = parsed_limb, .ec = {}};
 }
 
