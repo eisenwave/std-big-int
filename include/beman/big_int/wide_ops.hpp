@@ -227,7 +227,6 @@ template <unsigned_integer T>
     // There is no software fallback, so this might fail due to lack of 128-bit support
     // if the function is instantiated with a 64-bit type.
     const auto x_int = x.to_int();
-    __builtin_is_constant_evaluated();
     return {
         .quotient  = static_cast<T>(x_int / y),
         .remainder = static_cast<T>(x_int % y),
