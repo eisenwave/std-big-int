@@ -223,6 +223,10 @@ template <unsigned_integer T>
     }
 #endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
 
+    // In MSVC, all code following `if !consteval` is considered unreachable.
+    // https://developercommunity.microsoft.com/t/Code-following-if-consteval-is-unreac/11073119
+    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
     // In the general case, we rely on `wider_t<T>` and `to_int()` existing.
     // There is no software fallback, so this might fail due to lack of 128-bit support
     // if the function is instantiated with a 64-bit type.
@@ -231,6 +235,7 @@ template <unsigned_integer T>
         .quotient  = static_cast<T>(x_int / y),
         .remainder = static_cast<T>(x_int % y),
     };
+    BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
 } // namespace beman::big_int::detail
