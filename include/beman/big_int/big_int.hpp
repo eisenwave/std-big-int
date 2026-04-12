@@ -662,7 +662,7 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
         }
     } else {
         static_assert(detail::is_basic_big_int_v<R>);
-        static_assert((0 <=> std::strong_ordering::less) == std::strong_ordering::greater,
+        static_assert((nullptr <=> std::strong_ordering::less) == std::strong_ordering::greater,
                       "This trick to flip the ordering should work.");
         return 0 <=> rhs.compare_integer(lhs);
     }
