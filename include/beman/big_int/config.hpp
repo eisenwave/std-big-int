@@ -235,6 +235,33 @@ struct ieee_traits<long double> : ieee_traits<double> {};
     #define BEMAN_BIG_INT_NO_UNIQUE_ADDRESS [[no_unique_address]]
 #endif
 
+// assert ======================================================================
+
+#include <cstdlib>
+#include <cassert>
+
+namespace beman::big_int {
+
+[[noreturn]] inline void assert_fail() {
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_trap)
+    __builtin_trap();
+#else
+    std::abort();
+#endif
+}
+
+} // namespace beman::big_int
+
+#define BEMAN_BIG_INT_ASSERT(...) (__VA_ARGS__ ? void() : assert_fail())
+
+#ifndef NDEBUG
+    #define BEMAN_BIG_INT_DEBUG_ASSERT(...) BEMAN_BIG_INT_ASSERT(__VA_ARGS__)
+#else
+  // The requires expression makes sure that we still check for expression validity,
+  // even if the expression is not evaluated.
+    #define BEMAN_BIG_INT_DEBUG_ASSERT(...) void(requires { __VA_ARGS__; })
+#endif
+
 // =============================================================================
 
 #endif // BEMAN_BIG_INT_CONFIG_HPP

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <bit>
 #include <climits>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -91,6 +92,7 @@ struct allocation_result {
 // rounded towards positive infinity.
 template <unsigned_integer T>
 [[nodiscard]] constexpr T div_to_pos_inf(const T x, const T y) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(y != 0);
     return (x / y) + T(x % y != 0);
 }
 
@@ -334,11 +336,15 @@ constexpr bool basic_big_int<b, A>::is_storage_static() const noexcept {
 
 template <std::size_t b, class A>
 constexpr std::uint32_t basic_big_int<b, A>::limb_count() const noexcept {
+    constexpr std::size_t negative_zero_size_and_sign = 0x8000'0000U;
+    BEMAN_BIG_INT_DEBUG_ASSERT(m_size_and_sign != negative_zero_size_and_sign);
     return m_size_and_sign & 0x7FFF'FFFFU;
 }
 
 template <std::size_t b, class A>
 constexpr bool basic_big_int<b, A>::is_negative() const noexcept {
+    constexpr std::size_t negative_zero_size_and_sign = 0x8000'0000U;
+    BEMAN_BIG_INT_DEBUG_ASSERT(m_size_and_sign != negative_zero_size_and_sign);
     return (m_size_and_sign & 0x8000'0000U) != 0;
 }
 
@@ -873,7 +879,9 @@ constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
 
 template <std::size_t b, class A>
 template <std::floating_point F>
-constexpr void basic_big_int<b, A>::assign_from_float(F value) noexcept {
+constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
+    BEMAN_BIG_INT_ASSERT(std::isfinite(value));
+
     using traits = detail::ieee_traits<F>;
     using bits_t = typename traits::bits_type;
 
@@ -959,6 +967,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(F value) noexcept {
 
 template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::alloc_limbs(const std::size_t n) -> alloc_result {
+    BEMAN_BIG_INT_ASSERT(n != 0);
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
     return alloc_traits::allocate_at_least(m_alloc, n);
 #else
@@ -968,6 +977,8 @@ constexpr auto basic_big_int<b, A>::alloc_limbs(const std::size_t n) -> alloc_re
 
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::free_limbs(pointer p, const std::size_t n) {
+    BEMAN_BIG_INT_ASSERT(p != nullptr);
+    BEMAN_BIG_INT_ASSERT(n != 0);
     alloc_traits::deallocate(m_alloc, p, n);
 }
 
@@ -1000,6 +1011,9 @@ constexpr void basic_big_int<b, A>::grow(const std::size_t limbs_needed) {
 template <std::size_t b, class A>
 constexpr void
 basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::size_t n, const alloc_result out) {
+    BEMAN_BIG_INT_ASSERT(p != nullptr);
+    BEMAN_BIG_INT_ASSERT(out.ptr != nullptr);
+    BEMAN_BIG_INT_ASSERT(n <= out.count);
 // If __cpp_lib_raw_memory_algorithms is available,
 // we don't need to differentiate between constant evaluation and runtime.
 // Even when we need this fallback case,
