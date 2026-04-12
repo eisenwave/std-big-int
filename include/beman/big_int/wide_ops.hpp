@@ -199,6 +199,11 @@ struct div_result {
 // which is the case if and only if `x.high_bits < y`.
 template <unsigned_integer T>
 [[nodiscard]] constexpr div_result<T> narrowing_div(const wide<T> x, const T y) noexcept {
+    // In MSVC, all code following `if !consteval` is considered unreachable.
+    // https://developercommunity.microsoft.com/t/Code-following-if-consteval-is-unreac/11073119
+    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
+
     const bool quotient_fits = x.high_bits < y;
     if BEMAN_BIG_INT_IS_CONSTEVAL {
         BEMAN_BIG_INT_ASSERT(quotient_fits);
@@ -223,10 +228,6 @@ template <unsigned_integer T>
     }
 #endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
 
-    // In MSVC, all code following `if !consteval` is considered unreachable.
-    // https://developercommunity.microsoft.com/t/Code-following-if-consteval-is-unreac/11073119
-    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
     // In the general case, we rely on `wider_t<T>` and `to_int()` existing.
     // There is no software fallback, so this might fail due to lack of 128-bit support
     // if the function is instantiated with a 64-bit type.
