@@ -25,6 +25,42 @@
     #define BEMAN_BIG_INT_HAS_BUILTIN(...) 0
 #endif // __GNUC__
 
+// Diagnostic suppression ======================================================
+
+// See https://stackoverflow.com/q/45762357/5740428
+#define BEMAN_BIG_INT_PRAGMA_STR_IMPL(...) _Pragma(#__VA_ARGS__)
+#define BEMAN_BIG_INT_PRAGMA_STR(...) BEMAN_BIG_INT_PRAGMA_STR_IMPL(__VA_ARGS__)
+
+#if defined(BEMAN_BIG_INT_GCC)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_PUSH() _Pragma("GCC diagnostic push")
+    #define BEMAN_BIG_INT_DIAGNOSTIC_POP() _Pragma("GCC diagnostic pop")
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED(...) BEMAN_BIG_INT_PRAGMA_STR(GCC diagnostic ignored __VA_ARGS__)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC(...) BEMAN_BIG_INT_DIAGNOSTIC_IGNORED(__VA_ARGS__)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG(...)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(...)
+#elif defined(BEMAN_BIG_INT_CLANG)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_PUSH() _Pragma("clang diagnostic push")
+    #define BEMAN_BIG_INT_DIAGNOSTIC_POP() _Pragma("clang diagnostic pop")
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED(...) BEMAN_BIG_INT_PRAGMA_STR(clang diagnostic ignored __VA_ARGS__)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC(...)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG(...) BEMAN_BIG_INT_DIAGNOSTIC_IGNORED(__VA_ARGS__)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(...)
+#elif defined(BEMAN_BIG_INT_MSVC)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_PUSH() _Pragma("warning(push)")
+    #define BEMAN_BIG_INT_DIAGNOSTIC_POP() _Pragma("warning(pop)")
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED(...) BEMAN_BIG_INT_PRAGMA_STR(warning(disable : __VA_ARGS__))
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC(...)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG(...)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(...) BEMAN_BIG_INT_DIAGNOSTIC_IGNORED(__VA_ARGS__)
+#else
+    #define BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+    #define BEMAN_BIG_INT_DIAGNOSTIC_POP()
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED(...)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC(...)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG(...)
+    #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(...)
+#endif
+
 // _BitInt detection ===========================================================
 
 #include <climits> // for BITINT_MAXWIDTH
