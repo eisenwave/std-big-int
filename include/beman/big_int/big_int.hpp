@@ -296,6 +296,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr void                       free_storage();
     constexpr void                       grow(std::size_t limbs_needed);
     constexpr void                       copy_n_to_allocation(const limb_type* p, std::size_t n, alloc_result out);
+    constexpr void                       push_back_limb(limb_type limb);
 
     using shift_type                      = unsigned long long;
     static constexpr shift_type shift_max = std::numeric_limits<shift_type>::max();
@@ -536,23 +537,27 @@ template <std::ranges::input_range R>
     requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
 constexpr basic_big_int<b, A>::basic_big_int(std::from_range_t, R&& r, const allocator_type& a)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
-    std::size_t i = 0;
 
     if constexpr (std::ranges::sized_range<R>) {
         reserve(std::ranges::size(r));
-    }
-
-    // FIXME: Buffer overflow for the unsized range case.
-    //        What we actually need here is some kind of push_back_limb() function.
-
-    auto* const dst = limb_ptr();
-    for (auto&& elem : r) {
-        using U = std::make_unsigned_t<std::ranges::range_value_t<R>>;
-        std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(elem)));
-    }
-    set_limb_count(static_cast<std::uint32_t>(i == 0 ? 1 : i));
-    while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
-        set_limb_count(limb_count() - 1);
+        std::size_t i   = 0;
+        auto* const dst = limb_ptr();
+        for (auto&& elem : r) {
+            using U = std::make_unsigned_t<std::ranges::range_value_t<R>>;
+            std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(elem)));
+        }
+        set_limb_count(static_cast<std::uint32_t>(i == 0 ? 1 : i));
+        while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
+            set_limb_count(limb_count() - 1);
+        }
+    } else {
+        for (auto&& elem : r) {
+            using U = std::make_unsigned_t<std::ranges::range_value_t<R>>;
+            push_back_limb(static_cast<limb_type>(static_cast<U>(elem)));
+        }
+        while (limb_count() > 1 && limb_ptr()[limb_count() - 1] == 0) {
+            set_limb_count(limb_count() - 1);
+        }
     }
 }
 #endif
@@ -1163,16 +1168,15 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
         return;
     }
 
-    const auto limb_idx = static_cast<unsigned>(e2) / bits_per_limb;
-    // TODO(alcxpr): Only grow if actually needed.
-    //               This hotfix was needed to prevent stack buffer overflow in tests.
-    grow(limb_idx + 2);
+    const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
+    const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
+    const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
+    grow(limbs_needed);
 
-    const auto  bit_off = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
-    auto* const dst     = limb_ptr();
+    auto* const dst = limb_ptr();
 
     dst[limb_idx] |= m2 << bit_off;
-    if (bit_off > 0 && limb_idx + 1 < inplace_limbs) {
+    if (bit_off > 0) {
         dst[limb_idx + 1] |= m2 >> (static_cast<int>(bits_per_limb) - bit_off);
     }
 
@@ -1262,6 +1266,16 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::s
         }
     }
 #endif
+}
+
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::push_back_limb(limb_type limb) {
+    const auto count = limb_count();
+    if (count >= (is_storage_static() ? inplace_limbs : m_capacity)) {
+        grow(count + 1); // exponential growth
+    }
+    limb_ptr()[count] = limb;
+    set_limb_count(static_cast<std::uint32_t>(count + 1));
 }
 
 // Standard public alias for defaulted type
