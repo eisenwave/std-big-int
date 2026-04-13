@@ -26,9 +26,7 @@ static_assert(ce_small_positive());
 consteval bool ce_small_negative_result() { return (big_int{3} - big_int{5}) == big_int{-2}; }
 static_assert(ce_small_negative_result());
 
-consteval bool ce_cancel_to_zero() {
-    return (big_int{7} - big_int{7}) == big_int{0};
-}
+consteval bool ce_cancel_to_zero() { return (big_int{7} - big_int{7}) == big_int{0}; }
 static_assert(ce_cancel_to_zero());
 
 consteval bool ce_negative_minus_negative() { return (big_int{-5} - big_int{-3}) == big_int{-2}; }

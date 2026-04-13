@@ -31,9 +31,7 @@ static_assert(ce_cancel_to_zero());
 consteval bool ce_mixed_sign_positive_result() { return (big_int{5} + big_int{-3}) == big_int{2}; }
 static_assert(ce_mixed_sign_positive_result());
 
-consteval bool ce_mixed_sign_negative_result() {
-    return (big_int{-5} + big_int{3}) == big_int{-2};
-}
+consteval bool ce_mixed_sign_negative_result() { return (big_int{-5} + big_int{3}) == big_int{-2}; }
 static_assert(ce_mixed_sign_negative_result());
 
 consteval bool ce_same_sign_negative() { return (big_int{-5} + big_int{-3}) == big_int{-8}; }
