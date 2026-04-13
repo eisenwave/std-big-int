@@ -270,10 +270,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr basic_big_int operator-() const&;
     [[nodiscard]] constexpr basic_big_int operator-() && noexcept;
 
-    constexpr basic_big_int& operator++();
-    constexpr basic_big_int  operator++(int);
-    constexpr basic_big_int& operator--();
-    constexpr basic_big_int  operator--(int);
+    constexpr basic_big_int& operator++() &;
+    constexpr basic_big_int  operator++(int) &;
+    constexpr basic_big_int& operator--() &;
+    constexpr basic_big_int  operator--(int) &;
 
     // [big.int.cmp]
     template <class L, detail::common_big_int_type_with<L> R>
@@ -647,10 +647,11 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
         set_limb_count(static_cast<std::uint32_t>(limb_count() + shifted_limbs));
     }
     if (shifted_bits != 0) {
-        for (std::size_t i = limb_count() + 1; i-- > shifted_limbs; ++i) {
-            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i - 1]};
-            limbs[i] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
+        for (std::size_t i = limb_count(); i-- > shifted_limbs;) {
+            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
+            limbs[i + 1] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
         }
+        limbs[shifted_limbs] <<= shifted_bits;
         set_limb_count(limb_count() + 1);
     }
 }
@@ -690,7 +691,7 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
     }
     if (shifted_bits != 0) {
         for (std::size_t i = 0; i + 1 < limb_count(); ++i) {
-            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i] + 1};
+            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
             limbs[i] = detail::funnel_shr(all_bits, static_cast<unsigned int>(shifted_bits));
         }
         BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
@@ -812,9 +813,10 @@ constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() && noexcept {
 }
 
 template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator++() -> basic_big_int& {
+constexpr auto basic_big_int<b, A>::operator++() & -> basic_big_int& {
     if (is_negative()) {
-        if (unchecked_decrement_magnitude()) {
+        unchecked_decrement_magnitude();
+        if (limb_count() == 1 && limb_ptr()[0] == 0) {
             set_sign(false);
         }
     } else {
@@ -824,24 +826,26 @@ constexpr auto basic_big_int<b, A>::operator++() -> basic_big_int& {
 }
 
 template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator++(int) -> basic_big_int {
+constexpr auto basic_big_int<b, A>::operator++(int) & -> basic_big_int {
     auto copy = *this;
     ++(*this);
     return copy;
 }
 
 template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator--() -> basic_big_int& {
+constexpr auto basic_big_int<b, A>::operator--() & -> basic_big_int& {
     if (is_negative()) {
         unchecked_increment_magnitude();
     } else {
-        unchecked_decrement_magnitude();
+        if (unchecked_decrement_magnitude()) {
+            set_sign(true);
+        }
     }
     return *this;
 }
 
 template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator--(int) -> basic_big_int {
+constexpr auto basic_big_int<b, A>::operator--(int) & -> basic_big_int {
     auto copy = *this;
     --(*this);
     return copy;
