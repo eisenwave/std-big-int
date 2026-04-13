@@ -1129,51 +1129,11 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     if (std::is_neq(sign_compare)) {
         return sign_compare;
     }
-    const auto rep = representation();
 
-    // Compute the ordering as if both operands were non-negative (i.e., compare
-    // magnitudes). For two-negative operands we invert the result at the end,
-    // because a larger magnitude means a smaller value.
-    //
-    // Split on which side is longer so each branch carries only one high-tail scan.
-    // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
-    // so these loops can be more easily unrolled.
-    // We also don't need to do all three scans, just two for any given case.
-    const auto magnitude_ordering = [&]() -> std::strong_ordering {
-        if (rep.size() > limbs.size()) {
-            // If there are more significant nonzero digits in this integer, it is greater.
-            // Decimal example: 123 > 23
-            for (std::size_t i = rep.size(); i-- > limbs.size();) {
-                if (rep[i] != 0) {
-                    return std::strong_ordering::greater;
-                }
-            }
-            // Compare the common digits from most to least significant.
-            for (std::size_t i = limbs.size(); i-- > 0;) {
-                const auto result = rep[i] <=> limbs[i];
-                if (std::is_neq(result)) {
-                    return result;
-                }
-            }
-        } else {
-            // If there are more significant nonzero digits in limbs, this integer is lower.
-            // Decimal example: 23 < 123
-            for (std::size_t i = limbs.size(); i-- > rep.size();) {
-                if (limbs[i] != 0) {
-                    return std::strong_ordering::less;
-                }
-            }
-            // Compare the common digits from most to least significant.
-            for (std::size_t i = rep.size(); i-- > 0;) {
-                const auto result = rep[i] <=> limbs[i];
-                if (std::is_neq(result)) {
-                    return result;
-                }
-            }
-        }
-        // Having eliminated any possible mismatch, the two sides are equal.
-        return std::strong_ordering::equal;
-    }();
+    // Compute the ordering as if both operands were non-negative. For two-negative
+    // operands we invert the result at the end, because a larger magnitude means a
+    // smaller value.
+    const auto magnitude_ordering = detail::compare_limb_magnitudes(representation(), limbs);
 
     if (is_negative()) {
         // Invert: less <-> greater; equal is unchanged.
@@ -1185,6 +1145,96 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
         }
     }
     return magnitude_ordering;
+}
+
+// Assigns the sum or difference of limbs to a "result" *this
+template <std::size_t b, class A>
+template <std::size_t extent_a, std::size_t extent_b>
+constexpr void
+basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
+                                         const bool                                             lhs_neg,
+                                         const std::span<const uint_multiprecision_t, extent_b> rhs,
+                                         const bool                                             rhs_neg) {
+    // Precondition: `*this` is in the default-constructed state (one inline limb of zero, sign positive).
+    BEMAN_BIG_INT_DEBUG_ASSERT(is_storage_static());
+    BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() == 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(limb_ptr()[0] == 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!is_negative());
+
+    if (lhs_neg == rhs_neg) {
+        // Same sign: add magnitudes limb-by-limb using carrying_add.
+        const std::size_t big = std::max(lhs.size(), rhs.size());
+
+        // `grow(big)` only allocates if `big > inplace_limbs`; otherwise it's a no-op
+        // and we stay in inline storage.
+        grow(big);
+        limb_type* const limbs = limb_ptr();
+
+        bool carry = false;
+        for (std::size_t i = 0; i < big; ++i) {
+            const limb_type li = i < lhs.size() ? lhs[i] : limb_type{0};
+            const limb_type ri = i < rhs.size() ? rhs[i] : limb_type{0};
+            const auto      [r_value, r_carry]  = detail::carrying_add(li, ri, carry);
+            limbs[i]           = r_value;
+            carry              = r_carry;
+        }
+        set_limb_count(static_cast<std::uint32_t>(big));
+
+        // If the ripple carry has actually produced an out-of-range carry, we allocate the extra limb.
+        // We want to avoid allocation or leaving inline storage as much as possible
+        if (carry) {
+            grow(big + 1);
+            limb_ptr()[big] = limb_type{1};
+            set_limb_count(static_cast<std::uint32_t>(big + 1));
+        }
+
+        // Preserve the "no negative zero" invariant
+        if (!is_zero()) {
+            set_sign(lhs_neg);
+        }
+        return;
+    }
+
+    // Differing signs: subtract the smaller magnitude from the larger,
+    // and take the sign of the larger-magnitude operand.
+    const auto magnitude_order = detail::compare_limb_magnitudes(lhs, rhs);
+
+    // When `lhs >= rhs` (in magnitude) compute `lhs - rhs` and take sign `lhs_neg`; otherwise
+    // compute `rhs - lhs` with sign `rhs_neg`. Equal magnitudes fall into the first branch
+    // and produce a normalized `+0`.
+    const std::span<const uint_multiprecision_t> larger  = std::is_gteq(magnitude_order) //
+                                                              ? std::span<const uint_multiprecision_t>(lhs)
+                                                              : std::span<const uint_multiprecision_t>(rhs);
+    const std::span<const uint_multiprecision_t> smaller = std::is_gteq(magnitude_order) //
+                                                              ? std::span<const uint_multiprecision_t>(rhs)
+                                                              : std::span<const uint_multiprecision_t>(lhs);
+    const bool result_sign = std::is_gteq(magnitude_order) ? lhs_neg : rhs_neg;
+
+    const std::size_t n = larger.size();
+    // Subtraction can never produce more limbs than the larger operand, so this grow is tight.
+    grow(n);
+    limb_type* const limbs = limb_ptr();
+
+    bool borrow = false;
+    for (std::size_t i = 0; i < n; ++i) {
+        const limb_type li = larger[i];
+        const limb_type si = i < smaller.size() ? smaller[i] : limb_type{0};
+        const auto      [r_value, r_borrow]  = detail::borrowing_sub(li, si, borrow);
+        limbs[i]           = r_value;
+        borrow             = r_borrow;
+    }
+    // Having picked `larger` correctly, the final borrow must be zero.
+    BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+    set_limb_count(static_cast<std::uint32_t>(n));
+
+    // Trim leading zero limbs to maintain the "top limb non-zero unless value is zero" invariant.
+    while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
+        set_limb_count(limb_count() - 1);
+    }
+
+    if (!is_zero()) {
+        set_sign(result_sign);
+    }
 }
 
 // private helpers
