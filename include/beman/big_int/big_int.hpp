@@ -642,17 +642,20 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     limb_type* const limbs = limb_ptr();
 
     if (shifted_limbs != 0) {
-        std::shift_right(limbs, limbs + limb_count(), static_cast<std::ptrdiff_t>(shifted_limbs));
+        const auto current_count = limb_count();
+        std::copy_backward(limbs, limbs + current_count, limbs + current_count + shifted_limbs);
         std::fill_n(limbs, static_cast<std::ptrdiff_t>(shifted_limbs), limb_type{0});
-        set_limb_count(static_cast<std::uint32_t>(limb_count() + shifted_limbs));
+        set_limb_count(static_cast<std::uint32_t>(current_count + shifted_limbs));
     }
     if (shifted_bits != 0) {
-        for (std::size_t i = limb_count(); i-- > shifted_limbs;) {
+        const auto current_count = limb_count();
+        limbs[current_count]     = 0;
+        for (std::size_t i = current_count; i-- > shifted_limbs;) {
             const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
             limbs[i + 1] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
         }
         limbs[shifted_limbs] <<= shifted_bits;
-        set_limb_count(limb_count() + 1);
+        set_limb_count(static_cast<std::uint32_t>(current_count + std::uint32_t(limbs[current_count] != 0)));
     }
 }
 
@@ -686,8 +689,14 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
     }();
 
     if (shifted_limbs != 0) {
-        std::shift_left(limbs, limbs + limb_count(), static_cast<std::ptrdiff_t>(shifted_limbs));
-        set_limb_count(std::min(std::uint32_t{1}, static_cast<std::uint32_t>(limb_count() - shifted_limbs)));
+        const auto current_count = limb_count();
+        if (shifted_limbs >= current_count) {
+            limbs[0] = 0;
+            set_limb_count(1);
+        } else {
+            std::shift_left(limbs, limbs + current_count, static_cast<std::ptrdiff_t>(shifted_limbs));
+            set_limb_count(static_cast<std::uint32_t>(current_count - shifted_limbs));
+        }
     }
     if (shifted_bits != 0) {
         for (std::size_t i = 0; i + 1 < limb_count(); ++i) {
@@ -696,6 +705,9 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
         }
         BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
         limbs[limb_count() - 1] >>= shifted_bits;
+    }
+    while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
+        set_limb_count(limb_count() - 1);
     }
     if (needs_decrement) {
         // See above for rounding considerations.

@@ -69,9 +69,10 @@ TEST(BitShift, LeftShiftAllocatedValue) {
     x <<= 1;
     x <<= 64;
 
-    EXPECT_EQ(x.representation().size(), 2U);
+    EXPECT_EQ(x.representation().size(), 3U);
     EXPECT_EQ(x.representation()[0], 0ULL);
     EXPECT_EQ(x.representation()[1], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
+    EXPECT_EQ(x.representation()[2], 1ULL);
     EXPECT_EQ(x.capacity() > 0U, true);
 }
 
@@ -116,7 +117,8 @@ TEST(BitShift, RightShiftAcrossLimbs) {
 TEST(BitShift, RightShiftNegativeRounding) {
     big_int x{-3};
     big_int y{-4};
-    big_int z{-std::numeric_limits<uint_multiprecision_t>::max()};
+    big_int z{std::numeric_limits<uint_multiprecision_t>::max()};
+    z = -z;
 
     x >>= 1;
     y >>= 1;
@@ -125,6 +127,93 @@ TEST(BitShift, RightShiftNegativeRounding) {
     EXPECT_EQ(x == -2, true);
     EXPECT_EQ(y == -2, true);
     EXPECT_EQ(z == -1, true);
+}
+
+TEST(BitShift, LeftShiftZeroRemainsZero) {
+    big_int x{0};
+
+    x <<= 1;
+    x <<= 64;
+    x <<= 129;
+
+    EXPECT_EQ(x == 0, true);
+    EXPECT_EQ(x.representation()[0], 0ULL);
+    EXPECT_EQ(x.representation().size() >= 1U, true);
+    EXPECT_EQ(x.representation()[x.representation().size() - 1], 0ULL);
+}
+
+TEST(BitShift, LeftShiftWholeLimbPreservesMagnitudeDigits) {
+    big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
+
+    x <<= 64;
+
+    EXPECT_EQ(x.representation().size(), 2U);
+    EXPECT_EQ(x.representation()[0], 0ULL);
+    EXPECT_EQ(x.representation()[1], std::numeric_limits<uint_multiprecision_t>::max());
+
+    x <<= 64;
+
+    EXPECT_EQ(x.representation().size(), 3U);
+    EXPECT_EQ(x.representation()[0], 0ULL);
+    EXPECT_EQ(x.representation()[1], 0ULL);
+    EXPECT_EQ(x.representation()[2], std::numeric_limits<uint_multiprecision_t>::max());
+}
+
+TEST(BitShift, RightShiftCrossLimbBitPropagation) {
+    big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
+
+    x <<= 64;
+    x >>= 1;
+
+    EXPECT_EQ(x.representation().size(), 2U);
+    EXPECT_EQ(x.representation()[0], 0x8000'0000'0000'0000ULL);
+    EXPECT_EQ(x.representation()[1], 0x7FFF'FFFF'FFFF'FFFFULL);
+}
+
+TEST(BitShift, RightShiftLargePositiveBecomesZero) {
+    big_int x{1};
+
+    x >>= 64;
+    EXPECT_EQ(x == 0, true);
+    EXPECT_EQ(x.representation().size(), 1U);
+    EXPECT_EQ(x.representation()[0], 0ULL);
+
+    x = 1;
+    x >>= 257;
+    EXPECT_EQ(x == 0, true);
+    EXPECT_EQ(x.representation().size(), 1U);
+    EXPECT_EQ(x.representation()[0], 0ULL);
+}
+
+TEST(BitShift, RightShiftLargeNegativeBecomesMinusOne) {
+    big_int x{-1};
+    big_int y{-2};
+
+    x >>= 64;
+    y >>= 64;
+
+    EXPECT_EQ(x == -1, true);
+    EXPECT_EQ(y == -1, true);
+
+    y = -2;
+    y >>= 257;
+    EXPECT_EQ(y == -1, true);
+}
+
+TEST(BitShift, LeftThenRightRoundTripForPositive) {
+    big_int x{123'456'789};
+
+    x <<= 17;
+    x >>= 17;
+    EXPECT_EQ(x == 123'456'789, true);
+
+    x <<= 64;
+    x >>= 64;
+    EXPECT_EQ(x == 123'456'789, true);
+
+    x <<= 130;
+    x >>= 130;
+    EXPECT_EQ(x == 123'456'789, true);
 }
 
 } // namespace
