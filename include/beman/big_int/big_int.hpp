@@ -1133,7 +1133,7 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
 
 template <std::size_t b, class A>
 template <detail::unsigned_integer T>
-constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
+constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
     if constexpr (sizeof(T) <= sizeof(limb_type)) {
         limb_ptr()[0] = static_cast<limb_type>(value);
         set_limb_count(1);
