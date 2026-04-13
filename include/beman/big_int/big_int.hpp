@@ -316,7 +316,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr bool equals_integer(Integer x) const noexcept;
-    [[nodiscard]] constexpr bool equals_big_int(const basic_big_int& other) const noexcept;
+    [[nodiscard]] constexpr bool equals_big_int(const basic_big_int& x) const noexcept;
     template <std::size_t extent>
     [[nodiscard]] constexpr bool equals_limbs(std::span<const uint_multiprecision_t, extent> limbs,
                                               bool limbs_negative) const noexcept;
