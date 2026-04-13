@@ -1051,7 +1051,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         // so the span we pass to the helper stays valid for the call.
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         return Result::make_sum_of_limbs(x.representation(),
-                                         x.is_negative(), //
+                                         x.is_negative(),
                                          detail::to_fixed_span(y_limbs),
                                          detail::integer_signbit(y));
     } else {
@@ -1059,7 +1059,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         static_assert(detail::is_basic_big_int_v<RT>);
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs),
-                                         detail::integer_signbit(x), //
+                                         detail::integer_signbit(x),
                                          y.representation(),
                                          y.is_negative());
     }
