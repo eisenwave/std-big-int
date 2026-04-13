@@ -144,7 +144,7 @@ template <signed_or_unsigned T>
         const auto product = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
         return wide<T>::from_int(product);
     } else {
-    #if defined(_M_IA64)
+    #if defined(_M_AMD64)
         if constexpr (std::is_signed_v<T>) {
             __int64 high;
             __int64 low = _mul128(x, y, &high);
@@ -154,7 +154,7 @@ template <signed_or_unsigned T>
             unsigned __int64 low = _umul128(x, y, &high);
             return {low, high};
         }
-    #else
+    #else // _M_AMD64
         using U = std::make_unsigned_t<T>;
         return {
             .low_bits  = static_cast<T>(static_cast<U>(x) * static_cast<U>(y)),
