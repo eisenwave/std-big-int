@@ -568,11 +568,10 @@ constexpr auto basic_big_int<b, A>::operator>>=(const S s) -> basic_big_int& {
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
         BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= shift_max);
-        shift_right(static_cast<shift_type>(s));
     } else {
         BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
-        shift_right(static_cast<shift_type>(s));
     }
+    shift_right(static_cast<shift_type>(s));
     return *this;
 }
 
@@ -582,11 +581,10 @@ constexpr auto basic_big_int<b, A>::operator<<=(const S s) -> basic_big_int& {
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
         BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= shift_max);
-        shift_left(static_cast<shift_type>(s));
     } else {
         BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
-        shift_left(static_cast<shift_type>(s));
     }
+    shift_left(static_cast<shift_type>(s));
     return *this;
 }
 
