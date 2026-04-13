@@ -361,9 +361,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::size_t extent_a, std::size_t extent_b>
     [[nodiscard]] static constexpr basic_big_int
     make_sum_of_limbs(std::span<const uint_multiprecision_t, extent_a> lhs,
-                 bool                                             lhs_neg,
-                 std::span<const uint_multiprecision_t, extent_b> rhs,
-                 bool                                             rhs_neg);
+                      bool                                             lhs_neg,
+                      std::span<const uint_multiprecision_t, extent_b> rhs,
+                      bool                                             rhs_neg);
 
     static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
     [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
@@ -1038,20 +1038,26 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     using RT     = std::remove_cvref_t<R>;
 
     if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
-                                    y.representation(), y.is_negative());
+        return Result::make_sum_of_limbs(x.representation(),
+                                         x.is_negative(), //
+                                         y.representation(),
+                                         y.is_negative());
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
         // `y` is a primitive integer; materialize it as a fixed-extent limb array
         // so the span we pass to the helper stays valid for the call.
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
-                                    detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+        return Result::make_sum_of_limbs(x.representation(),
+                                         x.is_negative(), //
+                                         detail::to_fixed_span(y_limbs),
+                                         detail::integer_signbit(y));
     } else {
         // `x` is a primitive integer
         static_assert(detail::is_basic_big_int_v<RT>);
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs), detail::integer_signbit(x), //
-                                    y.representation(), y.is_negative());
+        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs),
+                                         detail::integer_signbit(x), //
+                                         y.representation(),
+                                         y.is_negative());
     }
 }
 
@@ -1065,19 +1071,25 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     using RT     = std::remove_cvref_t<R>;
 
     if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
-                                    y.representation(), !y.is_negative());
+        return Result::make_sum_of_limbs(x.representation(),
+                                         x.is_negative(), //
+                                         y.representation(),
+                                         !y.is_negative());
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
         // `y` is a primitive integer
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
-                                    detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
+        return Result::make_sum_of_limbs(x.representation(),
+                                         x.is_negative(), //
+                                         detail::to_fixed_span(y_limbs),
+                                         !detail::integer_signbit(y));
     } else {
         // `x` is a primitive integer
         static_assert(detail::is_basic_big_int_v<RT>);
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs), detail::integer_signbit(x), //
-                                    y.representation(), !y.is_negative());
+        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs),
+                                         detail::integer_signbit(x), //
+                                         y.representation(),
+                                         !y.is_negative());
     }
 }
 
