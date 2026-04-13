@@ -1025,9 +1025,16 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
         if constexpr (has_inplace_to_bit_uint) {
             if (is_storage_static()) {
                 const auto sign_compare = (x < 0) <=> is_negative();
+#if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+                BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+                BEMAN_BIG_INT_DIAGNOSTIC_IGNORED("-Wzero-as-null-pointer-constant")
+#endif
                 if (sign_compare != 0) {
                     return sign_compare;
                 }
+#if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+                BEMAN_BIG_INT_DIAGNOSTIC_POP()
+#endif
                 return inplace_to_bit_uint() <=> detail::uabs(x);
             }
         }
