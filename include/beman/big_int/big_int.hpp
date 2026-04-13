@@ -15,6 +15,9 @@
 #include <memory>
 #include <ranges>
 #include <span>
+#if __has_include(<stdfloat>)
+    #include <stdfloat>
+#endif
 #include <type_traits>
 
 #include <beman/big_int/config.hpp>
@@ -1212,51 +1215,72 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
         return;
     }
 
-#if defined(BEMAN_BIG_INT_HAS_BITINT) && BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
-    if constexpr (std::is_same_v<F, float>) {
-        // note: not using `assign_magnitude` here since the concept doesn't accept `_BitInt` types.
-        // also `FLT_MAX` needs 2 limbs on a 64-bit system, so we do need `grow(2)` first.
-        grow(2);
-        const auto mag   = static_cast<detail::uint128_t>(value < 0.0f ? -value : value);
-        limb_ptr()[0]    = static_cast<limb_type>(mag);
-        limb_ptr()[1]    = static_cast<limb_type>(mag >> bits_per_limb);
-        const auto count = limb_ptr()[1] != 0 ? 2u : 1u;
-        set_limb_count(static_cast<std::uint32_t>(count));
-        return;
-    } else if constexpr (std::is_same_v<F, double>) {
-        if (e2 < static_cast<int>(bits_per_limb)) {
-            grow(2);
-            const auto mag = static_cast<detail::uint128_t>(value < 0.0 ? -value : value);
-            limb_ptr()[0]  = static_cast<limb_type>(mag);
-            limb_ptr()[1]  = static_cast<limb_type>(mag >> bits_per_limb);
-            set_limb_count(limb_ptr()[1] != 0 ? 2u : 1u);
-            return;
+    const auto assign_general = [&]() {
+        const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
+        const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
+        const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
+        grow(limbs_needed);
+        auto* const dst = limb_ptr();
+        dst[limb_idx] |= m2 << bit_off;
+        if (bit_off > 0) {
+            dst[limb_idx + 1] |= m2 >> (static_cast<int>(bits_per_limb) - bit_off);
         }
+        auto count = static_cast<std::uint32_t>(limb_idx + 1);
+        if (bit_off > 0 && dst[limb_idx + 1] != 0) {
+            count = static_cast<std::uint32_t>(limb_idx + 2);
+        }
+        set_limb_count(count);
+        while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
+            set_limb_count(limb_count() - 1);
+        }
+    };
+
+#ifdef BEMAN_BIG_INT_HAS_INT128
+    constexpr bool is_float32 = std::is_same_v<F, float>
+    #ifdef __STDCPP_FLOAT32_T__
+                                || std::is_same_v<F, std::float32_t>
+    #endif
+        ;
+    constexpr bool is_float64 = std::is_same_v<F, double>
+    #ifdef __STDCPP_FLOAT64_T__
+                                || std::is_same_v<F, std::float64_t>
+    #endif
+        ;
+
+    const auto assign_via_uint128 = [&](auto v) {
+        grow(2);
+        const auto abs_v = v < decltype(v){0} ? -v : v;
+    #ifdef BEMAN_BIG_INT_MSVC
+        // note: MSVC's _Unsigned128 has no conversion constructor from FP.
+        // So we need to use div/mod to extract high and low 64-bit halves by 2^64.
+        constexpr auto two_64 = static_cast<decltype(abs_v)>(1ULL << 32) * static_cast<decltype(abs_v)>(1ULL << 32);
+        const auto     hi     = static_cast<limb_type>(abs_v / two_64);
+        const auto     lo     = static_cast<limb_type>(abs_v - static_cast<decltype(abs_v)>(hi) * two_64);
+    #else
+        const auto mag = static_cast<detail::uint128_t>(abs_v);
+        const auto hi  = static_cast<limb_type>(mag >> bits_per_limb);
+        const auto lo  = static_cast<limb_type>(mag);
+    #endif
+        limb_ptr()[0] = lo;
+        limb_ptr()[1] = hi;
+        set_limb_count(hi != 0 ? 2u : 1u);
+    };
+
+    if constexpr (is_float32) {
+        assign_via_uint128(value);
+        return;
+    } else if constexpr (is_float64) {
+        if (e2 < static_cast<int>(bits_per_limb)) {
+            assign_via_uint128(value);
+        } else {
+            assign_general();
+        }
+    } else {
+        assign_general();
     }
+#else
+    assign_general();
 #endif
-
-    // general case
-    const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
-    const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
-    const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
-    grow(limbs_needed);
-
-    auto* const dst = limb_ptr();
-
-    dst[limb_idx] |= m2 << bit_off;
-    if (bit_off > 0) {
-        dst[limb_idx + 1] |= m2 >> (static_cast<int>(bits_per_limb) - bit_off);
-    }
-
-    auto count = static_cast<std::uint32_t>(limb_idx + 1);
-    if (bit_off > 0 && dst[limb_idx + 1] != 0) {
-        count = static_cast<std::uint32_t>(limb_idx + 2);
-    }
-
-    set_limb_count(count);
-    while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
-        set_limb_count(limb_count() - 1);
-    }
 }
 
 template <std::size_t b, class A>
