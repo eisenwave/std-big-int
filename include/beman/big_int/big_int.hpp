@@ -989,48 +989,36 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
     const auto* const   self = limb_ptr();
     const std::uint32_t lc   = limb_count();
 
-    if constexpr (extent == 0) {
-        // With an empty limbs span, the common-prefix compare and the
-        // limbs has trailing zeroes scan are both provably empty, so only
-        // the self-tail zero scan is required
-        for (std::size_t i = 0; i < lc; ++i) {
+    // Split on which side is longer so each branch carries only one tail-zero loop.
+    // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
+    // so these loops can be more easily unrolled.
+    // We also don't need to do all three scans, just two for any given case.
+    if (lc >= limbs.size()) {
+        for (std::size_t i = 0; i < limbs.size(); ++i) {
+            if (self[i] != limbs[i]) {
+                return false;
+            }
+        }
+        // Our own limbs can have additional ignored zeroes.
+        for (std::size_t i = limbs.size(); i < lc; ++i) {
             if (self[i] != 0) {
                 return false;
             }
         }
-        return true;
     } else {
-        // Split on which side is longer so each branch carries only one tail-zero loop.
-        // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
-        // so these loops can be more easily unrolled.
-        // We also don't need to do all three scans, just two for any given case
-        if (lc >= limbs.size()) {
-            for (std::size_t i = 0; i < limbs.size(); ++i) {
-                if (self[i] != limbs[i]) {
-                    return false;
-                }
-            }
-            // Our own limbs can have additional ignored zeroes.
-            for (std::size_t i = limbs.size(); i < lc; ++i) {
-                if (self[i] != 0) {
-                    return false;
-                }
-            }
-        } else {
-            for (std::size_t i = 0; i < lc; ++i) {
-                if (self[i] != limbs[i]) {
-                    return false;
-                }
-            }
-            // The provided limbs can have additional ignored zeroes.
-            for (std::size_t i = lc; i < limbs.size(); ++i) {
-                if (limbs[i] != 0) {
-                    return false;
-                }
+        for (std::size_t i = 0; i < lc; ++i) {
+            if (self[i] != limbs[i]) {
+                return false;
             }
         }
-        return true;
+        // The provided limbs can have additional ignored zeroes.
+        for (std::size_t i = lc; i < limbs.size(); ++i) {
+            if (limbs[i] != 0) {
+                return false;
+            }
+        }
     }
+    return true;
 }
 
 template <std::size_t b, class A>
@@ -1053,7 +1041,10 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
                 if (std::is_neq(sign_compare)) {
                     return sign_compare;
                 }
-                return inplace_to_bit_uint() <=> detail::uabs(x);
+                // For two-negative operands, bigger magnitude means a smaller
+                // value, so swap the operand order of the magnitude compare.
+                return is_negative() ? detail::uabs(x) <=> inplace_to_bit_uint()
+                                     : inplace_to_bit_uint() <=> detail::uabs(x);
             }
         }
         const auto limbs = detail::to_limbs(detail::uabs(x));
@@ -1079,21 +1070,15 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     }
     const auto rep = representation();
 
-    if constexpr (extent == 0) {
-        // With an empty limbs span, the common-prefix compare and the
-        // limbs has trailing zeroes scan are both provably empty, so only
-        // the self-tail zero scan is required
-        for (std::size_t i = rep.size(); i-- > 0;) {
-            if (rep[i] != 0) {
-                return std::strong_ordering::greater;
-            }
-        }
-        return std::strong_ordering::equal;
-    } else {
-        // Split on which side is longer so each branch carries only one tail-zero loop.
-        // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
-        // so these loops can be more easily unrolled.
-        // We also don't need to do all three scans, just two for any given case
+    // Compute the ordering as if both operands were non-negative (i.e., compare
+    // magnitudes). For two-negative operands we invert the result at the end,
+    // because a larger magnitude means a smaller value.
+    //
+    // Split on which side is longer so each branch carries only one high-tail scan.
+    // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
+    // so these loops can be more easily unrolled.
+    // We also don't need to do all three scans, just two for any given case.
+    const auto magnitude_ordering = [&]() -> std::strong_ordering {
         if (rep.size() > limbs.size()) {
             // If there are more significant nonzero digits in this integer, it is greater.
             // Decimal example: 123 > 23
@@ -1127,7 +1112,18 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
         }
         // Having eliminated any possible mismatch, the two sides are equal.
         return std::strong_ordering::equal;
+    }();
+
+    if (is_negative()) {
+        // Invert: less <-> greater; equal is unchanged.
+        if (std::is_lt(magnitude_ordering)) {
+            return std::strong_ordering::greater;
+        }
+        if (std::is_gt(magnitude_ordering)) {
+            return std::strong_ordering::less;
+        }
     }
+    return magnitude_ordering;
 }
 
 // private helpers
