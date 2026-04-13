@@ -20,6 +20,10 @@
 #include <beman/big_int/config.hpp>
 #include <beman/big_int/wide_ops.hpp>
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overflow")
+
 namespace beman::big_int {
 
 // alias uint_multiprecision_t
@@ -249,6 +253,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     // TODO(alcxpr): compound operators
 
+    template <detail::signed_or_unsigned S>
+    constexpr basic_big_int& operator>>=(S s);
+    template <detail::signed_or_unsigned S>
+    constexpr basic_big_int& operator<<=(S s);
+
     // [big.int.ops]
     [[nodiscard]] constexpr std::size_t                            width_mag() const noexcept;
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
@@ -264,6 +273,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr basic_big_int operator+() && noexcept;
     [[nodiscard]] constexpr basic_big_int operator-() const&;
     [[nodiscard]] constexpr basic_big_int operator-() && noexcept;
+
+    constexpr basic_big_int& operator++() &;
+    constexpr basic_big_int  operator++(int) &;
+    constexpr basic_big_int& operator--() &;
+    constexpr basic_big_int  operator--(int) &;
 
     // [big.int.cmp]
     template <class L, detail::common_big_int_type_with<L> R>
@@ -282,6 +296,22 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr void                       free_storage();
     constexpr void                       grow(std::size_t limbs_needed);
     constexpr void                       copy_n_to_allocation(const limb_type* p, std::size_t n, alloc_result out);
+
+    using shift_type                      = unsigned long long;
+    static constexpr shift_type shift_max = std::numeric_limits<shift_type>::max();
+
+    // Increases the magnitude by one, without affecting the sign bit.
+    // Returns `true` on carry in the uppermost limb.
+    constexpr bool unchecked_increment_magnitude();
+    // Decreases the magnitude by one.
+    // If the value was zero prior to the operation,
+    // the magnitude is set to `1`.
+    // Returns `true` on borrow in the uppermost limb,
+    // meaning that the value was originally zero.
+    constexpr bool unchecked_decrement_magnitude();
+
+    constexpr void shift_left(shift_type s);
+    constexpr void shift_right(shift_type s);
 
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr bool equals_integer(Integer x) const noexcept;
@@ -532,6 +562,166 @@ constexpr basic_big_int<b, A>::~basic_big_int() {
     free_storage();
 }
 
+// [big.int.modifiers]
+
+template <std::size_t b, class A>
+template <detail::signed_or_unsigned S>
+constexpr auto basic_big_int<b, A>::operator>>=(const S s) -> basic_big_int& {
+    // If this pattern comes up more often, we should consider something like a `safe_cast` utility.
+    // This would convert to another type and signal whether the result is exactly representable.
+    if constexpr (std::is_signed_v<S>) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= shift_max);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
+    }
+    shift_right(static_cast<shift_type>(s));
+    return *this;
+}
+
+template <std::size_t b, class A>
+template <detail::signed_or_unsigned S>
+constexpr auto basic_big_int<b, A>::operator<<=(const S s) -> basic_big_int& {
+    if constexpr (std::is_signed_v<S>) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= shift_max);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
+    }
+    shift_left(static_cast<shift_type>(s));
+    return *this;
+}
+
+template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::unchecked_increment_magnitude() {
+    limb_type* const limbs    = limb_ptr();
+    bool             carry_in = true;
+    for (std::size_t i = 0; carry_in && i < limb_count(); ++i) {
+        const auto [sum, carry] = detail::carrying_add(limbs[i], limb_type{0}, carry_in);
+        limbs[i]                = sum;
+        carry_in                = carry;
+    }
+    if (carry_in) {
+        reserve(limb_count() + 1);
+        limb_ptr()[limb_count()] = limb_type{1};
+        set_limb_count(limb_count() + 1);
+    }
+    return carry_in;
+}
+
+template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::unchecked_decrement_magnitude() {
+    limb_type* const limbs     = limb_ptr();
+    bool             borrow_in = true;
+    for (std::size_t i = 0; borrow_in && i < limb_count(); ++i) {
+        const auto [difference, borrow] = detail::borrowing_sub(limbs[i], limb_type{0}, borrow_in);
+        limbs[i]                        = difference;
+        borrow_in                       = borrow;
+    }
+
+    if (borrow_in) {
+        // Getting a borrow after the loop can only happen if the magnitude was zero,
+        // meaning that we produce `-1` with this operation.
+        BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
+        limbs[0] = 1;
+        set_limb_count(1);
+    }
+    return borrow_in;
+}
+
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
+    if (s == 0) {
+        return;
+    }
+
+    const shift_type shifted_limbs = s / bits_per_limb;
+    const shift_type shifted_bits  = s % bits_per_limb;
+
+    // TODO(eisenwave): This is pessimistic and assumes that bit-shifting will require an extra limb,
+    //                  but that may not be the case.
+    //                  It depends on the bits of the uppermost limb.
+    reserve(limb_count() + shifted_limbs + std::size_t(shifted_bits != 0));
+    limb_type* const limbs = limb_ptr();
+
+    if (shifted_limbs != 0) {
+        const auto current_count = limb_count();
+        std::copy_backward(limbs, limbs + current_count, limbs + current_count + shifted_limbs);
+        std::fill_n(limbs, static_cast<std::ptrdiff_t>(shifted_limbs), limb_type{0});
+        set_limb_count(static_cast<std::uint32_t>(current_count + shifted_limbs));
+    }
+    if (shifted_bits != 0) {
+        const auto current_count = limb_count();
+        limbs[current_count]     = 0;
+        for (std::size_t i = current_count; i-- > shifted_limbs;) {
+            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
+            limbs[i + 1] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
+        }
+        limbs[shifted_limbs] <<= shifted_bits;
+        set_limb_count(static_cast<std::uint32_t>(current_count + std::uint32_t(limbs[current_count] != 0)));
+    }
+}
+
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
+    if (s == 0) {
+        return;
+    }
+
+    const shift_type shifted_limbs = s / bits_per_limb;
+    const shift_type shifted_bits  = s % bits_per_limb;
+    limb_type* const limbs         = limb_ptr();
+
+    // Shifting to the right has the effect of dividing by `pow(2, N)` rounded towards negative infinity.
+    // When we "discard" limbs, this has truncating rounding;
+    // for positive numbers that is already what we need, but requires adjustment for negative numbers.
+    // In that case, we need to figure out whether the result is inexact
+    // by detecting whether any nonzero bits are shifted out.
+    const bool needs_decrement = is_negative() && [&] {
+        for (std::size_t i = 0; i < shifted_limbs; ++i) {
+            if (i >= limb_count()) {
+                return false;
+            }
+            if (limbs[i] != 0) {
+                return true;
+            }
+        }
+        const auto shift_mask = (limb_type{1} << shifted_bits) - 1;
+        return shifted_limbs < limb_count() && (limbs[shifted_limbs] & shift_mask) != 0;
+    }();
+
+    if (shifted_limbs != 0) {
+        const auto current_count = limb_count();
+        if (shifted_limbs >= current_count) {
+            limbs[0] = 0;
+            set_limb_count(1);
+        } else {
+            std::shift_left(limbs, limbs + current_count, static_cast<std::ptrdiff_t>(shifted_limbs));
+            set_limb_count(static_cast<std::uint32_t>(current_count - shifted_limbs));
+        }
+    }
+    if (shifted_bits != 0) {
+        for (std::size_t i = 0; i + 1 < limb_count(); ++i) {
+            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
+            limbs[i] = detail::funnel_shr(all_bits, static_cast<unsigned int>(shifted_bits));
+        }
+        BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
+        limbs[limb_count() - 1] >>= shifted_bits;
+    }
+    while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
+        set_limb_count(limb_count() - 1);
+    }
+    if (needs_decrement) {
+        // See above for rounding considerations.
+        // Also note that we may be holding a negative zero right now,
+        // and increasing the magnitude converts that into `-1`.
+        unchecked_increment_magnitude();
+        BEMAN_BIG_INT_DEBUG_ASSERT(is_negative());
+    }
+}
+
 // [big.int.ops]
 
 template <std::size_t b, class A>
@@ -638,6 +828,46 @@ constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() && noexcept {
     return copy;
 }
 
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::operator++() & -> basic_big_int& {
+    if (is_negative()) {
+        unchecked_decrement_magnitude();
+        if (limb_count() == 1 && limb_ptr()[0] == 0) {
+            set_sign(false);
+        }
+    } else {
+        unchecked_increment_magnitude();
+    }
+    return *this;
+}
+
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::operator++(int) & -> basic_big_int {
+    auto copy = *this;
+    ++(*this);
+    return copy;
+}
+
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::operator--() & -> basic_big_int& {
+    if (is_negative()) {
+        unchecked_increment_magnitude();
+    } else {
+        if (unchecked_decrement_magnitude()) {
+            set_sign(true);
+        }
+    }
+    return *this;
+}
+
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::operator--(int) & -> basic_big_int {
+    auto copy = *this;
+    --(*this);
+    return copy;
+}
+
+// [big.int.cmp]
 template <class L, detail::common_big_int_type_with<L> R>
 constexpr bool operator==(const L& lhs, const R& rhs) noexcept {
     if constexpr (detail::is_basic_big_int_v<L>) {
@@ -1153,5 +1383,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 } // namespace literals
 
 } // namespace beman::big_int
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 #endif // BEMAN_BIG_INT_BIG_INT_HPP
