@@ -986,28 +986,51 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
         return false;
     }
 
-    std::size_t       i    = 0;
-    const auto* const self = limb_ptr();
-    // In the limbs that are common,
-    // there can be no mismatch.
-    for (; i < limbs.size() && i < limb_count(); ++i) {
-        if (self[i] != limbs[i]) {
-            return false;
+    const auto* const   self = limb_ptr();
+    const std::uint32_t lc   = limb_count();
+
+    if constexpr (extent == 0) {
+        // With an empty limbs span, the common-prefix compare and the
+        // limbs has trailing zeroes scan are both provably empty, so only
+        // the self-tail zero scan is required
+        for (std::size_t i = 0; i < lc; ++i) {
+            if (self[i] != 0) {
+                return false;
+            }
         }
-    }
-    // The provided limbs can have additional ignored zeroes.
-    for (; i < limbs.size(); ++i) {
-        if (limbs[i] != 0) {
-            return false;
+        return true;
+    } else {
+        // Split on which side is longer so each branch carries only one tail-zero loop.
+        // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
+        // so these loops can be more easily unrolled.
+        // We also don't need to do all three scans, just two for any given case
+        if (lc >= limbs.size()) {
+            for (std::size_t i = 0; i < limbs.size(); ++i) {
+                if (self[i] != limbs[i]) {
+                    return false;
+                }
+            }
+            // Our own limbs can have additional ignored zeroes.
+            for (std::size_t i = limbs.size(); i < lc; ++i) {
+                if (self[i] != 0) {
+                    return false;
+                }
+            }
+        } else {
+            for (std::size_t i = 0; i < lc; ++i) {
+                if (self[i] != limbs[i]) {
+                    return false;
+                }
+            }
+            // The provided limbs can have additional ignored zeroes.
+            for (std::size_t i = lc; i < limbs.size(); ++i) {
+                if (limbs[i] != 0) {
+                    return false;
+                }
+            }
         }
+        return true;
     }
-    // Our own limbs can have additional ignored zeroes.
-    for (; i < limb_count(); ++i) {
-        if (self[i] != 0) {
-            return false;
-        }
-    }
-    return true;
 }
 
 template <std::size_t b, class A>
