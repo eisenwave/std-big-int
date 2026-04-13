@@ -892,8 +892,15 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
         }
     } else {
         static_assert(detail::is_basic_big_int_v<R>);
+        #if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+        BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED("-Wzero-as-null-pointer-constant")
+        #endif
         static_assert((0 <=> std::strong_ordering::less) == std::strong_ordering::greater,
                       "This trick to flip the ordering should work.");
+        #if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+        BEMAN_BIG_INT_DIAGNOSTIC_POP()
+        #endif
         return 0 <=> rhs.compare_integer(lhs);
     }
 }
