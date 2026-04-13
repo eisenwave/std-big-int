@@ -20,6 +20,9 @@
 #include <beman/big_int/config.hpp>
 #include <beman/big_int/wide_ops.hpp>
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.
+
 namespace beman::big_int {
 
 // alias uint_multiprecision_t
@@ -973,9 +976,6 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
         return false;
     }
 
-    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds")
-
     std::size_t       i    = 0;
     const auto* const self = limb_ptr();
     // In the limbs that are common,
@@ -998,8 +998,6 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
         }
     }
     return true;
-
-    BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
 template <std::size_t b, class A>
@@ -1384,5 +1382,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 } // namespace literals
 
 } // namespace beman::big_int
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 #endif // BEMAN_BIG_INT_BIG_INT_HPP
