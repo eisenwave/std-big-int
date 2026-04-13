@@ -83,11 +83,11 @@ inline static T high_mul(const T x, const T y) noexcept {
     #elif defined(_M_IA64)
         if constexpr (std::is_signed_v<T>) {
             __int64 result;
-            void(_mul128(a, b, &result));
+            void(_mul128(x, y, &result));
             return result;
         } else {
             unsigned __int64 result;
-            void(_umul128(a, b, &result));
+            void(_umul128(x, y, &result));
             return result;
         }
     #else
