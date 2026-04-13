@@ -374,6 +374,94 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::size_t extent_other>
     constexpr void add_in_place(std::span<const uint_multiprecision_t, extent_other> other, bool other_neg);
 
+    // Shared implementation behind copy-assign and move-assign.
+    // Sets `dst` to a copy of `src`, reusing `dst`'s existing allocation whenever its effective
+    // capacity already fits `src.limb_count() + extra_space` limbs.
+    // Allow extra space to be stated upfront so that functions that know they are
+    // about to grow by a fixed amount (e.g., a carry-out of one
+    // limb in addition) can ask for that space up front.
+    //
+    // Defined inline because the friend template declaration matches the enclosing
+    // class by name, which is tidier than reconstructing the template parameters
+    // out-of-class.
+    template <class Src>
+        requires std::same_as<std::remove_cvref_t<Src>, basic_big_int>
+    friend constexpr void copy_value(basic_big_int& dst, Src&& src, const std::size_t extra_space = 0) {
+        if (std::addressof(dst) == std::addressof(src)) {
+            // `copy_value(a, std::move(a), ...)` is a no-op. Also guards the extra
+            // self-aliasing the existing `operator=` overloads protected against.
+            return;
+        }
+
+        constexpr bool    is_move   = !std::is_lvalue_reference_v<Src>;
+        const std::size_t src_count = src.limb_count();
+        const std::size_t needed    = src_count + extra_space;
+        const std::size_t eff_cap   = dst.is_storage_static() ? inplace_limbs : dst.m_capacity;
+
+        if (needed <= eff_cap) {
+            // Fast path: `dst`'s current buffer is already big enough
+            const auto old_count = dst.limb_count();
+            dst.m_size_and_sign  = src.m_size_and_sign;
+            if constexpr (is_move) {
+                dst.m_alloc = std::move(src.m_alloc);
+            } else {
+                dst.m_alloc = src.m_alloc;
+            }
+            limb_type* const       dst_limbs = dst.limb_ptr();
+            const limb_type* const src_limbs = src.limb_ptr();
+            for (std::size_t i = 0; i < src_count; ++i) {
+                dst_limbs[i] = src_limbs[i];
+            }
+            // Preserve the "limbs[limb_count..inplace_limbs) == 0" invariant that
+            // `inplace_to_bit_uint` relies on. Only relevant for inline storage.
+            if (dst.is_storage_static()) {
+                for (std::size_t i = src_count; i < old_count; ++i) {
+                    dst_limbs[i] = limb_type{0};
+                }
+            }
+            return;
+        }
+
+        // Slow path: `dst`'s buffer is too small.
+        // Release it and get a new allocation
+        dst.free_storage();
+        dst.m_size_and_sign = src.m_size_and_sign;
+        if constexpr (is_move) {
+            dst.m_alloc = std::move(src.m_alloc);
+        } else {
+            dst.m_alloc = src.m_alloc;
+        }
+
+        if (src.is_storage_static() && needed <= inplace_limbs) {
+            // Both src and the requested headroom fit inline.
+            dst.m_capacity = 0;
+            for (std::size_t i = 0; i < inplace_limbs; ++i) {
+                dst.m_storage.limbs[i] = src.m_storage.limbs[i];
+            }
+            return;
+        }
+
+        if constexpr (is_move) {
+            // If `src` has a heap buffer that's large enough, stealing it is
+            // cheaper than allocating. `src.m_capacity >= src_count` always, so
+            // when `extra_space == 0` this branch fires for every heap `src`
+            // and keeps `operator=(&&)` allocation-free.
+            if (!src.is_storage_static() && src.m_capacity >= needed) {
+                dst.m_capacity      = src.m_capacity;
+                dst.m_storage.data  = src.m_storage.data;
+                src.m_capacity      = 0;
+                src.m_size_and_sign = 1;
+                return;
+            }
+        }
+
+        // Fall back to a fresh allocation of `needed` limbs.
+        const alloc_result allocation = dst.alloc_limbs(needed);
+        dst.copy_n_to_allocation(src.limb_ptr(), src_count, allocation);
+        dst.m_capacity     = static_cast<std::uint32_t>(allocation.count);
+        dst.m_storage.data = allocation.ptr;
+    }
+
     static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
     [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
@@ -499,51 +587,17 @@ constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(const basic_big_int& x) {
-    if (this == &x) {
-        return *this;
-    }
-
-    free_storage();
-    m_size_and_sign = x.m_size_and_sign;
-    m_alloc         = x.m_alloc;
-
-    if (x.is_storage_static()) {
-        m_capacity = 0;
-        for (size_type i = 0; i < inplace_capacity; ++i) {
-            m_storage.limbs[i] = x.m_storage.limbs[i];
-        }
-    } else {
-        const alloc_result allocation = alloc_limbs(x.limb_count());
-        copy_n_to_allocation(x.m_storage.data, x.limb_count(), allocation);
-        m_capacity     = static_cast<std::uint32_t>(allocation.count);
-        m_storage.data = allocation.ptr;
-    }
-
+    copy_value(*this, x);
     return *this;
 }
 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x) noexcept {
-    if (this == &x) {
-        return *this;
-    }
-
-    free_storage();
-    m_size_and_sign = x.m_size_and_sign;
-    m_alloc         = std::move(x.m_alloc);
-
-    if (x.is_storage_static()) {
-        m_capacity = 0;
-        for (size_type i = 0; i < inplace_capacity; ++i) {
-            m_storage.limbs[i] = x.m_storage.limbs[i];
-        }
-    } else {
-        m_capacity        = x.m_capacity;
-        m_storage.data    = x.m_storage.data;
-        x.m_capacity      = 0;
-        x.m_size_and_sign = 1;
-    }
-
+    // Invariant: `copy_value` with `extra_space == 0` and an rvalue `src` never
+    // allocates -- either `*this` already fits `x.limb_count()`, or we steal `x`'s
+    // heap buffer, or `x` is inline and fits inline in `*this`. So the `noexcept`
+    // contract holds even though `copy_value` itself is not marked `noexcept`.
+    copy_value(*this, std::move(x));
     return *this;
 }
 
