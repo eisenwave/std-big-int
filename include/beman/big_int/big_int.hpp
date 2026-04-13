@@ -116,6 +116,24 @@ template <signed_integer T>
     BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
+// This is purely for convenience, so we don't have to check all the time if an integer is signed or not
+template <unsigned_integer T>
+[[nodiscard]] constexpr T uabs(const T x) noexcept {
+    return x;
+}
+
+// The integer version of signbit, and again with unsigned impl purely out of convenience
+// Follows std::signbit convention: True = value is negative, False = value is positive
+template <signed_integer T>
+[[nodiscard]] constexpr bool integer_signbit(const T x) noexcept {
+    return x < T{0};
+}
+
+template <unsigned_integer T>
+[[nodiscard]] constexpr bool integer_signbit(const T) noexcept {
+    return false;
+}
+
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
