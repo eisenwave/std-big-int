@@ -307,9 +307,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept;
 
     // [big.int.binary]
-    template <class L, detail::common_big_int_type_with<L> R>
+    template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y);
-    template <class L, detail::common_big_int_type_with<L> R>
+    template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y);
 
   private:
