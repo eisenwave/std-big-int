@@ -365,15 +365,14 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr std::strong_ordering compare_limbs(std::span<const uint_multiprecision_t, extent> limbs,
                                                                bool limbs_negative) const noexcept;
 
-    // Returns the sum `(lhs, lhs_neg) + (rhs, rhs_neg)` as a fresh `basic_big_int`.
-    // Only allocates heap storage if the final result is certain to exceed the inline limb capacity
-    // (a speculative top-limb carry only triggers a grow after the carry actually occurs).
-    template <std::size_t extent_a, std::size_t extent_b>
-    [[nodiscard]] static constexpr basic_big_int
-    make_sum_of_limbs(std::span<const uint_multiprecision_t, extent_a> lhs,
-                      bool                                             lhs_neg,
-                      std::span<const uint_multiprecision_t, extent_b> rhs,
-                      bool                                             rhs_neg);
+    // Adds `(other, other_neg)` into `*this` in place. Shared core for `operator+`
+    // and `operator-`: the caller chooses the destination (an rvalue operand's
+    // storage or a copy of an lvalue operand) and supplies the other side as a limb
+    // span + sign. Only allocates when the result genuinely requires more limbs
+    // than the current capacity. Preserves the no-negative-zero and trimmed-top-limb
+    // invariants.
+    template <std::size_t extent_other>
+    constexpr void add_in_place(std::span<const uint_multiprecision_t, extent_other> other, bool other_neg);
 
     static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
     [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
@@ -1221,91 +1220,117 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     return is_negative() ? detail::invert(magnitude_ordering) : magnitude_ordering;
 }
 
-// Builds the sum or difference of two limb spans and returns it as a fresh `basic_big_int`.
+// Adds `(other, other_neg)` into `*this` in place. Shared core for `operator+` and
+// `operator-`: the caller chooses the destination (an rvalue operand's storage or a
+// copy of an lvalue operand) and supplies the other side as a limb span + sign.
 template <std::size_t b, class A>
-template <std::size_t extent_a, std::size_t extent_b>
-constexpr basic_big_int<b, A>
-basic_big_int<b, A>::make_sum_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
-                                       const bool                                             lhs_neg,
-                                       const std::span<const uint_multiprecision_t, extent_b> rhs,
-                                       const bool                                             rhs_neg) {
-    basic_big_int result;
+template <std::size_t extent_other>
+constexpr void
+basic_big_int<b, A>::add_in_place(const std::span<const uint_multiprecision_t, extent_other> other,
+                                  const bool                                                 other_neg) {
+    const bool this_neg = is_negative();
 
-    if (lhs_neg == rhs_neg) {
-        // Same sign: add magnitudes limb-by-limb using carrying_add.
-        const std::size_t big = std::max(lhs.size(), rhs.size());
+    if (this_neg == other_neg) {
+        // Same sign: add magnitudes limb-by-limb. Target sign stays `this_neg`.
+        const std::uint32_t old_count = limb_count();
+        const std::size_t   big       = std::max<std::size_t>(old_count, other.size());
 
-        // `grow(big)` only allocates if `big > inplace_limbs`; otherwise it's a no-op
-        // and we stay in inline storage.
-        result.grow(big);
-        limb_type* const limbs = result.limb_ptr();
+        // `grow(big)` only allocates when `big` exceeds our current capacity;
+        // otherwise it's a no-op and we stay in our existing buffer.
+        grow(big);
+        limb_type* limbs = limb_ptr();
 
         bool carry = false;
         for (std::size_t i = 0; i < big; ++i) {
-            const limb_type li            = i < lhs.size() ? lhs[i] : limb_type{0};
-            const limb_type ri            = i < rhs.size() ? rhs[i] : limb_type{0};
+            const limb_type li            = i < old_count ? limbs[i] : limb_type{0};
+            const limb_type ri            = i < other.size() ? other[i] : limb_type{0};
             const auto [r_value, r_carry] = detail::carrying_add(li, ri, carry);
             limbs[i]                      = r_value;
             carry                         = r_carry;
         }
-        result.set_limb_count(static_cast<std::uint32_t>(big));
+        set_limb_count(static_cast<std::uint32_t>(big));
 
-        // If the ripple carry has actually produced an out-of-range carry, we allocate the extra limb.
-        // We want to avoid allocation or leaving inline storage as much as possible
+        // Only allocate for the extra top limb if the ripple carry has actually escaped.
         if (carry) {
-            result.grow(big + 1);
-            result.limb_ptr()[big] = limb_type{1};
-            result.set_limb_count(static_cast<std::uint32_t>(big + 1));
+            grow(big + 1);
+            limb_ptr()[big] = limb_type{1};
+            set_limb_count(static_cast<std::uint32_t>(big + 1));
         }
 
-        // Preserve the "no negative zero" invariant
-        if (!result.is_zero()) {
-            result.set_sign(lhs_neg);
+        // Preserve the "no negative zero" invariant. Clear the sign first so that
+        // `is_zero()` reflects the magnitude regardless of what our sign was on entry.
+        set_sign(false);
+        if (!is_zero()) {
+            set_sign(this_neg);
         }
-        return result;
+        return;
     }
 
-    // Differing signs: subtract the smaller magnitude from the larger,
-    // and take the sign of the larger-magnitude operand.
-    const auto magnitude_order = detail::compare_limb_magnitudes(lhs, rhs);
+    // Differing signs: subtract smaller magnitude from larger; take the sign of the
+    // larger-magnitude operand.
+    const auto magnitude_order = detail::compare_limb_magnitudes(representation(), other);
 
-    // When `lhs >= rhs` (in magnitude) compute `lhs - rhs` and take sign `lhs_neg`; otherwise
-    // compute `rhs - lhs` with sign `rhs_neg`. Equal magnitudes fall into the first branch
-    // and produce a normalized `+0`.
-    const std::span<const uint_multiprecision_t> larger      = std::is_gteq(magnitude_order)
-                                                                   ? std::span<const uint_multiprecision_t>(lhs)
-                                                                   : std::span<const uint_multiprecision_t>(rhs);
-    const std::span<const uint_multiprecision_t> smaller     = std::is_gteq(magnitude_order)
-                                                                   ? std::span<const uint_multiprecision_t>(rhs)
-                                                                   : std::span<const uint_multiprecision_t>(lhs);
-    const bool                                   result_sign = std::is_gteq(magnitude_order) ? lhs_neg : rhs_neg;
+    if (std::is_gteq(magnitude_order)) {
+        // `|*this| >= |other|`: compute `*this - other` in place. Target sign is `this_neg`.
+        const std::uint32_t n     = limb_count();
+        limb_type* const    limbs = limb_ptr();
 
-    const std::size_t n = larger.size();
+        bool borrow = false;
+        for (std::size_t i = 0; i < n; ++i) {
+            const limb_type li             = limbs[i];
+            const limb_type si             = i < other.size() ? other[i] : limb_type{0};
+            const auto [r_value, r_borrow] = detail::borrowing_sub(li, si, borrow);
+            limbs[i]                       = r_value;
+            borrow                         = r_borrow;
+        }
+        // Having picked `*this` as the larger operand, the final borrow must be zero.
+        BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+
+        // Trim leading zero limbs to maintain the "top limb non-zero unless value is zero" invariant.
+        while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
+            set_limb_count(limb_count() - 1);
+        }
+
+        set_sign(false);
+        if (!is_zero()) {
+            set_sign(this_neg);
+        }
+        return;
+    }
+
+    // `|other| > |*this|`: compute `other - *this` into our buffer. Target sign is `other_neg`.
+    const std::uint32_t old_count = limb_count();
+    const std::size_t   n         = other.size();
+
     // Subtraction can never produce more limbs than the larger operand, so this grow is tight.
-    result.grow(n);
-    limb_type* const limbs = result.limb_ptr();
+    grow(n);
+    limb_type* const limbs = limb_ptr();
 
     bool borrow = false;
     for (std::size_t i = 0; i < n; ++i) {
-        const limb_type li             = larger[i];
-        const limb_type si             = i < smaller.size() ? smaller[i] : limb_type{0};
-        const auto [r_value, r_borrow] = detail::borrowing_sub(li, si, borrow);
+        // Read our old limb at index `i` *before* overwriting it, so this loop is
+        // aliasing-safe if `other` happens to point into our own limb buffer.
+        const limb_type si             = i < old_count ? limbs[i] : limb_type{0};
+        const limb_type oi             = other[i];
+        const auto [r_value, r_borrow] = detail::borrowing_sub(oi, si, borrow);
         limbs[i]                       = r_value;
         borrow                         = r_borrow;
     }
-    // Having picked `larger` correctly, the final borrow must be zero.
+    // Having picked `other` as the larger operand, the final borrow must be zero.
     BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
-    result.set_limb_count(static_cast<std::uint32_t>(n));
+    set_limb_count(static_cast<std::uint32_t>(n));
 
-    // Trim leading zero limbs to maintain the "top limb non-zero unless value is zero" invariant.
-    while (result.limb_count() > 1 && limbs[result.limb_count() - 1] == 0) {
-        result.set_limb_count(result.limb_count() - 1);
+    // Trim leading zero limbs.
+    while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
+        set_limb_count(limb_count() - 1);
     }
 
-    if (!result.is_zero()) {
-        result.set_sign(result_sign);
+    // `|other| > |*this|` strictly, so the magnitude is guaranteed nonzero; the
+    // `set_sign(false)` + `is_zero()` dance is defensive belt-and-braces.
+    set_sign(false);
+    if (!is_zero()) {
+        set_sign(other_neg);
     }
-    return result;
 }
 
 // private helpers
