@@ -209,4 +209,116 @@ TEST(Addition, UnequalLengthMultiLimb) {
     EXPECT_EQ(r2.representation()[1], uint_multiprecision_t{1});
 }
 
+// ----- rvalue storage-reuse tests -----
+// When either operand is an rvalue `basic_big_int`, `operator+` should steal its
+// storage instead of allocating a new result buffer. Correctness is checked across
+// all (lvalue, rvalue) combinations; heap reuse is verified by comparing the data
+// pointer before and after the sum.
+
+TEST(Addition, RvalueLhsReusesStorage) {
+    // Heap-allocated `a`; `std::move(a) + small` must write the result into `a`'s buffer.
+    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64, two limbs
+    const auto* a_data = a.representation().data();
+    ASSERT_GT(a.capacity(), 0u); // heap-allocated
+    const big_int r = std::move(a) + big_int{5};
+    EXPECT_EQ(r.representation().data(), a_data);
+    ASSERT_EQ(r.representation().size(), 2u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{5});
+    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+}
+
+TEST(Addition, RvalueRhsReusesStorage) {
+    // Commutative path: lhs is lvalue, rhs is rvalue; rhs's buffer should be reused.
+    const big_int small{5};
+    big_int       b    = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto* b_data = b.representation().data();
+    ASSERT_GT(b.capacity(), 0u);
+    const big_int r = small + std::move(b);
+    EXPECT_EQ(r.representation().data(), b_data);
+    ASSERT_EQ(r.representation().size(), 2u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{5});
+    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+}
+
+TEST(Addition, BothRvaluesReusesLhsStorage) {
+    // When both operands are rvalues, lhs is preferred per dispatch order.
+    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    big_int b          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto* a_data = a.representation().data();
+    ASSERT_GT(a.capacity(), 0u);
+    ASSERT_GT(b.capacity(), 0u);
+    const big_int r = std::move(a) + std::move(b);
+    EXPECT_EQ(r.representation().data(), a_data);
+    // 2 * 2^64 = 2^65 → [0, 2]
+    ASSERT_EQ(r.representation().size(), 2u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
+    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{2});
+}
+
+TEST(Addition, RvalueCarryGrowsStorage) {
+    // Same-sign add where the ripple carry forces one extra limb beyond the
+    // rvalue's current capacity. The helper's `grow(big+1)` path must handle this.
+    big_int a = big_int{std::numeric_limits<std::uint64_t>::max()}; // 1 limb, inline
+    EXPECT_EQ(a.capacity(), 0u);
+    const big_int r = std::move(a) + big_int{1}; // 2^64 requires 2 limbs
+    ASSERT_EQ(r.representation().size(), 2u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
+    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+}
+
+TEST(Addition, RvalueCancelToZeroIsPositive) {
+    // Differing-sign, equal-magnitude rvalue add: must produce +0, never -0.
+    big_int       a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    const big_int b = -a;                                                              // -2^64
+    const big_int r = std::move(a) + b;
+    EXPECT_EQ(r, 0);
+    EXPECT_FALSE(r < 0);
+    ASSERT_EQ(r.representation().size(), 1u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
+}
+
+TEST(Addition, RvalueLhsSmallerMagnitudeThanRhs) {
+    // Differing-sign, `|lhs| < |rhs|`: exercises `add_in_place`'s third branch,
+    // which must rewrite lhs's buffer as `other - this` and adopt rhs's sign.
+    big_int       a          = big_int{5};                                                // 1 limb
+    const big_int b          = -(big_int{std::numeric_limits<std::uint64_t>::max()} + 1); // -2^64
+    const big_int r          = std::move(a) + b;                                          // 5 + (-2^64) = -(2^64 - 5)
+    const big_int expected   = -(big_int{std::numeric_limits<std::uint64_t>::max()} + 1 - big_int{5});
+    EXPECT_EQ(r, expected);
+    EXPECT_TRUE(r < 0);
+}
+
+TEST(Addition, RvaluePrimitiveMix) {
+    // rvalue big_int + primitive: should reuse lhs.
+    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto* a_data = a.representation().data();
+    const big_int r    = std::move(a) + 5U;
+    EXPECT_EQ(r.representation().data(), a_data);
+    ASSERT_EQ(r.representation().size(), 2u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{5});
+    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+
+    // primitive + rvalue big_int: should reuse rhs.
+    big_int b          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto* b_data = b.representation().data();
+    const big_int r2   = 7 + std::move(b);
+    EXPECT_EQ(r2.representation().data(), b_data);
+    ASSERT_EQ(r2.representation().size(), 2u);
+    EXPECT_EQ(r2.representation()[0], uint_multiprecision_t{7});
+    EXPECT_EQ(r2.representation()[1], uint_multiprecision_t{1});
+}
+
+TEST(Addition, LvalueFallbackUnchanged) {
+    // Pure lvalue/lvalue dispatch must still work via `make_sum_of_limbs`.
+    const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const big_int r = a + b;
+    ASSERT_EQ(r.representation().size(), 2u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
+    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{2});
+    // Operands untouched.
+    EXPECT_EQ(a.representation().size(), 2u);
+    EXPECT_EQ(b.representation().size(), 2u);
+}
+
 } // namespace
