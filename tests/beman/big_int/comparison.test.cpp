@@ -165,4 +165,43 @@ TEST(Comparison, OrderingWideIntegers) {
     EXPECT_EQ((big_int{1} <=> wide_neg), std::strong_ordering::greater);
 }
 
+// Covers same-sign negative operands of differing magnitude, which the other
+// comparison suites do not exercise.
+TEST(Comparison, EqualityNegativeMagnitudes) {
+    const big_int neg_three{-3};
+    const big_int neg_five{-5};
+    const big_int neg_three_copy{-3};
+
+    EXPECT_EQ(neg_three == neg_three_copy, true);
+    EXPECT_EQ(neg_three == neg_five, false);
+    EXPECT_EQ(neg_five == neg_three, false);
+    EXPECT_EQ(neg_three == -3, true);
+    EXPECT_EQ(neg_three == -5, false);
+    EXPECT_EQ(-3 == neg_three, true);
+    EXPECT_EQ(-5 == neg_three, false);
+}
+
+TEST(Comparison, OrderingNegativeMagnitudes) {
+    const big_int neg_three{-3};
+    const big_int neg_five{-5};
+
+    // big_int <=> big_int via compare_big_int (dynamic-extent path).
+    EXPECT_EQ((neg_five <=> neg_three), std::strong_ordering::less);
+    EXPECT_EQ((neg_three <=> neg_five), std::strong_ordering::greater);
+
+    // big_int <=> int via compare_integer (fixed-extent path).
+    EXPECT_EQ((neg_five <=> -3), std::strong_ordering::less);
+    EXPECT_EQ((-3 <=> neg_five), std::strong_ordering::greater);
+
+    // Wide negative magnitudes exercise the `rep.size() > limbs.size()`
+    // branch (wide-vs-narrow) and the equal-size common-compare branch.
+    const big_int neg_one{-1};
+    const big_int wide_neg_small = -big_int{1.0e20};
+    const big_int wide_neg_large = -big_int{2.0e20};
+    EXPECT_EQ((wide_neg_small <=> neg_one), std::strong_ordering::less);
+    EXPECT_EQ((neg_one <=> wide_neg_small), std::strong_ordering::greater);
+    EXPECT_EQ((wide_neg_large <=> wide_neg_small), std::strong_ordering::less);
+    EXPECT_EQ((wide_neg_small <=> wide_neg_large), std::strong_ordering::greater);
+}
+
 } // namespace
