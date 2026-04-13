@@ -972,6 +972,46 @@ template <class T, std::size_t N>
     return std::span<const T, N>(arr);
 }
 
+// Three-way compares the magnitudes represented by two limb spans (little-endian, zero-padded).
+// Treats both as non-negative; callers layer sign handling on top.
+// Split on which side is longer so each branch carries only one high-tail scan.
+// When an extent is not `dynamic_extent`, `.size()` is a compile-time constant,
+// so the loops are easier to unroll.
+template <std::size_t extent_a, std::size_t extent_b>
+[[nodiscard]] constexpr std::strong_ordering
+compare_limb_magnitudes(const std::span<const uint_multiprecision_t, extent_a> a,
+                        const std::span<const uint_multiprecision_t, extent_b> b) noexcept {
+    if (a.size() > b.size()) {
+        // If there are more significant nonzero digits in `a`, it is greater.
+        // Decimal example: 123 > 23
+        for (std::size_t i = a.size(); i-- > b.size();) {
+            if (a[i] != 0) {
+                return std::strong_ordering::greater;
+            }
+        }
+        // Compare the common digits from most to least significant.
+        for (std::size_t i = b.size(); i-- > 0;) {
+            const auto result = a[i] <=> b[i];
+            if (std::is_neq(result)) {
+                return result;
+            }
+        }
+    } else {
+        for (std::size_t i = b.size(); i-- > a.size();) {
+            if (b[i] != 0) {
+                return std::strong_ordering::less;
+            }
+        }
+        for (std::size_t i = a.size(); i-- > 0;) {
+            const auto result = a[i] <=> b[i];
+            if (std::is_neq(result)) {
+                return result;
+            }
+        }
+    }
+    return std::strong_ordering::equal;
+}
+
 } // namespace detail
 
 template <std::size_t b, class A>
