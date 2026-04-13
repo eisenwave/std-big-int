@@ -1227,12 +1227,24 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
     #endif
         ;
 
-    const auto assign_via_uint128 = [&](auto v) {
+const auto assign_via_uint128 = [&](auto v) {
         grow(2);
-        const auto mag = static_cast<detail::uint128_t>(v < decltype(v){0} ? -v : v);
-        limb_ptr()[0]  = static_cast<limb_type>(mag);
-        limb_ptr()[1]  = static_cast<limb_type>(mag >> bits_per_limb);
-        set_limb_count(limb_ptr()[1] != 0 ? 2u : 1u);
+        const auto abs_v         = v < decltype(v){0} ? -v : v;
+#ifdef BEMAN_BIG_INT_MSVC
+        // note: MSVC's _Unsigned128 has no conversion constructor from FP.
+        // So we need to use div/mod to extract high and low 64-bit halves by 2^64.
+        constexpr auto two_64    = static_cast<decltype(abs_v)>(1ULL << 32) *
+                                   static_cast<decltype(abs_v)>(1ULL << 32);
+        const auto hi            = static_cast<limb_type>(abs_v / two_64);
+        const auto lo            = static_cast<limb_type>(abs_v - static_cast<decltype(abs_v)>(hi) * two_64);
+#else
+        const auto mag           = static_cast<detail::uint128_t>(abs_v);
+        const auto hi            = static_cast<limb_type>(mag >> bits_per_limb);
+        const auto lo            = static_cast<limb_type>(mag);
+#endif
+        limb_ptr()[0]            = lo;
+        limb_ptr()[1]            = hi;
+        set_limb_count(hi != 0 ? 2u : 1u);
     };
 
     if constexpr (is_float32) {
