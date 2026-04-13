@@ -316,14 +316,14 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr bool equals_integer(Integer x) const noexcept;
-    [[nodiscard]] constexpr bool equals_big_int(const basic_big_int& other) const noexcept;
+    [[nodiscard]] constexpr bool equals_big_int(const basic_big_int& x) const noexcept;
     template <std::size_t extent>
     [[nodiscard]] constexpr bool equals_limbs(std::span<const uint_multiprecision_t, extent> limbs,
                                               bool limbs_negative) const noexcept;
 
     template <detail::signed_or_unsigned Integer>
     [[nodiscard]] constexpr std::strong_ordering compare_integer(Integer x) const noexcept;
-    [[nodiscard]] constexpr std::strong_ordering compare_big_int(const basic_big_int& other) const noexcept;
+    [[nodiscard]] constexpr std::strong_ordering compare_big_int(const basic_big_int& x) const noexcept;
     template <std::size_t extent>
     [[nodiscard]] constexpr std::strong_ordering compare_limbs(std::span<const uint_multiprecision_t, extent> limbs,
                                                                bool limbs_negative) const noexcept;
@@ -986,25 +986,36 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
         return false;
     }
 
-    std::size_t       i    = 0;
-    const auto* const self = limb_ptr();
-    // In the limbs that are common,
-    // there can be no mismatch.
-    for (; i < limbs.size() && i < limb_count(); ++i) {
-        if (self[i] != limbs[i]) {
-            return false;
+    const auto* const   self = limb_ptr();
+    const std::uint32_t lc   = limb_count();
+
+    // Split on which side is longer so each branch carries only one tail-zero loop.
+    // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
+    // so these loops can be more easily unrolled.
+    // We also don't need to do all three scans, just two for any given case.
+    if (lc >= limbs.size()) {
+        for (std::size_t i = 0; i < limbs.size(); ++i) {
+            if (self[i] != limbs[i]) {
+                return false;
+            }
         }
-    }
-    // The provided limbs can have additional ignored zeroes.
-    for (; i < limbs.size(); ++i) {
-        if (limbs[i] != 0) {
-            return false;
+        // Our own limbs can have additional ignored zeroes.
+        for (std::size_t i = limbs.size(); i < lc; ++i) {
+            if (self[i] != 0) {
+                return false;
+            }
         }
-    }
-    // Our own limbs can have additional ignored zeroes.
-    for (; i < limb_count(); ++i) {
-        if (self[i] != 0) {
-            return false;
+    } else {
+        for (std::size_t i = 0; i < lc; ++i) {
+            if (self[i] != limbs[i]) {
+                return false;
+            }
+        }
+        // The provided limbs can have additional ignored zeroes.
+        for (std::size_t i = lc; i < limbs.size(); ++i) {
+            if (limbs[i] != 0) {
+                return false;
+            }
         }
     }
     return true;
@@ -1030,7 +1041,10 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
                 if (std::is_neq(sign_compare)) {
                     return sign_compare;
                 }
-                return inplace_to_bit_uint() <=> detail::uabs(x);
+                // For two-negative operands, bigger magnitude means a smaller
+                // value, so swap the operand order of the magnitude compare.
+                return is_negative() ? detail::uabs(x) <=> inplace_to_bit_uint()
+                                     : inplace_to_bit_uint() <=> detail::uabs(x);
             }
         }
         const auto limbs = detail::to_limbs(detail::uabs(x));
@@ -1056,30 +1070,60 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     }
     const auto rep = representation();
 
-    // If there are more significant nonzero digits in limbs, this integer is lower.
-    // Decimal example: 23 < 123
-    for (std::size_t i = limbs.size(); i-- > rep.size();) {
-        if (limbs[i] != 0) {
+    // Compute the ordering as if both operands were non-negative (i.e., compare
+    // magnitudes). For two-negative operands we invert the result at the end,
+    // because a larger magnitude means a smaller value.
+    //
+    // Split on which side is longer so each branch carries only one high-tail scan.
+    // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
+    // so these loops can be more easily unrolled.
+    // We also don't need to do all three scans, just two for any given case.
+    const auto magnitude_ordering = [&]() -> std::strong_ordering {
+        if (rep.size() > limbs.size()) {
+            // If there are more significant nonzero digits in this integer, it is greater.
+            // Decimal example: 123 > 23
+            for (std::size_t i = rep.size(); i-- > limbs.size();) {
+                if (rep[i] != 0) {
+                    return std::strong_ordering::greater;
+                }
+            }
+            // Compare the common digits from most to least significant.
+            for (std::size_t i = limbs.size(); i-- > 0;) {
+                const auto result = rep[i] <=> limbs[i];
+                if (std::is_neq(result)) {
+                    return result;
+                }
+            }
+        } else {
+            // If there are more significant nonzero digits in limbs, this integer is lower.
+            // Decimal example: 23 < 123
+            for (std::size_t i = limbs.size(); i-- > rep.size();) {
+                if (limbs[i] != 0) {
+                    return std::strong_ordering::less;
+                }
+            }
+            // Compare the common digits from most to least significant.
+            for (std::size_t i = rep.size(); i-- > 0;) {
+                const auto result = rep[i] <=> limbs[i];
+                if (std::is_neq(result)) {
+                    return result;
+                }
+            }
+        }
+        // Having eliminated any possible mismatch, the two sides are equal.
+        return std::strong_ordering::equal;
+    }();
+
+    if (is_negative()) {
+        // Invert: less <-> greater; equal is unchanged.
+        if (std::is_lt(magnitude_ordering)) {
+            return std::strong_ordering::greater;
+        }
+        if (std::is_gt(magnitude_ordering)) {
             return std::strong_ordering::less;
         }
     }
-    // If there are more significant nonzero digits in this integer, it is greater.
-    // Decimal example: 123 > 23
-    for (std::size_t i = rep.size(); i-- > limbs.size();) {
-        if (rep[i] != 0) {
-            return std::strong_ordering::greater;
-        }
-    }
-    // Otherwise, we nee need to compare the common digits to one another,
-    // from most significant to least significant.
-    for (std::size_t i = std::min(limbs.size(), rep.size()); i-- > 0;) {
-        const auto result = rep[i] <=> limbs[i];
-        if (std::is_neq(result)) {
-            return result;
-        }
-    }
-    // Having eliminated any possible mismatch, the two sides are equal.
-    return std::strong_ordering::equal;
+    return magnitude_ordering;
 }
 
 // private helpers
