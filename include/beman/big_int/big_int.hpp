@@ -1215,6 +1215,26 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
         return;
     }
 
+    const auto assign_general = [&]() {
+        const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
+        const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
+        const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
+        grow(limbs_needed);
+        auto* const dst = limb_ptr();
+        dst[limb_idx] |= m2 << bit_off;
+        if (bit_off > 0) {
+            dst[limb_idx + 1] |= m2 >> (static_cast<int>(bits_per_limb) - bit_off);
+        }
+        auto count = static_cast<std::uint32_t>(limb_idx + 1);
+        if (bit_off > 0 && dst[limb_idx + 1] != 0) {
+            count = static_cast<std::uint32_t>(limb_idx + 2);
+        }
+        set_limb_count(count);
+        while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
+            set_limb_count(limb_count() - 1);
+        }
+    };
+
 #ifdef BEMAN_BIG_INT_HAS_INT128
     constexpr bool is_float32 = std::is_same_v<F, float>
     #ifdef __STDCPP_FLOAT32_T__
@@ -1252,33 +1272,15 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
     } else if constexpr (is_float64) {
         if (e2 < static_cast<int>(bits_per_limb)) {
             assign_via_uint128(value);
-            return;
+        } else {
+            assign_general();
         }
+    } else {
+        assign_general();
     }
+#else
+    assign_general();
 #endif
-
-    // general case
-    const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
-    const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
-    const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
-    grow(limbs_needed);
-
-    auto* const dst = limb_ptr();
-
-    dst[limb_idx] |= m2 << bit_off;
-    if (bit_off > 0) {
-        dst[limb_idx + 1] |= m2 >> (static_cast<int>(bits_per_limb) - bit_off);
-    }
-
-    auto count = static_cast<std::uint32_t>(limb_idx + 1);
-    if (bit_off > 0 && dst[limb_idx + 1] != 0) {
-        count = static_cast<std::uint32_t>(limb_idx + 2);
-    }
-
-    set_limb_count(count);
-    while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
-        set_limb_count(limb_count() - 1);
-    }
 }
 
 template <std::size_t b, class A>
