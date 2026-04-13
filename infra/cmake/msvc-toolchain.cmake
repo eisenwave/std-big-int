@@ -26,8 +26,8 @@ if(BEMAN_BUILDSYS_SANITIZER STREQUAL "MaxSan")
     set(SANITIZER_FLAGS "/fsanitize=address /Zi")
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG_INIT "/EHsc /permissive- /Zi /Od ${SANITIZER_FLAGS}")
-set(CMAKE_C_FLAGS_DEBUG_INIT "/EHsc /permissive- /Zi /Od ${SANITIZER_FLAGS}")
+set(CMAKE_CXX_FLAGS_DEBUG_INIT "/EHsc /permissive- /Zi ${SANITIZER_FLAGS}")
+set(CMAKE_C_FLAGS_DEBUG_INIT "/EHsc /permissive- /Zi ${SANITIZER_FLAGS}")
 
 set(RELEASE_FLAGS "/EHsc /permissive- /O2 ${SANITIZER_FLAGS}")
 
