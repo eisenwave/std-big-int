@@ -973,6 +973,9 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
         return false;
     }
 
+    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds")
+
     std::size_t       i    = 0;
     const auto* const self = limb_ptr();
     // In the limbs that are common,
@@ -995,6 +998,8 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
         }
     }
     return true;
+
+    BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
 template <std::size_t b, class A>
