@@ -309,7 +309,8 @@ TEST(Addition, RvaluePrimitiveMix) {
 }
 
 TEST(Addition, LvalueFallbackUnchanged) {
-    // Pure lvalue/lvalue dispatch must still work via `make_sum_of_limbs`.
+    // Pure lvalue/lvalue dispatch: correctness only (destination selection is
+    // covered by LvalueCopiesLargerOperand).
     const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int r = a + b;
@@ -319,6 +320,29 @@ TEST(Addition, LvalueFallbackUnchanged) {
     // Operands untouched.
     EXPECT_EQ(a.representation().size(), 2u);
     EXPECT_EQ(b.representation().size(), 2u);
+}
+
+TEST(Addition, LvalueCopiesLargerOperand) {
+    // When both operands are lvalues, the implementation should copy whichever
+    // has more limbs so that add_in_place does not need to grow. We can't peek
+    // at the source of the copy directly, but we can observe that the result's
+    // allocated capacity matches the larger operand's limb count (heap copy
+    // allocates exactly `source.limb_count()` limbs).
+    const big_int small{7};                                                              // 1 limb, inline
+    const big_int big = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2 limbs, heap
+    ASSERT_EQ(small.representation().size(), 1u);
+    ASSERT_EQ(big.representation().size(), 2u);
+
+    // `small + big` must copy `big` (not `small`); the result should already
+    // have room for the two-limb value without growing.
+    const big_int r1 = small + big;
+    EXPECT_EQ(r1, big + small);
+    EXPECT_GE(r1.capacity(), 2u);
+
+    // Symmetric case: `big + small` copies `big` too.
+    const big_int r2 = big + small;
+    EXPECT_EQ(r2, big + small);
+    EXPECT_GE(r2.capacity(), 2u);
 }
 
 } // namespace

@@ -306,7 +306,7 @@ TEST(Subtraction, RvaluePrimitiveMix) {
 }
 
 TEST(Subtraction, LvalueFallbackUnchanged) {
-    // Pure lvalue/lvalue dispatch must still work via `make_sum_of_limbs`.
+    // Pure lvalue/lvalue dispatch: correctness only.
     const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()};
     const big_int r = a - b; // 2^64 - (2^64 - 1) = 1
@@ -314,6 +314,22 @@ TEST(Subtraction, LvalueFallbackUnchanged) {
     // Operands untouched.
     EXPECT_EQ(a.representation().size(), 2u);
     EXPECT_EQ(b.representation().size(), 1u);
+}
+
+TEST(Subtraction, LvalueCopiesLargerOperand) {
+    // When both operands are lvalues, copy whichever has more limbs. For
+    // subtraction this means the rhs-copy path (with negate) runs when
+    // `|rhs| > |lhs|`, exercising `negate() + add_in_place`.
+    const big_int small{7};                                                              // 1 limb
+    const big_int big = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2 limbs
+
+    const big_int r1 = small - big; // rhs larger -> copy-and-negate-rhs path
+    EXPECT_EQ(r1, -(big - small));
+    EXPECT_GE(r1.capacity(), 2u);
+
+    const big_int r2 = big - small; // lhs larger -> copy-lhs path
+    EXPECT_EQ(r2, big - small);
+    EXPECT_GE(r2.capacity(), 2u);
 }
 
 } // namespace

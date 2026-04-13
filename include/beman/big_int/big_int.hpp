@@ -1040,13 +1040,11 @@ compare_limb_magnitudes(const std::span<const uint_multiprecision_t, extent_a> a
 // constructing from a primitive), then fold the other operand in via `add_in_place`.
 // `add_in_place` handles carry, borrow, trim, and sign normalization uniformly.
 //
-// Dispatch priority for the destination is:
-//   1. lhs is an rvalue `basic_big_int`   -> move-from lhs
-//   2. rhs is an rvalue `basic_big_int`   -> move-from rhs (addition is commutative;
-//                                             for subtraction we negate first)
-//   3. lhs is an lvalue `basic_big_int`   -> copy lhs
-//   4. otherwise lhs is a primitive and rhs must be an lvalue `basic_big_int`
-//                                          -> copy rhs (with negate for subtraction)
+// Destination priority:
+//   * both `basic_big_int` rvalues  -> move the one with more limbs (no subsequent grow)
+//   * one  `basic_big_int` rvalue   -> move it
+//   * both `basic_big_int` lvalues  -> copy the one with more limbs
+//   * one  `basic_big_int` lvalue   -> copy it (the other side is a primitive)
 //
 // `common_big_int_type` only yields a type when both `basic_big_int` operands are the
 // exact same `basic_big_int<b, A>` instantiation, so the operand type already matches
@@ -1057,10 +1055,23 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
-        // (1) rvalue lhs `basic_big_int`: steal its storage.
-        // `std::forward` and `std::move` are equivalent under this guard (L deduced
-        // as a non-reference); `forward` silences the forwarding-reference lint.
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L> //
+                  && detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
+        // (1) both rvalue `basic_big_int`s: move the larger. Whichever we don't
+        // pick is freed at scope exit anyway, so we might as well take the one
+        // whose existing capacity already covers the result. `std::forward` and
+        // `std::move` are equivalent under the non-reference guard; `forward`
+        // silences the forwarding-reference lint.
+        if (x.limb_count() >= y.limb_count()) {
+            Result r = std::forward<L>(x);
+            r.add_in_place(y.representation(), y.is_negative());
+            return r;
+        }
+        Result r = std::forward<R>(y);
+        r.add_in_place(x.representation(), x.is_negative());
+        return r;
+    } else if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
+        // (2) rvalue lhs only: steal its storage.
         Result r = std::forward<L>(x);
         if constexpr (detail::is_basic_big_int_v<RT>) {
             r.add_in_place(y.representation(), y.is_negative());
@@ -1070,7 +1081,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         }
         return r;
     } else if constexpr (detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
-        // (2) rvalue rhs `basic_big_int`; addition is commutative, so reuse it.
+        // (3) rvalue rhs only (addition is commutative, so we reuse rhs).
         Result r = std::forward<R>(y);
         if constexpr (detail::is_basic_big_int_v<LT>) {
             r.add_in_place(x.representation(), x.is_negative());
@@ -1079,20 +1090,27 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
             r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         }
         return r;
-    } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // (3) lvalue lhs `basic_big_int`: copy into the result, then fold rhs in.
-        Result r = x;
-        if constexpr (detail::is_basic_big_int_v<RT>) {
+    } else if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
+        // (4) both lvalue `basic_big_int`s: copy the larger-limb-count source so
+        // that `add_in_place`'s subsequent `grow(max(|x|,|y|))` is a no-op. Only
+        // a top-limb carry-out can force a further allocation.
+        if (x.limb_count() >= y.limb_count()) {
+            Result r = x;
             r.add_in_place(y.representation(), y.is_negative());
-        } else {
-            const auto y_limbs = detail::to_limbs(detail::uabs(y));
-            r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+            return r;
         }
+        Result r = y;
+        r.add_in_place(x.representation(), x.is_negative());
+        return r;
+    } else if constexpr (detail::is_basic_big_int_v<LT>) {
+        // (5) lvalue `basic_big_int` lhs, primitive rhs.
+        Result     r       = x;
+        const auto y_limbs = detail::to_limbs(detail::uabs(y));
+        r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
     } else {
-        // (4) lhs is primitive; rhs must be an lvalue `basic_big_int` (any rvalue rhs
-        // would have been caught by branch (2), and primitive+primitive is forbidden
-        // by `common_big_int_type`).
+        // (6) primitive lhs, lvalue `basic_big_int` rhs (primitive+primitive is
+        // forbidden by `common_big_int_type`; rvalue rhs was caught in (3)).
         static_assert(detail::is_basic_big_int_v<RT>);
         Result     r       = y;
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
@@ -1103,20 +1121,30 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
 
 // `x - y` is implemented as `x + (-y)`: we flip the sign of the right-hand operand
 // (without materializing a negated value) and dispatch through the same magnitude
-// add/subtract core as `operator+`.
-// Dispatch follows the same 4-way pattern as `operator+` (rvalue lhs / rvalue rhs / lvalue lhs / primitive lhs).
-// The only difference is how the "not reused" side is signed:
-//   - lhs-destination paths: pass the other side's span with sign `!rhs_neg`
-//   - rhs-destination paths: `r.negate()` first (cheap XOR), then add the lhs side
-//     with its own sign so the result is `(-y) + x = x - y`
+// add/subtract core as `operator+`. Destination priority matches `operator+`:
+//   * lhs-destination paths pass the other side's span with sign `!rhs_neg`
+//   * rhs-destination paths `r.negate()` first (cheap XOR on the sign word),
+//     then add the lhs side with its own sign, yielding `(-y) + x = x - y`
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
-        // (1) rvalue lhs: `r = x; r += (-y)`.
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L> //
+                  && detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
+        // (1) both rvalue `basic_big_int`s: move the larger-limb-count source.
+        if (x.limb_count() >= y.limb_count()) {
+            Result r = std::forward<L>(x);
+            r.add_in_place(y.representation(), !y.is_negative()); // r + (-y)
+            return r;
+        }
+        Result r = std::forward<R>(y);
+        r.negate();                                               // r = -y
+        r.add_in_place(x.representation(), x.is_negative());      // (-y) + x = x - y
+        return r;
+    } else if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
+        // (2) rvalue lhs only: `r = x; r += (-y)`.
         Result r = std::forward<L>(x);
         if constexpr (detail::is_basic_big_int_v<RT>) {
             r.add_in_place(y.representation(), !y.is_negative());
@@ -1126,7 +1154,7 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         }
         return r;
     } else if constexpr (detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
-        // (2) rvalue rhs: `r = -y; r += x` gives `x - y`.
+        // (3) rvalue rhs only: `r = -y; r += x` gives `x - y`.
         Result r = std::forward<R>(y);
         r.negate();
         if constexpr (detail::is_basic_big_int_v<LT>) {
@@ -1136,19 +1164,25 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
             r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         }
         return r;
-    } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // (3) lvalue lhs `basic_big_int`: copy, then fold in `-y`.
-        Result r = x;
-        if constexpr (detail::is_basic_big_int_v<RT>) {
+    } else if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
+        // (4) both lvalue `basic_big_int`s: copy the larger, then subtract the smaller.
+        if (x.limb_count() >= y.limb_count()) {
+            Result r = x;
             r.add_in_place(y.representation(), !y.is_negative());
-        } else {
-            const auto y_limbs = detail::to_limbs(detail::uabs(y));
-            r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
+            return r;
         }
+        Result r = y;
+        r.negate();
+        r.add_in_place(x.representation(), x.is_negative());
+        return r;
+    } else if constexpr (detail::is_basic_big_int_v<LT>) {
+        // (5) lvalue `basic_big_int` lhs, primitive rhs.
+        Result     r       = x;
+        const auto y_limbs = detail::to_limbs(detail::uabs(y));
+        r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
         return r;
     } else {
-        // (4) lhs is primitive; rhs must be an lvalue `basic_big_int`. Copy rhs,
-        // negate it, then add `x` to compute `(-y) + x = x - y`.
+        // (6) primitive lhs, lvalue `basic_big_int` rhs: copy rhs, negate, add lhs.
         static_assert(detail::is_basic_big_int_v<RT>);
         Result r = y;
         r.negate();
