@@ -1277,10 +1277,10 @@ basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecisi
     // When `lhs >= rhs` (in magnitude) compute `lhs - rhs` and take sign `lhs_neg`; otherwise
     // compute `rhs - lhs` with sign `rhs_neg`. Equal magnitudes fall into the first branch
     // and produce a normalized `+0`.
-    const std::span<const uint_multiprecision_t> larger  = std::is_gteq(magnitude_order) //
+    const std::span<const uint_multiprecision_t> larger  = std::is_gteq(magnitude_order)
                                                               ? std::span<const uint_multiprecision_t>(lhs)
                                                               : std::span<const uint_multiprecision_t>(rhs);
-    const std::span<const uint_multiprecision_t> smaller = std::is_gteq(magnitude_order) //
+    const std::span<const uint_multiprecision_t> smaller = std::is_gteq(magnitude_order)
                                                               ? std::span<const uint_multiprecision_t>(rhs)
                                                               : std::span<const uint_multiprecision_t>(lhs);
     const bool result_sign = std::is_gteq(magnitude_order) ? lhs_neg : rhs_neg;
