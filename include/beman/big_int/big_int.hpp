@@ -592,11 +592,9 @@ constexpr auto basic_big_int<b, A>::operator<<=(const S s) -> basic_big_int& {
 
 template <std::size_t b, class A>
 constexpr bool basic_big_int<b, A>::unchecked_increment_magnitude() {
-    limb_type* const limbs     = limb_ptr();
-    bool             carry_in  = true;
-    limb_type        zero_test = 0;
+    limb_type* const limbs    = limb_ptr();
+    bool             carry_in = true;
     for (std::size_t i = 0; carry_in && i < limb_count(); ++i) {
-        zero_test |= limbs[i];
         const auto [sum, carry] = detail::carrying_add(limbs[i], limb_type{0}, carry_in);
         limbs[i]                = sum;
         carry_in                = carry;
@@ -648,12 +646,12 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     if (shifted_limbs != 0) {
         std::shift_right(limbs, limbs + limb_count(), static_cast<std::ptrdiff_t>(shifted_limbs));
         std::fill_n(limbs, static_cast<std::ptrdiff_t>(shifted_limbs), limb_type{0});
-        set_limb_count(limb_count() + shifted_limbs);
+        set_limb_count(static_cast<std::uint32_t>(limb_count() + shifted_limbs));
     }
     if (shifted_bits != 0) {
         for (std::size_t i = limb_count() + 1; i-- > shifted_limbs; ++i) {
             const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i - 1]};
-            limbs[i] = detail::funnel_shl(all_bits, shifted_bits);
+            limbs[i] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
         }
         set_limb_count(limb_count() + 1);
     }
@@ -690,12 +688,12 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
 
     if (shifted_limbs != 0) {
         std::shift_left(limbs, limbs + limb_count(), static_cast<std::ptrdiff_t>(shifted_limbs));
-        set_limb_count(std::min(std::uint32_t{1}, limb_count() - shifted_limbs));
+        set_limb_count(std::min(std::uint32_t{1}, static_cast<std::uint32_t>(limb_count() - shifted_limbs)));
     }
     if (shifted_bits != 0) {
         for (std::size_t i = 0; i + 1 < limb_count(); ++i) {
             const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i] + 1};
-            limbs[i] = detail::funnel_shr(all_bits, shifted_bits);
+            limbs[i] = detail::funnel_shr(all_bits, static_cast<unsigned int>(shifted_bits));
         }
         BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
         limbs[limb_count() - 1] >>= shifted_bits;
