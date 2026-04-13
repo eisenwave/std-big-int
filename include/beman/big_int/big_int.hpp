@@ -1079,30 +1079,55 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     }
     const auto rep = representation();
 
-    // If there are more significant nonzero digits in limbs, this integer is lower.
-    // Decimal example: 23 < 123
-    for (std::size_t i = limbs.size(); i-- > rep.size();) {
-        if (limbs[i] != 0) {
-            return std::strong_ordering::less;
+    if constexpr (extent == 0) {
+        // With an empty limbs span, the common-prefix compare and the
+        // limbs has trailing zeroes scan are both provably empty, so only
+        // the self-tail zero scan is required
+        for (std::size_t i = rep.size(); i-- > 0;) {
+            if (rep[i] != 0) {
+                return std::strong_ordering::greater;
+            }
         }
-    }
-    // If there are more significant nonzero digits in this integer, it is greater.
-    // Decimal example: 123 > 23
-    for (std::size_t i = rep.size(); i-- > limbs.size();) {
-        if (rep[i] != 0) {
-            return std::strong_ordering::greater;
+        return std::strong_ordering::equal;
+    } else {
+        // Split on which side is longer so each branch carries only one tail-zero loop.
+        // When extent != dynamic_extent, `limbs.size()` is a compile-time constant,
+        // so these loops can be more easily unrolled.
+        // We also don't need to do all three scans, just two for any given case
+        if (rep.size() > limbs.size()) {
+            // If there are more significant nonzero digits in this integer, it is greater.
+            // Decimal example: 123 > 23
+            for (std::size_t i = rep.size(); i-- > limbs.size();) {
+                if (rep[i] != 0) {
+                    return std::strong_ordering::greater;
+                }
+            }
+            // Compare the common digits from most to least significant.
+            for (std::size_t i = limbs.size(); i-- > 0;) {
+                const auto result = rep[i] <=> limbs[i];
+                if (std::is_neq(result)) {
+                    return result;
+                }
+            }
+        } else {
+            // If there are more significant nonzero digits in limbs, this integer is lower.
+            // Decimal example: 23 < 123
+            for (std::size_t i = limbs.size(); i-- > rep.size();) {
+                if (limbs[i] != 0) {
+                    return std::strong_ordering::less;
+                }
+            }
+            // Compare the common digits from most to least significant.
+            for (std::size_t i = rep.size(); i-- > 0;) {
+                const auto result = rep[i] <=> limbs[i];
+                if (std::is_neq(result)) {
+                    return result;
+                }
+            }
         }
+        // Having eliminated any possible mismatch, the two sides are equal.
+        return std::strong_ordering::equal;
     }
-    // Otherwise, we nee need to compare the common digits to one another,
-    // from most significant to least significant.
-    for (std::size_t i = std::min(limbs.size(), rep.size()); i-- > 0;) {
-        const auto result = rep[i] <=> limbs[i];
-        if (std::is_neq(result)) {
-            return result;
-        }
-    }
-    // Having eliminated any possible mismatch, the two sides are equal.
-    return std::strong_ordering::equal;
 }
 
 // private helpers
