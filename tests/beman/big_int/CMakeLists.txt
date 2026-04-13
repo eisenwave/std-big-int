@@ -31,6 +31,7 @@ foreach(test_source ${TEST_SOURCES})
                 -Wundef
                 -Wold-style-cast
                 -Wfloat-equal
+                -Wzero-as-null-pointer-constant
         )
     endif()
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

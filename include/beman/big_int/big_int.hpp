@@ -14,8 +14,8 @@
 #include <cstdint>
 #include <memory>
 #include <ranges>
-#include <type_traits>
 #include <span>
+#include <type_traits>
 
 #include <beman/big_int/config.hpp>
 #include <beman/big_int/wide_ops.hpp>
@@ -892,9 +892,13 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
         }
     } else {
         static_assert(detail::is_basic_big_int_v<R>);
+        BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wzero-as-null-pointer-constant")
+        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wzero-as-null-pointer-constant")
         static_assert((0 <=> std::strong_ordering::less) == std::strong_ordering::greater,
                       "This trick to flip the ordering should work.");
         return 0 <=> rhs.compare_integer(lhs);
+        BEMAN_BIG_INT_DIAGNOSTIC_POP()
     }
 }
 
@@ -1018,7 +1022,7 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
         if constexpr (has_inplace_to_bit_uint) {
             if (is_storage_static()) {
                 const auto sign_compare = (x < 0) <=> is_negative();
-                if (sign_compare != 0) {
+                if (std::is_neq(sign_compare)) {
                     return sign_compare;
                 }
                 return inplace_to_bit_uint() <=> detail::uabs(x);
@@ -1042,7 +1046,7 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
                                    const bool limbs_negative) const noexcept {
     // A mismatch between signs lets us short-circuit without comparing the magnitudes.
     const auto sign_compare = limbs_negative <=> is_negative();
-    if (sign_compare != 0) {
+    if (std::is_neq(sign_compare)) {
         return sign_compare;
     }
     const auto rep = representation();
@@ -1065,7 +1069,7 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     // from most significant to least significant.
     for (std::size_t i = std::min(limbs.size(), rep.size()); i-- > 0;) {
         const auto result = rep[i] <=> limbs[i];
-        if (result != 0) {
+        if (std::is_neq(result)) {
             return result;
         }
     }
