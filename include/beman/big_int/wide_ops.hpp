@@ -276,6 +276,13 @@ template <unsigned_integer T>
     // This is more portable.
     // Each branch returns directly, so we don't share uninitialized state
     // across the `if constexpr` chain.
+    // We also have to duplicate the fall through case because if not consteval is broken on msvc
+
+    if consteval {
+        const auto result = static_cast<wider_t<T>>(x) + static_cast<wider_t<T>>(y) + carry;
+        return {.value = static_cast<T>(result), .carry = (result >> width_v<T>) != 0};
+    }
+
     if constexpr (std::is_same_v<T, std::uint8_t>) {
         T                   value;
         const unsigned char carry_out = _addcarry_u8(static_cast<unsigned char>(carry), x, y, &value);
@@ -329,6 +336,12 @@ template <unsigned_integer T>
     // Mirror the `carrying_add` MSVC path using the matching `_subborrow_*` intrinsics.
     // Each branch returns directly, so we don't share uninitialized state across the
     // `if constexpr` chain.
+
+    if consteval {
+        const auto result = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y) - borrow;
+        return {.value = static_cast<T>(result), .borrow = (result >> width_v<T>) != 0};
+    }
+
     if constexpr (std::is_same_v<T, std::uint8_t>) {
         T                   value;
         const unsigned char borrow_out = _subborrow_u8(static_cast<unsigned char>(borrow), x, y, &value);
