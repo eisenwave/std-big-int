@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <climits>
 #include <beman/big_int/big_int.hpp>
 #include <gtest/gtest.h>
 
@@ -53,4 +54,31 @@ TEST(FloatConstruction, LongDoublePositive) {
     beman::big_int::big_int x(42.9L);
     EXPECT_EQ(x.representation()[0], 42U);
 #endif
+}
+
+TEST(FloatConstruction, DoubleLargeMultiLimb) {
+    beman::big_int::big_int x(static_cast<double>(1ULL << 63) * 4.0);
+    EXPECT_EQ(x.representation().size(), 2U);
+}
+
+TEST(FloatConstruction, DoubleBoundaryFastPath) {
+    beman::big_int::big_int x(static_cast<double>(1ULL << 62));
+    EXPECT_EQ(x.representation()[0], 1ULL << 62);
+    EXPECT_EQ(x.representation().size(), 1U);
+}
+
+TEST(FloatConstruction, DoubleBoundaryGeneralPath) {
+    beman::big_int::big_int x(static_cast<double>(1ULL << 63) * 2.0);
+    EXPECT_EQ(x.representation().size(), 2U);
+}
+
+TEST(FloatConstruction, FloatLarge) {
+    beman::big_int::big_int x(std::numeric_limits<float>::max());
+    EXPECT_EQ(x.representation().size(), 2U);
+}
+
+TEST(FloatConstruction, DoubleSubnormal) {
+    beman::big_int::big_int x(5e-324);
+    EXPECT_EQ(x.representation()[0], 0U);
+    EXPECT_EQ(x.representation().size(), 1U);
 }

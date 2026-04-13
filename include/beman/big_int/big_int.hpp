@@ -1212,6 +1212,30 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
         return;
     }
 
+#if defined(BEMAN_BIG_INT_HAS_BITINT) && BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
+    if constexpr (std::is_same_v<F, float>) {
+        // note: not using `assign_magnitude` here since the concept doesn't accept `_BitInt` types.
+        // also `FLT_MAX` needs 2 limbs on a 64-bit system, so we do need `grow(2)` first.
+        grow(2);
+        const auto mag   = static_cast<detail::uint128_t>(value < 0.0f ? -value : value);
+        limb_ptr()[0]    = static_cast<limb_type>(mag);
+        limb_ptr()[1]    = static_cast<limb_type>(mag >> bits_per_limb);
+        const auto count = limb_ptr()[1] != 0 ? 2u : 1u;
+        set_limb_count(static_cast<std::uint32_t>(count));
+        return;
+    } else if constexpr (std::is_same_v<F, double>) {
+        if (e2 < static_cast<int>(bits_per_limb)) {
+            grow(2);
+            const auto mag = static_cast<detail::uint128_t>(value < 0.0 ? -value : value);
+            limb_ptr()[0]  = static_cast<limb_type>(mag);
+            limb_ptr()[1]  = static_cast<limb_type>(mag >> bits_per_limb);
+            set_limb_count(limb_ptr()[1] != 0 ? 2u : 1u);
+            return;
+        }
+    }
+#endif
+
+    // general case
     const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
     const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
     const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
