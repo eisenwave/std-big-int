@@ -1034,65 +1034,127 @@ compare_limb_magnitudes(const std::span<const uint_multiprecision_t, extent_a> a
 } // namespace detail
 
 // [big.int.binary]
+//
+// The shared pattern for `operator+` and `operator-` is: build `Result r` from one
+// operand (moving an rvalue `basic_big_int`'s storage, copying an lvalue, or
+// constructing from a primitive), then fold the other operand in via `add_in_place`.
+// `add_in_place` handles carry, borrow, trim, and sign normalization uniformly.
+//
+// Dispatch priority for the destination is:
+//   1. lhs is an rvalue `basic_big_int`   -> move-from lhs
+//   2. rhs is an rvalue `basic_big_int`   -> move-from rhs (addition is commutative;
+//                                             for subtraction we negate first)
+//   3. lhs is an lvalue `basic_big_int`   -> copy lhs
+//   4. otherwise lhs is a primitive and rhs must be an lvalue `basic_big_int`
+//                                          -> copy rhs (with negate for subtraction)
+//
+// `common_big_int_type` only yields a type when both `basic_big_int` operands are the
+// exact same `basic_big_int<b, A>` instantiation, so the operand type already matches
+// `Result` and no explicit type-equality guard is needed.
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        return Result::make_sum_of_limbs(x.representation(),
-                                         x.is_negative(), //
-                                         y.representation(),
-                                         y.is_negative());
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
+        // (1) rvalue lhs `basic_big_int`: steal its storage.
+        // `std::forward` and `std::move` are equivalent under this guard (L deduced
+        // as a non-reference); `forward` silences the forwarding-reference lint.
+        Result r = std::forward<L>(x);
+        if constexpr (detail::is_basic_big_int_v<RT>) {
+            r.add_in_place(y.representation(), y.is_negative());
+        } else {
+            const auto y_limbs = detail::to_limbs(detail::uabs(y));
+            r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+        }
+        return r;
+    } else if constexpr (detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
+        // (2) rvalue rhs `basic_big_int`; addition is commutative, so reuse it.
+        Result r = std::forward<R>(y);
+        if constexpr (detail::is_basic_big_int_v<LT>) {
+            r.add_in_place(x.representation(), x.is_negative());
+        } else {
+            const auto x_limbs = detail::to_limbs(detail::uabs(x));
+            r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
+        }
+        return r;
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // `y` is a primitive integer; materialize it as a fixed-extent limb array
-        // so the span we pass to the helper stays valid for the call.
-        const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        return Result::make_sum_of_limbs(x.representation(),
-                                         x.is_negative(),
-                                         detail::to_fixed_span(y_limbs),
-                                         detail::integer_signbit(y));
+        // (3) lvalue lhs `basic_big_int`: copy into the result, then fold rhs in.
+        Result r = x;
+        if constexpr (detail::is_basic_big_int_v<RT>) {
+            r.add_in_place(y.representation(), y.is_negative());
+        } else {
+            const auto y_limbs = detail::to_limbs(detail::uabs(y));
+            r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+        }
+        return r;
     } else {
-        // `x` is a primitive integer
+        // (4) lhs is primitive; rhs must be an lvalue `basic_big_int` (any rvalue rhs
+        // would have been caught by branch (2), and primitive+primitive is forbidden
+        // by `common_big_int_type`).
         static_assert(detail::is_basic_big_int_v<RT>);
+        Result     r       = y;
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs),
-                                         detail::integer_signbit(x),
-                                         y.representation(),
-                                         y.is_negative());
+        r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
+        return r;
     }
 }
 
 // `x - y` is implemented as `x + (-y)`: we flip the sign of the right-hand operand
 // (without materializing a negated value) and dispatch through the same magnitude
-// add/subtract path as `operator+`.
+// add/subtract core as `operator+`.
+// Dispatch follows the same 4-way pattern as `operator+` (rvalue lhs / rvalue rhs / lvalue lhs / primitive lhs).
+// The only difference is how the "not reused" side is signed:
+//   - lhs-destination paths: pass the other side's span with sign `!rhs_neg`
+//   - rhs-destination paths: `r.negate()` first (cheap XOR), then add the lhs side
+//     with its own sign so the result is `(-y) + x = x - y`
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        return Result::make_sum_of_limbs(x.representation(),
-                                         x.is_negative(), //
-                                         y.representation(),
-                                         !y.is_negative());
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
+        // (1) rvalue lhs: `r = x; r += (-y)`.
+        Result r = std::forward<L>(x);
+        if constexpr (detail::is_basic_big_int_v<RT>) {
+            r.add_in_place(y.representation(), !y.is_negative());
+        } else {
+            const auto y_limbs = detail::to_limbs(detail::uabs(y));
+            r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
+        }
+        return r;
+    } else if constexpr (detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
+        // (2) rvalue rhs: `r = -y; r += x` gives `x - y`.
+        Result r = std::forward<R>(y);
+        r.negate();
+        if constexpr (detail::is_basic_big_int_v<LT>) {
+            r.add_in_place(x.representation(), x.is_negative());
+        } else {
+            const auto x_limbs = detail::to_limbs(detail::uabs(x));
+            r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
+        }
+        return r;
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // `y` is a primitive integer
-        const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        return Result::make_sum_of_limbs(x.representation(),
-                                         x.is_negative(), //
-                                         detail::to_fixed_span(y_limbs),
-                                         !detail::integer_signbit(y));
+        // (3) lvalue lhs `basic_big_int`: copy, then fold in `-y`.
+        Result r = x;
+        if constexpr (detail::is_basic_big_int_v<RT>) {
+            r.add_in_place(y.representation(), !y.is_negative());
+        } else {
+            const auto y_limbs = detail::to_limbs(detail::uabs(y));
+            r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
+        }
+        return r;
     } else {
-        // `x` is a primitive integer
+        // (4) lhs is primitive; rhs must be an lvalue `basic_big_int`. Copy rhs,
+        // negate it, then add `x` to compute `(-y) + x = x - y`.
         static_assert(detail::is_basic_big_int_v<RT>);
+        Result r = y;
+        r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs),
-                                         detail::integer_signbit(x), //
-                                         y.representation(),
-                                         !y.is_negative());
+        r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
+        return r;
     }
 }
 
