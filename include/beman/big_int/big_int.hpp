@@ -1049,9 +1049,16 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
                                    const bool limbs_negative) const noexcept {
     // A mismatch between signs lets us short-circuit without comparing the magnitudes.
     const auto sign_compare = limbs_negative <=> is_negative();
+    #if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+    BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+    BEMAN_BIG_INT_DIAGNOSTIC_IGNORED("-Wzero-as-null-pointer-constant")
     if (sign_compare != 0) {
         return sign_compare;
     }
+    #endif
+    #if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+    BEMAN_BIG_INT_DIAGNOSTIC_POP()
+    #endif
     const auto rep = representation();
 
     // If there are more significant nonzero digits in limbs, this integer is lower.
@@ -1072,9 +1079,16 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     // from most significant to least significant.
     for (std::size_t i = std::min(limbs.size(), rep.size()); i-- > 0;) {
         const auto result = rep[i] <=> limbs[i];
+        #if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+        BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED("-Wzero-as-null-pointer-constant")
+        #endif
         if (result != 0) {
             return result;
         }
+        #if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
+        BEMAN_BIG_INT_DIAGNOSTIC_POP()
+        #endif
     }
     // Having eliminated any possible mismatch, the two sides are equal.
     return std::strong_ordering::equal;
