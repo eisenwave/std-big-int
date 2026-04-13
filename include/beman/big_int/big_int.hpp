@@ -510,8 +510,8 @@ constexpr basic_big_int<b, A>::basic_big_int(std::from_range_t, R&& r, const all
 
     if constexpr (std::ranges::sized_range<R>) {
         reserve(std::ranges::size(r));
-        std::size_t   i   = 0;
-        auto* const   dst = limb_ptr();
+        std::size_t i   = 0;
+        auto* const dst = limb_ptr();
         for (auto&& elem : r) {
             using U = std::make_unsigned_t<std::ranges::range_value_t<R>>;
             std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(elem)));
