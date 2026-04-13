@@ -4,9 +4,9 @@
 #ifndef BEMAN_BIG_INT_WIDE_OPS_HPP
 #define BEMAN_BIG_INT_WIDE_OPS_HPP
 
-#include <limits>
 #include <bit>
 #include <concepts>
+#include <limits>
 
 #include <beman/big_int/config.hpp>
 
@@ -94,10 +94,10 @@ inline static T high_mul(const T x, const T y) noexcept {
         if constexpr (std::is_signed_v<T>) {
             if constexpr (width_v<T> == 64) {
                 // https://stackoverflow.com/a/28904636/5740428
-                const T a_lo = static_cast<unsigned>(a);
-                const T a_hi = static_cast<unsigned>(a >> 32);
-                const T b_lo = static_cast<unsigned>(b);
-                const T b_hi = static_cast<unsigned>(b >> 32);
+                const T a_lo = static_cast<unsigned>(x);
+                const T a_hi = static_cast<unsigned>(x >> 32);
+                const T b_lo = static_cast<unsigned>(y);
+                const T b_hi = static_cast<unsigned>(y >> 32);
 
                 const T a_x_b_hi  = a_hi * b_hi;
                 const T a_x_b_mid = a_hi * b_lo;

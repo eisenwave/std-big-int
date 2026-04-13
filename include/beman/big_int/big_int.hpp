@@ -14,8 +14,8 @@
 #include <cstdint>
 #include <memory>
 #include <ranges>
-#include <type_traits>
 #include <span>
+#include <type_traits>
 
 #include <beman/big_int/config.hpp>
 #include <beman/big_int/wide_ops.hpp>
