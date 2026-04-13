@@ -934,12 +934,12 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
         return;
     }
 
-    const auto limb_idx = static_cast<unsigned>(e2) / bits_per_limb;
-    const auto  bit_off = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
+    const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
+    const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
     const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
     grow(limbs_needed);
 
-    auto* const dst     = limb_ptr();
+    auto* const dst = limb_ptr();
 
     dst[limb_idx] |= m2 << bit_off;
     if (bit_off > 0) {
