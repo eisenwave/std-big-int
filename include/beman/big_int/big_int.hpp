@@ -355,14 +355,15 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr std::strong_ordering compare_limbs(std::span<const uint_multiprecision_t, extent> limbs,
                                                                bool limbs_negative) const noexcept;
 
-    // Overwrites `*this` with the sum `(lhs, lhs_neg) + (rhs, rhs_neg)`,
-    // Assumes `*this` is in the default-constructed state (inline storage, magnitude zero, sign positive).
+    // Returns the sum `(lhs, lhs_neg) + (rhs, rhs_neg)` as a fresh `basic_big_int`.
     // Only allocates heap storage if the final result is certain to exceed the inline limb capacity
+    // (a speculative top-limb carry only triggers a grow after the carry actually occurs).
     template <std::size_t extent_a, std::size_t extent_b>
-    constexpr void assign_sum_of_limbs(std::span<const uint_multiprecision_t, extent_a> lhs,
-                                       bool                                             lhs_neg,
-                                       std::span<const uint_multiprecision_t, extent_b> rhs,
-                                       bool                                             rhs_neg);
+    [[nodiscard]] static constexpr basic_big_int
+    make_sum_of_limbs(std::span<const uint_multiprecision_t, extent_a> lhs,
+                 bool                                             lhs_neg,
+                 std::span<const uint_multiprecision_t, extent_b> rhs,
+                 bool                                             rhs_neg);
 
     static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
     [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
@@ -1030,61 +1031,54 @@ compare_limb_magnitudes(const std::span<const uint_multiprecision_t, extent_a> a
 } // namespace detail
 
 // [big.int.binary]
-template <class L, detail::common_big_int_type_with<L> R>
+template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    Result result;
-
     if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        result.assign_sum_of_limbs(x.representation(), x.is_negative(), y.representation(), y.is_negative());
+        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
+                                    y.representation(), y.is_negative());
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // `y` is a primitive integer
-        // Convert to a span for use in assign_sum_of_limbs
+        // `y` is a primitive integer; materialize it as a fixed-extent limb array
+        // so the span we pass to the helper stays valid for the call.
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        result.assign_sum_of_limbs(
-            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
+                                    detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
     } else {
         // `x` is a primitive integer
-        // Convert to a span for use in assign_sum_of_limbs
         static_assert(detail::is_basic_big_int_v<RT>);
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        result.assign_sum_of_limbs(
-            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
+        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs), detail::integer_signbit(x), //
+                                    y.representation(), y.is_negative());
     }
-
-    return result;
 }
 
 // `x - y` is implemented as `x + (-y)`: we flip the sign of the right-hand operand
 // (without materializing a negated value) and dispatch through the same magnitude
 // add/subtract path as `operator+`.
-template <class L, detail::common_big_int_type_with<L> R>
+template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    Result result;
-
     if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        result.assign_sum_of_limbs(x.representation(), x.is_negative(), y.representation(), !y.is_negative());
+        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
+                                    y.representation(), !y.is_negative());
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
         // `y` is a primitive integer
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        result.assign_sum_of_limbs(
-            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
+        return Result::make_sum_of_limbs(x.representation(), x.is_negative(), //
+                                    detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
     } else {
         // `x` is a primitive integer
         static_assert(detail::is_basic_big_int_v<RT>);
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        result.assign_sum_of_limbs(
-            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), !y.is_negative());
+        return Result::make_sum_of_limbs(detail::to_fixed_span(x_limbs), detail::integer_signbit(x), //
+                                    y.representation(), !y.is_negative());
     }
-
-    return result;
 }
 
 template <std::size_t b, class A>
@@ -1220,18 +1214,15 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     return magnitude_ordering;
 }
 
-// Assigns the sum or difference of limbs to a "result" *this
+// Builds the sum or difference of two limb spans and returns it as a fresh `basic_big_int`.
 template <std::size_t b, class A>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr void basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
-                                                        const bool                                             lhs_neg,
-                                                        const std::span<const uint_multiprecision_t, extent_b> rhs,
-                                                        const bool rhs_neg) {
-    // Precondition: `*this` is in the default-constructed state (one inline limb of zero, sign positive).
-    BEMAN_BIG_INT_DEBUG_ASSERT(is_storage_static());
-    BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() == 1);
-    BEMAN_BIG_INT_DEBUG_ASSERT(limb_ptr()[0] == 0);
-    BEMAN_BIG_INT_DEBUG_ASSERT(!is_negative());
+constexpr basic_big_int<b, A>
+basic_big_int<b, A>::make_sum_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
+                                       const bool                                             lhs_neg,
+                                       const std::span<const uint_multiprecision_t, extent_b> rhs,
+                                       const bool                                             rhs_neg) {
+    basic_big_int result;
 
     if (lhs_neg == rhs_neg) {
         // Same sign: add magnitudes limb-by-limb using carrying_add.
@@ -1239,8 +1230,8 @@ constexpr void basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const ui
 
         // `grow(big)` only allocates if `big > inplace_limbs`; otherwise it's a no-op
         // and we stay in inline storage.
-        grow(big);
-        limb_type* const limbs = limb_ptr();
+        result.grow(big);
+        limb_type* const limbs = result.limb_ptr();
 
         bool carry = false;
         for (std::size_t i = 0; i < big; ++i) {
@@ -1250,21 +1241,21 @@ constexpr void basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const ui
             limbs[i]                      = r_value;
             carry                         = r_carry;
         }
-        set_limb_count(static_cast<std::uint32_t>(big));
+        result.set_limb_count(static_cast<std::uint32_t>(big));
 
         // If the ripple carry has actually produced an out-of-range carry, we allocate the extra limb.
         // We want to avoid allocation or leaving inline storage as much as possible
         if (carry) {
-            grow(big + 1);
-            limb_ptr()[big] = limb_type{1};
-            set_limb_count(static_cast<std::uint32_t>(big + 1));
+            result.grow(big + 1);
+            result.limb_ptr()[big] = limb_type{1};
+            result.set_limb_count(static_cast<std::uint32_t>(big + 1));
         }
 
         // Preserve the "no negative zero" invariant
-        if (!is_zero()) {
-            set_sign(lhs_neg);
+        if (!result.is_zero()) {
+            result.set_sign(lhs_neg);
         }
-        return;
+        return result;
     }
 
     // Differing signs: subtract the smaller magnitude from the larger,
@@ -1284,8 +1275,8 @@ constexpr void basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const ui
 
     const std::size_t n = larger.size();
     // Subtraction can never produce more limbs than the larger operand, so this grow is tight.
-    grow(n);
-    limb_type* const limbs = limb_ptr();
+    result.grow(n);
+    limb_type* const limbs = result.limb_ptr();
 
     bool borrow = false;
     for (std::size_t i = 0; i < n; ++i) {
@@ -1297,16 +1288,17 @@ constexpr void basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const ui
     }
     // Having picked `larger` correctly, the final borrow must be zero.
     BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
-    set_limb_count(static_cast<std::uint32_t>(n));
+    result.set_limb_count(static_cast<std::uint32_t>(n));
 
     // Trim leading zero limbs to maintain the "top limb non-zero unless value is zero" invariant.
-    while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
-        set_limb_count(limb_count() - 1);
+    while (result.limb_count() > 1 && limbs[result.limb_count() - 1] == 0) {
+        result.set_limb_count(result.limb_count() - 1);
     }
 
-    if (!is_zero()) {
-        set_sign(result_sign);
+    if (!result.is_zero()) {
+        result.set_sign(result_sign);
     }
+    return result;
 }
 
 // private helpers
