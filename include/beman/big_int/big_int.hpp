@@ -898,10 +898,10 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
         #endif
         static_assert((0 <=> std::strong_ordering::less) == std::strong_ordering::greater,
                       "This trick to flip the ordering should work.");
+        return 0 <=> rhs.compare_integer(lhs);
         #if (defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG))
         BEMAN_BIG_INT_DIAGNOSTIC_POP()
         #endif
-        return 0 <=> rhs.compare_integer(lhs);
     }
 }
 
