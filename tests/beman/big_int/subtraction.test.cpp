@@ -17,19 +17,13 @@ using beman::big_int::uint_multiprecision_t;
 // ----- compile-time sanity -----
 // See addition.test.cpp for why we compare big_int-to-big_int in consteval tests.
 
-consteval bool ce_zero_minus_zero() {
-    return (big_int{0} - big_int{0}) == big_int{0};
-}
+consteval bool ce_zero_minus_zero() { return (big_int{0} - big_int{0}) == big_int{0}; }
 static_assert(ce_zero_minus_zero());
 
-consteval bool ce_small_positive() {
-    return (big_int{5} - big_int{3}) == big_int{2};
-}
+consteval bool ce_small_positive() { return (big_int{5} - big_int{3}) == big_int{2}; }
 static_assert(ce_small_positive());
 
-consteval bool ce_small_negative_result() {
-    return (big_int{3} - big_int{5}) == big_int{-2};
-}
+consteval bool ce_small_negative_result() { return (big_int{3} - big_int{5}) == big_int{-2}; }
 static_assert(ce_small_negative_result());
 
 consteval bool ce_cancel_to_zero() {
@@ -37,19 +31,13 @@ consteval bool ce_cancel_to_zero() {
 }
 static_assert(ce_cancel_to_zero());
 
-consteval bool ce_negative_minus_negative() {
-    return (big_int{-5} - big_int{-3}) == big_int{-2};
-}
+consteval bool ce_negative_minus_negative() { return (big_int{-5} - big_int{-3}) == big_int{-2}; }
 static_assert(ce_negative_minus_negative());
 
-consteval bool ce_negative_minus_positive() {
-    return (big_int{-5} - big_int{3}) == big_int{-8};
-}
+consteval bool ce_negative_minus_positive() { return (big_int{-5} - big_int{3}) == big_int{-8}; }
 static_assert(ce_negative_minus_positive());
 
-consteval bool ce_positive_minus_negative() {
-    return (big_int{5} - big_int{-3}) == big_int{8};
-}
+consteval bool ce_positive_minus_negative() { return (big_int{5} - big_int{-3}) == big_int{8}; }
 static_assert(ce_positive_minus_negative());
 
 // ----- runtime tests -----
@@ -110,7 +98,7 @@ TEST(Subtraction, NoAllocationWhenInlineFits) {
     using big_int_256 = basic_big_int<256>;
     const big_int_256 a{std::numeric_limits<std::uint64_t>::max()};
     const big_int_256 b{-1};
-    const big_int_256 r = a - b;  // 2^64 — still fits inline in a 256-bit inline buffer.
+    const big_int_256 r = a - b; // 2^64 — still fits inline in a 256-bit inline buffer.
     EXPECT_EQ(r.capacity(), 0u);
     ASSERT_EQ(r.representation().size(), 2u);
     EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});

@@ -1039,21 +1039,20 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     Result result;
 
     if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        result.assign_sum_of_limbs(x.representation(), x.is_negative(),
-                                   y.representation(), y.is_negative());
+        result.assign_sum_of_limbs(x.representation(), x.is_negative(), y.representation(), y.is_negative());
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
         // `y` is a primitive integer
         // Convert to a span for use in assign_sum_of_limbs
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        result.assign_sum_of_limbs(x.representation(), x.is_negative(),
-                                   detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+        result.assign_sum_of_limbs(
+            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
     } else {
         // `x` is a primitive integer
         // Convert to a span for use in assign_sum_of_limbs
         static_assert(detail::is_basic_big_int_v<RT>);
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        result.assign_sum_of_limbs(detail::to_fixed_span(x_limbs), detail::integer_signbit(x),
-                                   y.representation(), y.is_negative());
+        result.assign_sum_of_limbs(
+            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
     }
 
     return result;
@@ -1071,19 +1070,18 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     Result result;
 
     if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        result.assign_sum_of_limbs(x.representation(), x.is_negative(),
-                                   y.representation(), !y.is_negative());
+        result.assign_sum_of_limbs(x.representation(), x.is_negative(), y.representation(), !y.is_negative());
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
         // `y` is a primitive integer
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        result.assign_sum_of_limbs(x.representation(), x.is_negative(),
-                                   detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
+        result.assign_sum_of_limbs(
+            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
     } else {
         // `x` is a primitive integer
         static_assert(detail::is_basic_big_int_v<RT>);
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        result.assign_sum_of_limbs(detail::to_fixed_span(x_limbs), detail::integer_signbit(x),
-                                   y.representation(), !y.is_negative());
+        result.assign_sum_of_limbs(
+            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), !y.is_negative());
     }
 
     return result;
@@ -1225,11 +1223,10 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
 // Assigns the sum or difference of limbs to a "result" *this
 template <std::size_t b, class A>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr void
-basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
-                                         const bool                                             lhs_neg,
-                                         const std::span<const uint_multiprecision_t, extent_b> rhs,
-                                         const bool                                             rhs_neg) {
+constexpr void basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
+                                                        const bool                                             lhs_neg,
+                                                        const std::span<const uint_multiprecision_t, extent_b> rhs,
+                                                        const bool rhs_neg) {
     // Precondition: `*this` is in the default-constructed state (one inline limb of zero, sign positive).
     BEMAN_BIG_INT_DEBUG_ASSERT(is_storage_static());
     BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() == 1);
@@ -1247,11 +1244,11 @@ basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecisi
 
         bool carry = false;
         for (std::size_t i = 0; i < big; ++i) {
-            const limb_type li = i < lhs.size() ? lhs[i] : limb_type{0};
-            const limb_type ri = i < rhs.size() ? rhs[i] : limb_type{0};
-            const auto      [r_value, r_carry]  = detail::carrying_add(li, ri, carry);
-            limbs[i]           = r_value;
-            carry              = r_carry;
+            const limb_type li            = i < lhs.size() ? lhs[i] : limb_type{0};
+            const limb_type ri            = i < rhs.size() ? rhs[i] : limb_type{0};
+            const auto [r_value, r_carry] = detail::carrying_add(li, ri, carry);
+            limbs[i]                      = r_value;
+            carry                         = r_carry;
         }
         set_limb_count(static_cast<std::uint32_t>(big));
 
@@ -1277,13 +1274,13 @@ basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecisi
     // When `lhs >= rhs` (in magnitude) compute `lhs - rhs` and take sign `lhs_neg`; otherwise
     // compute `rhs - lhs` with sign `rhs_neg`. Equal magnitudes fall into the first branch
     // and produce a normalized `+0`.
-    const std::span<const uint_multiprecision_t> larger  = std::is_gteq(magnitude_order)
-                                                              ? std::span<const uint_multiprecision_t>(lhs)
-                                                              : std::span<const uint_multiprecision_t>(rhs);
-    const std::span<const uint_multiprecision_t> smaller = std::is_gteq(magnitude_order)
-                                                              ? std::span<const uint_multiprecision_t>(rhs)
-                                                              : std::span<const uint_multiprecision_t>(lhs);
-    const bool result_sign = std::is_gteq(magnitude_order) ? lhs_neg : rhs_neg;
+    const std::span<const uint_multiprecision_t> larger      = std::is_gteq(magnitude_order)
+                                                                   ? std::span<const uint_multiprecision_t>(lhs)
+                                                                   : std::span<const uint_multiprecision_t>(rhs);
+    const std::span<const uint_multiprecision_t> smaller     = std::is_gteq(magnitude_order)
+                                                                   ? std::span<const uint_multiprecision_t>(rhs)
+                                                                   : std::span<const uint_multiprecision_t>(lhs);
+    const bool                                   result_sign = std::is_gteq(magnitude_order) ? lhs_neg : rhs_neg;
 
     const std::size_t n = larger.size();
     // Subtraction can never produce more limbs than the larger operand, so this grow is tight.
@@ -1292,11 +1289,11 @@ basic_big_int<b, A>::assign_sum_of_limbs(const std::span<const uint_multiprecisi
 
     bool borrow = false;
     for (std::size_t i = 0; i < n; ++i) {
-        const limb_type li = larger[i];
-        const limb_type si = i < smaller.size() ? smaller[i] : limb_type{0};
-        const auto      [r_value, r_borrow]  = detail::borrowing_sub(li, si, borrow);
-        limbs[i]           = r_value;
-        borrow             = r_borrow;
+        const limb_type li             = larger[i];
+        const limb_type si             = i < smaller.size() ? smaller[i] : limb_type{0};
+        const auto [r_value, r_borrow] = detail::borrowing_sub(li, si, borrow);
+        limbs[i]                       = r_value;
+        borrow                         = r_borrow;
     }
     // Having picked `larger` correctly, the final borrow must be zero.
     BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);

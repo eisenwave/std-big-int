@@ -19,24 +19,16 @@ using beman::big_int::uint_multiprecision_t;
 // the `_BitInt` bit_cast path that some toolchains don't yet support in constant
 // evaluation. Sign / storage-promotion properties are covered by the runtime tests.
 
-consteval bool ce_zero_plus_zero() {
-    return (big_int{0} + big_int{0}) == big_int{0};
-}
+consteval bool ce_zero_plus_zero() { return (big_int{0} + big_int{0}) == big_int{0}; }
 static_assert(ce_zero_plus_zero());
 
-consteval bool ce_small_positive() {
-    return (big_int{1} + big_int{2}) == big_int{3};
-}
+consteval bool ce_small_positive() { return (big_int{1} + big_int{2}) == big_int{3}; }
 static_assert(ce_small_positive());
 
-consteval bool ce_cancel_to_zero() {
-    return (big_int{-5} + big_int{5}) == big_int{0};
-}
+consteval bool ce_cancel_to_zero() { return (big_int{-5} + big_int{5}) == big_int{0}; }
 static_assert(ce_cancel_to_zero());
 
-consteval bool ce_mixed_sign_positive_result() {
-    return (big_int{5} + big_int{-3}) == big_int{2};
-}
+consteval bool ce_mixed_sign_positive_result() { return (big_int{5} + big_int{-3}) == big_int{2}; }
 static_assert(ce_mixed_sign_positive_result());
 
 consteval bool ce_mixed_sign_negative_result() {
@@ -44,9 +36,7 @@ consteval bool ce_mixed_sign_negative_result() {
 }
 static_assert(ce_mixed_sign_negative_result());
 
-consteval bool ce_same_sign_negative() {
-    return (big_int{-5} + big_int{-3}) == big_int{-8};
-}
+consteval bool ce_same_sign_negative() { return (big_int{-5} + big_int{-3}) == big_int{-8}; }
 static_assert(ce_same_sign_negative());
 
 // ----- runtime tests -----
@@ -207,9 +197,9 @@ TEST(Addition, NegativePrimitiveIntoMultiLimb) {
 
 TEST(Addition, UnequalLengthMultiLimb) {
     // (2^64 + 7) + 3 = 2^64 + 10, spanning two limbs on the left and one on the right.
-    const big_int two_64  = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const big_int a       = two_64 + big_int{7};
-    const big_int r       = a + big_int{3};
+    const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const big_int a      = two_64 + big_int{7};
+    const big_int r      = a + big_int{3};
     ASSERT_EQ(r.representation().size(), 2u);
     EXPECT_EQ(r.representation()[0], uint_multiprecision_t{10});
     EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
