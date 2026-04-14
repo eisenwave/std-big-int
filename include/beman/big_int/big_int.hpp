@@ -26,6 +26,7 @@
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overflow")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overread")
 
 namespace beman::big_int {
 
