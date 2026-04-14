@@ -410,4 +410,133 @@ TEST(BitShift, OperatorLeftShiftPreservesOriginal) {
     EXPECT_EQ(r, expected);
 }
 
+// ----- operator>> (non-mutating right shift) -----
+
+TEST(BitShift, OperatorRightShiftBasic) {
+    const big_int x{4};
+    const big_int r = x >> 1;
+    EXPECT_EQ(r, 2);
+    EXPECT_EQ(x, 4); // original unchanged
+}
+
+TEST(BitShift, OperatorRightShiftZeroShift) {
+    const big_int x{42};
+    const big_int r = x >> 0;
+    EXPECT_EQ(r, 42);
+}
+
+TEST(BitShift, OperatorRightShiftZeroValue) {
+    const big_int x{0};
+    const big_int r = x >> 100;
+    EXPECT_EQ(r, 0);
+}
+
+TEST(BitShift, OperatorRightShiftToZero) {
+    const big_int x{1};
+    const big_int r = x >> 1;
+    EXPECT_EQ(r, 0);
+
+    const big_int s = x >> 64;
+    EXPECT_EQ(s, 0);
+
+    const big_int t = x >> 1000;
+    EXPECT_EQ(t, 0);
+}
+
+TEST(BitShift, OperatorRightShiftNegativeRounding) {
+    // Right shift of negative values rounds toward negative infinity.
+    const big_int x{-3};
+    const big_int r = x >> 1;
+    EXPECT_EQ(r, -2);
+
+    const big_int y{-4};
+    const big_int s = y >> 1;
+    EXPECT_EQ(s, -2);
+
+    const big_int w{-1};
+    const big_int t = w >> 64;
+    EXPECT_EQ(t, -1);
+}
+
+TEST(BitShift, OperatorRightShiftMatchesCompound) {
+    const big_int x = big_int{1} << 200;
+    big_int       y = big_int{1} << 200;
+
+    const big_int r = x >> 130;
+    y >>= 130;
+    EXPECT_EQ(r, y);
+
+    big_int expected{1};
+    expected <<= 70;
+    EXPECT_EQ(r, expected);
+}
+
+TEST(BitShift, OperatorRightShiftRvalue) {
+    big_int r = big_int{1024} >> 5;
+    EXPECT_EQ(r, 32);
+
+    // Rvalue from a heap source
+    big_int r2 = (big_int{1} << 128) >> 64;
+    big_int expected{1};
+    expected <<= 64;
+    EXPECT_EQ(r2, expected);
+}
+
+TEST(BitShift, OperatorRightShiftAcrossLimbs) {
+    const big_int x = big_int{1} << 128; // 3 limbs
+    EXPECT_EQ(x.representation().size(), 3U);
+
+    const big_int r = x >> 64;
+    EXPECT_EQ(r.representation().size(), 2U);
+    EXPECT_EQ(r.representation()[0], 0ULL);
+    EXPECT_EQ(r.representation()[1], 1ULL);
+
+    const big_int s = x >> 128;
+    EXPECT_EQ(s, 1);
+}
+
+TEST(BitShift, OperatorRightShiftKeepsHeapStorage) {
+    // When the source is on the heap and the result could fit inline,
+    // operator>> should keep the heap buffer (no shrink_to_fit).
+    big_int x{1};
+    x <<= 128; // 3 limbs, on heap
+    EXPECT_NE(x.capacity(), 0U);
+
+    const big_int r = x >> 200; // result is 0, but copied from heap source
+    EXPECT_EQ(r, 0);
+    // The copy via assign_value inherits the heap buffer
+    EXPECT_NE(r.capacity(), 0U);
+}
+
+TEST(BitShift, OperatorRightShiftPreservesOriginal) {
+    const big_int x = big_int{1} << 200;
+    const auto    x_rep = x.representation();
+
+    const big_int r = x >> 50;
+    // Original unchanged
+    EXPECT_EQ(x.representation().size(), x_rep.size());
+    for (std::size_t i = 0; i < x_rep.size(); ++i) {
+        EXPECT_EQ(x.representation()[i], x_rep[i]);
+    }
+
+    big_int expected{1};
+    expected <<= 150;
+    EXPECT_EQ(r, expected);
+}
+
+TEST(BitShift, OperatorRightShiftSignedShiftAmount) {
+    const big_int x{1024};
+    const big_int r = x >> static_cast<int>(5);
+    EXPECT_EQ(r, 32);
+}
+
+TEST(BitShift, OperatorLeftRightRoundTrip) {
+    // Non-mutating round trip: (x << n) >> n == x for positive values
+    const big_int x{123'456'789};
+
+    EXPECT_EQ((x << 17) >> 17, x);
+    EXPECT_EQ((x << 64) >> 64, x);
+    EXPECT_EQ((x << 130) >> 130, x);
+}
+
 } // namespace
