@@ -184,18 +184,53 @@ concept character_type =                                     //
     std::is_same_v<T, char> || std::is_same_v<T, wchar_t> || //
     std::is_same_v<T, char8_t> || std::is_same_v<T, char16_t> || std::is_same_v<T, char32_t>;
 
+#if BEMAN_BIG_INT_HAS_BUILTIN(__is_integral)
+    #ifdef BEMAN_BIG_INT_HAS_BITINT
+static_assert(__is_integral(_BitInt(32)) && __is_integral(unsigned _BitInt(32)),
+              "Bad compiler builtin __is_integral rejects _BitInt.");
+    #endif
+static_assert(__is_integral(int) && __is_integral(const volatile unsigned int));
+static_assert(__is_integral(char) && __is_integral(signed char) && __is_integral(unsigned char));
+template <class T>
+concept integral = __is_integral(T);
+#elif defined(BEMAN_BIG_INT_HAS_BITINT)
+// If bit-precise integers do exist but we don't have a builtin __is_integral,
+// we need to create our own concept for integral types that also includes _BitInt.
+template <class T>
+struct is_bit_int : std::false_type {};
+template <std::size_t N>
+struct is_bit_int<_BitInt(N)> : std::true_type {};
+template <std::size_t N>
+struct is_bit_int<unsigned _BitInt(N)> : std::true_type {};
+template <class T>
+inline constexpr bool is_bit_int_v = is_bit_int<T>::value;
+template <class T>
+concept integral = std::integral<T> || is_bit_int_v<T>;
+#else
+// If bit-precise integers don't exist, std::integral is correct anyway.
+using std::integral;
+#endif
+
 // Modeled if `T` is a signed or unsigned integer type.
 // That is, a standard integer type, extended integer type, or bit-precise integer type.
 template <class T>
-concept signed_or_unsigned = std::is_integral_v<T> && cv_unqualified<T> //
+concept signed_or_unsigned = integral<T> && cv_unqualified<T> //
                              && !std::is_same_v<T, bool> && !character_type<T>;
+template <class T>
+concept negative_representing = static_cast<T>(-1) < static_cast<T>(0);
 
 // Modeled if `T` is a standard unsigned, extended unsigned, or bit-precise unsigned integer type.
 template <class T>
-concept unsigned_integer = signed_or_unsigned<T> && std::is_unsigned_v<T>;
+concept unsigned_integer = signed_or_unsigned<T> && !negative_representing<T>;
 // Modeled if `T` is a standard signed, extended signed, or bit-precise signed integer type.
 template <class T>
-concept signed_integer = signed_or_unsigned<T> && std::is_signed_v<T>;
+concept signed_integer = signed_or_unsigned<T> && negative_representing<T>;
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+static_assert(signed_or_unsigned<_BitInt(32)>);
+static_assert(unsigned_integer<unsigned _BitInt(32)>);
+static_assert(signed_integer<_BitInt(32)>);
+#endif
 
 // Alias template that maps a cv-unqualified integral type onto the underlying
 // signed or unsigned integer type.
