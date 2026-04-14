@@ -1321,8 +1321,9 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
 template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
-    using Result     = std::remove_cvref_t<T>;
-    using shift_type = Result::shift_type;
+    using Result        = std::remove_cvref_t<T>;
+    using shift_type    = Result::shift_type;
+    constexpr auto form = detail::classify_form_v<T, S>;
 
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
@@ -1332,18 +1333,18 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
     }
     const auto shift = static_cast<shift_type>(s);
 
-    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>> && !std::is_reference_v<T>) {
+    if constexpr (form == detail::binary_op_form::move_int) {
         // rvalue: shift in place, no copy needed.
-        Result r = std::forward<T>(x);
+        Result r = std::move(x);
         r.shift_left(shift);
         return r;
-    } else {
+    } else if constexpr (form == detail::binary_op_form::copy_int) {
         // lvalue: use assign_value with headroom so shift_left doesn't reallocate.
-        const shift_type shifted_limbs = shift / Result::bits_per_limb;
-        const shift_type shifted_bits  = shift % Result::bits_per_limb;
-        const bool       needs_extra   = shifted_bits != 0 &&
+        const shift_type  shifted_limbs = shift / Result::bits_per_limb;
+        const shift_type  shifted_bits  = shift % Result::bits_per_limb;
+        const bool        needs_extra   = shifted_bits != 0 &&
             static_cast<shift_type>(std::countl_zero(x.limb_ptr()[x.limb_count() - 1])) < shifted_bits;
-        const std::size_t headroom     = shifted_limbs + static_cast<std::size_t>(needs_extra);
+        const std::size_t headroom      = shifted_limbs + static_cast<std::size_t>(needs_extra);
 
         Result r;
         r.assign_value(x, headroom);
@@ -1355,8 +1356,9 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
 template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
-    using Result     = std::remove_cvref_t<T>;
-    using shift_type = typename Result::shift_type;
+    using Result        = std::remove_cvref_t<T>;
+    using shift_type    = Result::shift_type;
+    constexpr auto form = detail::classify_form_v<T, S>;
 
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
@@ -1366,17 +1368,15 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
     }
     const auto shift = static_cast<shift_type>(s);
 
-    if constexpr (!std::is_reference_v<T>) {
+    if constexpr (form == detail::binary_op_form::move_int) {
         // rvalue: shift in place, no copy needed.
-        Result r = std::forward<T>(x);
+        Result r = std::move(x);
         r.shift_right(shift);
         return r;
-    } else {
+    } else if constexpr (form == detail::binary_op_form::copy_int) {
         // lvalue: copy then shift. No extra headroom needed since right-shift
-        // only shrinks. 
-        // The result keeps the source's heap buffer (if any) even if the shifted value fits inline.
-        // I don't see a reason to deallocate memory even if we now fit in static storage,
-        // we may need it later
+        // only shrinks. The result keeps the source's heap buffer (if any)
+        // even if the shifted value would fit inline.
         Result r;
         r.assign_value(x);
         r.shift_right(shift);
