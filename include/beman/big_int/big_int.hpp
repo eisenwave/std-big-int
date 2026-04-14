@@ -1318,7 +1318,7 @@ template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
     using Result     = std::remove_cvref_t<T>;
-    using shift_type = typename Result::shift_type;
+    using shift_type = Result::shift_type;
 
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
