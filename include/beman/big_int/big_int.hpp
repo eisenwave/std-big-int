@@ -134,6 +134,15 @@ template <unsigned_integer T>
     return false;
 }
 
+// Returns `std::strong_ordering::less` if `x` is `std::strong_ordering::greater`, and vice versa.
+[[nodiscard]] constexpr std::strong_ordering invert(const std::strong_ordering x) noexcept {
+    return std::bit_cast<std::strong_ordering>(static_cast<signed char>(-std::bit_cast<signed char>(x)));
+}
+
+static_assert(invert(std::strong_ordering::less) == std::strong_ordering::greater,
+              "Weird standard library. std::strong_ordering was expected to be a wrapper for signed char, "
+              "where negation exchanges less and greater.");
+
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -934,13 +943,7 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
         }
     } else {
         static_assert(detail::is_basic_big_int_v<R>);
-        BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wzero-as-null-pointer-constant")
-        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wzero-as-null-pointer-constant")
-        static_assert((0 <=> std::strong_ordering::less) == std::strong_ordering::greater,
-                      "This trick to flip the ordering should work.");
-        return 0 <=> rhs.compare_integer(lhs);
-        BEMAN_BIG_INT_DIAGNOSTIC_POP()
+        return detail::invert(rhs.compare_integer(lhs));
     }
 }
 
@@ -1214,16 +1217,7 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
     // smaller value.
     const auto magnitude_ordering = detail::compare_limb_magnitudes(representation(), limbs);
 
-    if (is_negative()) {
-        // Invert: less <-> greater; equal is unchanged.
-        if (std::is_lt(magnitude_ordering)) {
-            return std::strong_ordering::greater;
-        }
-        if (std::is_gt(magnitude_ordering)) {
-            return std::strong_ordering::less;
-        }
-    }
-    return magnitude_ordering;
+    return is_negative() ? detail::invert(magnitude_ordering) : magnitude_ordering;
 }
 
 // Builds the sum or difference of two limb spans and returns it as a fresh `basic_big_int`.
