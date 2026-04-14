@@ -156,6 +156,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
   public:
     using allocator_type = Allocator;
+    using size_type      = std::size_t;
     using pointer        = std::allocator_traits<Allocator>::pointer;
     using const_pointer  = std::allocator_traits<Allocator>::const_pointer;
     static_assert(std::is_same_v<typename Allocator::value_type, uint_multiprecision_t>,
@@ -168,21 +169,21 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     using alloc_traits = std::allocator_traits<Allocator>;
     using alloc_result = detail::allocation_result<pointer>;
 
-    static constexpr std::size_t bits_per_limb = detail::width_v<limb_type>;
-    // Never fewer limbs than would fit in the pointer footprint  of the union,
-    // so the union doesn't waste space.
-    static constexpr std::size_t inplace_limbs = std::max(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
-                                                          detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
-    static_assert(min_inplace_bits > 0);
-    static_assert(inplace_limbs > 0);
+    static constexpr size_type bits_per_limb = detail::width_v<limb_type>;
 
   public:
-    static constexpr std::size_t inplace_bits = inplace_limbs * bits_per_limb;
+    // Never fewer limbs than would fit in the pointer footprint  of the union,
+    // so the union doesn't waste space.
+    static constexpr size_type inplace_capacity = std::max(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
+                                                           detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
+    static_assert(min_inplace_bits > 0);
+    static_assert(inplace_capacity > 0);
+    static constexpr size_type inplace_bits = inplace_capacity * bits_per_limb;
 
   private:
     union data_type {
         pointer   data;
-        limb_type limbs[inplace_limbs];
+        limb_type limbs[inplace_capacity];
 
         constexpr data_type() noexcept : limbs{} {}
     };
@@ -259,21 +260,21 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             grow(count);
             auto* dst = limb_ptr();
             std::copy_n(x.limb_ptr(), count, dst);
-            for (std::size_t i = count; i < limb_count(); ++i) {
+            for (size_type i = count; i < limb_count(); ++i) {
                 dst[i] = 0;
             }
             set_limb_count(count);
             set_sign(x.is_negative());
         } else {
-            using U                   = std::make_unsigned_t<std::remove_cvref_t<T>>;
-            const bool            neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
-            const U               mag = neg ? static_cast<U>(U{0} - static_cast<U>(x)) : static_cast<U>(x);
-            constexpr std::size_t n   = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
+            using U                 = std::make_unsigned_t<std::remove_cvref_t<T>>;
+            const bool          neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
+            const U             mag = neg ? static_cast<U>(U{0} - static_cast<U>(x)) : static_cast<U>(x);
+            constexpr size_type n   = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
             grow(n);
             const auto old_count = limb_count();
             assign_magnitude(mag);
             auto* dst = limb_ptr();
-            for (std::size_t i = limb_count(); i < old_count; ++i) {
+            for (size_type i = limb_count(); i < old_count; ++i) {
                 dst[i] = 0;
             }
             set_sign(neg);
@@ -289,13 +290,13 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& operator<<=(S s);
 
     // [big.int.ops]
-    [[nodiscard]] constexpr std::size_t                            width_mag() const noexcept;
+    [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
     [[nodiscard]] constexpr allocator_type                         get_allocator() const noexcept;
-    [[nodiscard]] constexpr std::size_t                            size() const noexcept;
-    [[nodiscard]] static constexpr std::size_t                     max_size() noexcept;
-    constexpr void                                                 reserve(std::size_t n);
-    [[nodiscard]] constexpr std::size_t                            capacity() const noexcept;
+    [[nodiscard]] constexpr size_type                              size() const noexcept;
+    [[nodiscard]] static constexpr size_type                       max_size() noexcept;
+    constexpr void                                                 reserve(size_type n);
+    [[nodiscard]] constexpr size_type                              capacity() const noexcept;
     constexpr void                                                 shrink_to_fit();
 
     // [big.int.unary]
@@ -327,11 +328,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::cv_unqualified_floating_point F>
     constexpr void assign_from_float(F value) noexcept;
 
-    [[nodiscard]] constexpr alloc_result alloc_limbs(std::size_t n);
-    constexpr void                       free_limbs(pointer p, std::size_t n);
+    [[nodiscard]] constexpr alloc_result alloc_limbs(size_type n);
+    constexpr void                       free_limbs(pointer p, size_type n);
     constexpr void                       free_storage();
-    constexpr void                       grow(std::size_t limbs_needed);
-    constexpr void                       copy_n_to_allocation(const limb_type* p, std::size_t n, alloc_result out);
+    constexpr void                       grow(size_type limbs_needed);
+    constexpr void                       copy_n_to_allocation(const limb_type* p, size_type n, alloc_result out);
     constexpr void                       push_back_limb(limb_type limb);
 
     using shift_type                      = unsigned long long;
@@ -401,14 +402,14 @@ constexpr bool basic_big_int<b, A>::is_storage_static() const noexcept {
 
 template <std::size_t b, class A>
 constexpr std::uint32_t basic_big_int<b, A>::limb_count() const noexcept {
-    constexpr std::size_t negative_zero_size_and_sign = 0x8000'0000U;
+    constexpr std::uint32_t negative_zero_size_and_sign = 0x8000'0000U;
     BEMAN_BIG_INT_DEBUG_ASSERT(m_size_and_sign != negative_zero_size_and_sign);
     return m_size_and_sign & 0x7FFF'FFFFU;
 }
 
 template <std::size_t b, class A>
 constexpr bool basic_big_int<b, A>::is_negative() const noexcept {
-    constexpr std::size_t negative_zero_size_and_sign = 0x8000'0000U;
+    constexpr std::uint32_t negative_zero_size_and_sign = 0x8000'0000U;
     BEMAN_BIG_INT_DEBUG_ASSERT(m_size_and_sign != negative_zero_size_and_sign);
     return (m_size_and_sign & 0x8000'0000U) != 0;
 }
@@ -460,18 +461,18 @@ constexpr const basic_big_int<b, A>::limb_type* basic_big_int<b, A>::limb_ptr() 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
     : m_capacity{0}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{x.m_alloc} {
-    if (x.limb_count() <= inplace_limbs) {
+    if (x.limb_count() <= inplace_capacity) {
         if (x.is_storage_static()) {
-            for (std::size_t i = 0; i < inplace_limbs; ++i) {
+            for (size_type i = 0; i < inplace_capacity; ++i) {
                 m_storage.limbs[i] = x.m_storage.limbs[i];
             }
         } else {
             // This case can happen if e.g. `x.reserve(100)` was called
             // but the integer value of `x` fits into inplace storage.
-            for (std::size_t i = 0; i < x.limb_count(); ++i) {
+            for (size_type i = 0; i < x.limb_count(); ++i) {
                 m_storage.limbs[i] = x.m_storage.data[i];
             }
-            for (std::size_t i = x.limb_count(); i < inplace_limbs; ++i) {
+            for (size_type i = x.limb_count(); i < inplace_capacity; ++i) {
                 m_storage.limbs[i] = {};
             }
         }
@@ -487,7 +488,7 @@ template <std::size_t b, class A>
 constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
     : m_capacity{x.m_capacity}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{std::move(x.m_alloc)} {
     if (x.is_storage_static()) {
-        for (std::size_t i = 0; i < inplace_limbs; ++i) {
+        for (size_type i = 0; i < inplace_capacity; ++i) {
             m_storage.limbs[i] = x.m_storage.limbs[i];
         }
     } else {
@@ -509,7 +510,7 @@ constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(const basic_big_in
 
     if (x.is_storage_static()) {
         m_capacity = 0;
-        for (std::size_t i = 0; i < inplace_limbs; ++i) {
+        for (size_type i = 0; i < inplace_capacity; ++i) {
             m_storage.limbs[i] = x.m_storage.limbs[i];
         }
     } else {
@@ -534,7 +535,7 @@ constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x)
 
     if (x.is_storage_static()) {
         m_capacity = 0;
-        for (std::size_t i = 0; i < inplace_limbs; ++i) {
+        for (size_type i = 0; i < inplace_capacity; ++i) {
             m_storage.limbs[i] = x.m_storage.limbs[i];
         }
     } else {
@@ -647,7 +648,7 @@ template <std::size_t b, class A>
 constexpr bool basic_big_int<b, A>::unchecked_increment_magnitude() {
     limb_type* const limbs    = limb_ptr();
     bool             carry_in = true;
-    for (std::size_t i = 0; carry_in && i < limb_count(); ++i) {
+    for (size_type i = 0; carry_in && i < limb_count(); ++i) {
         const auto [sum, carry] = detail::carrying_add(limbs[i], limb_type{0}, carry_in);
         limbs[i]                = sum;
         carry_in                = carry;
@@ -664,7 +665,7 @@ template <std::size_t b, class A>
 constexpr bool basic_big_int<b, A>::unchecked_decrement_magnitude() {
     limb_type* const limbs     = limb_ptr();
     bool             borrow_in = true;
-    for (std::size_t i = 0; borrow_in && i < limb_count(); ++i) {
+    for (size_type i = 0; borrow_in && i < limb_count(); ++i) {
         const auto [difference, borrow] = detail::borrowing_sub(limbs[i], limb_type{0}, borrow_in);
         limbs[i]                        = difference;
         borrow_in                       = borrow;
@@ -693,7 +694,7 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     // TODO(eisenwave): This is pessimistic and assumes that bit-shifting will require an extra limb,
     //                  but that may not be the case.
     //                  It depends on the bits of the uppermost limb.
-    reserve(limb_count() + shifted_limbs + std::size_t(shifted_bits != 0));
+    reserve(limb_count() + shifted_limbs + size_type(shifted_bits != 0));
     limb_type* const limbs = limb_ptr();
 
     if (shifted_limbs != 0) {
@@ -705,7 +706,7 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     if (shifted_bits != 0) {
         const auto current_count = limb_count();
         limbs[current_count]     = 0;
-        for (std::size_t i = current_count; i-- > shifted_limbs;) {
+        for (shift_type i = current_count; i-- > shifted_limbs;) {
             const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
             limbs[i + 1] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
         }
@@ -731,7 +732,7 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
     // In that case, we need to figure out whether the result is inexact
     // by detecting whether any nonzero bits are shifted out.
     const bool needs_decrement = is_negative() && [&] {
-        for (std::size_t i = 0; i < shifted_limbs; ++i) {
+        for (shift_type i = 0; i < shifted_limbs; ++i) {
             if (i >= limb_count()) {
                 return false;
             }
@@ -754,7 +755,7 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
         }
     }
     if (shifted_bits != 0) {
-        for (std::size_t i = 0; i + 1 < limb_count(); ++i) {
+        for (size_type i = 0; i + 1 < limb_count(); ++i) {
             const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
             limbs[i] = detail::funnel_shr(all_bits, static_cast<unsigned int>(shifted_bits));
         }
@@ -783,7 +784,7 @@ constexpr std::size_t basic_big_int<b, A>::width_mag() const noexcept {
         return 0;
     }
 
-    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<std::size_t>(std::countl_zero(top)) - 1);
+    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)) - 1);
 }
 
 template <std::size_t b, class A>
@@ -799,7 +800,7 @@ constexpr basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
     if (is_storage_static()) {
-        return inplace_limbs;
+        return inplace_capacity;
     } else {
         return limb_count();
     }
@@ -812,12 +813,12 @@ constexpr std::size_t basic_big_int<b, A>::max_size() noexcept {
 }
 
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::reserve(const std::size_t n) {
+constexpr void basic_big_int<b, A>::reserve(const size_type n) {
     grow(n);
 }
 
 template <std::size_t b, class A>
-constexpr std::size_t basic_big_int<b, A>::capacity() const noexcept {
+constexpr auto basic_big_int<b, A>::capacity() const noexcept -> size_type {
     return m_capacity;
 }
 
@@ -829,7 +830,7 @@ constexpr void basic_big_int<b, A>::shrink_to_fit() {
         return;
     }
 
-    if (count <= inplace_limbs) {
+    if (count <= inplace_capacity) {
         // Move back to inline storage
         // We need a manual loop to switch the active union member in consteval context
         // At runtime this should become equivalent to std::uninitialized_copy_n
@@ -839,7 +840,7 @@ constexpr void basic_big_int<b, A>::shrink_to_fit() {
         for (std::uint32_t i = 0; i < count; ++i) {
             m_storage.limbs[i] = old_data[i];
         }
-        for (std::size_t i = count; i < inplace_limbs; ++i) {
+        for (size_type i = count; i < inplace_capacity; ++i) {
             m_storage.limbs[i] = 0;
         }
         free_limbs(old_data, old_cap);
@@ -1462,7 +1463,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
 }
 
 template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::alloc_limbs(const std::size_t n) -> alloc_result {
+constexpr auto basic_big_int<b, A>::alloc_limbs(const size_type n) -> alloc_result {
     BEMAN_BIG_INT_ASSERT(n != 0);
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
     return alloc_traits::allocate_at_least(m_alloc, n);
@@ -1472,7 +1473,7 @@ constexpr auto basic_big_int<b, A>::alloc_limbs(const std::size_t n) -> alloc_re
 }
 
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::free_limbs(pointer p, const std::size_t n) {
+constexpr void basic_big_int<b, A>::free_limbs(pointer p, const size_type n) {
     BEMAN_BIG_INT_ASSERT(p != nullptr);
     BEMAN_BIG_INT_ASSERT(n != 0);
     // Need to suppress known false positive warning.
@@ -1491,15 +1492,15 @@ constexpr void basic_big_int<b, A>::free_storage() {
 }
 
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::grow(const std::size_t limbs_needed) {
-    const std::size_t current_cap = is_storage_static() ? inplace_limbs : m_capacity;
+constexpr void basic_big_int<b, A>::grow(const size_type limbs_needed) {
+    const size_type current_cap = is_storage_static() ? inplace_capacity : m_capacity;
     if (limbs_needed <= current_cap) {
         return;
     }
 
     // libstdc++ and libc++ normally double storage each allocation
     // MSVC does 1.5x instead of 2x
-    const std::size_t  new_cap    = std::max(limbs_needed, 2 * current_cap);
+    const size_type    new_cap    = std::max(limbs_needed, 2 * current_cap);
     const alloc_result allocation = alloc_limbs(new_cap);
     copy_n_to_allocation(limb_ptr(), limb_count(), allocation);
 
@@ -1511,7 +1512,7 @@ constexpr void basic_big_int<b, A>::grow(const std::size_t limbs_needed) {
 
 template <std::size_t b, class A>
 constexpr void
-basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::size_t n, const alloc_result out) {
+basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const size_type n, const alloc_result out) {
     BEMAN_BIG_INT_ASSERT(p != nullptr);
     BEMAN_BIG_INT_ASSERT(out.ptr != nullptr);
     BEMAN_BIG_INT_ASSERT(n <= out.count);
@@ -1528,10 +1529,10 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::s
         std::uninitialized_value_construct_n(out.ptr + n, out.count - n);
 #if !defined(__cpp_lib_raw_memory_algorithms) || __cpp_lib_raw_memory_algorithms < 202411L
     } else {
-        for (std::size_t i = 0; i < n; ++i) {
+        for (size_type i = 0; i < n; ++i) {
             std::construct_at(out.ptr + i, p[i]);
         }
-        for (std::size_t i = n; i < out.count; ++i) {
+        for (size_type i = n; i < out.count; ++i) {
             std::construct_at(out.ptr + i);
         }
     }
@@ -1541,7 +1542,7 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const std::s
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::push_back_limb(limb_type limb) {
     const auto count = limb_count();
-    if (count >= (is_storage_static() ? inplace_limbs : m_capacity)) {
+    if (count >= (is_storage_static() ? inplace_capacity : m_capacity)) {
         grow(count + 1); // exponential growth
     }
     limb_ptr()[count] = limb;
