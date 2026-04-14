@@ -350,6 +350,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 or 31
     // that are in the same limb.
     // E.g., 000...01 can be shifted 63 bits to the left before it moves to the next limb
+    // TODO : We discussed reducing the size of the encoding for 32-bit platforms so that this result fits in unsigned long (becomes the same type as the limbs)
     using shift_type                      = unsigned long long;
     static constexpr shift_type shift_max = ((1ULL << 31) - 1) * (sizeof(uint_multiprecision_t) * CHAR_BIT);
 
