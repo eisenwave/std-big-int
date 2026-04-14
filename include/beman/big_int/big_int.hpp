@@ -758,14 +758,22 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
         set_limb_count(static_cast<std::uint32_t>(current_count + shifted_limbs));
     }
     if (shifted_bits != 0) {
-        const auto current_count = limb_count();
-        limbs[current_count]     = 0;
-        for (shift_type i = current_count; i-- > shifted_limbs;) {
-            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
-            limbs[i + 1] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
+        const auto      current_count = limb_count();
+        const limb_type overflow      = limbs[current_count - 1] >> (bits_per_limb - shifted_bits);
+
+        // Shift all limbs in place, top to bottom.
+        // Each iteration reads limbs[i-1] (original) and limbs[i] (original), writes limbs[i].
+        // This avoids an out-of-bounds write
+        for (shift_type i = current_count - 1; i > shifted_limbs; --i) {
+            const detail::wide<limb_type> all_bits{.low_bits = limbs[i - 1], .high_bits = limbs[i]};
+            limbs[i] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
         }
         limbs[shifted_limbs] <<= shifted_bits;
-        set_limb_count(static_cast<std::uint32_t>(current_count + std::uint32_t(limbs[current_count] != 0)));
+
+        if (overflow != 0) {
+            limbs[current_count] = overflow;
+            set_limb_count(static_cast<std::uint32_t>(current_count + 1));
+        }
     }
 }
 
