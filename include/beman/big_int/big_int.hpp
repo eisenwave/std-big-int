@@ -743,10 +743,12 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     const shift_type shifted_limbs = s / bits_per_limb;
     const shift_type shifted_bits  = s % bits_per_limb;
 
-    // TODO(eisenwave): This is pessimistic and assumes that bit-shifting will require an extra limb,
-    //                  but that may not be the case.
-    //                  It depends on the bits of the uppermost limb.
-    reserve(limb_count() + shifted_limbs + size_type(shifted_bits != 0));
+    // Only reserve an extra limb for the bit-shift when the top limb doesn't enough leading zeros.
+    // `countl_zero` tells us exactly how many bits of headroom the current top limb provides.
+    const bool needs_extra_limb =
+        shifted_bits != 0 &&
+        static_cast<shift_type>(std::countl_zero(limb_ptr()[limb_count() - 1])) < shifted_bits;
+    reserve(limb_count() + shifted_limbs + static_cast<size_type>(needs_extra_limb));
     limb_type* const limbs = limb_ptr();
 
     if (shifted_limbs != 0) {
