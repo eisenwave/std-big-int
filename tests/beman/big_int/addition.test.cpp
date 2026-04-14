@@ -322,6 +322,47 @@ TEST(Addition, LvalueFallbackUnchanged) {
     EXPECT_EQ(b.representation().size(), 2u);
 }
 
+TEST(Addition, LvalueReservesCarryHeadroomInCopy) {
+    // `a + b` with two lvalue heap operands goes through `copy_value(r, larger, 1)`,
+    // which allocates `|larger| + 1` limbs in one shot. The result's capacity
+    // must reflect that reservation, demonstrating that a subsequent carry-out
+    // grow would not require a second allocation.
+    const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64, 2 limbs
+    const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    ASSERT_EQ(a.representation().size(), 2U);
+    ASSERT_EQ(b.representation().size(), 2U);
+
+    const big_int r = a + b; // 2 * 2^64 -- limbs [0, 2], still 2 limbs but room for 3.
+    ASSERT_EQ(r.representation().size(), 2U);
+    EXPECT_GE(r.capacity(), 3U);
+}
+
+TEST(Addition, InlineInlineNoCarryStaysInline) {
+    // When both lvalue operands fit inline and the ripple-carry doesn't
+    // overflow, the result must stay in inline storage. `carry_headroom()`
+    // drops the +1 for inline-boundary sources so we don't pre-allocate a
+    // heap buffer speculatively.
+    using big_int_256 = basic_big_int<256>;
+    const big_int_256 a{5};
+    const big_int_256 b{7};
+    ASSERT_EQ(a.capacity(), 0u);
+    ASSERT_EQ(b.capacity(), 0u);
+    const big_int_256 r = a + b;
+    EXPECT_EQ(r, 12);
+    EXPECT_EQ(r.capacity(), 0u); // still inline -- no speculative heap allocation
+
+    // Boundary case for the default `big_int` (basic_big_int<64>, inplace_limbs=1):
+    // both inline, no carry => stays inline. This is the specific pessimization
+    // that would appear if copy_value(..., 1) were called unconditionally.
+    const big_int c{5};
+    const big_int d{7};
+    ASSERT_EQ(c.capacity(), 0u);
+    ASSERT_EQ(d.capacity(), 0u);
+    const big_int r2 = c + d;
+    EXPECT_EQ(r2, 12);
+    EXPECT_EQ(r2.capacity(), 0u); // still inline
+}
+
 TEST(Addition, LvalueCopiesLargerOperand) {
     // When both operands are lvalues, the implementation should copy whichever
     // has more limbs so that add_in_place does not need to grow. We can't peek
