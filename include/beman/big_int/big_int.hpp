@@ -377,10 +377,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // Used by the lvalue copy branches of `operator+` / `operator-` to decide
     // whether to request one limb of carry-headroom when setting up the result.
     // Returns 1 unless `x` sits exactly on the inline/heap boundary
-    // (`limb_count == inplace_limbs`), in which case reserving the extra limb
+    // (`limb_count == inplace_capacity`), in which case reserving the extra limb
     // would force an otherwise-inline result onto the heap.
     [[nodiscard]] static constexpr std::size_t carry_headroom(const basic_big_int& x) noexcept {
-        return x.limb_count() == inplace_limbs ? 0 : 1;
+        return x.limb_count() == inplace_capacity ? 0 : 1;
     }
 
     // Shared implementation behind copy-assign and move-assign.
@@ -405,7 +405,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         constexpr bool    is_move   = !std::is_lvalue_reference_v<Src>;
         const std::size_t src_count = src.limb_count();
         const std::size_t needed    = src_count + extra_space;
-        const std::size_t eff_cap   = dst.is_storage_static() ? inplace_limbs : dst.m_capacity;
+        const std::size_t eff_cap   = dst.is_storage_static() ? inplace_capacity : dst.m_capacity;
 
         if (needed <= eff_cap) {
             // Fast path: `dst`'s current buffer is already big enough
@@ -421,7 +421,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             for (std::size_t i = 0; i < src_count; ++i) {
                 dst_limbs[i] = src_limbs[i];
             }
-            // Preserve the "limbs[limb_count..inplace_limbs) == 0" invariant that
+            // Preserve the "limbs[limb_count..inplace_capacity) == 0" invariant that
             // `inplace_to_bit_uint` relies on. Only relevant for inline storage.
             if (dst.is_storage_static()) {
                 for (std::size_t i = src_count; i < old_count; ++i) {
@@ -441,10 +441,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             dst.m_alloc = src.m_alloc;
         }
 
-        if (src.is_storage_static() && needed <= inplace_limbs) {
+        if (src.is_storage_static() && needed <= inplace_capacity) {
             // Both src and the requested headroom fit inline.
             dst.m_capacity = 0;
-            for (std::size_t i = 0; i < inplace_limbs; ++i) {
+            for (std::size_t i = 0; i < inplace_capacity; ++i) {
                 dst.m_storage.limbs[i] = src.m_storage.limbs[i];
             }
             return;
