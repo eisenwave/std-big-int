@@ -327,6 +327,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // TODO : and, or, xor
 
     template <class T, detail::signed_or_unsigned S>
+        requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
     friend constexpr std::remove_cvref_t<T> operator<<(T&& x, S s);
 
   private:
