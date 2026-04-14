@@ -419,9 +419,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             }
             limb_type* const       dst_limbs = dst.limb_ptr();
             const limb_type* const src_limbs = src.limb_ptr();
-            for (std::size_t i = 0; i < src_count; ++i) {
-                dst_limbs[i] = src_limbs[i];
-            }
+            std::copy_n(src_limbs, src_count, dst_limbs);
             // Preserve the "limbs[limb_count..inplace_capacity) == 0" invariant that
             // `inplace_to_bit_uint` relies on. Only relevant for inline storage.
             if (dst.is_storage_static()) {
