@@ -1119,10 +1119,10 @@ enum struct binary_op_form : unsigned char {
 // in one of the binary operations.
 template <class L, class R>
 inline constexpr binary_op_form classify_form_v = [] {
-    using LT                  = std::remove_cvref_t<L>;
-    using RT                  = std::remove_cvref_t<R>;
-    constexpr bool copy_left  = std::is_reference_v<L>;
-    constexpr bool copy_right = std::is_reference_v<R>;
+    using LT                                   = std::remove_cvref_t<L>;
+    using RT                                   = std::remove_cvref_t<R>;
+    [[maybe_unused]] constexpr bool copy_left  = std::is_reference_v<L>;
+    [[maybe_unused]] constexpr bool copy_right = std::is_reference_v<R>;
 
     if constexpr (is_basic_big_int_v<LT> && is_basic_big_int_v<RT>) {
         return copy_left && copy_right    ? binary_op_form::copy_copy
