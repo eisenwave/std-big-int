@@ -1158,8 +1158,8 @@ inline constexpr binary_op_form classify_form_v = [] {
 // `Result` and no explicit type-equality guard is needed.
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
-    using Result           = detail::common_big_int_type<L, R>;
-    constexpr auto op_case = detail::classify_form_v<L, R>;
+    using Result        = detail::common_big_int_type<L, R>;
+    constexpr auto form = detail::classify_form_v<L, R>;
 
     // In each of these branches we try to take the largest storage available
     // In the case that we do have to allocate, we automatically add in an extra limb,
@@ -1167,24 +1167,24 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     // In the case that we are using inline storage we do not request an extra limb,
     // we defer that decision till as late as possible in case the addition result fits
     // into the static storage rather than having to allocate for no reason
-    if constexpr (op_case == detail::binary_op_form::move_move) {
+    if constexpr (form == detail::binary_op_form::move_move) {
         if (x.limb_count() >= y.limb_count()) {
-            Result r = std::forward<L>(x);
+            Result r = std::move(x);
             r.add_in_place(y.representation(), y.is_negative());
             return r;
         }
-        Result r = std::forward<R>(y);
+        Result r = std::move(y);
         r.add_in_place(x.representation(), x.is_negative());
         return r;
-    } else if constexpr (op_case == detail::binary_op_form::move_copy) {
-        Result r = std::forward<L>(x);
+    } else if constexpr (form == detail::binary_op_form::move_copy) {
+        Result r = std::move(x);
         r.add_in_place(y.representation(), y.is_negative());
         return r;
-    } else if constexpr (op_case == detail::binary_op_form::copy_move) {
-        Result r = std::forward<R>(y);
+    } else if constexpr (form == detail::binary_op_form::copy_move) {
+        Result r = std::move(y);
         r.add_in_place(x.representation(), x.is_negative());
         return r;
-    } else if constexpr (op_case == detail::binary_op_form::copy_copy) {
+    } else if constexpr (form == detail::binary_op_form::copy_copy) {
         // Both lvalue `basic_big_int`s: copy the larger operand, then add the smaller.
         // For inline sources no extra space is requested, so the copy stays inline
         // The move to heap storage is deferred to add_in_place if required
@@ -1197,23 +1197,23 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         r.assign_value(y, !y.is_storage_static());
         r.add_in_place(x.representation(), x.is_negative());
         return r;
-    } else if constexpr (op_case == detail::binary_op_form::move_int) {
+    } else if constexpr (form == detail::binary_op_form::move_int) {
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        Result     r       = std::forward<L>(x);
+        Result     r       = std::move(x);
         r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
-    } else if constexpr (op_case == detail::binary_op_form::int_move) {
+    } else if constexpr (form == detail::binary_op_form::int_move) {
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        Result     r       = std::forward<R>(y);
+        Result     r       = std::move(y);
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
-    } else if constexpr (op_case == detail::binary_op_form::copy_int) {
+    } else if constexpr (form == detail::binary_op_form::copy_int) {
         Result r;
         r.assign_value(x, !x.is_storage_static());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
-    } else if constexpr (op_case == detail::binary_op_form::int_copy) {
+    } else if constexpr (form == detail::binary_op_form::int_copy) {
         Result r;
         r.assign_value(y, !y.is_storage_static());
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
@@ -1230,47 +1230,32 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
 //     then add the lhs side with its own sign, yielding `(-y) + x = x - y`
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
-    using Result = detail::common_big_int_type<L, R>;
-    using LT     = std::remove_cvref_t<L>;
-    using RT     = std::remove_cvref_t<R>;
+    using Result        = detail::common_big_int_type<L, R>;
+    constexpr auto form = detail::classify_form_v<L, R>;
 
     // See `operator+` description of logic, as it is the same
-    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L> && detail::is_basic_big_int_v<RT> &&
-                  !std::is_reference_v<R>) {
-        // 1) both rvalue `basic_big_int`s: move the larger-limb-count source.
+    if constexpr (form == detail::binary_op_form::move_move) {
         if (x.limb_count() >= y.limb_count()) {
-            Result r = std::forward<L>(x);
+            Result r = std::move(x);
             r.add_in_place(y.representation(), !y.is_negative()); // r + (-y)
             return r;
         }
-        Result r = std::forward<R>(y);
+        Result r = std::move(y);
         r.negate();                                          // r = -y
         r.add_in_place(x.representation(), x.is_negative()); // (-y) + x = x - y
         return r;
-    } else if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
-        // 2) rvalue lhs only: `r = x; r += (-y)`.
-        Result r = std::forward<L>(x);
-        if constexpr (detail::is_basic_big_int_v<RT>) {
-            r.add_in_place(y.representation(), !y.is_negative());
-        } else {
-            const auto y_limbs = detail::to_limbs(detail::uabs(y));
-            r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
-        }
+    } else if constexpr (form == detail::binary_op_form::move_copy) {
+        Result r = std::move(x);
+        r.add_in_place(y.representation(), !y.is_negative());
         return r;
-    } else if constexpr (detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
-        // 3) rvalue rhs only: `r = -y; r += x` gives `x - y`.
-        Result r = std::forward<R>(y);
-        r.negate();
-        if constexpr (detail::is_basic_big_int_v<LT>) {
-            r.add_in_place(x.representation(), x.is_negative());
-        } else {
-            const auto x_limbs = detail::to_limbs(detail::uabs(x));
-            r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
-        }
+    } else if constexpr (form == detail::binary_op_form::copy_move) {
+        // `r = -y; r += x` gives `x - y`.
+        Result r = -std::move(y);
+        r.add_in_place(x.representation(), x.is_negative());
         return r;
-    } else if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        // 4) both lvalue `basic_big_int`s: copy the larger, then subtract the smaller.
-        // For inline sources no extra space is requested, so the copy stays inline
+    } else if constexpr (form == detail::binary_op_form::copy_copy) {
+        // Both lvalue `basic_big_int`s: copy the larger, then subtract the smaller.
+        // For inline sources no extra space is requested, so the copy stays inline.
         Result r;
         if (x.limb_count() >= y.limb_count()) {
             r.assign_value(x, !x.is_storage_static());
@@ -1281,16 +1266,24 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         r.negate();
         r.add_in_place(x.representation(), x.is_negative());
         return r;
-    } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // 5) lvalue `basic_big_int` lhs, primitive rhs.
+    } else if constexpr (form == detail::binary_op_form::move_int) {
+        const auto y_limbs = detail::to_limbs(detail::uabs(y));
+        Result     r       = std::move(x);
+        r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
+        return r;
+    } else if constexpr (form == detail::binary_op_form::int_move) {
+        // `r = -y; r += x` gives `x - y`.
+        const auto x_limbs = detail::to_limbs(detail::uabs(x));
+        Result     r       = -std::move(y);
+        r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
+        return r;
+    } else if constexpr (form == detail::binary_op_form::copy_int) {
         Result r;
         r.assign_value(x, !x.is_storage_static());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
         return r;
-    } else {
-        // 6) primitive lhs, lvalue `basic_big_int` rhs: copy rhs, negate, add lhs.
-        static_assert(detail::is_basic_big_int_v<RT>);
+    } else if constexpr (form == detail::binary_op_form::int_copy) {
         Result r;
         r.assign_value(y, !y.is_storage_static());
         r.negate();
