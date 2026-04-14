@@ -375,21 +375,18 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::size_t extent_other>
     constexpr void add_in_place(std::span<const uint_multiprecision_t, extent_other> other, bool other_neg);
 
-    // Shared implementation behind copy-assign and move-assign.
-    // Sets `dst` to a copy of `src`, reusing `dst`'s existing allocation whenever its effective
-    // capacity already fits `src.limb_count() + extra_space` limbs.
-    // Allow extra space to be stated upfront so that functions that know they are
-    // about to grow by a fixed amount (e.g., a carry-out of one
-    // limb in addition) can ask for that space up front.
-    //
-    // Defined inline because the friend template declaration matches the enclosing
-    // class by name, which is tidier than reconstructing the template parameters
-    // out-of-class.
+    // Shared implementation behind copy-assign, move-assign, and the lvalue
+    // branches of `operator+` / `operator-`.
+    // Sets `*this` to a copy of `src`, reusing the existing allocation whenever
+    // the effective capacity already fits `src.limb_count() + extra_space` limbs.
+    // `extra_space` lets callers that know they are about to grow by a fixed
+    // amount (e.g., a carry-out of one limb in addition) reserve that space
+    // up front so that a subsequent grow is not needed.
     template <class Src>
         requires std::same_as<std::remove_cvref_t<Src>, basic_big_int>
-    friend constexpr void copy_value(basic_big_int& dst, Src&& src, const std::size_t extra_space = 0) {
-        if (std::addressof(dst) == std::addressof(src)) {
-            // `copy_value(a, std::move(a), ...)` is a no-op. Also guards the extra
+    constexpr void assign_value(Src&& src, const std::size_t extra_space = 0) {
+        if (std::addressof(*this) == std::addressof(src)) {
+            // `assign_value(std::move(*this), ...)` is a no-op. Also guards the
             // self-aliasing the existing `operator=` overloads protected against.
             return;
         }
@@ -397,23 +394,23 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         constexpr bool    is_move   = !std::is_lvalue_reference_v<Src>;
         const std::size_t src_count = src.limb_count();
         const std::size_t needed    = src_count + extra_space;
-        const std::size_t eff_cap   = dst.is_storage_static() ? inplace_capacity : dst.m_capacity;
+        const std::size_t eff_cap   = is_storage_static() ? inplace_capacity : m_capacity;
 
         if (needed <= eff_cap) {
-            // Fast path: `dst`'s current buffer is already big enough
-            const auto old_count = dst.limb_count();
-            dst.m_size_and_sign  = src.m_size_and_sign;
+            // Fast path: current buffer is already big enough
+            const auto old_count = limb_count();
+            m_size_and_sign      = src.m_size_and_sign;
             if constexpr (is_move) {
-                dst.m_alloc = std::move(src.m_alloc);
+                m_alloc = std::move(src.m_alloc);
             } else {
-                dst.m_alloc = src.m_alloc;
+                m_alloc = src.m_alloc;
             }
-            limb_type* const       dst_limbs = dst.limb_ptr();
+            limb_type* const       dst_limbs = limb_ptr();
             const limb_type* const src_limbs = src.limb_ptr();
             std::copy_n(src_limbs, src_count, dst_limbs);
             // Preserve the "limbs[limb_count..inplace_capacity) == 0" invariant that
             // `inplace_to_bit_uint` relies on. Only relevant for inline storage.
-            if (dst.is_storage_static()) {
+            if (is_storage_static()) {
                 for (std::size_t i = src_count; i < old_count; ++i) {
                     dst_limbs[i] = limb_type{0};
                 }
@@ -421,21 +418,21 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             return;
         }
 
-        // Slow path: `dst`'s buffer is too small.
+        // Slow path: current buffer is too small.
         // Release it and get a new allocation
-        dst.free_storage();
-        dst.m_size_and_sign = src.m_size_and_sign;
+        free_storage();
+        m_size_and_sign = src.m_size_and_sign;
         if constexpr (is_move) {
-            dst.m_alloc = std::move(src.m_alloc);
+            m_alloc = std::move(src.m_alloc);
         } else {
-            dst.m_alloc = src.m_alloc;
+            m_alloc = src.m_alloc;
         }
 
         if (src.is_storage_static() && needed <= inplace_capacity) {
             // Both src and the requested headroom fit inline.
-            dst.m_capacity = 0;
+            m_capacity = 0;
             for (std::size_t i = 0; i < inplace_capacity; ++i) {
-                dst.m_storage.limbs[i] = src.m_storage.limbs[i];
+                m_storage.limbs[i] = src.m_storage.limbs[i];
             }
             return;
         }
@@ -444,12 +441,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // For a heap `src`, adopt its pointer unconditionally and then grow
             // if the stolen capacity doesn't cover `needed`.
             if (!src.is_storage_static()) {
-                dst.m_capacity      = src.m_capacity;
-                dst.m_storage.data  = src.m_storage.data;
+                m_capacity      = src.m_capacity;
+                m_storage.data  = src.m_storage.data;
                 src.m_capacity      = 0;
                 src.m_size_and_sign = 1;
-                if (dst.m_capacity < needed) {
-                    dst.grow(needed);
+                if (m_capacity < needed) {
+                    grow(needed);
                 }
                 return;
             }
@@ -457,10 +454,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
 
         // Fall back to a fresh allocation of `needed` limbs.
-        const alloc_result allocation = dst.alloc_limbs(needed);
-        dst.copy_n_to_allocation(src.limb_ptr(), src_count, allocation);
-        dst.m_capacity     = static_cast<std::uint32_t>(allocation.count);
-        dst.m_storage.data = allocation.ptr;
+        const alloc_result allocation = alloc_limbs(needed);
+        copy_n_to_allocation(src.limb_ptr(), src_count, allocation);
+        m_capacity     = static_cast<std::uint32_t>(allocation.count);
+        m_storage.data = allocation.ptr;
     }
 
     static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
@@ -588,17 +585,18 @@ constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(const basic_big_int& x) {
-    copy_value(*this, x);
+    assign_value(x);
     return *this;
 }
 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x) noexcept {
-    // Invariant: `copy_value` with `extra_space == 0` and an rvalue `src` never
-    // allocates -- either `*this` already fits `x.limb_count()`, or we steal `x`'s
-    // heap buffer, or `x` is inline and fits inline in `*this`. So the `noexcept`
-    // contract holds even though `copy_value` itself is not marked `noexcept`.
-    copy_value(*this, std::move(x));
+    // Invariant: `assign_value` with `extra_space == 0` and an rvalue `src`
+    // never allocates -- either `*this` already fits `x.limb_count()`, or we
+    // steal `x`'s heap buffer, or `x` is inline and fits inline in `*this`.
+    // So the `noexcept` contract holds even though `assign_value` itself is
+    // not marked `noexcept`.
+    assign_value(std::move(x));
     return *this;
 }
 
@@ -1153,17 +1151,17 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         // The move to heap storage is deferred to add_in_place if required
         Result r;
         if (x.limb_count() >= y.limb_count()) {
-            copy_value(r, x, !x.is_storage_static());
+            r.assign_value(x, !x.is_storage_static());
             r.add_in_place(y.representation(), y.is_negative());
             return r;
         }
-        copy_value(r, y, !y.is_storage_static());
+        r.assign_value(y, !y.is_storage_static());
         r.add_in_place(x.representation(), x.is_negative());
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
         // 5) lvalue `basic_big_int` lhs, primitive rhs.
         Result r;
-        copy_value(r, x, !x.is_storage_static());
+        r.assign_value(x, !x.is_storage_static());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
@@ -1172,7 +1170,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         // forbidden by `common_big_int_type`; rvalue rhs was caught in (3)).
         static_assert(detail::is_basic_big_int_v<RT>);
         Result r;
-        copy_value(r, y, !y.is_storage_static());
+        r.assign_value(y, !y.is_storage_static());
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
@@ -1230,18 +1228,18 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         // For inline sources no extra space is requested, so the copy stays inline
         Result r;
         if (x.limb_count() >= y.limb_count()) {
-            copy_value(r, x, !x.is_storage_static());
+            r.assign_value(x, !x.is_storage_static());
             r.add_in_place(y.representation(), !y.is_negative());
             return r;
         }
-        copy_value(r, y, !y.is_storage_static());
+        r.assign_value(y, !y.is_storage_static());
         r.negate();
         r.add_in_place(x.representation(), x.is_negative());
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
         // 5) lvalue `basic_big_int` lhs, primitive rhs.
         Result r;
-        copy_value(r, x, !x.is_storage_static());
+        r.assign_value(x, !x.is_storage_static());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
         return r;
@@ -1249,7 +1247,7 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         // 6) primitive lhs, lvalue `basic_big_int` rhs: copy rhs, negate, add lhs.
         static_assert(detail::is_basic_big_int_v<RT>);
         Result r;
-        copy_value(r, y, !y.is_storage_static());
+        r.assign_value(y, !y.is_storage_static());
         r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));

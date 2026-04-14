@@ -338,7 +338,7 @@ TEST(Addition, LvalueHeapReservesCarryHeadroom) {
 
 TEST(Addition, InlineInlineNoCarryStaysInline) {
     // When both lvalue operands fit inline and the ripple-carry doesn't
-    // overflow, the result must stay in inline storage. `copy_value` without
+    // overflow, the result must stay in inline storage. `assign_value` without
     // extra headroom keeps the copy inline; `add_in_place` only allocates
     // if a carry actually escapes.
     using big_int_256 = basic_big_int<256>;
@@ -352,7 +352,7 @@ TEST(Addition, InlineInlineNoCarryStaysInline) {
 
     // Boundary case for the default `big_int` (basic_big_int<64>, inplace_limbs=1):
     // both inline, no carry => stays inline. This is the specific pessimization
-    // that would appear if copy_value(..., 1) were called unconditionally.
+    // that would appear if assign_value(..., 1) were called unconditionally.
     const big_int c{5};
     const big_int d{7};
     ASSERT_EQ(c.capacity(), 0u);

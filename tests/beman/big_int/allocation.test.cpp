@@ -237,7 +237,7 @@ TEST(Allocation, SelfAssignment) {
 }
 
 // ----- operator= storage reuse -----
-// The shared `copy_value` helper keeps the destination's allocation if its
+// The shared `assign_value` helper keeps the destination's allocation if its
 // effective capacity already fits the source. These tests verify the fast path
 // by checking that the destination's data pointer does not change.
 
@@ -258,7 +258,7 @@ TEST(Allocation, CopyAssignReusesDstStorage) {
 }
 
 TEST(Allocation, MoveAssignReusesDstStorageWhenLarger) {
-    // When dst's capacity already covers src's limb count, copy_value should
+    // When dst's capacity already covers src's limb count, assign_value should
     // copy src's limbs into dst's buffer rather than stealing src's (smaller)
     // buffer.
     beman::big_int::big_int dst{1U};
