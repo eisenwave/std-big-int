@@ -1122,7 +1122,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
 
     // In each of these branches we try to take the largest storage available
     // In the case that we do have to allocate, we automatically add in an extra limb,
-    // otherwise we run the risk of a second allocation occuring a the end of addition
+    // otherwise we run the risk of a second allocation occurring a the end of addition
     // In the case that we are using inline storage we do not request an extra limb,
     // we defer that decision till as late as possible in case the addition result fits
     // into the static storage rather than having to allocate for no reason
