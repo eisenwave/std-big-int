@@ -395,7 +395,7 @@ TEST(BitShift, OperatorLeftShiftSignedShiftAmount) {
 TEST(BitShift, OperatorLeftShiftPreservesOriginal) {
     // Verify operator<< doesn't modify the source even when the source
     // is large and heap-allocated.
-    const big_int x = big_int{1} << 200;
+    const big_int x     = big_int{1} << 200;
     const auto    x_rep = x.representation();
 
     const big_int r = x << 50;
@@ -509,7 +509,7 @@ TEST(BitShift, OperatorRightShiftKeepsHeapStorage) {
 }
 
 TEST(BitShift, OperatorRightShiftPreservesOriginal) {
-    const big_int x = big_int{1} << 200;
+    const big_int x     = big_int{1} << 200;
     const auto    x_rep = x.representation();
 
     const big_int r = x >> 50;

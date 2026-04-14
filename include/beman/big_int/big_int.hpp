@@ -759,8 +759,7 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     // Only reserve an extra limb for the bit-shift when the top limb doesn't enough leading zeros.
     // `countl_zero` tells us exactly how many bits of headroom the current top limb provides.
     const bool needs_extra_limb =
-        shifted_bits != 0 &&
-        static_cast<shift_type>(std::countl_zero(limb_ptr()[limb_count() - 1])) < shifted_bits;
+        shifted_bits != 0 && static_cast<shift_type>(std::countl_zero(limb_ptr()[limb_count() - 1])) < shifted_bits;
     reserve(limb_count() + shifted_limbs + static_cast<size_type>(needs_extra_limb));
     limb_type* const limbs = limb_ptr();
 
@@ -1340,11 +1339,12 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
         // lvalue: use assign_value with headroom so shift_left doesn't reallocate.
-        const shift_type  shifted_limbs = shift / Result::bits_per_limb;
-        const shift_type  shifted_bits  = shift % Result::bits_per_limb;
-        const bool        needs_extra   = shifted_bits != 0 &&
+        const shift_type shifted_limbs = shift / Result::bits_per_limb;
+        const shift_type shifted_bits  = shift % Result::bits_per_limb;
+        const bool       needs_extra =
+            shifted_bits != 0 &&
             static_cast<shift_type>(std::countl_zero(x.limb_ptr()[x.limb_count() - 1])) < shifted_bits;
-        const std::size_t headroom      = shifted_limbs + static_cast<std::size_t>(needs_extra);
+        const std::size_t headroom = shifted_limbs + static_cast<std::size_t>(needs_extra);
 
         Result r;
         r.assign_value(x, headroom);
