@@ -343,8 +343,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr void                       copy_n_to_allocation(const limb_type* p, size_type n, alloc_result out);
     constexpr void                       push_back_limb(limb_type limb);
 
+    // We are limited in our shifting to what we can encode into our control block, which is 30 bits of limbs
+    // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 or 31
+    // that are in the same limb.
+    // E.g., 000...01 can be shifted 63 bits to the left before it moves to the next limb
     using shift_type                      = unsigned long long;
-    static constexpr shift_type shift_max = std::numeric_limits<shift_type>::max();
+    static constexpr shift_type shift_max = ((1ULL << 31) - 1) * (sizeof(uint_multiprecision_t) * CHAR_BIT);
 
     // Increases the magnitude by one, without affecting the sign bit.
     // Returns `true` on carry in the uppermost limb.
