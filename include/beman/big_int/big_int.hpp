@@ -374,6 +374,15 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::size_t extent_other>
     constexpr void add_in_place(std::span<const uint_multiprecision_t, extent_other> other, bool other_neg);
 
+    // Used by the lvalue copy branches of `operator+` / `operator-` to decide
+    // whether to request one limb of carry-headroom when setting up the result.
+    // Returns 1 unless `x` sits exactly on the inline/heap boundary
+    // (`limb_count == inplace_limbs`), in which case reserving the extra limb
+    // would force an otherwise-inline result onto the heap.
+    [[nodiscard]] static constexpr std::size_t carry_headroom(const basic_big_int& x) noexcept {
+        return x.limb_count() == inplace_limbs ? 0 : 1;
+    }
+
     // Shared implementation behind copy-assign and move-assign.
     // Sets `dst` to a copy of `src`, reusing `dst`'s existing allocation whenever its effective
     // capacity already fits `src.limb_count() + extra_space` limbs.
@@ -442,17 +451,19 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
 
         if constexpr (is_move) {
-            // If `src` has a heap buffer that's large enough, stealing it is
-            // cheaper than allocating. `src.m_capacity >= src_count` always, so
-            // when `extra_space == 0` this branch fires for every heap `src`
-            // and keeps `operator=(&&)` allocation-free.
-            if (!src.is_storage_static() && src.m_capacity >= needed) {
+            // For a heap `src`, adopt its pointer unconditionally and then grow
+            // if the stolen capacity doesn't cover `needed`.
+            if (!src.is_storage_static()) {
                 dst.m_capacity      = src.m_capacity;
                 dst.m_storage.data  = src.m_storage.data;
                 src.m_capacity      = 0;
                 src.m_size_and_sign = 1;
+                if (dst.m_capacity < needed) {
+                    dst.grow(needed);
+                }
                 return;
             }
+            // `src` is inline, fall through to the allocate-and-copy path below.
         }
 
         // Fall back to a fresh allocation of `needed` limbs.
@@ -1109,13 +1120,15 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L> //
+    // In each of these branches we try to take the largest storage available
+    // In the case that we do have to allocate, we automatically add in an extra limb,
+    // otherwise we run the risk of a second allocation occuring a the end of addition
+    // In the case that we are using inline storage we do not request an extra limb,
+    // we defer that decision till as late as possible in case the addition result fits
+    // into the static storage rather than having to allocate for no reason
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>
                   && detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
-        // (1) both rvalue `basic_big_int`s: move the larger. Whichever we don't
-        // pick is freed at scope exit anyway, so we might as well take the one
-        // whose existing capacity already covers the result. `std::forward` and
-        // `std::move` are equivalent under the non-reference guard; `forward`
-        // silences the forwarding-reference lint.
+        // 1) both rvalue `basic_big_int`s: move the larger
         if (x.limb_count() >= y.limb_count()) {
             Result r = std::forward<L>(x);
             r.add_in_place(y.representation(), y.is_negative());
@@ -1125,7 +1138,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         r.add_in_place(x.representation(), x.is_negative());
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
-        // (2) rvalue lhs only: steal its storage.
+        // 2) rvalue lhs only: adopt its storage.
         Result r = std::forward<L>(x);
         if constexpr (detail::is_basic_big_int_v<RT>) {
             r.add_in_place(y.representation(), y.is_negative());
@@ -1135,7 +1148,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         }
         return r;
     } else if constexpr (detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
-        // (3) rvalue rhs only (addition is commutative, so we reuse rhs).
+        // 3) rvalue rhs only (addition is commutative, so we reuse rhs).
         Result r = std::forward<R>(y);
         if constexpr (detail::is_basic_big_int_v<LT>) {
             r.add_in_place(x.representation(), x.is_negative());
@@ -1145,28 +1158,30 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         }
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        // (4) both lvalue `basic_big_int`s: copy the larger-limb-count source so
-        // that `add_in_place`'s subsequent `grow(max(|x|,|y|))` is a no-op. Only
-        // a top-limb carry-out can force a further allocation.
+        // 4) both lvalue `basic_big_int`s: `copy_value` folds the copy of the
+        // larger operand and the carry-headroom reservation into one allocation
+        Result r;
         if (x.limb_count() >= y.limb_count()) {
-            Result r = x;
+            copy_value(r, x, Result::carry_headroom(x));
             r.add_in_place(y.representation(), y.is_negative());
             return r;
         }
-        Result r = y;
+        copy_value(r, y, Result::carry_headroom(y));
         r.add_in_place(x.representation(), x.is_negative());
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // (5) lvalue `basic_big_int` lhs, primitive rhs.
-        Result     r       = x;
+        // 5) lvalue `basic_big_int` lhs, primitive rhs.
+        Result r;
+        copy_value(r, x, Result::carry_headroom(x));
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
     } else {
-        // (6) primitive lhs, lvalue `basic_big_int` rhs (primitive+primitive is
+        // 6) primitive lhs, lvalue `basic_big_int` rhs (primitive+primitive is
         // forbidden by `common_big_int_type`; rvalue rhs was caught in (3)).
         static_assert(detail::is_basic_big_int_v<RT>);
-        Result     r       = y;
+        Result r;
+        copy_value(r, y, Result::carry_headroom(y));
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
@@ -1185,20 +1200,21 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     using LT     = std::remove_cvref_t<L>;
     using RT     = std::remove_cvref_t<R>;
 
-    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L> //
+    // See `operator+` description of logic, as it is the same
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>
                   && detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
-        // (1) both rvalue `basic_big_int`s: move the larger-limb-count source.
+        // 1) both rvalue `basic_big_int`s: move the larger-limb-count source.
         if (x.limb_count() >= y.limb_count()) {
             Result r = std::forward<L>(x);
             r.add_in_place(y.representation(), !y.is_negative()); // r + (-y)
             return r;
         }
         Result r = std::forward<R>(y);
-        r.negate();                                               // r = -y
-        r.add_in_place(x.representation(), x.is_negative());      // (-y) + x = x - y
+        r.negate();                                          // r = -y
+        r.add_in_place(x.representation(), x.is_negative()); // (-y) + x = x - y
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>) {
-        // (2) rvalue lhs only: `r = x; r += (-y)`.
+        // 2) rvalue lhs only: `r = x; r += (-y)`.
         Result r = std::forward<L>(x);
         if constexpr (detail::is_basic_big_int_v<RT>) {
             r.add_in_place(y.representation(), !y.is_negative());
@@ -1208,7 +1224,7 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         }
         return r;
     } else if constexpr (detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
-        // (3) rvalue rhs only: `r = -y; r += x` gives `x - y`.
+        // 3) rvalue rhs only: `r = -y; r += x` gives `x - y`.
         Result r = std::forward<R>(y);
         r.negate();
         if constexpr (detail::is_basic_big_int_v<LT>) {
@@ -1219,26 +1235,29 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         }
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT> && detail::is_basic_big_int_v<RT>) {
-        // (4) both lvalue `basic_big_int`s: copy the larger, then subtract the smaller.
+        // 4) both lvalue `basic_big_int`s: copy the larger, then subtract the smaller.
+        Result r;
         if (x.limb_count() >= y.limb_count()) {
-            Result r = x;
+            copy_value(r, x, Result::carry_headroom(x));
             r.add_in_place(y.representation(), !y.is_negative());
             return r;
         }
-        Result r = y;
+        copy_value(r, y, Result::carry_headroom(y));
         r.negate();
         r.add_in_place(x.representation(), x.is_negative());
         return r;
     } else if constexpr (detail::is_basic_big_int_v<LT>) {
-        // (5) lvalue `basic_big_int` lhs, primitive rhs.
-        Result     r       = x;
+        // 5) lvalue `basic_big_int` lhs, primitive rhs.
+        Result r;
+        copy_value(r, x, Result::carry_headroom(x));
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
         return r;
     } else {
-        // (6) primitive lhs, lvalue `basic_big_int` rhs: copy rhs, negate, add lhs.
+        // 6) primitive lhs, lvalue `basic_big_int` rhs: copy rhs, negate, add lhs.
         static_assert(detail::is_basic_big_int_v<RT>);
-        Result r = y;
+        Result r;
+        copy_value(r, y, Result::carry_headroom(y));
         r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
