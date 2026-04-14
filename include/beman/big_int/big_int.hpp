@@ -140,7 +140,7 @@ template <unsigned_integer T>
 }
 
 static_assert(invert(std::strong_ordering::less) == std::strong_ordering::greater,
-              "Weird standard libary. std::strong_ordering was expected to be a wrapper for signed char, "
+              "Weird standard library. std::strong_ordering was expected to be a wrapper for signed char, "
               "where negation exchanges less and greater.");
 
 } // namespace detail
