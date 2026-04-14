@@ -301,7 +301,7 @@ TEST(Allocation, MoveAssignStealsSrcWhenDstTooSmall) {
 TEST(Allocation, CopyAssignAllocatesWhenDstTooSmall) {
     // When dst has no (heap) capacity and src is bigger than inline, copy-assign
     // must allocate a fresh buffer.
-    beman::big_int::big_int dst; // inline, capacity 0
+    beman::big_int::big_int       dst; // inline, capacity 0
     const beman::big_int::big_int src = beman::big_int::big_int{0xFFFFFFFFFFFFFFFFU} + beman::big_int::big_int{1};
     ASSERT_GT(src.capacity(), 0U);
 
@@ -320,8 +320,8 @@ TEST(Allocation, AssignPreservesInlineBitCastInvariant) {
     // constructed big_int.
     using big_int_256 = beman::big_int::basic_big_int<256>;
     big_int_256 dst{0xFFFFFFFFFFFFFFFFU};
-    dst      = dst + big_int_256{1}; // promote to 2 limbs inline
-    dst      = big_int_256{7};       // shrink back to 1 limb inline -- tail must be zeroed
+    dst = dst + big_int_256{1}; // promote to 2 limbs inline
+    dst = big_int_256{7};       // shrink back to 1 limb inline -- tail must be zeroed
     EXPECT_EQ(dst, 7);
     EXPECT_EQ(dst, big_int_256{7});
     EXPECT_EQ(dst.representation().size(), 1U);

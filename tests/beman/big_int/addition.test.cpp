@@ -217,7 +217,7 @@ TEST(Addition, UnequalLengthMultiLimb) {
 
 TEST(Addition, RvalueLhsReusesStorage) {
     // Heap-allocated `a`; `std::move(a) + small` must write the result into `a`'s buffer.
-    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64, two limbs
+    big_int     a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64, two limbs
     const auto* a_data = a.representation().data();
     ASSERT_GT(a.capacity(), 0u); // heap-allocated
     const big_int r = std::move(a) + big_int{5};
@@ -230,8 +230,8 @@ TEST(Addition, RvalueLhsReusesStorage) {
 TEST(Addition, RvalueRhsReusesStorage) {
     // Commutative path: lhs is lvalue, rhs is rvalue; rhs's buffer should be reused.
     const big_int small{5};
-    big_int       b    = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const auto* b_data = b.representation().data();
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   b_data = b.representation().data();
     ASSERT_GT(b.capacity(), 0u);
     const big_int r = small + std::move(b);
     EXPECT_EQ(r.representation().data(), b_data);
@@ -242,8 +242,8 @@ TEST(Addition, RvalueRhsReusesStorage) {
 
 TEST(Addition, BothRvaluesReusesLhsStorage) {
     // When both operands are rvalues, lhs is preferred per dispatch order.
-    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    big_int b          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    big_int     a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    big_int     b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const auto* a_data = a.representation().data();
     ASSERT_GT(a.capacity(), 0u);
     ASSERT_GT(b.capacity(), 0u);
@@ -280,28 +280,28 @@ TEST(Addition, RvalueCancelToZeroIsPositive) {
 TEST(Addition, RvalueLhsSmallerMagnitudeThanRhs) {
     // Differing-sign, `|lhs| < |rhs|`: exercises `add_in_place`'s third branch,
     // which must rewrite lhs's buffer as `other - this` and adopt rhs's sign.
-    big_int       a          = big_int{5};                                                // 1 limb
-    const big_int b          = -(big_int{std::numeric_limits<std::uint64_t>::max()} + 1); // -2^64
-    const big_int r          = std::move(a) + b;                                          // 5 + (-2^64) = -(2^64 - 5)
-    const big_int expected   = -(big_int{std::numeric_limits<std::uint64_t>::max()} + 1 - big_int{5});
+    big_int       a        = big_int{5};                                                // 1 limb
+    const big_int b        = -(big_int{std::numeric_limits<std::uint64_t>::max()} + 1); // -2^64
+    const big_int r        = std::move(a) + b;                                          // 5 + (-2^64) = -(2^64 - 5)
+    const big_int expected = -(big_int{std::numeric_limits<std::uint64_t>::max()} + 1 - big_int{5});
     EXPECT_EQ(r, expected);
     EXPECT_TRUE(r < 0);
 }
 
 TEST(Addition, RvaluePrimitiveMix) {
     // rvalue big_int + primitive: should reuse lhs.
-    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const auto* a_data = a.representation().data();
-    const big_int r    = std::move(a) + 5U;
+    big_int       a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   a_data = a.representation().data();
+    const big_int r      = std::move(a) + 5U;
     EXPECT_EQ(r.representation().data(), a_data);
     ASSERT_EQ(r.representation().size(), 2u);
     EXPECT_EQ(r.representation()[0], uint_multiprecision_t{5});
     EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
 
     // primitive + rvalue big_int: should reuse rhs.
-    big_int b          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const auto* b_data = b.representation().data();
-    const big_int r2   = 7 + std::move(b);
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   b_data = b.representation().data();
+    const big_int r2     = 7 + std::move(b);
     EXPECT_EQ(r2.representation().data(), b_data);
     ASSERT_EQ(r2.representation().size(), 2u);
     EXPECT_EQ(r2.representation()[0], uint_multiprecision_t{7});

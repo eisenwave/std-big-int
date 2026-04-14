@@ -207,7 +207,7 @@ TEST(Subtraction, AgreesWithAdditionOfNegated) {
 // destination and add; for lhs reuse we add with the negated rhs sign.
 
 TEST(Subtraction, RvalueLhsReusesStorage) {
-    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    big_int     a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
     const auto* a_data = a.representation().data();
     ASSERT_GT(a.capacity(), 0u);
     const big_int r = std::move(a) - big_int{1}; // 2^64 - 1 trims to one limb
@@ -218,8 +218,8 @@ TEST(Subtraction, RvalueLhsReusesStorage) {
 
 TEST(Subtraction, RvalueRhsReusesStorage) {
     const big_int small{1};
-    big_int       b    = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
-    const auto* b_data = b.representation().data();
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    const auto*   b_data = b.representation().data();
     ASSERT_GT(b.capacity(), 0u);
     const big_int r = small - std::move(b); // 1 - 2^64 = -(2^64 - 1)
     EXPECT_EQ(r.representation().data(), b_data);
@@ -229,10 +229,10 @@ TEST(Subtraction, RvalueRhsReusesStorage) {
 }
 
 TEST(Subtraction, BothRvaluesReusesLhsStorage) {
-    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    big_int b          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const auto* a_data = a.representation().data();
-    const big_int r    = std::move(a) - std::move(b);
+    big_int       a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   a_data = a.representation().data();
+    const big_int r      = std::move(a) - std::move(b);
     EXPECT_EQ(r.representation().data(), a_data);
     EXPECT_EQ(r, 0);
     EXPECT_FALSE(r < 0); // no negative zero
@@ -258,9 +258,9 @@ TEST(Subtraction, RvalueRhsNegativeToNegateBranch) {
     // destination. Uses an lvalue lhs so the rvalue-lhs dispatch branch doesn't
     // short-circuit in first.
     const big_int three{3};
-    big_int       b    = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
-    const auto* b_data = b.representation().data();
-    const big_int r    = three - std::move(b); // 3 - 2^64 = -(2^64 - 3)
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    const auto*   b_data = b.representation().data();
+    const big_int r      = three - std::move(b); // 3 - 2^64 = -(2^64 - 3)
     EXPECT_EQ(r.representation().data(), b_data);
     const big_int expected = -(big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1} - big_int{3});
     EXPECT_EQ(r, expected);
@@ -273,8 +273,8 @@ TEST(Subtraction, RvalueLhsSmallerMagnitudeTriggersGrow) {
     // fit the larger magnitude before computing `other - this`. Here the grow
     // is required to hold the intermediate two-limb subtraction; the final
     // result trims back to a single limb (`2^64 - 3 = 0xFFFF...FFFD`).
-    big_int       a        = big_int{3};                                                      // inline, 1 limb
-    const big_int b        = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    big_int       a = big_int{3};                                                      // inline, 1 limb
+    const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
     EXPECT_EQ(a.capacity(), 0u);
     const big_int r        = std::move(a) - b; // 3 - 2^64 = -(2^64 - 3)
     const big_int expected = -(big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1} - big_int{3});
@@ -288,17 +288,17 @@ TEST(Subtraction, RvalueLhsSmallerMagnitudeTriggersGrow) {
 
 TEST(Subtraction, RvaluePrimitiveMix) {
     // rvalue big_int minus primitive: should reuse lhs.
-    big_int a          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const auto* a_data = a.representation().data();
-    const big_int r    = std::move(a) - 1U;
+    big_int       a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   a_data = a.representation().data();
+    const big_int r      = std::move(a) - 1U;
     EXPECT_EQ(r.representation().data(), a_data);
     ASSERT_EQ(r.representation().size(), 1u);
     EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
 
     // primitive minus rvalue big_int: should reuse rhs (via negate + add).
-    big_int b          = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const auto* b_data = b.representation().data();
-    const big_int r2   = 1 - std::move(b); // 1 - 2^64 = -(2^64 - 1)
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   b_data = b.representation().data();
+    const big_int r2     = 1 - std::move(b); // 1 - 2^64 = -(2^64 - 1)
     EXPECT_EQ(r2.representation().data(), b_data);
     ASSERT_EQ(r2.representation().size(), 1u);
     EXPECT_EQ(r2.representation()[0], std::numeric_limits<std::uint64_t>::max());

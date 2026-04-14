@@ -1126,8 +1126,8 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     // In the case that we are using inline storage we do not request an extra limb,
     // we defer that decision till as late as possible in case the addition result fits
     // into the static storage rather than having to allocate for no reason
-    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>
-                  && detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L> && detail::is_basic_big_int_v<RT> &&
+                  !std::is_reference_v<R>) {
         // 1) both rvalue `basic_big_int`s: move the larger
         if (x.limb_count() >= y.limb_count()) {
             Result r = std::forward<L>(x);
@@ -1201,8 +1201,8 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     using RT     = std::remove_cvref_t<R>;
 
     // See `operator+` description of logic, as it is the same
-    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L>
-                  && detail::is_basic_big_int_v<RT> && !std::is_reference_v<R>) {
+    if constexpr (detail::is_basic_big_int_v<LT> && !std::is_reference_v<L> && detail::is_basic_big_int_v<RT> &&
+                  !std::is_reference_v<R>) {
         // 1) both rvalue `basic_big_int`s: move the larger-limb-count source.
         if (x.limb_count() >= y.limb_count()) {
             Result r = std::forward<L>(x);
@@ -1394,9 +1394,8 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
 // copy of an lvalue operand) and supplies the other side as a limb span + sign.
 template <std::size_t b, class A>
 template <std::size_t extent_other>
-constexpr void
-basic_big_int<b, A>::add_in_place(const std::span<const uint_multiprecision_t, extent_other> other,
-                                  const bool                                                 other_neg) {
+constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_multiprecision_t, extent_other> other,
+                                                 const bool other_neg) {
     const bool this_neg = is_negative();
 
     if (this_neg == other_neg) {
