@@ -388,7 +388,7 @@ TEST(BitShift, OperatorLeftShiftHeapSource) {
 
 TEST(BitShift, OperatorLeftShiftSignedShiftAmount) {
     const big_int x{1};
-    const big_int r = x << static_cast<int>(10);
+    const big_int r = x << 10;
     EXPECT_EQ(r, 1024);
 }
 
@@ -526,7 +526,7 @@ TEST(BitShift, OperatorRightShiftPreservesOriginal) {
 
 TEST(BitShift, OperatorRightShiftSignedShiftAmount) {
     const big_int x{1024};
-    const big_int r = x >> static_cast<int>(5);
+    const big_int r = x >> 5;
     EXPECT_EQ(r, 32);
 }
 
