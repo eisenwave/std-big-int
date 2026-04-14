@@ -329,6 +329,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <class T, detail::signed_or_unsigned S>
         requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
     friend constexpr std::remove_cvref_t<T> operator<<(T&& x, S s);
+    template <class T, detail::signed_or_unsigned S>
+        requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
+    friend constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
 
   private:
     template <detail::unsigned_integer T>
@@ -1344,6 +1347,38 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
         Result r;
         r.assign_value(x, headroom);
         r.shift_left(shift);
+        return r;
+    }
+}
+
+template <class T, detail::signed_or_unsigned S>
+    requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
+constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
+    using Result     = std::remove_cvref_t<T>;
+    using shift_type = typename Result::shift_type;
+
+    if constexpr (std::is_signed_v<S>) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= Result::shift_max);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s <= Result::shift_max);
+    }
+    const auto shift = static_cast<shift_type>(s);
+
+    if constexpr (!std::is_reference_v<T>) {
+        // rvalue: shift in place, no copy needed.
+        Result r = std::forward<T>(x);
+        r.shift_right(shift);
+        return r;
+    } else {
+        // lvalue: copy then shift. No extra headroom needed since right-shift
+        // only shrinks. 
+        // The result keeps the source's heap buffer (if any) even if the shifted value fits inline.
+        // I don't see a reason to deallocate memory even if we now fit in static storage,
+        // we may need it later
+        Result r;
+        r.assign_value(x);
+        r.shift_right(shift);
         return r;
     }
 }
