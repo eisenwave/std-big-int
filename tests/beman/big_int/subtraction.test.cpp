@@ -201,4 +201,135 @@ TEST(Subtraction, AgreesWithAdditionOfNegated) {
     }
 }
 
+// ----- rvalue storage-reuse tests -----
+// When either operand is an rvalue `basic_big_int`, `operator-` should reuse its
+// storage rather than allocating a new result. For rhs reuse we cheaply negate the
+// destination and add; for lhs reuse we add with the negated rhs sign.
+
+TEST(Subtraction, RvalueLhsReusesStorage) {
+    big_int     a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    const auto* a_data = a.representation().data();
+    ASSERT_GT(a.capacity(), 0u);
+    const big_int r = std::move(a) - big_int{1}; // 2^64 - 1 trims to one limb
+    EXPECT_EQ(r.representation().data(), a_data);
+    ASSERT_EQ(r.representation().size(), 1u);
+    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
+}
+
+TEST(Subtraction, RvalueRhsReusesStorage) {
+    const big_int small{1};
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    const auto*   b_data = b.representation().data();
+    ASSERT_GT(b.capacity(), 0u);
+    const big_int r = small - std::move(b); // 1 - 2^64 = -(2^64 - 1)
+    EXPECT_EQ(r.representation().data(), b_data);
+    ASSERT_EQ(r.representation().size(), 1u);
+    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_TRUE(r < 0);
+}
+
+TEST(Subtraction, BothRvaluesReusesLhsStorage) {
+    big_int       a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   a_data = a.representation().data();
+    const big_int r      = std::move(a) - std::move(b);
+    EXPECT_EQ(r.representation().data(), a_data);
+    EXPECT_EQ(r, 0);
+    EXPECT_FALSE(r < 0); // no negative zero
+}
+
+TEST(Subtraction, RvalueLhsCancelToZeroIsPositive) {
+    // `std::move(a) - copy-of-a` exercises the differing-sign branch within
+    // `add_in_place` where `|this| == |other|`; must normalize to +0 even though
+    // the destination's sign might momentarily imply "-0" under a naive impl.
+    big_int       a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const big_int b = a;
+    const big_int r = std::move(a) - b;
+    EXPECT_EQ(r, 0);
+    EXPECT_FALSE(r < 0);
+    ASSERT_EQ(r.representation().size(), 1u);
+    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
+}
+
+TEST(Subtraction, RvalueRhsNegativeToNegateBranch) {
+    // `lvalue_small - std::move(big)` with `|small| < |big|`: rhs-reuse path
+    // negates `big` first (cheap XOR), then in-place adds `small`. The add then
+    // hits the differing-sign / `|this| > |other|` branch on the negated
+    // destination. Uses an lvalue lhs so the rvalue-lhs dispatch branch doesn't
+    // short-circuit in first.
+    const big_int three{3};
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    const auto*   b_data = b.representation().data();
+    const big_int r      = three - std::move(b); // 3 - 2^64 = -(2^64 - 3)
+    EXPECT_EQ(r.representation().data(), b_data);
+    const big_int expected = -(big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1} - big_int{3});
+    EXPECT_EQ(r, expected);
+    EXPECT_TRUE(r < 0);
+}
+
+TEST(Subtraction, RvalueLhsSmallerMagnitudeTriggersGrow) {
+    // `std::move(small) - big` with `|lhs| < |rhs|` exercises `add_in_place`'s
+    // `|other| > |this|` branch, which must grow the (inline) destination to
+    // fit the larger magnitude before computing `other - this`. Here the grow
+    // is required to hold the intermediate two-limb subtraction; the final
+    // result trims back to a single limb (`2^64 - 3 = 0xFFFF...FFFD`).
+    big_int       a = big_int{3};                                                      // inline, 1 limb
+    const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    EXPECT_EQ(a.capacity(), 0u);
+    const big_int r        = std::move(a) - b; // 3 - 2^64 = -(2^64 - 3)
+    const big_int expected = -(big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1} - big_int{3});
+    EXPECT_EQ(r, expected);
+    EXPECT_TRUE(r < 0);
+    ASSERT_EQ(r.representation().size(), 1u);
+    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max() - 2U);
+    // The grow left the destination on the heap, even after the trim.
+    EXPECT_GT(r.capacity(), 0u);
+}
+
+TEST(Subtraction, RvaluePrimitiveMix) {
+    // rvalue big_int minus primitive: should reuse lhs.
+    big_int       a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   a_data = a.representation().data();
+    const big_int r      = std::move(a) - 1U;
+    EXPECT_EQ(r.representation().data(), a_data);
+    ASSERT_EQ(r.representation().size(), 1u);
+    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
+
+    // primitive minus rvalue big_int: should reuse rhs (via negate + add).
+    big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const auto*   b_data = b.representation().data();
+    const big_int r2     = 1 - std::move(b); // 1 - 2^64 = -(2^64 - 1)
+    EXPECT_EQ(r2.representation().data(), b_data);
+    ASSERT_EQ(r2.representation().size(), 1u);
+    EXPECT_EQ(r2.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_TRUE(r2 < 0);
+}
+
+TEST(Subtraction, LvalueFallbackUnchanged) {
+    // Pure lvalue/lvalue dispatch: correctness only.
+    const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()};
+    const big_int r = a - b; // 2^64 - (2^64 - 1) = 1
+    EXPECT_EQ(r, 1);
+    // Operands untouched.
+    EXPECT_EQ(a.representation().size(), 2u);
+    EXPECT_EQ(b.representation().size(), 1u);
+}
+
+TEST(Subtraction, LvalueCopiesLargerOperand) {
+    // When both operands are lvalues, copy whichever has more limbs. For
+    // subtraction this means the rhs-copy path (with negate) runs when
+    // `|rhs| > |lhs|`, exercising `negate() + add_in_place`.
+    const big_int small{7};                                                              // 1 limb
+    const big_int big = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2 limbs
+
+    const big_int r1 = small - big; // rhs larger -> copy-and-negate-rhs path
+    EXPECT_EQ(r1, -(big - small));
+    EXPECT_GE(r1.capacity(), 2u);
+
+    const big_int r2 = big - small; // lhs larger -> copy-lhs path
+    EXPECT_EQ(r2, big - small);
+    EXPECT_GE(r2.capacity(), 2u);
+}
+
 } // namespace

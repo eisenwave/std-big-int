@@ -236,6 +236,97 @@ TEST(Allocation, SelfAssignment) {
     EXPECT_EQ(x.representation()[0], 42U);
 }
 
+// ----- operator= storage reuse -----
+// The shared `assign_value` helper keeps the destination's allocation if its
+// effective capacity already fits the source. These tests verify the fast path
+// by checking that the destination's data pointer does not change.
+
+TEST(Allocation, CopyAssignReusesDstStorage) {
+    beman::big_int::big_int dst{1U};
+    dst.reserve(8); // dst now on the heap with capacity >= 8
+    const auto* const dst_data = dst.representation().data();
+    const auto        dst_cap  = dst.capacity();
+
+    const beman::big_int::big_int src = beman::big_int::big_int{0xFFFFFFFFFFFFFFFFU} + beman::big_int::big_int{1};
+    ASSERT_EQ(src.representation().size(), 2U); // heap, 2 limbs -- fits in dst's capacity
+
+    dst = src;
+    EXPECT_EQ(dst.representation().data(), dst_data); // no reallocation
+    EXPECT_EQ(dst.capacity(), dst_cap);
+    ASSERT_EQ(dst.representation().size(), 2U);
+    EXPECT_EQ(dst, src);
+}
+
+TEST(Allocation, MoveAssignReusesDstStorageWhenLarger) {
+    // When dst's capacity already covers src's limb count, assign_value should
+    // copy src's limbs into dst's buffer rather than stealing src's (smaller)
+    // buffer.
+    beman::big_int::big_int dst{1U};
+    dst.reserve(16); // big dst buffer
+    const auto* const dst_data = dst.representation().data();
+    const auto        dst_cap  = dst.capacity();
+
+    beman::big_int::big_int src = beman::big_int::big_int{0xFFFFFFFFFFFFFFFFU} + beman::big_int::big_int{1};
+    ASSERT_EQ(src.representation().size(), 2U);
+    const auto src_cap = src.capacity();
+    ASSERT_LT(src_cap, dst_cap); // dst has more capacity than src
+
+    dst = std::move(src);
+    // dst retained its larger buffer rather than adopting src's smaller one.
+    EXPECT_EQ(dst.representation().data(), dst_data);
+    EXPECT_EQ(dst.capacity(), dst_cap);
+    ASSERT_EQ(dst.representation().size(), 2U);
+}
+
+TEST(Allocation, MoveAssignStealsSrcWhenDstTooSmall) {
+    // When dst's capacity is insufficient, move-assign must steal src's buffer
+    // (noexcept contract -- no allocation allowed).
+    beman::big_int::big_int dst; // inline, capacity 0
+    EXPECT_EQ(dst.capacity(), 0U);
+
+    beman::big_int::big_int src = beman::big_int::big_int{0xFFFFFFFFFFFFFFFFU} + beman::big_int::big_int{1};
+    ASSERT_GT(src.capacity(), 0U);
+    const auto* const src_data = src.representation().data();
+    const auto        src_cap  = src.capacity();
+
+    dst = std::move(src);
+    // dst adopted src's buffer wholesale.
+    EXPECT_EQ(dst.representation().data(), src_data);
+    EXPECT_EQ(dst.capacity(), src_cap);
+    // src released heap ownership (moved-from state; value is unspecified,
+    // matching the existing move-assign contract).
+    EXPECT_EQ(src.capacity(), 0U);
+}
+
+TEST(Allocation, CopyAssignAllocatesWhenDstTooSmall) {
+    // When dst has no (heap) capacity and src is bigger than inline, copy-assign
+    // must allocate a fresh buffer.
+    beman::big_int::big_int       dst; // inline, capacity 0
+    const beman::big_int::big_int src = beman::big_int::big_int{0xFFFFFFFFFFFFFFFFU} + beman::big_int::big_int{1};
+    ASSERT_GT(src.capacity(), 0U);
+
+    dst = src;
+    ASSERT_EQ(dst.representation().size(), 2U);
+    EXPECT_GT(dst.capacity(), 0U);
+    EXPECT_NE(dst.representation().data(), src.representation().data());
+    EXPECT_EQ(dst, src);
+}
+
+TEST(Allocation, AssignPreservesInlineBitCastInvariant) {
+    // After assigning a shorter value into a destination that previously held
+    // a longer value in inline storage, the unused tail limbs must be zero so
+    // that `inplace_to_bit_uint` would still produce the correct bit pattern.
+    // We verify indirectly by checking that equality comparisons match a freshly
+    // constructed big_int.
+    using big_int_256 = beman::big_int::basic_big_int<256>;
+    big_int_256 dst{0xFFFFFFFFFFFFFFFFU};
+    dst = dst + big_int_256{1}; // promote to 2 limbs inline
+    dst = big_int_256{7};       // shrink back to 1 limb inline -- tail must be zeroed
+    EXPECT_EQ(dst, 7);
+    EXPECT_EQ(dst, big_int_256{7});
+    EXPECT_EQ(dst.representation().size(), 1U);
+}
+
 // ----- shrink_to_fit edge cases -----
 
 TEST(Allocation, ShrinkToFitBackToInline) {
