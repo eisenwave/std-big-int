@@ -346,13 +346,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr void                       copy_n_to_allocation(const limb_type* p, size_type n, alloc_result out);
     constexpr void                       push_back_limb(limb_type limb);
 
-    // We are limited in our shifting to what we can encode into our control block, which is 30 bits of limbs
-    // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 or 31
+    // We are limited in our shifting to what we can encode into our control block, which is 30 (or 27) bits of limbs
+    // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 (or 31)
     // that are in the same limb.
-    // E.g., 000...01 can be shifted 63 bits to the left before it moves to the next limb
-    // TODO : We discussed reducing the size of the encoding for 32-bit platforms so that this result fits in unsigned long (becomes the same type as the limbs)
-    using shift_type                      = unsigned long long;
-    static constexpr shift_type shift_max = ((1ULL << 31) - 1) * (sizeof(uint_multiprecision_t) * CHAR_BIT);
+    using shift_type                      = uint_multiprecision_t;
+    static constexpr shift_type shift_max = static_cast<shift_type>(max_size()) * bits_per_limb;
 
     // Increases the magnitude by one, without affecting the sign bit.
     // Returns `true` on carry in the uppermost limb.
@@ -885,8 +883,10 @@ constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::max_size() noexcept {
-    // We use the high bit to encode the sign, so we are limited to 2^31
-    return std::numeric_limits<std::uint32_t>::max() >> 1U;
+    // We use the high bit to encode the sign, so we are limited to 2^31 on 64-bit architectures
+    // On 32-bit architectures we reduce to 2^27 so that the number of bits can be represented by size_type
+    constexpr std::uint32_t offset = sizeof(size_type) == sizeof(std::uint64_t) ? 1U : 4U;
+    return std::numeric_limits<std::uint32_t>::max() >> offset;
 }
 
 template <std::size_t b, class A>
