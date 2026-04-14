@@ -9,6 +9,7 @@
 
 namespace {
 
+using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
 using beman::big_int::uint_multiprecision_t;
 using beman::big_int::detail::int_multiprecision_t;
@@ -214,6 +215,199 @@ TEST(BitShift, LeftThenRightRoundTripForPositive) {
     x <<= 130;
     x >>= 130;
     EXPECT_EQ(x == 123'456'789, true);
+}
+
+// ----- operator<< (non-mutating left shift) -----
+
+TEST(BitShift, OperatorLeftShiftBasic) {
+    const big_int x{1};
+    const big_int r = x << 1;
+    EXPECT_EQ(r, 2);
+    EXPECT_EQ(x, 1); // original unchanged
+}
+
+TEST(BitShift, OperatorLeftShiftZeroShift) {
+    const big_int x{42};
+    const big_int r = x << 0;
+    EXPECT_EQ(r, 42);
+}
+
+TEST(BitShift, OperatorLeftShiftZeroValue) {
+    const big_int x{0};
+    const big_int r = x << 100;
+    EXPECT_EQ(r, 0);
+}
+
+TEST(BitShift, OperatorLeftShiftNegative) {
+    const big_int x{-1};
+    const big_int r = x << 1;
+    EXPECT_EQ(r, -2);
+
+    const big_int y{-3};
+    const big_int s = y << 2;
+    EXPECT_EQ(s, -12);
+}
+
+TEST(BitShift, OperatorLeftShiftMatchesCompound) {
+    // operator<< on an lvalue should produce the same result as <<=
+    const big_int x{123'456'789};
+    big_int       y{123'456'789};
+
+    const big_int r = x << 17;
+    y <<= 17;
+    EXPECT_EQ(r, y);
+
+    const big_int a{std::numeric_limits<uint_multiprecision_t>::max()};
+    big_int       b{std::numeric_limits<uint_multiprecision_t>::max()};
+
+    const big_int r2 = a << 65;
+    b <<= 65;
+    EXPECT_EQ(r2, b);
+}
+
+TEST(BitShift, OperatorLeftShiftRvalue) {
+    // rvalue path: should move the storage, no copy
+    big_int r = big_int{1} << 10;
+    EXPECT_EQ(r, 1024);
+
+    big_int s = big_int{std::numeric_limits<uint_multiprecision_t>::max()} << 1;
+    EXPECT_EQ(s.representation().size(), 2U);
+    EXPECT_EQ(s.representation()[0], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
+    EXPECT_EQ(s.representation()[1], 1ULL);
+}
+
+TEST(BitShift, OperatorLeftShiftInplaceToHeap) {
+    // default big_int has inplace_capacity=1 (one 64-bit limb).
+    // Shifting 1 left by 63 bits: top limb = 0x8000...0, CLZ = 0.
+    // A further shift by 1 bit must overflow into a second limb (heap).
+    const big_int x{1ULL << 63};
+    EXPECT_EQ(x.capacity(), 0U); // inline
+
+    const big_int r = x << 1;
+    EXPECT_EQ(r.representation().size(), 2U);
+    EXPECT_EQ(r.representation()[0], 0ULL);
+    EXPECT_EQ(r.representation()[1], 1ULL);
+}
+
+TEST(BitShift, OperatorLeftShiftInplaceStaysInlineCLZ) {
+    // Value 1 has CLZ = 63 in a 64-bit limb. Shifting left by up to 63 bits
+    // should NOT overflow into a new limb, staying in inline storage.
+    const big_int x{1};
+    EXPECT_EQ(x.capacity(), 0U); // inline
+
+    const big_int r = x << 63;
+    EXPECT_EQ(r.capacity(), 0U); // still inline
+    EXPECT_EQ(r.representation().size(), 1U);
+    EXPECT_EQ(r.representation()[0], 1ULL << 63);
+}
+
+TEST(BitShift, OperatorLeftShiftWiderInplaceStaysInline) {
+    // basic_big_int<256> has 4 inline limbs (256 bits). A small value shifted
+    // within those 256 bits should never touch the heap.
+    using big_int_256 = basic_big_int<256>;
+    const big_int_256 x{1};
+    EXPECT_EQ(x.capacity(), 0U);
+
+    const big_int_256 r = x << 255;
+    EXPECT_EQ(r.capacity(), 0U); // still inline
+
+    // Top limb should be 1 << (255 % 64) = 1 << 63
+    EXPECT_EQ(r.representation().size(), 4U);
+    EXPECT_EQ(r.representation()[3], 1ULL << 63);
+    EXPECT_EQ(r.representation()[2], 0ULL);
+    EXPECT_EQ(r.representation()[1], 0ULL);
+    EXPECT_EQ(r.representation()[0], 0ULL);
+}
+
+TEST(BitShift, OperatorLeftShiftWiderInplaceToHeap) {
+    // basic_big_int<256>: 4 inline limbs. Shifting 1 by 256 bits requires
+    // 5 limbs, which must spill to the heap.
+    using big_int_256 = basic_big_int<256>;
+    const big_int_256 x{1};
+
+    const big_int_256 r = x << 256;
+    EXPECT_EQ(r.representation().size(), 5U);
+    EXPECT_NE(r.capacity(), 0U); // heap
+    EXPECT_EQ(r.representation()[4], 1ULL);
+    for (int i = 0; i < 4; ++i) {
+        EXPECT_EQ(r.representation()[static_cast<std::size_t>(i)], 0ULL);
+    }
+}
+
+TEST(BitShift, OperatorLeftShiftAcrossLimbs) {
+    const big_int x{1};
+
+    const big_int r64  = x << 64;
+    const big_int r65  = x << 65;
+    const big_int r128 = x << 128;
+
+    EXPECT_EQ(r64.representation().size(), 2U);
+    EXPECT_EQ(r64.representation()[0], 0ULL);
+    EXPECT_EQ(r64.representation()[1], 1ULL);
+
+    EXPECT_EQ(r65.representation().size(), 2U);
+    EXPECT_EQ(r65.representation()[0], 0ULL);
+    EXPECT_EQ(r65.representation()[1], 2ULL);
+
+    EXPECT_EQ(r128.representation().size(), 3U);
+    EXPECT_EQ(r128.representation()[0], 0ULL);
+    EXPECT_EQ(r128.representation()[1], 0ULL);
+    EXPECT_EQ(r128.representation()[2], 1ULL);
+}
+
+TEST(BitShift, OperatorLeftShiftHuge) {
+    // Shift a small value by a large amount (10000 bits).
+    const big_int x{1};
+    const big_int r = x << 10000;
+
+    // 10000 / 64 = 156 whole limbs, 10000 % 64 = 16-bit shift
+    EXPECT_EQ(r.representation().size(), 157U);
+    EXPECT_EQ(r.representation()[156], 1ULL << 16);
+    EXPECT_EQ(r.representation()[155], 0ULL);
+    EXPECT_EQ(r.representation()[0], 0ULL);
+
+    // Verify via round-trip with >>=
+    big_int rt = r;
+    rt >>= 10000;
+    EXPECT_EQ(rt, 1);
+}
+
+TEST(BitShift, OperatorLeftShiftHeapSource) {
+    // Source already on the heap; operator<< should pre-allocate headroom
+    // so shift_left doesn't reallocate.
+    big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
+    x <<= 1; // now 2 limbs, on heap
+    EXPECT_NE(x.capacity(), 0U);
+
+    const big_int r = x << 64;
+    EXPECT_EQ(r.representation().size(), 3U);
+    EXPECT_EQ(r.representation()[0], 0ULL);
+    EXPECT_EQ(r.representation()[1], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
+    EXPECT_EQ(r.representation()[2], 1ULL);
+}
+
+TEST(BitShift, OperatorLeftShiftSignedShiftAmount) {
+    const big_int x{1};
+    const big_int r = x << static_cast<int>(10);
+    EXPECT_EQ(r, 1024);
+}
+
+TEST(BitShift, OperatorLeftShiftPreservesOriginal) {
+    // Verify operator<< doesn't modify the source even when the source
+    // is large and heap-allocated.
+    const big_int x = big_int{1} << 200;
+    const auto    x_rep = x.representation();
+
+    const big_int r = x << 50;
+    EXPECT_EQ(x.representation().size(), x_rep.size());
+    for (std::size_t i = 0; i < x_rep.size(); ++i) {
+        EXPECT_EQ(x.representation()[i], x_rep[i]);
+    }
+
+    // And the result should match doing it in two steps
+    big_int expected{1};
+    expected <<= 250;
+    EXPECT_EQ(r, expected);
 }
 
 } // namespace
