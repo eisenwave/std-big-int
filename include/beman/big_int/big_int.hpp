@@ -1706,7 +1706,7 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const size_t
 // because we don't keep track of "requested" vs "received" capacity
 // (these may not be the same with allocate_at_least).
 #if !defined(__cpp_lib_raw_memory_algorithms) || __cpp_lib_raw_memory_algorithms < 202411L
-    if !consteval {
+    if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
 #endif
         std::uninitialized_copy_n(p, n, out.ptr);
         std::uninitialized_value_construct_n(out.ptr + n, out.count - n);
