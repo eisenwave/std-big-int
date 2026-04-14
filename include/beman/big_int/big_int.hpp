@@ -322,6 +322,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y);
     template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y);
+    // TODO : mul, div, mod
+
+    // TODO : and, or, xor
+
+    template <class T, detail::signed_or_unsigned S>
+    friend constexpr std::remove_cvref_t<T> operator<<(T&& x, S s);
 
   private:
     template <detail::unsigned_integer T>
@@ -1299,6 +1305,40 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
+        return r;
+    }
+}
+
+template <class T, detail::signed_or_unsigned S>
+    requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
+constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
+    using Result     = std::remove_cvref_t<T>;
+    using shift_type = typename Result::shift_type;
+
+    if constexpr (std::is_signed_v<S>) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= Result::shift_max);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s <= Result::shift_max);
+    }
+    const auto shift = static_cast<shift_type>(s);
+
+    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>> && !std::is_reference_v<T>) {
+        // rvalue: shift in place, no copy needed.
+        Result r = std::forward<T>(x);
+        r.shift_left(shift);
+        return r;
+    } else {
+        // lvalue: use assign_value with headroom so shift_left doesn't reallocate.
+        const shift_type shifted_limbs = shift / Result::bits_per_limb;
+        const shift_type shifted_bits  = shift % Result::bits_per_limb;
+        const bool       needs_extra   = shifted_bits != 0 &&
+            static_cast<shift_type>(std::countl_zero(x.limb_ptr()[x.limb_count() - 1])) < shifted_bits;
+        const std::size_t headroom     = shifted_limbs + static_cast<std::size_t>(needs_extra);
+
+        Result r;
+        r.assign_value(x, headroom);
+        r.shift_left(shift);
         return r;
     }
 }
