@@ -322,6 +322,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y);
 
+    // [big.int.conv], conversions
+    template <class T>
+        requires detail::cv_unqualified<T> && std::is_arithmetic_v<T>
+    constexpr explicit operator T() const noexcept;
+
   private:
     template <detail::unsigned_integer T>
     constexpr void assign_magnitude(T value) noexcept;
@@ -945,6 +950,32 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
     } else {
         static_assert(detail::is_basic_big_int_v<R>);
         return detail::invert(rhs.compare_integer(lhs));
+    }
+}
+
+template <std::size_t b, class A>
+template <class T>
+    requires detail::cv_unqualified<T> && std::is_arithmetic_v<T>
+constexpr basic_big_int<b, A>::operator T() const noexcept {
+    if constexpr (std::is_same_v<T, bool>) {
+        return !is_zero();
+    } else if constexpr (std::is_floating_point_v<T>) {
+        constexpr T       two64 = static_cast<T>(1ULL << 32) * static_cast<T>(1ULL << 32);
+        T                 result{0};
+        const auto* const limbs = limb_ptr();
+        for (std::size_t i = limb_count(); i-- > 0;) {
+            result = result * two64 + static_cast<T>(limbs[i]);
+        }
+        return is_negative() ? -result : result;
+    } else {
+        using U = std::make_unsigned_t<T>;
+        U                 mag{0};
+        constexpr auto    n     = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
+        const auto* const limbs = limb_ptr();
+        for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
+            mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
+        }
+        return static_cast<T>(is_negative() ? ~mag + U{1} : mag);
     }
 }
 
