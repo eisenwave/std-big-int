@@ -322,11 +322,10 @@ TEST(Addition, LvalueFallbackUnchanged) {
     EXPECT_EQ(b.representation().size(), 2u);
 }
 
-TEST(Addition, LvalueReservesCarryHeadroomInCopy) {
-    // `a + b` with two lvalue heap operands goes through `copy_value(r, larger, 1)`,
-    // which allocates `|larger| + 1` limbs in one shot. The result's capacity
-    // must reflect that reservation, demonstrating that a subsequent carry-out
-    // grow would not require a second allocation.
+TEST(Addition, LvalueHeapReservesCarryHeadroom) {
+    // `a + b` with two lvalue heap operands copies the larger operand with one
+    // extra limb of headroom so that a carry-out never triggers a second
+    // allocation.
     const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64, 2 limbs
     const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     ASSERT_EQ(a.representation().size(), 2U);
@@ -339,9 +338,9 @@ TEST(Addition, LvalueReservesCarryHeadroomInCopy) {
 
 TEST(Addition, InlineInlineNoCarryStaysInline) {
     // When both lvalue operands fit inline and the ripple-carry doesn't
-    // overflow, the result must stay in inline storage. `carry_headroom()`
-    // drops the +1 for inline-boundary sources so we don't pre-allocate a
-    // heap buffer speculatively.
+    // overflow, the result must stay in inline storage. `copy_value` without
+    // extra headroom keeps the copy inline; `add_in_place` only allocates
+    // if a carry actually escapes.
     using big_int_256 = basic_big_int<256>;
     const big_int_256 a{5};
     const big_int_256 b{7};
