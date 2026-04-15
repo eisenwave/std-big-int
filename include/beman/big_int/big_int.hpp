@@ -1468,19 +1468,69 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         r.shift_right(shift);
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
-        // lvalue: copy then shift. No extra headroom needed since right-shift
-        // only shrinks. The result keeps the source's heap buffer (if any)
-        // even if the shifted value would fit inline.
+        // lvalue: copy then shift. Two fast paths avoid copying bits that are
+        // about to be discarded anyway
         //
-        // Before making a copy and then shifting,
-        // we check to see if such an operation is even required.
-        // For example, if we are shifting further than the width of the value, this will be a NOOP
-        // A similar situation should occur for partial copies
-        const auto bit_count = static_cast<shift_type>(std::countl_zero(x.limb_ptr()[x.limb_count() - 1])) + ((x.limb_count() - 1) * detail::width_v<uint_multiprecision_t>);
-        if (static_cast<shift_type>(s) > bit_count) {
-            return Result{0u};
+        // First is the case where the value is discarded entirely
+        // All we need to do is copy the sign
+        //
+        // Second is the case where some of the value is discarded
+        // For positive values this is a simple copy what we need and make a final limb internal shift
+        // For negative values we need to account for the rounding at the end
+        //
+        // If neither of these situations applies, make a full copy and shift.
+        const shift_type shifted_limbs = shift / Result::bits_per_limb;
+        const shift_type shifted_bits  = shift % Result::bits_per_limb;
+
+        // Case 1: Everything is discarded except the sign
+        if (shift > static_cast<shift_type>(x.width_mag())) {
+            if (x.is_negative()) {
+                return Result{-1};
+            }
+            return Result{};
         }
 
+        // Case 2: Some of the limbs are discarded
+        if (shifted_limbs != 0) {
+            using limb_type                 = uint_multiprecision_t;
+            const limb_type* const src_limbs = x.limb_ptr();
+            const std::size_t      src_count = x.limb_count();
+            const std::size_t      new_count = src_count - static_cast<std::size_t>(shifted_limbs);
+
+            Result r;
+            r.reserve(new_count);
+            std::copy_n(src_limbs + static_cast<std::size_t>(shifted_limbs), new_count, r.limb_ptr());
+            r.set_limb_count(static_cast<std::uint32_t>(new_count));
+
+            if (shifted_bits != 0) {
+                r.shift_right(shifted_bits);
+            }
+
+            if (x.is_negative()) {
+                bool discarded_nonzero = false;
+                for (shift_type i = 0; i < shifted_limbs; ++i) {
+                    if (src_limbs[i] != 0) {
+                        discarded_nonzero = true;
+                        break;
+                    }
+                }
+
+                if (!discarded_nonzero && shifted_bits != 0) {
+                    const auto mask = static_cast<limb_type>((limb_type{1} << shifted_bits) - 1);
+                    if ((src_limbs[static_cast<std::size_t>(shifted_limbs)] & mask) != 0) {
+                        discarded_nonzero = true;
+                    }
+                }
+
+                r.set_sign(true);
+                if (discarded_nonzero) {
+                    r.unchecked_increment_magnitude();
+                }
+            }
+            return r;
+        }
+
+        // Case 3: Make a full copy and shift
         Result r;
         r.assign_value(x);
         r.shift_right(shift);
