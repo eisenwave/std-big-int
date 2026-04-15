@@ -156,4 +156,61 @@ TEST(IncrementDecrement, PrefixDecrementAllocatedBorrowChain) {
     EXPECT_EQ(x.capacity() > 0U, true);
 }
 
+TEST(IncrementDecrement, BitwiseNotSmallIntegers) {
+    big_int a{0};
+    big_int b{1};
+    big_int c{-1};
+    big_int d{42};
+    big_int e{-42};
+
+    const big_int ra = ~a;
+    const big_int rb = ~b;
+    const big_int rc = ~c;
+    const big_int rd = ~d;
+    const big_int re = ~e;
+
+    EXPECT_EQ(ra == -1, true);
+    EXPECT_EQ(rb == -2, true);
+    EXPECT_EQ(rc == 0, true);
+    EXPECT_EQ(rd == -43, true);
+    EXPECT_EQ(re == 41, true);
+
+    const big_int rr = ~big_int{7};
+    EXPECT_EQ(rr == -8, true);
+}
+
+TEST(IncrementDecrement, BitwiseNotBigInteger) {
+    big_int x{1};
+    x <<= 130;
+
+    const big_int y = ~x;
+
+    EXPECT_EQ((y <=> 0), std::strong_ordering::less);
+    EXPECT_EQ(y == (-x - 1), true);
+
+    big_int       n = -x;
+    const big_int z = ~n;
+
+    EXPECT_EQ((z <=> 0), std::strong_ordering::greater);
+    EXPECT_EQ(z == (x - 1), true);
+    ASSERT_EQ(z.representation().size(), 3U);
+    EXPECT_EQ(z.representation()[0], std::numeric_limits<uint_multiprecision_t>::max());
+    EXPECT_EQ(z.representation()[1], std::numeric_limits<uint_multiprecision_t>::max());
+    EXPECT_EQ(z.representation()[2], 3ULL);
+}
+
+TEST(IncrementDecrement, BitwiseNotCanAllocate) {
+    big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
+    EXPECT_EQ(x.capacity(), 0U);
+
+    const big_int y = ~x;
+
+    EXPECT_EQ(y == (-x - 1), true);
+    EXPECT_EQ((y <=> 0), std::strong_ordering::less);
+    ASSERT_EQ(y.representation().size(), 2U);
+    EXPECT_EQ(y.representation()[0], 0ULL);
+    EXPECT_EQ(y.representation()[1], 1ULL);
+    EXPECT_EQ(y.capacity() > 0U, true);
+}
+
 } // namespace
