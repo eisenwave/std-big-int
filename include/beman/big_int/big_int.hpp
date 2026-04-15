@@ -1400,7 +1400,10 @@ constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
 template <std::size_t b, class A>
 template <detail::cv_unqualified_floating_point F>
 constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
-    BEMAN_BIG_INT_ASSERT(std::isfinite(value));
+    // MSVC STL's `std::isfinite` is not `constexpr` in C++20.
+    if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+        BEMAN_BIG_INT_ASSERT(std::isfinite(value));
+    }
 
     using traits = detail::ieee_traits<F>;
     using bits_t = typename traits::bits_type;

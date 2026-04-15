@@ -29,6 +29,9 @@ static_assert(static_cast<int>(beman::big_int::big_int{0x1'0000'0042LL}) == 0x42
 
 // TODO(alcxpr): Use `<<` of the operator instead of IILE when implemented.
 //                  Currently, only `<<=` and `>>=` are available.
+
+// MSVC
+#ifndef BEMAN_BIG_INT_MSVC
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wfloat-equal")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
@@ -50,6 +53,7 @@ static_assert([] {
     return static_cast<double>(x);
 }() == std::numeric_limits<double>::infinity());
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
+#endif
 
 TEST(Conversion, ToBool) {
     constexpr beman::big_int::big_int zero;
