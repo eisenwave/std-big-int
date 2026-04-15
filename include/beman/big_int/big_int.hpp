@@ -1518,8 +1518,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
                 for (shift_type i = 0; i < new_count; ++i) {
                     const shift_type src_idx = src_offset + i;
                     const limb_type  low     = src_limbs[src_idx];
-                    const limb_type  high =
-                        (src_idx + 1 < src_count) ? src_limbs[src_idx + 1] : limb_type{0};
+                    const limb_type  high    = (src_idx + 1 < src_count) ? src_limbs[src_idx + 1] : limb_type{0};
                     const detail::wide<limb_type> all_bits{.low_bits = low, .high_bits = high};
                     dst[i] = detail::funnel_shr(all_bits, static_cast<unsigned int>(shifted_bits));
                 }
