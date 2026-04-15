@@ -495,17 +495,17 @@ TEST(BitShift, OperatorRightShiftAcrossLimbs) {
     EXPECT_EQ(s, 1);
 }
 
-TEST(BitShift, OperatorRightShiftKeepsHeapStorage) {
-    // When the source is on the heap and the result could fit inline,
-    // operator>> should keep the heap buffer (no shrink_to_fit).
+TEST(BitShift, OperatorRightShiftFullDiscardSkipsCopy) {
+    // When the shift discards every significant bit of the source, the
+    // result is constructed directly without copying, so it does not
+    // inherit the source's heap buffer.
     big_int x{1};
     x <<= 128; // 3 limbs, on heap
     EXPECT_NE(x.capacity(), 0U);
 
-    const big_int r = x >> 200; // result is 0, but copied from heap source
+    const big_int r = x >> 200;
     EXPECT_EQ(r, 0);
-    // The copy via assign_value inherits the heap buffer
-    EXPECT_NE(r.capacity(), 0U);
+    EXPECT_EQ(r.capacity(), 0U);
 }
 
 TEST(BitShift, OperatorRightShiftPreservesOriginal) {
@@ -537,6 +537,104 @@ TEST(BitShift, OperatorLeftRightRoundTrip) {
     EXPECT_EQ((x << 17) >> 17, x);
     EXPECT_EQ((x << 64) >> 64, x);
     EXPECT_EQ((x << 130) >> 130, x);
+}
+
+TEST(BitShift, LValueBiggerShiftThanRep) {
+    // If we are shifting more bits than the bitwidth of an lvalue,
+    // we can skip making a copy altogether.
+    const big_int x = big_int{1} << 200;
+    const big_int r = x >> 10000;
+
+    EXPECT_EQ(r, big_int{0});
+    EXPECT_EQ(r.capacity(), 0U); // No allocation should have been made
+}
+
+TEST(BitShift, LValueBiggerShiftThanRepNegative) {
+    // For a negative value, we should retain the sign
+    const big_int x = -(big_int{1} << 200);
+    const big_int r = x >> 10000;
+
+    EXPECT_EQ(r, -1);
+    EXPECT_EQ(r.capacity(), 0U);
+}
+
+TEST(BitShift, LValuePartialLimbSkip) {
+    // Whole-limb shift of a positive, heap-allocated source: the low limbs
+    // are dropped without being copied.
+    const big_int x = (big_int{1} << 128) + (big_int{1} << 64) + big_int{1}; // limbs [1, 1, 1]
+    EXPECT_EQ(x.representation().size(), 3U);
+
+    const big_int r        = x >> 64;
+    const big_int expected = (big_int{1} << 64) + big_int{1}; // [1, 1]
+    EXPECT_EQ(r, expected);
+    EXPECT_EQ(r.representation().size(), 2U);
+}
+
+TEST(BitShift, LValuePartialLimbSkipResidualBits) {
+    // Mixed whole-limb + residual-bit shift: combine a `shifted_limbs > 0`
+    // skip with a small bit-level shift on the surviving tail.
+    big_int x{1};
+    x <<= 130; // single bit at position 130; limbs [0, 0, 4]
+
+    const big_int r = x >> 65; // should equal 1 << 65
+    big_int       expected{1};
+    expected <<= 65;
+    EXPECT_EQ(r, expected);
+}
+
+TEST(BitShift, LValuePartialLimbSkipNegativeExact) {
+    // Negative, partial-limb shift where every discarded bit is zero
+    const big_int x = -(big_int{1} << 128);
+    const big_int r = x >> 64;
+    big_int       expected{1};
+    expected <<= 64;
+    expected = -expected;
+    EXPECT_EQ(r, expected); // exact: -(2^128) / 2^64 == -(2^64)
+}
+
+TEST(BitShift, LValuePartialLimbSkipNegativeWholeLimbRounding) {
+    // Negative value where a wholly discarded lower limb has a non-zero bit.
+    // We must account for these bits
+    const big_int x = -((big_int{1} << 128) + big_int{1}); // limbs [1, 0, 1], negative
+
+    const big_int r        = x >> 64; // -(2^128 + 1) / 2^64 rounds to -(2^64 + 1)
+    const big_int expected = -((big_int{1} << 64) + big_int{1});
+    EXPECT_EQ(r, expected);
+}
+
+TEST(BitShift, LValuePartialLimbSkipNegativeResidualRounding) {
+    // Negative source where the rounding-trigger bit is in the low portion
+    // of the first surviving limb. `shift_right`'s own mask check covers
+    // this case; make sure we don't double-decrement.
+    big_int x{3};
+    x <<= 64; // limbs [0, 3]
+    x = -x;   // -3 * 2^64
+
+    const big_int r = x >> 65; // -3 * 2^64 / 2^65 = -1.5 rounds to -2
+    EXPECT_EQ(r, -2);
+}
+
+TEST(BitShift, LValueBitShiftDropsTopLimb) {
+    // (2^64) >> 1 == 2^63: the source is on the heap but the result can be inlined
+    // Should not allocate
+    const big_int x = big_int{1} << 64;
+    EXPECT_NE(x.capacity(), 0U);
+
+    const big_int r        = x >> 1;
+    const big_int expected = big_int{1} << 63;
+    EXPECT_EQ(r, expected);
+    EXPECT_EQ(r.capacity(), 0U);
+}
+
+TEST(BitShift, LValueBitShiftDropsTopLimbNegative) {
+    // Same situation as above but with a negative source whose discarded
+    // bit forces a rounding decrement: -(2^64 + 1) >> 1 == -(2^63 + 1).
+    const big_int x = -((big_int{1} << 64) + big_int{1});
+
+    const big_int r        = x >> 1;
+    const big_int expected = -((big_int{1} << 63) + big_int{1});
+    EXPECT_EQ(r, expected);
+    EXPECT_EQ(r.capacity(), 0U);
 }
 
 } // namespace

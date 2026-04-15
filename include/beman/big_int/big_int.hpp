@@ -1468,9 +1468,90 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         r.shift_right(shift);
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
-        // lvalue: copy then shift. No extra headroom needed since right-shift
-        // only shrinks. The result keeps the source's heap buffer (if any)
-        // even if the shifted value would fit inline.
+        // lvalue: copy then shift. Two fast paths avoid copying bits that are
+        // about to be discarded anyway
+        //
+        // First is the case where the value is discarded entirely
+        // All we need to do is copy the sign
+        //
+        // Second is the case where some of the value is discarded
+        // For positive values this is a simple copy what we need and make a final limb internal shift
+        // For negative values we need to account for the rounding at the end
+        //
+        // If neither of these situations applies, make a full copy and shift.
+
+        using limb_type = uint_multiprecision_t;
+
+        const shift_type shifted_limbs = shift / Result::bits_per_limb;
+        const shift_type shifted_bits  = shift % Result::bits_per_limb;
+        const shift_type x_width_mag   = static_cast<shift_type>(x.width_mag());
+
+        // Case 1: Everything is discarded except the sign
+        if (shift > x_width_mag) {
+            if (x.is_negative()) {
+                return Result{-1};
+            }
+            return Result{};
+        }
+
+        const limb_type* const src_limbs = x.limb_ptr();
+        const shift_type       src_count = static_cast<shift_type>(x.limb_count());
+
+        // Number of limbs the shifted result actually occupies. Smaller than
+        // `src_count` exactly when at least one source limb (or the top
+        // limb's surviving bits) shrinks away.
+        const shift_type new_count = (x_width_mag - shift) / Result::bits_per_limb + 1;
+
+        // Case 2: Result is strictly smaller than the source
+        if (new_count < src_count) {
+            const shift_type src_offset = shifted_limbs;
+
+            Result r;
+            r.reserve(new_count);
+            limb_type* const dst = r.limb_ptr();
+
+            if (shifted_bits == 0) {
+                std::copy_n(src_limbs + src_offset, new_count, dst);
+            } else {
+                // Funnel-shift directly from source limbs into `dst`.
+                // Handles the case where we can theoretically go from heap -> inline storage with our result
+                for (shift_type i = 0; i < new_count; ++i) {
+                    const shift_type src_idx = src_offset + i;
+                    const limb_type  low     = src_limbs[src_idx];
+                    const limb_type  high    = (src_idx + 1 < src_count) ? src_limbs[src_idx + 1] : limb_type{0};
+                    const detail::wide<limb_type> all_bits{.low_bits = low, .high_bits = high};
+                    dst[i] = detail::funnel_shr(all_bits, static_cast<unsigned int>(shifted_bits));
+                }
+            }
+            r.set_limb_count(static_cast<std::uint32_t>(new_count));
+
+            if (x.is_negative()) {
+                // Mirror `shift_right`'s rounding-toward-negative-infinity
+                // We have to account even for the bits that will never be copied
+                bool discarded_nonzero = false;
+                for (shift_type i = 0; i < src_offset; ++i) {
+                    if (src_limbs[i] != 0) {
+                        discarded_nonzero = true;
+                        break;
+                    }
+                }
+
+                if (!discarded_nonzero && shifted_bits != 0) {
+                    const auto mask = static_cast<limb_type>((limb_type{1} << shifted_bits) - 1);
+                    if ((src_limbs[src_offset] & mask) != 0) {
+                        discarded_nonzero = true;
+                    }
+                }
+
+                r.set_sign(true);
+                if (discarded_nonzero) {
+                    r.unchecked_increment_magnitude();
+                }
+            }
+            return r;
+        }
+
+        // Case 3: Make a full copy and shift
         Result r;
         r.assign_value(x);
         r.shift_right(shift);
