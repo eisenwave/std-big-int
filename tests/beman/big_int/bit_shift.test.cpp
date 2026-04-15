@@ -539,4 +539,16 @@ TEST(BitShift, OperatorLeftRightRoundTrip) {
     EXPECT_EQ((x << 130) >> 130, x);
 }
 
+TEST(BitShift, LValueBiggerShiftThanRep) {
+    // If we are shifting more bits than the bidwidth of an lvalue,
+    // we can skip making a copy all together
+    const big_int x = big_int{1} << 200;
+    const big_int r = x >> 10000;
+
+    const big_int expected{0};
+    EXPECT_EQ(r, expected);
+    EXPECT_EQ(r.capacity(), 0);
+    EXPECT_EQ(r.size(), 0);
+}
+
 } // namespace

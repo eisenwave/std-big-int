@@ -1471,6 +1471,16 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         // lvalue: copy then shift. No extra headroom needed since right-shift
         // only shrinks. The result keeps the source's heap buffer (if any)
         // even if the shifted value would fit inline.
+        //
+        // Before making a copy and then shifting,
+        // we check to see if such an operation is even required.
+        // For example, if we are shifting further than the width of the value, this will be a NOOP
+        // A similar situation should occur for partial copies
+        const auto bit_count = static_cast<shift_type>(std::countl_zero(x.limb_ptr()[x.limb_count() - 1])) + ((x.limb_count() - 1) * detail::width_v<uint_multiprecision_t>);
+        if (static_cast<shift_type>(s) > bit_count) {
+            return Result{0u};
+        }
+
         Result r;
         r.assign_value(x);
         r.shift_right(shift);
