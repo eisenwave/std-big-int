@@ -324,7 +324,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     // [big.int.conv], conversions
     template <class T>
-        requires detail::cv_unqualified<T> && std::is_arithmetic_v<T>
+        requires detail::arithmetic<T>
     constexpr explicit operator T() const noexcept;
 
   private:
@@ -388,6 +388,19 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         static_assert(std::has_unique_object_representations_v<decltype(m_storage.limbs)>,
                       "Bit-casting doesn't work when there is padding.");
         return std::bit_cast<unsigned _BitInt(inplace_bits)>(m_storage.limbs);
+    }
+#else
+        = delete;
+#endif // BEMAN_BIG_INT_HAS_BITINT
+
+    [[nodiscard]] constexpr auto inplace_to_sbit_int() const noexcept
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+        requires has_inplace_to_bit_uint
+    {
+        static_assert(std::has_unique_object_representations_v<decltype(m_storage.limbs)>,
+                      "Bit-casting doesn't work when there is padding.");
+        const auto mag = std::bit_cast<_BitInt(inplace_bits)>(m_storage.limbs);
+        return is_negative() ? -mag : mag;
     }
 #else
         = delete;
@@ -955,19 +968,39 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
 
 template <std::size_t b, class A>
 template <class T>
-    requires detail::cv_unqualified<T> && std::is_arithmetic_v<T>
+    requires detail::arithmetic<T>
 constexpr basic_big_int<b, A>::operator T() const noexcept {
     if constexpr (std::is_same_v<T, bool>) {
         return !is_zero();
     } else if constexpr (std::is_floating_point_v<T>) {
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            if (is_storage_static()) {
+                return static_cast<T>(inplace_to_sbit_int());
+            }
+        }
+#endif
+        // If the value exceeds the maximum finite value of T, return infinity.
+        // See P3899R1.
+        if (width_mag() >= static_cast<std::size_t>(std::numeric_limits<T>::max_exponent)) {
+            return is_negative() ? -std::numeric_limits<T>::infinity() : std::numeric_limits<T>::infinity();
+        }
         constexpr T       two64 = static_cast<T>(1ULL << 32) * static_cast<T>(1ULL << 32);
         T                 result{0};
         const auto* const limbs = limb_ptr();
-        for (std::size_t i = limb_count(); i-- > 0;) {
+        for (std::size_t i = limb_count(); i != 0;) {
+            --i;
             result = result * two64 + static_cast<T>(limbs[i]);
         }
         return is_negative() ? -result : result;
     } else {
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            if (is_storage_static()) {
+                return static_cast<T>(inplace_to_sbit_int());
+            }
+        }
+#endif
         using U = std::make_unsigned_t<T>;
         U                 mag{0};
         constexpr auto    n     = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
