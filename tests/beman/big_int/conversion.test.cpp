@@ -27,7 +27,29 @@ static_assert(static_cast<unsigned long long>(beman::big_int::big_int{-1}) ==
 
 static_assert(static_cast<int>(beman::big_int::big_int{0x1'0000'0042LL}) == 0x42);
 
-// TODO(alcxpr): Float static_assert tests deferred until P3899R1 lands.
+// TODO(alcxpr): Use `<<` of the operator instead of IILE when implemented.
+//                  Currently, only `<<=` and `>>=` are available.
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wfloat-equal")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
+static_assert([] {
+    beman::big_int::big_int x(std::numeric_limits<float>::max());
+    x <<= 1;
+    return static_cast<float>(x);
+}() == std::numeric_limits<float>::infinity());
+
+static_assert([] {
+    beman::big_int::big_int x(std::numeric_limits<float>::max());
+    x <<= 1;
+    return static_cast<float>(-x);
+}() == -std::numeric_limits<float>::infinity());
+
+static_assert([] {
+    beman::big_int::big_int x(std::numeric_limits<double>::max());
+    x <<= 1;
+    return static_cast<double>(x);
+}() == std::numeric_limits<double>::infinity());
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 TEST(Conversion, ToBool) {
     constexpr beman::big_int::big_int zero;

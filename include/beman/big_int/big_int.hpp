@@ -324,7 +324,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     // [big.int.conv], conversions
     template <class T>
-        requires detail::arithmetic<T>
+        requires detail::cv_unqualified_arithmetic<T>
     constexpr explicit operator T() const noexcept;
 
   private:
@@ -399,7 +399,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     {
         static_assert(std::has_unique_object_representations_v<decltype(m_storage.limbs)>,
                       "Bit-casting doesn't work when there is padding.");
-        const auto mag = std::bit_cast<_BitInt(inplace_bits)>(m_storage.limbs);
+        // Use `inplace_bits + 1` to avoid signed overflow when negating a value
+        // with the high bit set.
+        const auto mag =
+            static_cast<_BitInt(inplace_bits + 1)>(std::bit_cast<unsigned _BitInt(inplace_bits)>(m_storage.limbs));
         return is_negative() ? -mag : mag;
     }
 #else
@@ -968,7 +971,7 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
 
 template <std::size_t b, class A>
 template <class T>
-    requires detail::arithmetic<T>
+    requires detail::cv_unqualified_arithmetic<T>
 constexpr basic_big_int<b, A>::operator T() const noexcept {
     if constexpr (std::is_same_v<T, bool>) {
         return !is_zero();
@@ -1003,7 +1006,7 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
 #endif
         using U = std::make_unsigned_t<T>;
         U                 mag{0};
-        constexpr auto    n     = (sizeof(U) + sizeof(limb_type) - 1) / sizeof(limb_type);
+        constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
         const auto* const limbs = limb_ptr();
         for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
             mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
