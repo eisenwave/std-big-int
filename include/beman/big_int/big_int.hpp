@@ -393,9 +393,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         = delete;
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
+    static constexpr bool        has_inplace_to_bit_sint = inplace_bits < BEMAN_BIG_INT_BITINT_MAXWIDTH;
     [[nodiscard]] constexpr auto inplace_to_sbit_int() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
-        requires has_inplace_to_bit_uint
+        requires has_inplace_to_bit_sint
     {
         static_assert(std::has_unique_object_representations_v<decltype(m_storage.limbs)>,
                       "Bit-casting doesn't work when there is padding.");
@@ -978,8 +979,10 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
     } else if constexpr (std::is_floating_point_v<T>) {
 #ifdef BEMAN_BIG_INT_HAS_BITINT
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            if (is_storage_static()) {
-                return static_cast<T>(inplace_to_sbit_int());
+            if constexpr (has_inplace_to_bit_sint) {
+                if (is_storage_static()) {
+                    return static_cast<T>(inplace_to_sbit_int());
+                }
             }
         }
 #endif
@@ -999,8 +1002,10 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
     } else {
 #ifdef BEMAN_BIG_INT_HAS_BITINT
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            if (is_storage_static()) {
-                return static_cast<T>(inplace_to_sbit_int());
+            if constexpr (has_inplace_to_bit_sint) {
+                if (is_storage_static()) {
+                    return static_cast<T>(inplace_to_sbit_int());
+                }
             }
         }
 #endif
