@@ -305,6 +305,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr basic_big_int operator+() && noexcept;
     [[nodiscard]] constexpr basic_big_int operator-() const&;
     [[nodiscard]] constexpr basic_big_int operator-() && noexcept;
+    [[nodiscard]] constexpr basic_big_int operator~() const&;
+    [[nodiscard]] constexpr basic_big_int operator~() &&;
 
     constexpr basic_big_int& operator++() &;
     constexpr basic_big_int  operator++(int) &;
@@ -909,26 +911,46 @@ constexpr void basic_big_int<b, A>::shrink_to_fit() {
 // [big.int.unary]
 
 template <std::size_t b, class A>
-constexpr basic_big_int<b, A> basic_big_int<b, A>::operator+() const& {
+constexpr auto basic_big_int<b, A>::operator+() const& -> basic_big_int {
     return *this;
 }
 
 template <std::size_t b, class A>
-constexpr basic_big_int<b, A> basic_big_int<b, A>::operator+() && noexcept {
+constexpr auto basic_big_int<b, A>::operator+() && noexcept -> basic_big_int {
     return std::move(*this);
 }
 
 template <std::size_t b, class A>
-constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() const& {
+constexpr auto basic_big_int<b, A>::operator-() const& -> basic_big_int {
     auto copy = *this;
     copy.negate();
     return copy;
 }
 
 template <std::size_t b, class A>
-constexpr basic_big_int<b, A> basic_big_int<b, A>::operator-() && noexcept {
+constexpr auto basic_big_int<b, A>::operator-() && noexcept -> basic_big_int {
     auto copy = std::move(*this);
     copy.negate();
+    return copy;
+}
+
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::operator~() const& -> basic_big_int {
+    // Bitwise operations emulate two's complement behavior,
+    // where ~x is mathematically (-x - 1).
+    auto copy = *this;
+    copy.negate();
+    --copy;
+    return copy;
+}
+
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::operator~() && -> basic_big_int {
+    // See also the const& overload.
+    // Unlike operator-, we cannot make this noexcept because the decrement may reallocate.
+    auto copy = std::move(*this);
+    copy.negate();
+    --copy;
     return copy;
 }
 
