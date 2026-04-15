@@ -322,6 +322,16 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y);
     template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y);
+    // TODO : mul, div, mod
+
+    // TODO : and, or, xor
+
+    template <class T, detail::signed_or_unsigned S>
+        requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
+    friend constexpr std::remove_cvref_t<T> operator<<(T&& x, S s);
+    template <class T, detail::signed_or_unsigned S>
+        requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
+    friend constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
 
     // [big.int.conv], conversions
     template <class T>
@@ -341,8 +351,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr void                       copy_n_to_allocation(const limb_type* p, size_type n, alloc_result out);
     constexpr void                       push_back_limb(limb_type limb);
 
-    using shift_type                      = unsigned long long;
-    static constexpr shift_type shift_max = std::numeric_limits<shift_type>::max();
+    // We are limited in our shifting to what we can encode into our control block, which is 30 (or 27) bits of limbs
+    // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 (or 31)
+    // that are in the same limb.
+    using shift_type                      = uint_multiprecision_t;
+    static constexpr shift_type shift_max = static_cast<shift_type>(max_size()) * bits_per_limb;
 
     // Increases the magnitude by one, without affecting the sign bit.
     // Returns `true` on carry in the uppermost limb.
@@ -765,10 +778,11 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     const shift_type shifted_limbs = s / bits_per_limb;
     const shift_type shifted_bits  = s % bits_per_limb;
 
-    // TODO(eisenwave): This is pessimistic and assumes that bit-shifting will require an extra limb,
-    //                  but that may not be the case.
-    //                  It depends on the bits of the uppermost limb.
-    reserve(limb_count() + shifted_limbs + size_type(shifted_bits != 0));
+    // Only reserve an extra limb for the bit-shift when the top limb doesn't enough leading zeros.
+    // `countl_zero` tells us exactly how many bits of headroom the current top limb provides.
+    const bool needs_extra_limb =
+        shifted_bits != 0 && static_cast<shift_type>(std::countl_zero(limb_ptr()[limb_count() - 1])) < shifted_bits;
+    reserve(limb_count() + shifted_limbs + static_cast<size_type>(needs_extra_limb));
     limb_type* const limbs = limb_ptr();
 
     if (shifted_limbs != 0) {
@@ -778,14 +792,22 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
         set_limb_count(static_cast<std::uint32_t>(current_count + shifted_limbs));
     }
     if (shifted_bits != 0) {
-        const auto current_count = limb_count();
-        limbs[current_count]     = 0;
-        for (shift_type i = current_count; i-- > shifted_limbs;) {
-            const detail::wide<limb_type> all_bits{.low_bits = limbs[i], .high_bits = limbs[i + 1]};
-            limbs[i + 1] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
+        const auto      current_count = limb_count();
+        const limb_type overflow      = limbs[current_count - 1] >> (bits_per_limb - shifted_bits);
+
+        // Shift all limbs in place, top to bottom.
+        // Each iteration reads limbs[i-1] (original) and limbs[i] (original), writes limbs[i].
+        // This avoids an out-of-bounds write
+        for (shift_type i = current_count - 1; i > shifted_limbs; --i) {
+            const detail::wide<limb_type> all_bits{.low_bits = limbs[i - 1], .high_bits = limbs[i]};
+            limbs[i] = detail::funnel_shl(all_bits, static_cast<unsigned int>(shifted_bits));
         }
         limbs[shifted_limbs] <<= shifted_bits;
-        set_limb_count(static_cast<std::uint32_t>(current_count + std::uint32_t(limbs[current_count] != 0)));
+
+        if (overflow != 0) {
+            limbs[current_count] = overflow;
+            set_limb_count(static_cast<std::uint32_t>(current_count + 1));
+        }
     }
 }
 
@@ -882,8 +904,10 @@ constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::max_size() noexcept {
-    // We use the high bit to encode the sign, so we are limited to 2^31
-    return std::numeric_limits<std::uint32_t>::max() >> 1U;
+    // We use the high bit to encode the sign, so we are limited to 2^31 on 64-bit architectures
+    // On 32-bit architectures we reduce to 2^27 so that the number of bits can be represented by size_type
+    constexpr std::uint32_t offset = sizeof(size_type) == sizeof(std::uint64_t) ? 1U : 4U;
+    return std::numeric_limits<std::uint32_t>::max() >> offset;
 }
 
 template <std::size_t b, class A>
@@ -1361,6 +1385,73 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
+        return r;
+    }
+}
+
+template <class T, detail::signed_or_unsigned S>
+    requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
+constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
+    using Result        = std::remove_cvref_t<T>;
+    using shift_type    = Result::shift_type;
+    constexpr auto form = detail::classify_form_v<T, S>;
+
+    if constexpr (std::is_signed_v<S>) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= Result::shift_max);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s <= Result::shift_max);
+    }
+    const auto shift = static_cast<shift_type>(s);
+
+    if constexpr (form == detail::binary_op_form::move_int) {
+        // rvalue: shift in place, no copy needed.
+        Result r = std::move(x);
+        r.shift_left(shift);
+        return r;
+    } else if constexpr (form == detail::binary_op_form::copy_int) {
+        // lvalue: use assign_value with headroom so shift_left doesn't reallocate.
+        const shift_type shifted_limbs = shift / Result::bits_per_limb;
+        const shift_type shifted_bits  = shift % Result::bits_per_limb;
+        const bool       needs_extra =
+            shifted_bits != 0 &&
+            static_cast<shift_type>(std::countl_zero(x.limb_ptr()[x.limb_count() - 1])) < shifted_bits;
+        const std::size_t headroom = shifted_limbs + static_cast<std::size_t>(needs_extra);
+
+        Result r;
+        r.assign_value(x, headroom);
+        r.shift_left(shift);
+        return r;
+    }
+}
+
+template <class T, detail::signed_or_unsigned S>
+    requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
+constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
+    using Result        = std::remove_cvref_t<T>;
+    using shift_type    = Result::shift_type;
+    constexpr auto form = detail::classify_form_v<T, S>;
+
+    if constexpr (std::is_signed_v<S>) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= Result::shift_max);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(s <= Result::shift_max);
+    }
+    const auto shift = static_cast<shift_type>(s);
+
+    if constexpr (form == detail::binary_op_form::move_int) {
+        // rvalue: shift in place, no copy needed.
+        Result r = std::move(x);
+        r.shift_right(shift);
+        return r;
+    } else if constexpr (form == detail::binary_op_form::copy_int) {
+        // lvalue: copy then shift. No extra headroom needed since right-shift
+        // only shrinks. The result keeps the source's heap buffer (if any)
+        // even if the shifted value would fit inline.
+        Result r;
+        r.assign_value(x);
+        r.shift_right(shift);
         return r;
     }
 }
