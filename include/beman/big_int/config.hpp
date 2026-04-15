@@ -244,6 +244,12 @@ using make_signed_or_unsigned_t =
 template <class T>
 concept cv_unqualified_floating_point = cv_unqualified<T> && std::floating_point<T>;
 
+// Modeled if `T` is an arithmetic type - that is, a signed or unsigned integer type
+// including `_BitInt` or a floating-point type.
+// This extends `std::is_arithmetic_v to cover `_BitInt` types which are not standard integral.
+template <class T>
+concept cv_unqualified_arithmetic = cv_unqualified<T> && (integral<T> || std::floating_point<T>);
+
 template <class T>
 [[nodiscard, maybe_unused]] constexpr make_signed_or_unsigned_t<T> to_signed_or_unsigned(const T x) {
     return static_cast<make_signed_or_unsigned_t<T>>(x);
