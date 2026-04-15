@@ -614,4 +614,27 @@ TEST(BitShift, LValuePartialLimbSkipNegativeResidualRounding) {
     EXPECT_EQ(r, -2);
 }
 
+TEST(BitShift, LValueBitShiftDropsTopLimb) {
+    // (2^64) >> 1 == 2^63: the source is on the heap but the result can be inlined
+    // Should not allocate
+    const big_int x = big_int{1} << 64;
+    EXPECT_NE(x.capacity(), 0U);
+
+    const big_int r        = x >> 1;
+    const big_int expected = big_int{1} << 63;
+    EXPECT_EQ(r, expected);
+    EXPECT_EQ(r.capacity(), 0U);
+}
+
+TEST(BitShift, LValueBitShiftDropsTopLimbNegative) {
+    // Same situation as above but with a negative source whose discarded
+    // bit forces a rounding decrement: -(2^64 + 1) >> 1 == -(2^63 + 1).
+    const big_int x = -((big_int{1} << 64) + big_int{1});
+
+    const big_int r        = x >> 1;
+    const big_int expected = -((big_int{1} << 63) + big_int{1});
+    EXPECT_EQ(r, expected);
+    EXPECT_EQ(r.capacity(), 0U);
+}
+
 } // namespace
