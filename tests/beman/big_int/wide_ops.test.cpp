@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
-#include <beman/big_int/wide_ops.hpp>
+#include <beman/big_int/detail/wide_ops.hpp>
 #include <gtest/gtest.h>
 
 #include <limits>

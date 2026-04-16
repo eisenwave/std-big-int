@@ -8,7 +8,7 @@
 #include <concepts>
 #include <limits>
 
-#include <beman/big_int/config.hpp>
+#include <beman/big_int/detail/config.hpp>
 
 #ifdef BEMAN_BIG_INT_MSVC
     #include <intrin.h>
@@ -62,10 +62,51 @@ struct wide<T> {
     }
 };
 
+namespace high_mul_detail {
+
+template <signed_or_unsigned T>
+    requires(width_v<T> == 64)
+constexpr T high_mul_portable(const T x, const T y) noexcept {
+    if constexpr (std::is_signed_v<T>) {
+        // https://stackoverflow.com/a/28904636/5740428
+        const T a_lo = static_cast<unsigned>(x);
+        const T a_hi = static_cast<unsigned>(x >> 32);
+        const T b_lo = static_cast<unsigned>(y);
+        const T b_hi = static_cast<unsigned>(y >> 32);
+
+        const T a_x_b_hi  = a_hi * b_hi;
+        const T a_x_b_mid = a_hi * b_lo;
+        const T b_x_a_mid = b_hi * a_lo;
+        const T a_x_b_lo  = a_lo * b_lo;
+
+        const T carry_bit = (static_cast<T>(static_cast<unsigned>(a_x_b_mid)) + //
+                             static_cast<T>(static_cast<unsigned>(b_x_a_mid)) + //
+                             (a_x_b_lo >> 32))                                  //
+                            >> 32;
+
+        return a_x_b_hi + (a_x_b_mid >> 32) + (b_x_a_mid >> 32) + carry_bit;
+    } else {
+        const T a_lo = static_cast<std::uint32_t>(x);
+        const T a_hi = x >> 32;
+        const T b_lo = static_cast<std::uint32_t>(y);
+        const T b_hi = y >> 32;
+
+        const T ll = a_lo * b_lo;
+        const T lh = a_lo * b_hi;
+        const T hl = a_hi * b_lo;
+        const T hh = a_hi * b_hi;
+
+        const T mid = (ll >> 32) + static_cast<std::uint32_t>(lh) + static_cast<std::uint32_t>(hl);
+        return hh + (lh >> 32) + (hl >> 32) + (mid >> 32);
+    }
+}
+
+} // namespace high_mul_detail
+
 // Returns the high 64 bits of the multiplication `x * y`.
 template <signed_or_unsigned T>
     requires(width_v<T> <= 64)
-inline static T high_mul(const T x, const T y) noexcept {
+constexpr T high_mul(const T x, const T y) noexcept {
     // We don't want to use 128-bit on MSVC because intrinsics are better
     // than the `std::_Unsigned128` type you get.
 #if defined(BEMAN_BIG_INT_HAS_INT128) && !defined(BEMAN_BIG_INT_MSVC)
@@ -74,50 +115,35 @@ inline static T high_mul(const T x, const T y) noexcept {
     if constexpr (width_v<T> <= 32) {
         return (x * static_cast<wider_t<T>>(y)) >> width_v<T>;
     } else {
+            // MSVC intrinsics are not usable during constant evaluation, so fall through
+            // to the portable path when we're in a consteval context.
     #if defined(BEMAN_BIG_INT_MSVC)
-        if constexpr (std::is_signed_v<T>) {
-            return __mulh(x, y);
-        } else {
-            return __umulh(x, y);
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            if constexpr (std::is_signed_v<T>) {
+                return __mulh(x, y);
+            } else {
+                return __umulh(x, y);
+            }
         }
     #elif defined(_M_AMD64)
-        if constexpr (std::is_signed_v<T>) {
-            __int64 result;
-            void(_mul128(x, y, &result));
-            return result;
-        } else {
-            unsigned __int64 result;
-            void(_umul128(x, y, &result));
-            return result;
-        }
-    #else
-        if constexpr (std::is_signed_v<T>) {
-            if constexpr (width_v<T> == 64) {
-                // https://stackoverflow.com/a/28904636/5740428
-                const T a_lo = static_cast<unsigned>(x);
-                const T a_hi = static_cast<unsigned>(x >> 32);
-                const T b_lo = static_cast<unsigned>(y);
-                const T b_hi = static_cast<unsigned>(y >> 32);
-
-                const T a_x_b_hi  = a_hi * b_hi;
-                const T a_x_b_mid = a_hi * b_lo;
-                const T b_x_a_mid = b_hi * a_lo;
-                const T a_x_b_lo  = a_lo * b_lo;
-
-                const T carry_bit = (static_cast<T>(static_cast<unsigned>(a_x_b_mid)) + //
-                                     static_cast<T>(static_cast<unsigned>(b_x_a_mid)) + //
-                                     (a_x_b_lo >> 32))                                  //
-                                    >> 32;
-
-                return a_x_b_hi + (a_x_b_mid >> 32) + (b_x_a_mid >> 32) + carry_bit;
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            if constexpr (std::is_signed_v<T>) {
+                __int64 result;
+                void(_mul128(x, y, &result));
+                return result;
             } else {
-                static_assert(width_v<unsigned long long> == 64);
-                return high_mul<unsigned long long>(x, y);
+                unsigned __int64 result;
+                void(_umul128(x, y, &result));
+                return result;
             }
-        } else {
-            static_assert(false, "Sorry, signed 64-bit high multiplication not implemented in this case.");
         }
     #endif
+        if constexpr (width_v<T> == 64) {
+            return high_mul_detail::high_mul_portable(x, y);
+        } else {
+            static_assert(width_v<unsigned long long> == 64);
+            return high_mul<unsigned long long>(x, y);
+        }
     }
 #endif
 }
@@ -145,22 +171,25 @@ template <signed_or_unsigned T>
         return wide<T>::from_int(product);
     } else {
     #if defined(_M_AMD64)
-        if constexpr (std::is_signed_v<T>) {
-            __int64 high;
-            __int64 low = _mul128(x, y, &high);
-            return {low, high};
-        } else {
-            unsigned __int64 high;
-            unsigned __int64 low = _umul128(x, y, &high);
-            return {low, high};
+        // MSVC intrinsics are not usable during constant evaluation, so fall through
+        // to the portable path when we're in a consteval context.
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            if constexpr (std::is_signed_v<T>) {
+                __int64 high;
+                __int64 low = _mul128(x, y, &high);
+                return {low, high};
+            } else {
+                unsigned __int64 high;
+                unsigned __int64 low = _umul128(x, y, &high);
+                return {low, high};
+            }
         }
-    #else // _M_AMD64
+    #endif
         using U = std::make_unsigned_t<T>;
         return {
             .low_bits  = static_cast<T>(static_cast<U>(x) * static_cast<U>(y)),
             .high_bits = high_mul(x, y),
         };
-    #endif
     }
 #endif
 }
