@@ -145,22 +145,25 @@ template <signed_or_unsigned T>
         return wide<T>::from_int(product);
     } else {
     #if defined(_M_AMD64)
-        if constexpr (std::is_signed_v<T>) {
-            __int64 high;
-            __int64 low = _mul128(x, y, &high);
-            return {low, high};
-        } else {
-            unsigned __int64 high;
-            unsigned __int64 low = _umul128(x, y, &high);
-            return {low, high};
+        // MSVC intrinsics are not usable during constant evaluation, so fall through
+        // to the portable path when we're in a consteval context.
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            if constexpr (std::is_signed_v<T>) {
+                __int64 high;
+                __int64 low = _mul128(x, y, &high);
+                return {low, high};
+            } else {
+                unsigned __int64 high;
+                unsigned __int64 low = _umul128(x, y, &high);
+                return {low, high};
+            }
         }
-    #else // _M_AMD64
+    #endif
         using U = std::make_unsigned_t<T>;
         return {
             .low_bits  = static_cast<T>(static_cast<U>(x) * static_cast<U>(y)),
             .high_bits = high_mul(x, y),
         };
-    #endif
     }
 #endif
 }
