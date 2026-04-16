@@ -403,8 +403,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     // Computes `a * b` and stores the result into `*this`.
     template <std::size_t extent_a, std::size_t extent_b>
-    constexpr void multiply_into(std::span<const uint_multiprecision_t, extent_a> a, bool a_neg,
-                                 std::span<const uint_multiprecision_t, extent_b> b, bool b_neg);
+    constexpr void multiply_into(std::span<const uint_multiprecision_t, extent_a> a,
+                                 bool                                             a_neg,
+                                 std::span<const uint_multiprecision_t, extent_b> b,
+                                 bool                                             b_neg);
 
     // Shared implementation behind copy-assign, move-assign, and the lvalue
     // branches of `operator+` / `operator-`.
@@ -1809,9 +1811,10 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
 // Computes `a * b` and stores the result into `*this`.
 template <std::size_t b, class A>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr void basic_big_int<b, A>::multiply_into(
-    const std::span<const uint_multiprecision_t, extent_a> a, const bool a_neg,
-    const std::span<const uint_multiprecision_t, extent_b> b_span, const bool b_neg) {
+constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_multiprecision_t, extent_a> a,
+                                                  const bool                                             a_neg,
+                                                  const std::span<const uint_multiprecision_t, extent_b> b_span,
+                                                  const bool                                             b_neg) {
 
     const auto a_trimmed = a.first(detail::trim_size(a));
     const auto b_trimmed = b_span.first(detail::trim_size(b_span));
@@ -1829,7 +1832,7 @@ constexpr void basic_big_int<b, A>::multiply_into(
     std::fill_n(limb_ptr(), result_size, limb_type{0});
 
     std::span<uint_multiprecision_t> result_span{limb_ptr(), result_size};
-    const std::size_t sig = detail::multiply_dispatch(result_span, a_trimmed, b_trimmed, m_alloc);
+    const std::size_t                sig = detail::multiply_dispatch(result_span, a_trimmed, b_trimmed, m_alloc);
     set_limb_count(static_cast<std::uint32_t>(sig));
 
     // Negative iff exactly one operand is negative.
@@ -1852,22 +1855,17 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
     constexpr auto form = detail::classify_form_v<L, R>;
 
     Result r;
-    if constexpr (form == detail::binary_op_form::move_move ||
-                  form == detail::binary_op_form::move_copy ||
-                  form == detail::binary_op_form::copy_move ||
-                  form == detail::binary_op_form::copy_copy) {
-        r.multiply_into(x.representation(), x.is_negative(),
-                        y.representation(), y.is_negative());
-    } else if constexpr (form == detail::binary_op_form::move_int ||
-                         form == detail::binary_op_form::copy_int) {
+    if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
+                  form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
+        r.multiply_into(x.representation(), x.is_negative(), y.representation(), y.is_negative());
+    } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        r.multiply_into(x.representation(), x.is_negative(),
-                        detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
-    } else if constexpr (form == detail::binary_op_form::int_move ||
-                         form == detail::binary_op_form::int_copy) {
+        r.multiply_into(
+            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+    } else if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        r.multiply_into(detail::to_fixed_span(x_limbs), detail::integer_signbit(x),
-                        y.representation(), y.is_negative());
+        r.multiply_into(
+            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
     }
     return r;
 }
@@ -1880,15 +1878,14 @@ constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator*=(const T& rhs) {
         // Move *this to a temp so the old limbs become a read-only input,
         // then multiply into a new *this.
         const basic_big_int temp = std::move(*this);
-        *this = basic_big_int{};
-        multiply_into(temp.representation(), temp.is_negative(),
-                      rhs.representation(), rhs.is_negative());
+        *this                    = basic_big_int{};
+        multiply_into(temp.representation(), temp.is_negative(), rhs.representation(), rhs.is_negative());
     } else {
         const basic_big_int temp = std::move(*this);
-        *this = basic_big_int{};
-        const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
-        multiply_into(temp.representation(), temp.is_negative(),
-                      detail::to_fixed_span(rhs_limbs), detail::integer_signbit(rhs));
+        *this                    = basic_big_int{};
+        const auto rhs_limbs     = detail::to_limbs(detail::uabs(rhs));
+        multiply_into(
+            temp.representation(), temp.is_negative(), detail::to_fixed_span(rhs_limbs), detail::integer_signbit(rhs));
     }
     return *this;
 }
