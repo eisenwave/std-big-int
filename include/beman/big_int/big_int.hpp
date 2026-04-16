@@ -1815,7 +1815,6 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
                                                   const bool                                             a_neg,
                                                   const std::span<const uint_multiprecision_t, extent_b> b_span,
                                                   const bool                                             b_neg) {
-    
     const auto a_trimmed = a.first(detail::trimmed_size(a));
     const auto b_trimmed = b_span.first(detail::trimmed_size(b_span));
 
