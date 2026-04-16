@@ -20,8 +20,9 @@
 #endif
 #include <type_traits>
 
-#include <beman/big_int/config.hpp>
-#include <beman/big_int/wide_ops.hpp>
+#include <beman/big_int/detail/config.hpp>
+#include <beman/big_int/detail/wide_ops.hpp>
+#include <beman/big_int/detail/mul_impl.hpp>
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.

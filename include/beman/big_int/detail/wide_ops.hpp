@@ -8,7 +8,7 @@
 #include <concepts>
 #include <limits>
 
-#include <beman/big_int/config.hpp>
+#include <beman/big_int/detail/config.hpp>
 
 #ifdef BEMAN_BIG_INT_MSVC
     #include <intrin.h>
