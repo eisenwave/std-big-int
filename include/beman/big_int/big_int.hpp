@@ -291,8 +291,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::signed_or_unsigned S>
     constexpr basic_big_int& operator<<=(S s);
 
-    template <detail::common_big_int_type_with<basic_big_int> T>
-    constexpr basic_big_int& operator*=(const T& rhs);
+    template <class T>
+    constexpr basic_big_int& operator*=(const T& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
 
     // [big.int.ops]
     [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
@@ -1871,8 +1872,10 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
 
 // Compound multiplication assignment.
 template <std::size_t b, class A>
-template <detail::common_big_int_type_with<basic_big_int<b, A>> T>
-constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int& {
+template <class T>
+constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
         // Move *this to a temp so the old limbs become a read-only input,
         // then multiply into a new *this.
