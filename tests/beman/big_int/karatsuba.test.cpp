@@ -194,7 +194,7 @@ TEST(Multiplication, Karatsuba60x45) {
     const big_int expected(std::from_range, expected_limbs);
 
     EXPECT_EQ(a * b, expected);
-    EXPECT_EQ(b * a, expected);  // commutativity
+    EXPECT_EQ(b * a, expected); // commutativity
 }
 
 TEST(Multiplication, KaratsubaSquare50) {
