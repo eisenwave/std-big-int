@@ -115,8 +115,8 @@ constexpr T high_mul(const T x, const T y) noexcept {
     if constexpr (width_v<T> <= 32) {
         return (x * static_cast<wider_t<T>>(y)) >> width_v<T>;
     } else {
-        // MSVC intrinsics are not usable during constant evaluation, so fall through
-        // to the portable path when we're in a consteval context.
+            // MSVC intrinsics are not usable during constant evaluation, so fall through
+            // to the portable path when we're in a consteval context.
     #if defined(BEMAN_BIG_INT_MSVC)
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
             if constexpr (std::is_signed_v<T>) {
