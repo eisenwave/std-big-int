@@ -376,7 +376,7 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
             const std::size_t result_total = a.size() + b.size();
 
             if (storage_size <= karatsuba_stack_threshold) {
-                uint_multiprecision_t stack_buf[karatsuba_stack_threshold];
+                uint_multiprecision_t        stack_buf[karatsuba_stack_threshold];
                 scratch_allocator<Allocator> scratch(stack_buf, karatsuba_stack_threshold, alloc);
                 multiply_karatsuba(result.first(result_total), a, b, scratch);
             } else {

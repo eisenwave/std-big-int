@@ -79,7 +79,7 @@ TEST(Multiplication, MultiplicativeIdentity) {
 
 TEST(Multiplication, SingleLimbOverflow) {
     // UINT64_MAX * 2 should produce a two-limb result.
-    const auto max_val = std::numeric_limits<std::uint64_t>::max();
+    const auto    max_val = std::numeric_limits<std::uint64_t>::max();
     const big_int a{max_val};
     const big_int b{2};
     const big_int r = a * b;
@@ -199,7 +199,7 @@ TEST(Multiplication, LargeMultiLimbLongMul) {
 
     // b = 2
     // a * 2 = 2^257 - 2
-    const big_int r = a * big_int{2};
+    const big_int r        = a * big_int{2};
     const big_int expected = (big_int{1} << 257) + big_int{-2};
     EXPECT_EQ(r, expected);
 }
@@ -242,7 +242,7 @@ TEST(Multiplication, MultiLimbSquaring) {
     a <<= 128;
     a = a + big_int{-1}; // 2^128 - 1
 
-    const big_int r = a * a;
+    const big_int r        = a * a;
     const big_int expected = (big_int{1} << 256) + (-(big_int{1} << 129)) + big_int{1};
     EXPECT_EQ(r, expected);
 }
