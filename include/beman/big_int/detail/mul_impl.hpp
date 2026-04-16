@@ -31,6 +31,9 @@ inline constexpr std::size_t karatsuba_stack_threshold = 300;
 // Karatsuba recursion allocates temporaries from this,
 // then "deallocates" after each level returns so sibling branches reuse the same memory.
 // This deallocation is simply moving the pointer back
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
+
 template <class Allocator>
 struct scratch_allocator {
     using alloc_traits = std::allocator_traits<Allocator>;
@@ -82,6 +85,8 @@ struct scratch_allocator {
         m_offset -= n;
     }
 };
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 // Trim leading zero limbs returning the effective size
 constexpr std::size_t trim_size(const std::span<const uint_multiprecision_t> s) noexcept {
