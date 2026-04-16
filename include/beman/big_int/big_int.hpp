@@ -291,7 +291,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::signed_or_unsigned S>
     constexpr basic_big_int& operator<<=(S s);
 
-    template <detail::arbitrary_integer T>
+    template <detail::common_big_int_type_with<basic_big_int> T>
     constexpr basic_big_int& operator*=(const T& rhs);
 
     // [big.int.ops]
@@ -1815,9 +1815,9 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
                                                   const bool                                             a_neg,
                                                   const std::span<const uint_multiprecision_t, extent_b> b_span,
                                                   const bool                                             b_neg) {
-
-    const auto a_trimmed = a.first(detail::trim_size(a));
-    const auto b_trimmed = b_span.first(detail::trim_size(b_span));
+    
+    const auto a_trimmed = a.first(detail::trimmed_size(a));
+    const auto b_trimmed = b_span.first(detail::trimmed_size(b_span));
 
     // Zero * anything = positive 0
     if (detail::is_span_zero(a_trimmed) || detail::is_span_zero(b_trimmed)) {
@@ -1872,8 +1872,8 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
 
 // Compound multiplication assignment.
 template <std::size_t b, class A>
-template <detail::arbitrary_integer T>
-constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator*=(const T& rhs) {
+template <detail::common_big_int_type_with<basic_big_int<b, A>> T>
+constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int& {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
         // Move *this to a temp so the old limbs become a read-only input,
         // then multiply into a new *this.
