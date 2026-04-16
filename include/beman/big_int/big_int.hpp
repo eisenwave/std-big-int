@@ -291,6 +291,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::signed_or_unsigned S>
     constexpr basic_big_int& operator<<=(S s);
 
+    template <detail::arbitrary_integer T>
+    constexpr basic_big_int& operator*=(const T& rhs);
+
     // [big.int.ops]
     [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
@@ -325,7 +328,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y);
     template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y);
-    // TODO : mul, div, mod
+    template <class L, class R>
+    friend constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y);
+    // TODO : div, mod
 
     // TODO : and, or, xor
 
@@ -395,6 +400,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // invariants.
     template <std::size_t extent_other>
     constexpr void add_in_place(std::span<const uint_multiprecision_t, extent_other> other, bool other_neg);
+
+    // Computes `a * b` and stores the result into `*this`.
+    template <std::size_t extent_a, std::size_t extent_b>
+    constexpr void multiply_into(std::span<const uint_multiprecision_t, extent_a> a, bool a_neg,
+                                 std::span<const uint_multiprecision_t, extent_b> b, bool b_neg);
 
     // Shared implementation behind copy-assign, move-assign, and the lvalue
     // branches of `operator+` / `operator-`.
@@ -1794,6 +1804,93 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
     if (!is_zero()) {
         set_sign(other_neg);
     }
+}
+
+// Computes `a * b` and stores the result into `*this`.
+template <std::size_t b, class A>
+template <std::size_t extent_a, std::size_t extent_b>
+constexpr void basic_big_int<b, A>::multiply_into(
+    const std::span<const uint_multiprecision_t, extent_a> a, const bool a_neg,
+    const std::span<const uint_multiprecision_t, extent_b> b_span, const bool b_neg) {
+
+    const auto a_trimmed = a.first(detail::trim_size(a));
+    const auto b_trimmed = b_span.first(detail::trim_size(b_span));
+
+    // Zero * anything = positive 0
+    if (detail::is_span_zero(a_trimmed) || detail::is_span_zero(b_trimmed)) {
+        limb_ptr()[0] = 0;
+        set_limb_count(1);
+        set_sign(false);
+        return;
+    }
+
+    const std::size_t result_size = a_trimmed.size() + b_trimmed.size();
+    grow(result_size);
+    std::fill_n(limb_ptr(), result_size, limb_type{0});
+
+    std::span<uint_multiprecision_t> result_span{limb_ptr(), result_size};
+    const std::size_t sig = detail::multiply_dispatch(result_span, a_trimmed, b_trimmed, m_alloc);
+    set_limb_count(static_cast<std::uint32_t>(sig));
+
+    // Negative iff exactly one operand is negative.
+    // Avoids negative zero
+    set_sign(false);
+    if (!is_zero()) {
+        set_sign(a_neg != b_neg);
+    }
+}
+
+// Since multiplication needs a fresh output buffer (the result has up to
+// a_size + b_size limbs and cannot overlap either input), every path creates a new
+// `Result` and calls `multiply_into`.
+//
+// TODO : This is a member function instead of a free function like add_in_place,
+// because maybe this is a pessimistic view on our allocation requirements?
+template <class L, class R>
+constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
+    using Result        = detail::common_big_int_type<L, R>;
+    constexpr auto form = detail::classify_form_v<L, R>;
+
+    Result r;
+    if constexpr (form == detail::binary_op_form::move_move ||
+                  form == detail::binary_op_form::move_copy ||
+                  form == detail::binary_op_form::copy_move ||
+                  form == detail::binary_op_form::copy_copy) {
+        r.multiply_into(x.representation(), x.is_negative(),
+                        y.representation(), y.is_negative());
+    } else if constexpr (form == detail::binary_op_form::move_int ||
+                         form == detail::binary_op_form::copy_int) {
+        const auto y_limbs = detail::to_limbs(detail::uabs(y));
+        r.multiply_into(x.representation(), x.is_negative(),
+                        detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+    } else if constexpr (form == detail::binary_op_form::int_move ||
+                         form == detail::binary_op_form::int_copy) {
+        const auto x_limbs = detail::to_limbs(detail::uabs(x));
+        r.multiply_into(detail::to_fixed_span(x_limbs), detail::integer_signbit(x),
+                        y.representation(), y.is_negative());
+    }
+    return r;
+}
+
+// Compound multiplication assignment.
+template <std::size_t b, class A>
+template <detail::arbitrary_integer T>
+constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator*=(const T& rhs) {
+    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        // Move *this to a temp so the old limbs become a read-only input,
+        // then multiply into a new *this.
+        const basic_big_int temp = std::move(*this);
+        *this = basic_big_int{};
+        multiply_into(temp.representation(), temp.is_negative(),
+                      rhs.representation(), rhs.is_negative());
+    } else {
+        const basic_big_int temp = std::move(*this);
+        *this = basic_big_int{};
+        const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
+        multiply_into(temp.representation(), temp.is_negative(),
+                      detail::to_fixed_span(rhs_limbs), detail::integer_signbit(rhs));
+    }
+    return *this;
 }
 
 // private helpers
