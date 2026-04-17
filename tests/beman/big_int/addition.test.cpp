@@ -362,6 +362,174 @@ TEST(Addition, InlineInlineNoCarryStaysInline) {
     EXPECT_EQ(r2.capacity(), 0u); // still inline
 }
 
+// ----- compound assignment (operator+=) tests -----
+
+consteval bool ce_plus_equal_small() {
+    big_int a{1};
+    a += big_int{2};
+    return a == big_int{3};
+}
+static_assert(ce_plus_equal_small());
+
+consteval bool ce_plus_equal_cancel_to_zero() {
+    big_int a{-5};
+    a += big_int{5};
+    return a == big_int{0};
+}
+static_assert(ce_plus_equal_cancel_to_zero());
+
+consteval bool ce_plus_equal_mixed_sign() {
+    big_int a{-5};
+    a += big_int{3};
+    return a == big_int{-2};
+}
+static_assert(ce_plus_equal_mixed_sign());
+
+TEST(CompoundAddition, ReturnsReferenceToSelf) {
+    big_int  a{10};
+    big_int& r = (a += big_int{5});
+    EXPECT_EQ(&r, &a);
+    EXPECT_EQ(a, 15);
+}
+
+TEST(CompoundAddition, SmallPositivePositive) {
+    big_int a{1};
+    a += big_int{2};
+    EXPECT_EQ(a, 3);
+
+    big_int b{40};
+    b += big_int{2};
+    EXPECT_EQ(b, 42);
+}
+
+TEST(CompoundAddition, SmallNegativeNegative) {
+    big_int a{-1};
+    a += big_int{-2};
+    EXPECT_EQ(a, -3);
+}
+
+TEST(CompoundAddition, MixedSigns) {
+    big_int a{5};
+    a += big_int{-3};
+    EXPECT_EQ(a, 2);
+
+    big_int b{-5};
+    b += big_int{3};
+    EXPECT_EQ(b, -2);
+
+    big_int c{3};
+    c += big_int{-5};
+    EXPECT_EQ(c, -2);
+}
+
+TEST(CompoundAddition, CancelToExactZeroIsPositive) {
+    big_int a{-7};
+    a += big_int{7};
+    EXPECT_EQ(a, 0);
+    EXPECT_FALSE(a < 0);
+}
+
+TEST(CompoundAddition, ZeroIdentity) {
+    big_int a{42};
+    a += big_int{0};
+    EXPECT_EQ(a, 42);
+
+    big_int b{0};
+    b += big_int{-42};
+    EXPECT_EQ(b, -42);
+}
+
+TEST(CompoundAddition, CarryOutOfTopLimbPromotesToHeap) {
+    big_int a{std::numeric_limits<std::uint64_t>::max()};
+    ASSERT_EQ(a.representation().size(), 1u);
+    a += big_int{1};
+    ASSERT_EQ(a.representation().size(), 2u);
+    EXPECT_EQ(a.representation()[0], uint_multiprecision_t{0});
+    EXPECT_EQ(a.representation()[1], uint_multiprecision_t{1});
+    EXPECT_GT(a.capacity(), 0u);
+}
+
+TEST(CompoundAddition, NoAllocationWhenInlineFits) {
+    using big_int_256 = basic_big_int<256>;
+    big_int_256 a{1};
+    a += big_int_256{2};
+    EXPECT_EQ(a, 3);
+    EXPECT_EQ(a.capacity(), 0u);
+}
+
+TEST(CompoundAddition, MultiLimbOppositeSignTrimsLeadingZeros) {
+    big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
+    ASSERT_EQ(a.representation().size(), 2u);
+    a += big_int{-1};
+    ASSERT_EQ(a.representation().size(), 1u);
+    EXPECT_EQ(a.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_FALSE(a < 0);
+}
+
+TEST(CompoundAddition, PrimitiveUnsigned) {
+    big_int a{10};
+    a += 5U;
+    EXPECT_EQ(a, 15);
+
+    big_int b{-10};
+    b += 5U;
+    EXPECT_EQ(b, -5);
+
+    big_int c{-10};
+    c += 20U;
+    EXPECT_EQ(c, 10);
+}
+
+TEST(CompoundAddition, PrimitiveSigned) {
+    big_int a{10};
+    a += 5;
+    EXPECT_EQ(a, 15);
+
+    big_int b{10};
+    b += -5;
+    EXPECT_EQ(b, 5);
+
+    big_int c{-10};
+    c += -5;
+    EXPECT_EQ(c, -15);
+
+    big_int d{5};
+    d += -5;
+    EXPECT_EQ(d, 0);
+    EXPECT_FALSE(d < 0);
+}
+
+TEST(CompoundAddition, PrimitiveCarryIntoUpperLimb) {
+    big_int a{std::numeric_limits<std::uint64_t>::max()};
+    a += 1U;
+    ASSERT_EQ(a.representation().size(), 2u);
+    EXPECT_EQ(a.representation()[0], uint_multiprecision_t{0});
+    EXPECT_EQ(a.representation()[1], uint_multiprecision_t{1});
+}
+
+TEST(CompoundAddition, SelfAddDoublesValue) {
+    // `a += a` must correctly yield `2 * a` even though `rhs.representation()`
+    // aliases `*this`'s own limbs.
+    big_int a{7};
+    a += a;
+    EXPECT_EQ(a, 14);
+
+    big_int b = big_int{std::numeric_limits<std::uint64_t>::max()};
+    b += b;
+    // 2 * (2^64 - 1) = 2^65 - 2 = [UINT64_MAX - 1, 1]
+    ASSERT_EQ(b.representation().size(), 2u);
+    EXPECT_EQ(b.representation()[0], std::numeric_limits<std::uint64_t>::max() - 1);
+    EXPECT_EQ(b.representation()[1], uint_multiprecision_t{1});
+}
+
+TEST(CompoundAddition, ChainedAccumulation) {
+    big_int a{0};
+    for (int i = 1; i <= 10; ++i) {
+        a += big_int{i};
+    }
+    EXPECT_EQ(a, 55);
+}
+
 TEST(Addition, LvalueCopiesLargerOperand) {
     // When both operands are lvalues, the implementation should copy whichever
     // has more limbs so that add_in_place does not need to grow. We can't peek
