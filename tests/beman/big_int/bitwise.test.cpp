@@ -893,7 +893,7 @@ TEST(BitwiseTwoLimb, Random2_PN) {
 
 TEST(BitwiseTwoLimb, Random2_NP) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0822E8F36C031199ULL, 0x17FC695A07A0CA6FULL}};
-    const big_int                                  a                  = neg_from_limbs(a_limbs);
+    const big_int                                  a       = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3B8FAA1837F8A88BULL, 0x9A1DE644815EF6D2ULL}};
     const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
