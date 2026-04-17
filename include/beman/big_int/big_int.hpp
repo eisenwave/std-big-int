@@ -146,6 +146,9 @@ static_assert(invert(std::strong_ordering::less) == std::strong_ordering::greate
               "where negation exchanges less and greater.");
 
 enum struct bitwise_op : unsigned char { and_, or_, xor_ };
+
+struct access_bypass;
+
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -242,10 +245,15 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int(const T&              value,
                             const allocator_type& a) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>);
 
+    template <std::input_iterator I, std::sentinel_for<I> S>
+        requires detail::signed_or_unsigned<std::iter_value_t<I>>
+    constexpr basic_big_int(I begin, S end, const allocator_type& a = allocator_type());
+
 #if defined(__cpp_lib_containers_ranges) && __cpp_lib_containers_ranges >= 202202L
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
-    constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
+    constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type())
+        : basic_big_int(std::ranges::begin(r), std::ranges; : end(r), a) {}
 #endif
 
     constexpr ~basic_big_int();
@@ -553,7 +561,20 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     template <detail::bitwise_op op, class L, class R>
     [[nodiscard]] static constexpr detail::common_big_int_type<L, R> bitwise_impl(L&& x, R&& y);
+
+    friend detail::access_bypass;
 };
+
+namespace detail {
+
+struct access_bypass {
+    template <size_t b, class A>
+    static constexpr void negate(basic_big_int<b, A>& x) {
+        x.negate();
+    }
+};
+
+} // namespace detail
 
 // =============================================================================
 // Out-of-class definitions
@@ -712,36 +733,34 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
     }
 }
 
-#if defined(__cpp_lib_containers_ranges) && __cpp_lib_containers_ranges >= 202202L
 template <std::size_t b, class A>
-template <std::ranges::input_range R>
-    requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
-constexpr basic_big_int<b, A>::basic_big_int(std::from_range_t, R&& r, const allocator_type& a)
+template <std::input_iterator I, std::sentinel_for<I> S>
+    requires detail::signed_or_unsigned<std::iter_value_t<I>>
+constexpr basic_big_int<b, A>::basic_big_int(I begin, S end, const allocator_type& a)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
 
-    if constexpr (std::ranges::sized_range<R>) {
-        reserve(std::ranges::size(r));
+    if constexpr (std::ranges::sized_range<std::ranges::subrange<I, S>>) {
+        reserve(std::ranges::size(std::ranges::subrange(begin, end)));
         std::size_t i   = 0;
         auto* const dst = limb_ptr();
-        for (auto&& elem : r) {
-            using U = std::make_unsigned_t<std::ranges::range_value_t<R>>;
-            std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(elem)));
+        for (; begin != end; ++begin) {
+            using U = std::make_unsigned_t<std::iter_value_t<I>>;
+            std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(*begin)));
         }
         set_limb_count(static_cast<std::uint32_t>(i == 0 ? 1 : i));
         while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
             set_limb_count(limb_count() - 1);
         }
     } else {
-        for (auto&& elem : r) {
-            using U = std::make_unsigned_t<std::ranges::range_value_t<R>>;
-            push_back_limb(static_cast<limb_type>(static_cast<U>(elem)));
+        for (; begin != end; ++begin) {
+            using U = std::make_unsigned_t<std::iter_value_t<I>>;
+            push_back_limb(static_cast<limb_type>(static_cast<U>(*begin)));
         }
         while (limb_count() > 1 && limb_ptr()[limb_count() - 1] == 0) {
             set_limb_count(limb_count() - 1);
         }
     }
 }
-#endif
 
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>::~basic_big_int() {
@@ -2354,60 +2373,134 @@ using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
 // [big.int.literal]
 namespace detail {
 
+[[nodiscard]] constexpr int digit_value(char c) noexcept {
+    static_assert('A' == 0x41 && 'Z' == 0x5a, "This function requires the ordinary literal encoding to be ASCII.");
+    return '0' <= c && c <= '9'   ? c - '0'
+           : 'A' <= c && c <= 'Z' ? c - 'A' + 10
+           : 'a' <= c && c <= 'z' ? c - 'a' + 10
+                                  : -1;
+}
+
+template <size_t b, class A>
+constexpr std::from_chars_result
+from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& out, const int base) {
+    if (begin == nullptr || begin == end || base < 2 || base > 36) {
+        return {end, std::errc::invalid_argument};
+    }
+
+    const char* p = begin;
+    if (*p == '-') {
+        ++p;
+    }
+    if (p == end) {
+        return {end, std::errc::invalid_argument};
+    }
+
+    // The number of bits per base digit, or zero if the base is not a power of two.
+    const auto bits_per_digit     = std::has_single_bit(static_cast<unsigned char>(base))
+                                        ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
+                                        : static_cast<unsigned char>(0);
+    bool       at_least_one_digit = false;
+    for (; p != end; ++p) {
+        const int digit = digit_value(*p);
+        if (digit < 0 || digit >= base) {
+            break;
+        }
+        if (!at_least_one_digit) {
+            // Reset to zero, but keep the allocation (if any).
+            // We have to delay this assignment because if invalid_argument is returned,
+            // the output parameter must remain unmodified.
+            out                = {};
+            at_least_one_digit = true;
+        }
+        // In general, each time we concatenate a digit, we multiply with the base and add the digit.
+        // For powers of two, this is equivalent to a left shift, followed by a bitwise OR.
+        // Casting to unsigned char selects a potentially simpler specialization
+        // of the binary operators than using int.
+        if (bits_per_digit) {
+            out <<= bits_per_digit;
+            // TODO: Once `|=` exists, this `+=` should be replaced.
+            out += static_cast<unsigned char>(digit);
+        } else {
+            out *= base;
+            out += static_cast<unsigned char>(digit);
+        }
+    }
+    if (!at_least_one_digit) {
+        return {end, std::errc::invalid_argument};
+    }
+    if (begin[0] == '-') {
+        detail::access_bypass::negate(out);
+    }
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        out.shrink_to_fit();
+    }
+    return {p, std::errc{}};
+}
+
+using std::from_chars;
+
 // Like `std::from_chars`, but detects the base automatically
 // based on the `0x`, `0b`, or `0` prefix.
-template <unsigned_integer T>
+template <class T>
 [[nodiscard]] constexpr std::from_chars_result
-from_chars_auto_base(const char* const begin, const char* const end, T& out) {
+from_chars_auto_base(const char* const begin, const char* const end, T& out)
+    requires requires { from_chars(begin, end, out, 10); }
+{
     if (begin == end) {
         return {end, std::errc::invalid_argument};
     }
     if (*begin != '0' || end - begin <= 1) {
-        return std::from_chars(begin, end, out);
+        return from_chars(begin, end, out, 10);
     }
     switch (begin[1]) {
     case 'b':
     case 'B':
-        return std::from_chars(begin + 2, end, out, 2);
+        return from_chars(begin + 2, end, out, 2);
     // In the future, this will also have a case for 'o'
     // https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2025/p0085r3.html
     case 'x':
     case 'X':
-        return std::from_chars(begin + 2, end, out, 16);
+        return from_chars(begin + 2, end, out, 16);
     default:
         break;
     }
     // This case (leading zero for octal) is deprecated,
     // but we have no real way to communicate that and raise a warning here.
-    return std::from_chars(begin, end, out, 8);
+    return from_chars(begin, end, out, 8);
 }
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 struct big_int_and_errc {
-    big_int   value;
+    big_int   value_or_limb_count;
     std::errc ec;
 };
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
+// Returns the result of parsing a `big_int` using `from_chars_auto_base`.
+// However, if the result is too large to fit into inplace storage,
+// `{limb_count(), std::errc::result_out_of_range}` is returned.
 [[nodiscard]] constexpr big_int_and_errc parse_non_allocating(const char* const begin, const char* const end) {
-    // TODO(eisenwave): This should support more than a single limb.
-    uint_multiprecision_t parsed_limb = 0;
-    const auto [p, ec]                = detail::from_chars_auto_base(begin, end, parsed_limb);
+    big_int result;
+    const auto [p, ec] = from_chars_auto_base(begin, end, result);
     if (ec != std::errc{}) {
         return {0, ec};
     }
     if (p != end) {
         return {0, std::errc::invalid_argument};
     }
-    return {.value = parsed_limb, .ec = {}};
+    if (result.capacity() != 0) {
+        return {result.size(), std::errc::result_out_of_range};
+    }
+    return {.value_or_limb_count = result, .ec = {}};
 }
 
 // Helper variable template which prevents multiple constant evaluations of parse_non_allocating,
 // in case compilers don't memoize.
 // It also provides some convenience.
 template <char... digits>
-inline constexpr big_int_and_errc parse_non_allocating_v = [] {
+inline constexpr big_int_and_errc parse_non_allocating_v = []() constexpr {
     static constexpr char buffer[]{digits...};
     return parse_non_allocating(buffer, buffer + sizeof(buffer));
 }();
@@ -2427,7 +2520,8 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4455)
 // clang-format off
 template <char... digits>
 [[nodiscard]] constexpr big_int operator""n()
-  noexcept(detail::parse_non_allocating_v<digits...>.ec == std::errc{}) {
+  //noexcept(detail::parse_non_allocating_v<digits...>.ec == std::errc{}) 
+  {
     // clang-format on
 
     // For this user-defined literal, there are two radically distinct situations.
@@ -2442,7 +2536,7 @@ template <char... digits>
     // Because it is only `constexpr`, it is important to handle the "small case" specially,
     // so that no runtime parsing takes place.
     if constexpr (detail::parse_non_allocating_v<digits...>.ec == std::errc{}) {
-        return detail::parse_non_allocating_v<digits...>.value;
+        return detail::parse_non_allocating_v<digits...>.value_or_limb_count;
     } else if constexpr (detail::parse_non_allocating_v<digits...>.ec == std::errc::invalid_argument) {
         static_assert(false,
                       "The given literal is not a valid integer-literal. "
@@ -2450,9 +2544,33 @@ template <char... digits>
                       "without explicitly providing template arguments to the user-defined literal.");
     } else {
         static_assert(detail::parse_non_allocating_v<digits...>.ec == std::errc::result_out_of_range);
-        static_assert(false, "Sorry, allocating literals are not supported yet.");
-        // TODO: 1. Create a pre-computed constexpr limb array and sign bit.
-        //       2. At runtime, create a `big_int` using the constructor taking a limb array.
+        static_assert(false);
+
+        // While we don't have non-transient allocations and cannot store a constexpr big_int,
+        // we can precompute a constexpr limb array which is used for fast runtime initialization.
+        static constexpr char buffer[]{digits...};
+        // We already know the limb count from the previous parsing attempt:
+        static constexpr auto dynamic_limb_count =
+            static_cast<std::size_t>(detail::parse_non_allocating_v<digits...>.value_or_limb_count);
+        // Unfortunately, we need to parse a second time to also obtain the limb data.
+        static constexpr auto limbs = [] {
+            big_int parsed;
+            const auto [p, ec] = detail::from_chars_auto_base(std::begin(buffer), std::end(buffer), parsed);
+            // We've already parsed this successfully once in parse_non_allocating,
+            // so there's no reason it would fail now.
+            BEMAN_BIG_INT_ASSERT(p == std::end(buffer));
+            BEMAN_BIG_INT_ASSERT(ec == std::errc{});
+            BEMAN_BIG_INT_ASSERT(parsed.size() == dynamic_limb_count);
+            std::array<uint_multiprecision_t, dynamic_limb_count> result;
+            std::copy_n(parsed.representation().data(), dynamic_limb_count, result.data());
+            return result;
+        }();
+
+        big_int result(std::begin(limbs), std::end(limbs));
+        if (buffer[0] == '-') {
+            detail::access_bypass::negate(result);
+        }
+        return result;
     }
 }
 
@@ -2460,7 +2578,9 @@ template <char... digits>
 // https://github.com/llvm/llvm-project/issues/76394
 // clang-format off
 template <char... digits>
-[[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator""n<digits...>())) {
+[[nodiscard]] constexpr big_int operator""_n()
+// noexcept(noexcept(operator""n<digits...>())) 
+{
     return operator""n<digits...>();
 }
 // clang-format on
