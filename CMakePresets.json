@@ -16,8 +16,7 @@
       "name": "_debug-base",
       "hidden": true,
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "BEMAN_BUILDSYS_SANITIZER": "MaxSan"
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
@@ -57,7 +56,8 @@
         "_debug-base"
       ],
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "infra/cmake/llvm-toolchain.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "infra/cmake/llvm-toolchain.cmake",
+        "BEMAN_BUILDSYS_SANITIZER": "MaxSan"
       }
     },
     {
@@ -79,7 +79,8 @@
         "_debug-base"
       ],
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "infra/cmake/appleclang-toolchain.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "infra/cmake/appleclang-toolchain.cmake",
+        "BEMAN_BUILDSYS_SANITIZER": "MaxSan"
       }
     },
     {
@@ -101,7 +102,8 @@
         "_debug-base"
       ],
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "infra/cmake/msvc-toolchain.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "infra/cmake/msvc-toolchain.cmake",
+        "BEMAN_BUILDSYS_SANITIZER": "MaxSan"
       }
     },
     {

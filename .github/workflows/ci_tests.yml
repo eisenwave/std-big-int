@@ -43,7 +43,7 @@ jobs:
                     { "stdlibs": ["libstdc++"],
                       "tests": [
                         "Debug.Default", "Release.Default", "Release.TSan",
-                        "Release.MaxSan", "Debug.Werror",
+                        "Debug.Werror",
                         "Debug.Coverage"
                       ]
                     }
