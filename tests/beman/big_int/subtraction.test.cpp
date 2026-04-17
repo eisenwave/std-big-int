@@ -332,4 +332,187 @@ TEST(Subtraction, LvalueCopiesLargerOperand) {
     EXPECT_GE(r2.capacity(), 2u);
 }
 
+// ----- compound assignment (operator-=) tests -----
+
+consteval bool ce_minus_equal_small() {
+    big_int a{5};
+    a -= big_int{3};
+    return a == big_int{2};
+}
+static_assert(ce_minus_equal_small());
+
+consteval bool ce_minus_equal_cancel_to_zero() {
+    big_int a{7};
+    a -= big_int{7};
+    return a == big_int{0};
+}
+static_assert(ce_minus_equal_cancel_to_zero());
+
+consteval bool ce_minus_equal_negative_result() {
+    big_int a{3};
+    a -= big_int{5};
+    return a == big_int{-2};
+}
+static_assert(ce_minus_equal_negative_result());
+
+consteval bool ce_minus_equal_positive_minus_negative() {
+    big_int a{5};
+    a -= big_int{-3};
+    return a == big_int{8};
+}
+static_assert(ce_minus_equal_positive_minus_negative());
+
+TEST(CompoundSubtraction, ReturnsReferenceToSelf) {
+    big_int a{10};
+    big_int& r = (a -= big_int{3});
+    EXPECT_EQ(&r, &a);
+    EXPECT_EQ(a, 7);
+}
+
+TEST(CompoundSubtraction, SmallPositive) {
+    big_int a{5};
+    a -= big_int{3};
+    EXPECT_EQ(a, 2);
+
+    big_int b{3};
+    b -= big_int{5};
+    EXPECT_EQ(b, -2);
+}
+
+TEST(CompoundSubtraction, SmallNegative) {
+    big_int a{-5};
+    a -= big_int{-3};
+    EXPECT_EQ(a, -2);
+
+    big_int b{-3};
+    b -= big_int{-5};
+    EXPECT_EQ(b, 2);
+}
+
+TEST(CompoundSubtraction, MixedSigns) {
+    big_int a{5};
+    a -= big_int{-3};
+    EXPECT_EQ(a, 8);
+
+    big_int b{-5};
+    b -= big_int{3};
+    EXPECT_EQ(b, -8);
+}
+
+TEST(CompoundSubtraction, CancelToExactZeroIsPositive) {
+    big_int a{7};
+    a -= big_int{7};
+    EXPECT_EQ(a, 0);
+    EXPECT_FALSE(a < 0);
+
+    big_int b{-100};
+    b -= big_int{-100};
+    EXPECT_EQ(b, 0);
+    EXPECT_FALSE(b < 0);
+}
+
+TEST(CompoundSubtraction, ZeroIdentity) {
+    big_int a{42};
+    a -= big_int{0};
+    EXPECT_EQ(a, 42);
+
+    big_int b{0};
+    b -= big_int{42};
+    EXPECT_EQ(b, -42);
+
+    big_int c{0};
+    c -= big_int{-42};
+    EXPECT_EQ(c, 42);
+}
+
+TEST(CompoundSubtraction, BorrowAcrossLimbPromotesToHeap) {
+    big_int a{std::numeric_limits<std::uint64_t>::max()};
+    a -= big_int{-1}; // UINT64_MAX + 1 = 2^64
+    ASSERT_EQ(a.representation().size(), 2u);
+    EXPECT_EQ(a.representation()[0], uint_multiprecision_t{0});
+    EXPECT_EQ(a.representation()[1], uint_multiprecision_t{1});
+    EXPECT_GT(a.capacity(), 0u);
+}
+
+TEST(CompoundSubtraction, MultiLimbShrinksToSingleLimb) {
+    // (2^64) - 1 = UINT64_MAX, trims the now-zero upper limb.
+    big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    ASSERT_EQ(a.representation().size(), 2u);
+    a -= big_int{1};
+    ASSERT_EQ(a.representation().size(), 1u);
+    EXPECT_EQ(a.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_FALSE(a < 0);
+}
+
+TEST(CompoundSubtraction, PrimitiveUnsigned) {
+    big_int a{10};
+    a -= 5U;
+    EXPECT_EQ(a, 5);
+
+    big_int b{3};
+    b -= 5U;
+    EXPECT_EQ(b, -2);
+
+    big_int c{-10};
+    c -= 5U;
+    EXPECT_EQ(c, -15);
+}
+
+TEST(CompoundSubtraction, PrimitiveSigned) {
+    big_int a{10};
+    a -= 5;
+    EXPECT_EQ(a, 5);
+
+    big_int b{10};
+    b -= -5;
+    EXPECT_EQ(b, 15);
+
+    big_int c{-10};
+    c -= -5;
+    EXPECT_EQ(c, -5);
+
+    big_int d{5};
+    d -= 5;
+    EXPECT_EQ(d, 0);
+    EXPECT_FALSE(d < 0);
+}
+
+TEST(CompoundSubtraction, PrimitiveBorrowFromUpperLimb) {
+    // 2^64 - 1 must trim the upper limb.
+    big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    a -= 1U;
+    ASSERT_EQ(a.representation().size(), 1u);
+    EXPECT_EQ(a.representation()[0], std::numeric_limits<std::uint64_t>::max());
+}
+
+TEST(CompoundSubtraction, SelfSubtractYieldsZero) {
+    // `a -= a` must correctly yield `0` even though `rhs.representation()`
+    // aliases `*this`'s own limbs.
+    big_int a{42};
+    a -= a;
+    EXPECT_EQ(a, 0);
+    EXPECT_FALSE(a < 0);
+
+    big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    b -= b;
+    EXPECT_EQ(b, 0);
+    EXPECT_FALSE(b < 0);
+}
+
+TEST(CompoundSubtraction, NoAllocationWhenInlineFits) {
+    using big_int_256 = basic_big_int<256>;
+    big_int_256 a{10};
+    a -= big_int_256{3};
+    EXPECT_EQ(a, 7);
+    EXPECT_EQ(a.capacity(), 0u);
+}
+
+TEST(CompoundSubtraction, ChainedAccumulation) {
+    big_int a{100};
+    for (int i = 1; i <= 10; ++i) {
+        a -= big_int{i};
+    }
+    EXPECT_EQ(a, 45);
+}
+
 } // namespace
