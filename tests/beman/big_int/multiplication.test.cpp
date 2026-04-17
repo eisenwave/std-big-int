@@ -50,7 +50,7 @@ static_assert(ce_255());
 consteval bool move_heap_mul() {
     big_int result{2};
 
-    big_int lhs {2};
+    big_int lhs{2};
     lhs <<= 155;
 
     result *= lhs;
