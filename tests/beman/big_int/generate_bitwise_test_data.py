@@ -182,6 +182,15 @@ def main():
     ]):
         cases.append(de_morgan_case("BitwiseDeMorgan", f"Case{i}", a, b))
 
+    # Edge cases.
+    cases.append(generate_case("BitwiseEdgeCases", "ZeroAndMinusOne",        0, -1))
+    cases.append(generate_case("BitwiseEdgeCases", "MinusOneAndMinusOne",   -1, -1))
+    cases.append(generate_case("BitwiseEdgeCases", "MaxUint64XorMinusOne",   LIMB_MAX, -1))
+    cases.append(generate_case("BitwiseEdgeCases", "ZeroOrMinusOne",         0, -1))
+    cases.append(generate_case("BitwiseEdgeCases", "ZeroXorMinusOne",        0, -1))
+    cases.append(generate_case("BitwiseEdgeCases", "MinusOneXorMinusOne",   -1, -1))
+    cases.append(generate_case("BitwiseEdgeCases", "MinusOneOrMinusOne",    -1, -1))
+
     print("// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception")
     print("// SPDX-License-Identifier: BSL-1.0")
     print("//")

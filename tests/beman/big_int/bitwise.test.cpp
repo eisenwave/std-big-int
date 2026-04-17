@@ -575,9 +575,9 @@ TEST(BitwiseSingleLimb, MaxUint64NegNeg) {
 
 TEST(BitwiseTwoLimb, PowerOfLimbNegNeg) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x0000000000000000ULL, 0x0000000000000001ULL}};
     const big_int                                  expected_and      = neg_from_limbs(expected_and_limbs);
@@ -597,9 +597,9 @@ TEST(BitwiseTwoLimb, PowerOfLimbNegNeg) {
 
 TEST(BitwiseTwoLimb, PowerOfLimbNegPos) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x0000000000000000ULL, 0x0000000000000001ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -620,9 +620,9 @@ TEST(BitwiseTwoLimb, PowerOfLimbNegPos) {
 
 TEST(BitwiseTwoLimb, PowerOfLimbPosNeg) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x0000000000000000ULL, 0x0000000000000001ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -663,9 +663,9 @@ TEST(BitwiseTwoLimb, PowerOfLimbMinus1Neg) {
 
 TEST(BitwiseTwoLimb, Random0_PP) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1C80317FA3B1799DULL, 0xBDD640FB06671AD2ULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3EB13B9046685257ULL, 0x23B8C1E9392456DFULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x1C80311002205015ULL, 0x219040E9002412D2ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -686,9 +686,9 @@ TEST(BitwiseTwoLimb, Random0_PP) {
 
 TEST(BitwiseTwoLimb, Random0_PN) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1C80317FA3B1799DULL, 0xBDD640FB06671AD2ULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3EB13B9046685257ULL, 0x23B8C1E9392456DFULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x0000006FA1912989ULL, 0x9C46001206430800ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -709,9 +709,9 @@ TEST(BitwiseTwoLimb, Random0_PN) {
 
 TEST(BitwiseTwoLimb, Random0_NP) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1C80317FA3B1799DULL, 0xBDD640FB06671AD2ULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3EB13B9046685257ULL, 0x23B8C1E9392456DFULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x22310A8044480243ULL, 0x022881003900440DULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -732,9 +732,9 @@ TEST(BitwiseTwoLimb, Random0_NP) {
 
 TEST(BitwiseTwoLimb, Random0_NN) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1C80317FA3B1799DULL, 0xBDD640FB06671AD2ULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3EB13B9046685257ULL, 0x23B8C1E9392456DFULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x3EB13BFFE7F97BDFULL, 0xBFFEC1FB3F675EDFULL}};
     const big_int                                  expected_and      = neg_from_limbs(expected_and_limbs);
@@ -755,9 +755,9 @@ TEST(BitwiseTwoLimb, Random0_NN) {
 
 TEST(BitwiseTwoLimb, Random1_PP) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1A3D1FA7BC8960A9ULL, 0xBD9C66B3AD3C2D6EULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x8B9D2434E465E150ULL, 0x972A846916419F83ULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x0A1D0424A4016000ULL, 0x9508042104000D02ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -778,9 +778,9 @@ TEST(BitwiseTwoLimb, Random1_PP) {
 
 TEST(BitwiseTwoLimb, Random1_PN) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1A3D1FA7BC8960A9ULL, 0xBD9C66B3AD3C2D6EULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x8B9D2434E465E150ULL, 0x972A846916419F83ULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x10201B83188800A0ULL, 0x28946292A93C206CULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -801,9 +801,9 @@ TEST(BitwiseTwoLimb, Random1_PN) {
 
 TEST(BitwiseTwoLimb, Random1_NP) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1A3D1FA7BC8960A9ULL, 0xBD9C66B3AD3C2D6EULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x8B9D2434E465E150ULL, 0x972A846916419F83ULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x8180201040648150ULL, 0x0222804812419281ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -824,9 +824,9 @@ TEST(BitwiseTwoLimb, Random1_NP) {
 
 TEST(BitwiseTwoLimb, Random1_NN) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x1A3D1FA7BC8960A9ULL, 0xBD9C66B3AD3C2D6EULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x8B9D2434E465E150ULL, 0x972A846916419F83ULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x9BBD3FB7FCEDE1F0ULL, 0xBFBEE6FBBF7DBFEFULL}};
     const big_int                                  expected_and      = neg_from_limbs(expected_and_limbs);
@@ -847,9 +847,9 @@ TEST(BitwiseTwoLimb, Random1_NN) {
 
 TEST(BitwiseTwoLimb, Random2_PP) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0822E8F36C031199ULL, 0x17FC695A07A0CA6FULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3B8FAA1837F8A88BULL, 0x9A1DE644815EF6D2ULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x0802A81024000089ULL, 0x121C60400100C242ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -870,9 +870,9 @@ TEST(BitwiseTwoLimb, Random2_PP) {
 
 TEST(BitwiseTwoLimb, Random2_PN) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0822E8F36C031199ULL, 0x17FC695A07A0CA6FULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3B8FAA1837F8A88BULL, 0x9A1DE644815EF6D2ULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x002040E348031111ULL, 0x05E0091A06A0082DULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -893,9 +893,9 @@ TEST(BitwiseTwoLimb, Random2_PN) {
 
 TEST(BitwiseTwoLimb, Random2_NP) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0822E8F36C031199ULL, 0x17FC695A07A0CA6FULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3B8FAA1837F8A88BULL, 0x9A1DE644815EF6D2ULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x338D020813F8A803ULL, 0x88018604805E3490ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -916,9 +916,9 @@ TEST(BitwiseTwoLimb, Random2_NP) {
 
 TEST(BitwiseTwoLimb, Random2_NN) {
     constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0822E8F36C031199ULL, 0x17FC695A07A0CA6FULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3B8FAA1837F8A88BULL, 0x9A1DE644815EF6D2ULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x3BAFEAFB7FFBB99BULL, 0x9FFDEF5E87FEFEFFULL}};
     const big_int                                  expected_and      = neg_from_limbs(expected_and_limbs);
@@ -940,9 +940,9 @@ TEST(BitwiseTwoLimb, Random2_NN) {
 TEST(BitwiseUnequalLength, 4x2_PP) {
     constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
         {0x8FADC1A606CB0FB3ULL, 0xB74D0FB132E70629ULL, 0xB38A088CA65ED389ULL, 0x6B65A6A48B8148F7ULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x72FF5D2A386ECBE0ULL, 0x4737819096DA1DADULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x02AD4122004A0BA0ULL, 0x0705019012C20429ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -964,9 +964,9 @@ TEST(BitwiseUnequalLength, 4x2_PP) {
 TEST(BitwiseUnequalLength, 4x2_PN) {
     constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
         {0x8FADC1A606CB0FB3ULL, 0xB74D0FB132E70629ULL, 0xB38A088CA65ED389ULL, 0x6B65A6A48B8148F7ULL}};
-    const big_int                                  a       = pos_from_limbs(a_limbs);
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x72FF5D2A386ECBE0ULL, 0x4737819096DA1DADULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 4> expected_and_limbs = {
         {0x8D00808406810420ULL, 0xB0480E2120250200ULL, 0xB38A088CA65ED389ULL, 0x6B65A6A48B8148F7ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -988,9 +988,9 @@ TEST(BitwiseUnequalLength, 4x2_PN) {
 TEST(BitwiseUnequalLength, 4x2_NP) {
     constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
         {0x8FADC1A606CB0FB3ULL, 0xB74D0FB132E70629ULL, 0xB38A088CA65ED389ULL, 0x6B65A6A48B8148F7ULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x72FF5D2A386ECBE0ULL, 0x4737819096DA1DADULL}};
-    const big_int                                  b       = pos_from_limbs(b_limbs);
+    const big_int                                  b                  = pos_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 2> expected_and_limbs = {
         {0x70521C083824C040ULL, 0x4032800084181984ULL}};
     const big_int                                  expected_and      = pos_from_limbs(expected_and_limbs);
@@ -1012,9 +1012,9 @@ TEST(BitwiseUnequalLength, 4x2_NP) {
 TEST(BitwiseUnequalLength, 4x2_NN) {
     constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
         {0x8FADC1A606CB0FB3ULL, 0xB74D0FB132E70629ULL, 0xB38A088CA65ED389ULL, 0x6B65A6A48B8148F7ULL}};
-    const big_int                                  a       = neg_from_limbs(a_limbs);
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
     constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x72FF5D2A386ECBE0ULL, 0x4737819096DA1DADULL}};
-    const big_int                                  b       = neg_from_limbs(b_limbs);
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
     constexpr std::array<uint_multiprecision_t, 4> expected_and_limbs = {
         {0xFFFFDDAE3EEFD000ULL, 0xF77F8FB1B6FF1FADULL, 0xB38A088CA65ED389ULL, 0x6B65A6A48B8148F7ULL}};
     const big_int                                  expected_and      = neg_from_limbs(expected_and_limbs);
@@ -1694,4 +1694,145 @@ TEST(BitwiseDeMorgan, Case5) {
     // De Morgan: ~(a | b) == ~a & ~b
     EXPECT_EQ(~(a | b), expected_nor);
     EXPECT_EQ(~a & ~b, expected_nor);
+}
+
+TEST(BitwiseEdgeCases, ZeroAndMinusOne) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs            = {{0x0000000000000000ULL}};
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_and_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  expected_and       = pos_from_limbs(expected_and_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_or_limbs  = {{0x0000000000000001ULL}};
+    const big_int                                  expected_or        = neg_from_limbs(expected_or_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_xor_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  expected_xor       = neg_from_limbs(expected_xor_limbs);
+
+    EXPECT_EQ(a & b, expected_and);
+    EXPECT_EQ(b & a, expected_and); // commutativity
+    EXPECT_EQ(a | b, expected_or);
+    EXPECT_EQ(b | a, expected_or); // commutativity
+    EXPECT_EQ(a ^ b, expected_xor);
+    EXPECT_EQ(b ^ a, expected_xor); // commutativity
+}
+
+TEST(BitwiseEdgeCases, MinusOneAndMinusOne) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_and_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  expected_and       = neg_from_limbs(expected_and_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_or_limbs  = {{0x0000000000000001ULL}};
+    const big_int                                  expected_or        = neg_from_limbs(expected_or_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_xor_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  expected_xor       = pos_from_limbs(expected_xor_limbs);
+
+    EXPECT_EQ(a & b, expected_and);
+    EXPECT_EQ(b & a, expected_and); // commutativity
+    EXPECT_EQ(a | b, expected_or);
+    EXPECT_EQ(b | a, expected_or); // commutativity
+    EXPECT_EQ(a ^ b, expected_xor);
+    EXPECT_EQ(b ^ a, expected_xor); // commutativity
+}
+
+TEST(BitwiseEdgeCases, MaxUint64XorMinusOne) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs            = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_and_limbs = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  expected_and       = pos_from_limbs(expected_and_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_or_limbs  = {{0x0000000000000001ULL}};
+    const big_int                                  expected_or        = neg_from_limbs(expected_or_limbs);
+    constexpr std::array<uint_multiprecision_t, 2> expected_xor_limbs = {
+        {0x0000000000000000ULL, 0x0000000000000001ULL}};
+    const big_int expected_xor = neg_from_limbs(expected_xor_limbs);
+
+    EXPECT_EQ(a & b, expected_and);
+    EXPECT_EQ(b & a, expected_and); // commutativity
+    EXPECT_EQ(a | b, expected_or);
+    EXPECT_EQ(b | a, expected_or); // commutativity
+    EXPECT_EQ(a ^ b, expected_xor);
+    EXPECT_EQ(b ^ a, expected_xor); // commutativity
+}
+
+TEST(BitwiseEdgeCases, ZeroOrMinusOne) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs            = {{0x0000000000000000ULL}};
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_and_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  expected_and       = pos_from_limbs(expected_and_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_or_limbs  = {{0x0000000000000001ULL}};
+    const big_int                                  expected_or        = neg_from_limbs(expected_or_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_xor_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  expected_xor       = neg_from_limbs(expected_xor_limbs);
+
+    EXPECT_EQ(a & b, expected_and);
+    EXPECT_EQ(b & a, expected_and); // commutativity
+    EXPECT_EQ(a | b, expected_or);
+    EXPECT_EQ(b | a, expected_or); // commutativity
+    EXPECT_EQ(a ^ b, expected_xor);
+    EXPECT_EQ(b ^ a, expected_xor); // commutativity
+}
+
+TEST(BitwiseEdgeCases, ZeroXorMinusOne) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs            = {{0x0000000000000000ULL}};
+    const big_int                                  a                  = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_and_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  expected_and       = pos_from_limbs(expected_and_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_or_limbs  = {{0x0000000000000001ULL}};
+    const big_int                                  expected_or        = neg_from_limbs(expected_or_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_xor_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  expected_xor       = neg_from_limbs(expected_xor_limbs);
+
+    EXPECT_EQ(a & b, expected_and);
+    EXPECT_EQ(b & a, expected_and); // commutativity
+    EXPECT_EQ(a | b, expected_or);
+    EXPECT_EQ(b | a, expected_or); // commutativity
+    EXPECT_EQ(a ^ b, expected_xor);
+    EXPECT_EQ(b ^ a, expected_xor); // commutativity
+}
+
+TEST(BitwiseEdgeCases, MinusOneXorMinusOne) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_and_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  expected_and       = neg_from_limbs(expected_and_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_or_limbs  = {{0x0000000000000001ULL}};
+    const big_int                                  expected_or        = neg_from_limbs(expected_or_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_xor_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  expected_xor       = pos_from_limbs(expected_xor_limbs);
+
+    EXPECT_EQ(a & b, expected_and);
+    EXPECT_EQ(b & a, expected_and); // commutativity
+    EXPECT_EQ(a | b, expected_or);
+    EXPECT_EQ(b | a, expected_or); // commutativity
+    EXPECT_EQ(a ^ b, expected_xor);
+    EXPECT_EQ(b ^ a, expected_xor); // commutativity
+}
+
+TEST(BitwiseEdgeCases, MinusOneOrMinusOne) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  a                  = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs            = {{0x0000000000000001ULL}};
+    const big_int                                  b                  = neg_from_limbs(b_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_and_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  expected_and       = neg_from_limbs(expected_and_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_or_limbs  = {{0x0000000000000001ULL}};
+    const big_int                                  expected_or        = neg_from_limbs(expected_or_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> expected_xor_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  expected_xor       = pos_from_limbs(expected_xor_limbs);
+
+    EXPECT_EQ(a & b, expected_and);
+    EXPECT_EQ(b & a, expected_and); // commutativity
+    EXPECT_EQ(a | b, expected_or);
+    EXPECT_EQ(b | a, expected_or); // commutativity
+    EXPECT_EQ(a ^ b, expected_xor);
+    EXPECT_EQ(b ^ a, expected_xor); // commutativity
 }

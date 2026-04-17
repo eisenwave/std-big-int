@@ -543,6 +543,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                      const bool                                             lhs_neg,
                      const std::span<const uint_multiprecision_t, extent_b> rhs,
                      const bool                                             rhs_neg);
+
+    template <detail::bitwise_op op, class L, class R>
+    [[nodiscard]] static constexpr detail::common_big_int_type<L, R> bitwise_impl(L&& x, R&& y);
 };
 
 // =============================================================================
@@ -1445,64 +1448,43 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     }
 }
 
-template <class L, class R>
-constexpr detail::common_big_int_type<L, R> operator&(L&& x, R&& y) {
+template <std::size_t b, class A>
+template <detail::bitwise_op op, class L, class R>
+constexpr detail::common_big_int_type<L, R> basic_big_int<b, A>::bitwise_impl(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
 
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
-        return Result::template dispatch_bitwise<detail::bitwise_op::and_>(
+        return Result::template dispatch_bitwise<op>(
             x.representation(), x.is_negative(), y.representation(), y.is_negative());
     } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        return Result::template dispatch_bitwise<detail::bitwise_op::and_>(
+        return Result::template dispatch_bitwise<op>(
             x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
     } else {
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        return Result::template dispatch_bitwise<detail::bitwise_op::and_>(
+        return Result::template dispatch_bitwise<op>(
             detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
     }
+}
+
+template <class L, class R>
+constexpr detail::common_big_int_type<L, R> operator&(L&& x, R&& y) {
+    using Result = detail::common_big_int_type<L, R>;
+    return Result::template bitwise_impl<detail::bitwise_op::and_>(std::forward<L>(x), std::forward<R>(y));
 }
 
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator|(L&& x, R&& y) {
-    using Result        = detail::common_big_int_type<L, R>;
-    constexpr auto form = detail::classify_form_v<L, R>;
-
-    if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
-                  form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
-        return Result::template dispatch_bitwise<detail::bitwise_op::or_>(
-            x.representation(), x.is_negative(), y.representation(), y.is_negative());
-    } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
-        const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        return Result::template dispatch_bitwise<detail::bitwise_op::or_>(
-            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
-    } else {
-        const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        return Result::template dispatch_bitwise<detail::bitwise_op::or_>(
-            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
-    }
+    using Result = detail::common_big_int_type<L, R>;
+    return Result::template bitwise_impl<detail::bitwise_op::or_>(std::forward<L>(x), std::forward<R>(y));
 }
 
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator^(L&& x, R&& y) {
-    using Result        = detail::common_big_int_type<L, R>;
-    constexpr auto form = detail::classify_form_v<L, R>;
-
-    if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
-                  form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
-        return Result::template dispatch_bitwise<detail::bitwise_op::xor_>(
-            x.representation(), x.is_negative(), y.representation(), y.is_negative());
-    } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
-        const auto y_limbs = detail::to_limbs(detail::uabs(y));
-        return Result::template dispatch_bitwise<detail::bitwise_op::xor_>(
-            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
-    } else {
-        const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        return Result::template dispatch_bitwise<detail::bitwise_op::xor_>(
-            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
-    }
+    using Result = detail::common_big_int_type<L, R>;
+    return Result::template bitwise_impl<detail::bitwise_op::xor_>(std::forward<L>(x), std::forward<R>(y));
 }
 
 template <class T, detail::signed_or_unsigned S>
@@ -1959,17 +1941,15 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
         limb_type r = i < rhs.size() ? rhs[i] : limb_type{0};
         if constexpr (neg_left) {
             l = ~l;
-            if (carry_l) {
-                ++l;
-                carry_l = l == 0;
-            }
+            auto [sum, carry] = detail::carrying_add(l, limb_type{0}, carry_l);
+            l                 = sum;
+            carry_l           = carry;
         }
         if constexpr (neg_right) {
             r = ~r;
-            if (carry_r) {
-                ++r;
-                carry_r = r == 0;
-            }
+            auto [sum, carry] = detail::carrying_add(r, limb_type{0}, carry_r);
+            r                 = sum;
+            carry_r           = carry;
         }
         limb_type res;
         if constexpr (op == detail::bitwise_op::and_) {
@@ -1981,15 +1961,16 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
         }
         if constexpr (res_neg) {
             res = ~res;
-            if (carry_o) {
-                ++res;
-                carry_o = res == 0;
-            }
+            auto [sum, carry] = detail::carrying_add(res, limb_type{0}, carry_o);
+            res               = sum;
+            carry_o           = carry;
         }
         dst[i] = res;
     }
-    // If `carry_o` survived all n limbs, we need a final limb of value 1.
-    // This happens e.g. for -1 & -1 = -1 when both inputs have equal size.
+    // `carry_o` surviving all `n` limbs means the two's complement result was all zeros,
+    // i.e. the bitwise result before negation was all-ones in every limb.
+    // For starters, (2^64 - 1) ^ -1 = 0 in two's complement, result is -2^64,
+    // which requires an extra limb of magnitude[0, 1] = 2^64.
     if constexpr (res_neg) {
         if (carry_o) {
             dst[n] = limb_type{1};
