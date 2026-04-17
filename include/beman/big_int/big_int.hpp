@@ -493,9 +493,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                 m_storage.data      = src.m_storage.data;
                 src.m_capacity      = 0;
                 src.m_size_and_sign = 1;
-                for (size_type i = 0; i < inplace_capacity; ++i) {
-                    src.m_storage.limbs[i] = limb_type{0};
-                }
+                src.m_storage.limbs[0] = limb_type{0};
                 if (m_capacity < needed) {
                     grow(needed);
                 }
