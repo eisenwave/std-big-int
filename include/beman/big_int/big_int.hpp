@@ -1935,15 +1935,16 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
         if constexpr (op == detail::bitwise_op::and_) {
             if constexpr (!neg_left && !neg_right) {
                 return std::min(lhs.size(), rhs.size());
-            }
-            if constexpr (!neg_left) {
+            } else if constexpr (!neg_left) {
                 return lhs.size();
-            }
-            if constexpr (!neg_right) {
+            } else if constexpr (!neg_right) {
                 return rhs.size();
+            } else {
+                return std::max(lhs.size(), rhs.size());
             }
+        } else {
+            return std::max(lhs.size(), rhs.size());
         }
-        return std::max(lhs.size(), rhs.size());
     }();
 
     basic_big_int result;
