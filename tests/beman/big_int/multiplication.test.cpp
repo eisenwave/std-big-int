@@ -47,6 +47,20 @@ consteval bool ce_255() {
 }
 static_assert(ce_255());
 
+consteval bool move_heap_mul() {
+    big_int result{2};
+
+    big_int lhs {2};
+    lhs <<= 155;
+
+    result *= lhs;
+    big_int result2 = std::move(result);
+    result2 *= lhs;
+    result2 += 10;
+    return result2 > big_int{255};
+}
+static_assert(move_heap_mul());
+
 // ----- runtime tests -----
 
 TEST(Multiplication, SmallPositivePositive) {
