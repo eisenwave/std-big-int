@@ -489,10 +489,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // For a heap `src`, adopt its pointer unconditionally and then grow
             // if the stolen capacity doesn't cover `needed`.
             if (!src.is_storage_static()) {
-                m_capacity          = src.m_capacity;
-                m_storage.data      = src.m_storage.data;
-                src.m_capacity      = 0;
-                src.m_size_and_sign = 1;
+                m_capacity             = src.m_capacity;
+                m_storage.data         = src.m_storage.data;
+                src.m_capacity         = 0;
+                src.m_size_and_sign    = 1;
                 src.m_storage.limbs[0] = limb_type{0};
                 if (m_capacity < needed) {
                     grow(needed);
@@ -661,7 +661,7 @@ constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
         m_storage.data    = x.m_storage.data;
         x.m_capacity      = 0;
         x.m_size_and_sign = 1;
-        x.m_storage = {};
+        x.m_storage       = {};
     }
 }
 
