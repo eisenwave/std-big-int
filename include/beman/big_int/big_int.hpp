@@ -293,6 +293,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& operator<<=(S s);
 
     template <class T>
+    constexpr basic_big_int& operator+=(const T& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
+    template <class T>
+    constexpr basic_big_int& operator-=(const T& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
+    template <class T>
     constexpr basic_big_int& operator*=(const T& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
 
@@ -2039,6 +2045,39 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
             detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
     }
     return r;
+}
+
+// Compound addition and subtraction
+//
+// `*this` is always the destination, so we skip the copy/move step that the free
+// `operator+` / `operator-` need and fold `rhs` directly into our own storage via
+// `add_in_place`.
+template <std::size_t b, class A>
+template <class T>
+constexpr auto basic_big_int<b, A>::operator+=(const T& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        add_in_place(rhs.representation(), rhs.is_negative());
+    } else {
+        const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
+        add_in_place(detail::to_fixed_span(rhs_limbs), detail::integer_signbit(rhs));
+    }
+    return *this;
+}
+
+template <std::size_t b, class A>
+template <class T>
+constexpr auto basic_big_int<b, A>::operator-=(const T& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        add_in_place(rhs.representation(), !rhs.is_negative());
+    } else {
+        const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
+        add_in_place(detail::to_fixed_span(rhs_limbs), !detail::integer_signbit(rhs));
+    }
+    return *this;
 }
 
 // Compound multiplication assignment.
