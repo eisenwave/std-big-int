@@ -37,6 +37,16 @@ static_assert(ce_mixed_sign());
 consteval bool ce_zero_absorbs() { return (big_int{12345} * big_int{0}) == big_int{0}; }
 static_assert(ce_zero_absorbs());
 
+consteval bool ce_255() {
+    big_int result{2};
+    result *= 10;
+    result += 5;
+    result *= 10;
+    result += 5;
+    return result == big_int{255};
+}
+static_assert(ce_255());
+
 // ----- runtime tests -----
 
 TEST(Multiplication, SmallPositivePositive) {
