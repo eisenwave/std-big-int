@@ -1946,7 +1946,7 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
             carry_l           = carry;
         }
         if constexpr (neg_right) {
-            r = ~r;
+            r                 = ~r;
             auto [sum, carry] = detail::carrying_add(r, limb_type{0}, carry_r);
             r                 = sum;
             carry_r           = carry;
