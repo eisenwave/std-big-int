@@ -126,7 +126,6 @@ def main():
             a = signs[0] * a_mag
             b = signs[1] * b_mag
             cases.append(generate_case("BitwiseTwoLimb", f"Random{i}_{label}", a, b))
-    
     # One operand is longer than the other. Exercises the extension paths where
     # i >= lhs.size() or i >= rhs.size() in make_bitwise_of_limbs.
     a_long  = random_n_limb(4, rng)
