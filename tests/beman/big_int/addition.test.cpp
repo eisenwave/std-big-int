@@ -386,7 +386,7 @@ consteval bool ce_plus_equal_mixed_sign() {
 static_assert(ce_plus_equal_mixed_sign());
 
 TEST(CompoundAddition, ReturnsReferenceToSelf) {
-    big_int a{10};
+    big_int  a{10};
     big_int& r = (a += big_int{5});
     EXPECT_EQ(&r, &a);
     EXPECT_EQ(a, 15);

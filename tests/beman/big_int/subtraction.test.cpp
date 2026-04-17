@@ -363,7 +363,7 @@ consteval bool ce_minus_equal_positive_minus_negative() {
 static_assert(ce_minus_equal_positive_minus_negative());
 
 TEST(CompoundSubtraction, ReturnsReferenceToSelf) {
-    big_int a{10};
+    big_int  a{10};
     big_int& r = (a -= big_int{3});
     EXPECT_EQ(&r, &a);
     EXPECT_EQ(a, 7);
