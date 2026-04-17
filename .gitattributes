@@ -3,3 +3,4 @@ cookiecutter/** linguist-vendored
 *.bib -linguist-detectable
 *.tex -linguist-detectable
 papers/* linguist-documentation
+tests/beman/big_int/bitwise.test.cpp linguist-generated=true
