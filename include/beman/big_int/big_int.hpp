@@ -493,6 +493,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                 m_storage.data      = src.m_storage.data;
                 src.m_capacity      = 0;
                 src.m_size_and_sign = 1;
+                for (size_type i = 0; i < inplace_capacity; ++i) {
+                    src.m_storage.limbs[i] = limb_type{0};
+                }
                 if (m_capacity < needed) {
                     grow(needed);
                 }
@@ -660,6 +663,13 @@ constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
         m_storage.data    = x.m_storage.data;
         x.m_capacity      = 0;
         x.m_size_and_sign = 1;
+        // x now looks like static storage (m_capacity == 0),
+        // but the active union member is still `data`.
+        // Reactivate `limbs`
+        // We can't use std::fill_n because it doesn't activate the member
+        for (size_type i = 0; i < inplace_capacity; ++i) {
+            x.m_storage.limbs[i] = limb_type{0};
+        }
     }
 }
 
