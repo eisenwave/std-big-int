@@ -2547,19 +2547,19 @@ struct parse_non_allocating {
         big_int parsed;
         const auto [p, ec] = from_chars_auto_base(begin, end, parsed);
         if (ec != std::errc{}) {
-            return {0, 0, ec};
+            return parse_non_allocating_result{0, 0, ec};
         }
         if (p != end) {
-            return {0, 0, std::errc::invalid_argument};
+            return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
         }
         if (parsed.capacity() != 0) {
-            return {
+            return parse_non_allocating_result{
                 .value      = 0,
                 .limb_count = parsed.size(),
                 .ec         = std::errc::result_out_of_range,
             };
         }
-        return {
+        return parse_non_allocating_result{
             .value      = std::move(parsed),
             .limb_count = parsed.size(),
             .ec         = std::errc{},
