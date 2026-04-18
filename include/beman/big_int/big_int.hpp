@@ -2532,41 +2532,39 @@ struct parse_non_allocating_result {
 };
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
+// Returns the result of parsing a `big_int` using `from_chars_auto_base`.
+// However, if the result is too large to fit into inplace storage,
+// `{limb_count(), std::errc::result_out_of_range}` is returned.
+[[nodiscard]] static consteval parse_non_allocating_result parse_non_allocating_impl(const char*       begin,
+                                                                                     const char* const end) {
+    big_int parsed;
+    const auto [p, ec] = from_chars_auto_base(begin, end, parsed);
+    if (ec != std::errc{}) {
+        return parse_non_allocating_result{0, 0, ec};
+    }
+    if (p != end) {
+        return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
+    }
+    if (parsed.capacity() != 0) {
+        parse_non_allocating_result r;
+        r.value      = 0;
+        r.limb_count = parsed.size();
+        r.ec         = std::errc::result_out_of_range;
+        return r;
+    }
+    parse_non_allocating_result r;
+    r.value      = parsed;
+    r.limb_count = parsed.size();
+    r.ec         = std::errc{};
+    return r;
+}
+
 template <std::array buffer>
 struct parse_non_allocating {
   private:
     static_assert(std::is_same_v<typename decltype(buffer)::value_type, char>);
-
-    static constexpr const char* begin = buffer.data();
-    static constexpr const char* end   = begin + buffer.size();
-
-    // Returns the result of parsing a `big_int` using `from_chars_auto_base`.
-    // However, if the result is too large to fit into inplace storage,
-    // `{limb_count(), std::errc::result_out_of_range}` is returned.
-    [[nodiscard]] static consteval parse_non_allocating_result parse() {
-        big_int parsed;
-        const auto [p, ec] = from_chars_auto_base(begin, end, parsed);
-        if (ec != std::errc{}) {
-            return parse_non_allocating_result{0, 0, ec};
-        }
-        if (p != end) {
-            return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
-        }
-        if (parsed.capacity() != 0) {
-            parse_non_allocating_result r;
-            r.value      = 0;
-            r.limb_count = parsed.size();
-            r.ec         = std::errc::result_out_of_range;
-            return r;
-        }
-        parse_non_allocating_result r;
-        r.value      = parsed;
-        r.limb_count = parsed.size();
-        r.ec         = std::errc{};
-        return r;
-    }
-
-    static constexpr parse_non_allocating_result result = parse();
+    static constexpr parse_non_allocating_result result =
+        parse_non_allocating_impl(buffer.data(), buffer.data() + buffer.size());
 
   public:
     static constexpr big_int   value      = result.value;
