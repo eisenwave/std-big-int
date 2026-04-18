@@ -41,4 +41,7 @@ static_assert(0XFF_n == 255_n);
 static_assert(0b1111_n == 15_n);
 static_assert(0B1111_n == 15_n);
 
+static_assert(1000_n == 1'0'00_n);
+static_assert(1'000'000'000'000'000'000'000'000'000_n == 0x33b'2e3c'9fd0'803c'e800'0000_n);
+
 } // namespace beman::big_int

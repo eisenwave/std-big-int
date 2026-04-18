@@ -292,49 +292,56 @@ struct carry_result {
 
 template <unsigned_integer T>
 [[nodiscard]] constexpr carry_result<T> carrying_add(const T x, const T y, const bool carry = false) noexcept {
-#if BEMAN_BIG_INT_LIMB_WIDTH == 32 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addc)
-    unsigned carry_out;
-    unsigned value = __builtin_addc(x, y, carry, &carry_out);
-    return {.value = value, .carry = carry_out != 0};
-#elif BEMAN_BIG_INT_LIMB_WIDTH == 64 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addcll)
-    unsigned long long carry_out;
-    unsigned long long value = __builtin_addcll(x, y, carry, &carry_out);
-    return {.value = value, .carry = carry_out != 0};
-#elif defined(BEMAN_BIG_INT_MSVC) && (defined(_M_AMD64) || defined(_M_IX86))
-    // Theoretically we could use the ADX intrinsic, but then the user always has to compile for it
-    // This is more portable.
-    // Each branch returns directly, so we don't share uninitialized state
-    // across the `if constexpr` chain.
+    // None of the intrinsics below are portably constexpr,
+    // so we put everything into a giant if !consteval block.
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-        if constexpr (std::is_same_v<T, std::uint8_t>) {
-            T                   value;
+
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addc)
+        if constexpr (width_v<T> == 32) {
+            unsigned carry_out;
+            unsigned value = __builtin_addc(x, y, carry, &carry_out);
+            return {.value = value, .carry = carry_out != 0};
+        }
+#endif
+
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_addcll)
+        if constexpr (width_v<T> == 64) {
+            unsigned long long carry_out;
+            unsigned long long value = __builtin_addcll(x, y, carry, &carry_out);
+            return {.value = value, .carry = carry_out != 0};
+        }
+#endif
+
+#if defined(BEMAN_BIG_INT_MSVC) && (defined(_M_AMD64) || defined(_M_IX86))
+        // Theoretically we could use the ADX intrinsic, but then the user always has to compile for it
+        // This is more portable.
+        // Each branch returns directly, so we don't share uninitialized state
+        // across the `if constexpr` chain.
+        if constexpr (width_v<T> == 8) {
+            std::uint8_t        value;
             const unsigned char carry_out = _addcarry_u8(static_cast<unsigned char>(carry), x, y, &value);
             return {.value = value, .carry = carry_out != 0};
-        } else if constexpr (std::is_same_v<T, std::uint16_t>) {
-            T                   value;
+        } else if constexpr (width_v<T> == 16) {
+            std::uint16_t       value;
             const unsigned char carry_out = _addcarry_u16(static_cast<unsigned char>(carry), x, y, &value);
             return {.value = value, .carry = carry_out != 0};
-        } else if constexpr (std::is_same_v<T, std::uint32_t>) {
-            T                   value;
+        } else if constexpr (width_v<T> == 32) {
+            std::uint32_t       value;
             const unsigned char carry_out = _addcarry_u32(static_cast<unsigned char>(carry), x, y, &value);
             return {.value = value, .carry = carry_out != 0};
         }
     #ifdef _M_AMD64
-        else if constexpr (std::is_same_v<T, std::uint64_t>) {
-            T                   value;
+        else if constexpr (width_v<T> == 64) {
+            std::uint64_t       value;
             const unsigned char carry_out = _addcarry_u64(static_cast<unsigned char>(carry), x, y, &value);
             return {.value = value, .carry = carry_out != 0};
         }
     #endif
+#endif // BEMAN_BIG_INT_GNUC
     }
-    // Fallback: reached at consteval time, or at runtime when `T` has no matching intrinsic.
+
     const auto result = static_cast<wider_t<T>>(x) + static_cast<wider_t<T>>(y) + carry;
     return {.value = static_cast<T>(result), .carry = (result >> width_v<T>) != 0};
-#else
-    auto result    = static_cast<wider_t<T>>(x) + static_cast<wider_t<T>>(y) + carry;
-    bool carry_out = (result >> width_v<T>) != 0;
-    return {.value = static_cast<T>(result), .carry = carry_out};
-#endif // BEMAN_BIG_INT_GNUC
 }
 
 template <class T>
@@ -347,48 +354,55 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <unsigned_integer T>
 [[nodiscard]] constexpr borrow_result<T> borrowing_sub(const T x, const T y, const bool borrow = false) noexcept {
-#if BEMAN_BIG_INT_LIMB_WIDTH == 32 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subc)
-    unsigned borrow_out;
-    unsigned value = __builtin_subc(x, y, borrow, &borrow_out);
-    return {.value = value, .borrow = borrow_out != 0};
-#elif BEMAN_BIG_INT_LIMB_WIDTH == 64 && BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subcll)
-    unsigned long long borrow_out;
-    unsigned long long value = __builtin_subcll(x, y, borrow, &borrow_out);
-    return {.value = value, .borrow = borrow_out != 0};
-#elif defined(BEMAN_BIG_INT_MSVC) && (defined(_M_AMD64) || defined(_M_IX86))
-    // Mirror the `carrying_add` MSVC path using the matching `_subborrow_*` intrinsics.
-    // Each branch returns directly, so we don't share uninitialized state across the
-    // `if constexpr` chain.
+    // None of the intrinsics below are portably constexpr,
+    // so we put everything into a giant if !consteval block.
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-        if constexpr (std::is_same_v<T, std::uint8_t>) {
-            T                   value;
+
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subc)
+        if constexpr (width_v<T> == 32) {
+            unsigned borrow_out;
+            unsigned value = __builtin_subc(x, y, borrow, &borrow_out);
+            return {.value = value, .borrow = borrow_out != 0};
+        }
+#endif
+
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_subcll)
+        if constexpr (width_v<T> == 64) {
+            unsigned long long borrow_out;
+            unsigned long long value = __builtin_subcll(x, y, borrow, &borrow_out);
+            return {.value = value, .borrow = borrow_out != 0};
+        }
+#endif
+
+#if defined(BEMAN_BIG_INT_MSVC) && (defined(_M_AMD64) || defined(_M_IX86))
+        // Mirror the `carrying_add` MSVC path using the matching `_subborrow_*` intrinsics.
+        // Each branch returns directly, so we don't share uninitialized state across the
+        // `if constexpr` chain.
+        if constexpr (width_v<T> == 8) {
+            std::uint8_t        value;
             const unsigned char borrow_out = _subborrow_u8(static_cast<unsigned char>(borrow), x, y, &value);
             return {.value = value, .borrow = borrow_out != 0};
-        } else if constexpr (std::is_same_v<T, std::uint16_t>) {
-            T                   value;
+        } else if constexpr (width_v<T> == 16) {
+            std::uint16_t       value;
             const unsigned char borrow_out = _subborrow_u16(static_cast<unsigned char>(borrow), x, y, &value);
             return {.value = value, .borrow = borrow_out != 0};
-        } else if constexpr (std::is_same_v<T, std::uint32_t>) {
-            T                   value;
+        } else if constexpr (width_v<T> == 32) {
+            std::uint32_t       value;
             const unsigned char borrow_out = _subborrow_u32(static_cast<unsigned char>(borrow), x, y, &value);
             return {.value = value, .borrow = borrow_out != 0};
         }
     #ifdef _M_AMD64
-        else if constexpr (std::is_same_v<T, std::uint64_t>) {
-            T                   value;
+        else if constexpr (width_v<T> == 64) {
+            std::uint64_t       value;
             const unsigned char borrow_out = _subborrow_u64(static_cast<unsigned char>(borrow), x, y, &value);
             return {.value = value, .borrow = borrow_out != 0};
         }
     #endif
+#endif
     }
-    // Fallback: reached at consteval time, or at runtime when `T` has no matching intrinsic.
-    const auto result = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y) - borrow;
+
+    auto result = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y) - borrow;
     return {.value = static_cast<T>(result), .borrow = (result >> width_v<T>) != 0};
-#else
-    auto result     = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y) - borrow;
-    bool borrow_out = (result >> width_v<T>) != 0;
-    return {.value = static_cast<T>(result), .borrow = borrow_out};
-#endif // BEMAN_BIG_INT_GNUC
 }
 
 template <signed_or_unsigned T>
