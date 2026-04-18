@@ -2576,10 +2576,11 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     // Parse the valid digit run in blocks that fit into `uint_multiprecision_t`.
     // The first block may be shorter so that all following blocks have the same width,
     // then the accumulated result is built left-to-right by multiplying by `max_pow` before adding each next block.
-    const auto first_block_length =
-        static_cast<std::ptrdiff_t>((current_end - current_begin) % max_digits_per_iteration == 0
-                                        ? max_digits_per_iteration
-                                        : (current_end - current_begin) % max_digits_per_iteration);
+    // clang-format off
+    const std::ptrdiff_t first_block_length = (current_end - current_begin) % max_digits_per_iteration == 0
+                                            ? max_digits_per_iteration
+                                            : (current_end - current_begin) % max_digits_per_iteration;
+    // clang-format on
 
     uint_multiprecision_t        leading_digits{};
     const std::from_chars_result first_result =
