@@ -253,7 +253,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::ranges::input_range R>
         requires detail::signed_or_unsigned<std::ranges::range_value_t<R>>
     constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type())
-        : basic_big_int(std::ranges::begin(r), std::ranges; : end(r), a) {}
+        : basic_big_int(std::ranges::begin(r), std::ranges::end(r), a) {}
 #endif
 
     constexpr ~basic_big_int();
