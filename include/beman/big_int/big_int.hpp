@@ -2418,14 +2418,13 @@ namespace detail {
     uint_multiprecision_t x      = 1;
     int                   result = 0;
     while (true) {
-        if (x * static_cast<unsigned>(base) < x) {
+        const auto [product, overflow] = overflowing_mul(x, static_cast<uint_multiprecision_t>(base));
+        if (overflow) {
             break;
         }
-        x *= static_cast<unsigned>(base);
+        x = product;
         ++result;
-        if (x == 0) {
-            break;
-        }
+        BEMAN_BIG_INT_ASSERT(product != 0);
     }
     return static_cast<unsigned char>(result - 1);
 }
@@ -2550,32 +2549,65 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
         return {returned_end, std::errc{}};
     }
 
-    bool at_least_one_digit = false;
-    for (; current_begin != end; ++current_begin) {
-        const int digit = detail::digit_value(*current_begin);
+    // This is the "usual case" for all bases that are not powers of two.
+    // Since every added digit can affect any existing bit in theory,
+    // the problem can't be solved in blocks of bits.
+    // Instead, we need to use the classic multiplication and addition approach.
+    //
+    // However, instead of doing so naively digit-by-digit,
+    // each iteration, we can process as many digit as possible without exceeding
+    // the greatest representable power in the base.
+    //
+    // For example, if `base` is `10`, instead of doing parsing base 10,
+    // we do it base `1'000'000'000` assuming `uint_multiprecision_t` is 32-bit.
+
+    const char* current_end = current_begin;
+    for (; current_end != end; ++current_end) {
+        const int digit = detail::digit_value(*current_end);
         if (digit < 0 || digit >= base) {
             break;
         }
-        if (!at_least_one_digit) {
-            // Reset to zero, but keep the allocation (if any).
-            // We have to delay this assignment because if invalid_argument is returned,
-            // the output parameter must remain unmodified.
-            out                = {};
-            at_least_one_digit = true;
-        }
-        out *= base;
-        out += static_cast<unsigned char>(digit);
     }
-    if (!at_least_one_digit) {
+    if (current_end == current_begin) {
         return {end, std::errc::invalid_argument};
     }
+    const char* const returned_end = current_end;
+
+    // Parse the valid digit run in blocks that fit into `uint_multiprecision_t`.
+    // The first block may be shorter so that all following blocks have the same width,
+    // then the accumulated result is built left-to-right by multiplying by `max_pow` before adding each next block.
+    const auto first_block_length =
+        static_cast<std::ptrdiff_t>((current_end - current_begin) % max_digits_per_iteration == 0
+                                        ? max_digits_per_iteration
+                                        : (current_end - current_begin) % max_digits_per_iteration);
+
+    uint_multiprecision_t        leading_digits{};
+    const std::from_chars_result first_result =
+        std::from_chars(current_begin, current_begin + first_block_length, leading_digits, base);
+    BEMAN_BIG_INT_DEBUG_ASSERT(first_result.ec == std::errc{});
+    out = leading_digits;
+
+    for (const char* current_first = current_begin + first_block_length; current_first != current_end;
+         current_first += max_digits_per_iteration) {
+        const char* const current_last = std::min(current_first + max_digits_per_iteration, current_end);
+
+        uint_multiprecision_t        digits         = {};
+        const std::from_chars_result partial_result = std::from_chars(current_first, current_last, digits, base);
+        // Same reasoning as for powers of two; see above.
+        BEMAN_BIG_INT_DEBUG_ASSERT(partial_result.ec == std::errc{});
+        BEMAN_BIG_INT_DEBUG_ASSERT(digits < max_pow);
+
+        out *= max_pow;
+        out += digits;
+    }
+
     if (*begin == '-') {
         detail::access_bypass::negate(out);
     }
     if BEMAN_BIG_INT_IS_CONSTEVAL {
         out.shrink_to_fit();
     }
-    return {current_begin, std::errc{}};
+    return {returned_end, std::errc{}};
 }
 
 namespace detail {
