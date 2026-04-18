@@ -2400,10 +2400,12 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     }
 
     // The number of bits per base digit, or zero if the base is not a power of two.
+    // clang-format off
     const auto bits_per_digit = std::has_single_bit(static_cast<unsigned char>(base))
-                                    ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
-                                    : static_cast<unsigned char>(0);
-    bool       at_least_one_digit = false;
+                              ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
+                              : static_cast<unsigned char>(0);
+    // clang-format on
+    bool at_least_one_digit = false;
     for (; p != end; ++p) {
         const int digit = detail::digit_value(*p);
         if (digit < 0 || digit >= base) {
@@ -2541,7 +2543,7 @@ struct parse_non_allocating {
     // Returns the result of parsing a `big_int` using `from_chars_auto_base`.
     // However, if the result is too large to fit into inplace storage,
     // `{limb_count(), std::errc::result_out_of_range}` is returned.
-    [[nodiscard]] static consteval parse_non_allocating_result operator()() {
+    [[nodiscard]] static consteval parse_non_allocating_result parse() {
         big_int parsed;
         const auto [p, ec] = from_chars_auto_base(begin, end, parsed);
         if (ec != std::errc{}) {
@@ -2564,7 +2566,7 @@ struct parse_non_allocating {
         };
     }
 
-    static constexpr auto result = operator()();
+    static constexpr auto result = parse();
 
   public:
     static constexpr big_int   value      = result.value;
