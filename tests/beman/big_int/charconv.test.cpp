@@ -11,7 +11,7 @@ using namespace beman::big_int;
 [[nodiscard]] constexpr big_int parse(const std::string_view str, const int base) {
     BEMAN_BIG_INT_ASSERT(base >= 2 && base <= 36);
     big_int result;
-    const auto [p, ec] = from_chars(str.begin(), str.end(), result, base);
+    const auto [p, ec] = from_chars(str.data(), str.data() + str.size(), result, base);
     if (ec != std::errc{}) {
         throw std::runtime_error("from_chars did not succeed.");
     }
