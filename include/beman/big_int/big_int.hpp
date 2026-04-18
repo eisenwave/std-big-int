@@ -2535,7 +2535,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 // Returns the result of parsing a `big_int` using `from_chars_auto_base`.
 // However, if the result is too large to fit into inplace storage,
 // `{limb_count(), std::errc::result_out_of_range}` is returned.
-[[nodiscard]] static constexpr parse_non_allocating_result parse_non_allocating_impl(const char*       begin,
+[[nodiscard]] static constexpr parse_non_allocating_result parse_non_allocating_impl(const char* const begin,
                                                                                      const char* const end) {
     // This function is not consteval because of compiler bugs,
     // but should only be called during constant evaluation.
