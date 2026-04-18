@@ -381,10 +381,20 @@ struct ieee_traits<long double> : ieee_traits<double> {};
 
 #include <cstdlib>
 #include <cassert>
+#include <cstdio>
+#include <source_location>
 
 namespace beman::big_int {
 
-[[noreturn]] inline void assert_fail() {
+[[noreturn]] inline void assert_fail(const char* const          source,
+                                     const std::source_location location = std::source_location::current()) {
+    std::fprintf(stderr,
+                 "%s:%d:%d Assertion failed: %s\nSee: %s\n",
+                 location.file_name(),
+                 static_cast<int>(location.line()),
+                 static_cast<int>(location.column()),
+                 source,
+                 location.function_name());
 #if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_trap)
     __builtin_trap();
 #else
@@ -394,7 +404,7 @@ namespace beman::big_int {
 
 } // namespace beman::big_int
 
-#define BEMAN_BIG_INT_ASSERT(...) (__VA_ARGS__ ? void() : assert_fail())
+#define BEMAN_BIG_INT_ASSERT(...) (__VA_ARGS__ ? void() : assert_fail(#__VA_ARGS__))
 
 #ifndef NDEBUG
     #define BEMAN_BIG_INT_DEBUG_ASSERT(...) BEMAN_BIG_INT_ASSERT(__VA_ARGS__)
