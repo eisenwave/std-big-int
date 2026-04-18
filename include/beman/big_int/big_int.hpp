@@ -2535,8 +2535,12 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 // Returns the result of parsing a `big_int` using `from_chars_auto_base`.
 // However, if the result is too large to fit into inplace storage,
 // `{limb_count(), std::errc::result_out_of_range}` is returned.
-[[nodiscard]] static consteval parse_non_allocating_result parse_non_allocating_impl(const char*       begin,
+[[nodiscard]] static constexpr parse_non_allocating_result parse_non_allocating_impl(const char*       begin,
                                                                                      const char* const end) {
+    // This function is not consteval because of compiler bugs,
+    // but should only be called during constant evaluation.
+    // https://developercommunity.microsoft.com/t/Nonsensical-error-C2440-when-initializin/11077170
+
     big_int parsed;
     const auto [p, ec] = from_chars_auto_base(begin, end, parsed);
     if (ec != std::errc{}) {
@@ -2545,18 +2549,11 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
     if (p != end) {
         return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
     }
+    const auto parsed_size = parsed.size();
     if (parsed.capacity() != 0) {
-        parse_non_allocating_result r;
-        r.value      = 0;
-        r.limb_count = parsed.size();
-        r.ec         = std::errc::result_out_of_range;
-        return r;
+        return {big_int{}, parsed_size, std::errc::result_out_of_range};
     }
-    parse_non_allocating_result r;
-    r.value      = parsed;
-    r.limb_count = parsed.size();
-    r.ec         = std::errc{};
-    return r;
+    return {std::move(parsed), parsed_size, std::errc{}};
 }
 
 template <std::array buffer>
