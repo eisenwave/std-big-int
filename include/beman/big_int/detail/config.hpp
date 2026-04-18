@@ -211,10 +211,13 @@ concept integral = std::integral<T> || is_bit_int_v<T>;
 using std::integral;
 #endif
 
+template <class T>
+concept cv_unqualified_integral = integral<T> && cv_unqualified<T>;
+
 // Modeled if `T` is a signed or unsigned integer type.
 // That is, a standard integer type, extended integer type, or bit-precise integer type.
 template <class T>
-concept signed_or_unsigned = integral<T> && cv_unqualified<T> //
+concept signed_or_unsigned = cv_unqualified_integral<T> //
                              && !std::is_same_v<T, bool> && !character_type<T>;
 template <class T>
 concept negative_representing = static_cast<T>(-1) < static_cast<T>(0);
@@ -236,8 +239,7 @@ static_assert(signed_integer<_BitInt(32)>);
 // signed or unsigned integer type.
 // For example, this converts `char8_t` to `unsigned char`, `int` to `int`, etc.
 // The goal is to reduce redundant template instantiations.
-template <class T>
-    requires std::integral<T> && cv_unqualified<T>
+template <cv_unqualified_integral T>
 using make_signed_or_unsigned_t =
     std::conditional_t<std::is_signed_v<T>, std::make_signed_t<T>, std::make_unsigned_t<T>>;
 

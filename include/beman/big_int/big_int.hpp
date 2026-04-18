@@ -148,6 +148,19 @@ static_assert(invert(std::strong_ordering::less) == std::strong_ordering::greate
 
 enum struct bitwise_op : unsigned char { and_, or_, xor_ };
 
+template <bitwise_op op, cv_unqualified_integral T>
+[[nodiscard]] constexpr T eval_bitwise(const T x, const T y) noexcept {
+    if constexpr (op == bitwise_op::and_) {
+        return static_cast<T>(x & y);
+    } else if constexpr (op == bitwise_op::or_) {
+        return static_cast<T>(x | y);
+    } else if constexpr (op == bitwise_op::xor_) {
+        return static_cast<T>(x ^ y);
+    } else {
+        static_assert(false, "Unsupported operation.");
+    }
+}
+
 struct access_bypass;
 
 } // namespace detail
@@ -1968,9 +1981,7 @@ template <detail::bitwise_op op, bool neg_left, bool neg_right, std::size_t exte
 constexpr basic_big_int<b, A>
 basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
                                            const std::span<const uint_multiprecision_t, extent_b> rhs) {
-    constexpr bool res_neg = op == detail::bitwise_op::and_  ? (neg_left && neg_right)
-                             : op == detail::bitwise_op::or_ ? (neg_left || neg_right)
-                                                             : (neg_left != neg_right);
+    constexpr bool res_neg = detail::eval_bitwise<op>(neg_left, neg_right);
     const auto     n       = [&]() -> std::size_t {
         if constexpr (op == detail::bitwise_op::and_) {
             if constexpr (!neg_left && !neg_right) {
@@ -2009,14 +2020,7 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
             r                 = sum;
             carry_r           = carry;
         }
-        limb_type res;
-        if constexpr (op == detail::bitwise_op::and_) {
-            res = l & r;
-        } else if constexpr (op == detail::bitwise_op::or_) {
-            res = l | r;
-        } else {
-            res = l ^ r;
-        }
+        limb_type res = detail::eval_bitwise<op>(l, r);
         if constexpr (res_neg) {
             res               = ~res;
             auto [sum, carry] = detail::carrying_add(res, limb_type{0}, carry_o);
