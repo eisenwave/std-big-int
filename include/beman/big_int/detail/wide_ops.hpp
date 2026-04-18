@@ -255,7 +255,7 @@ template <signed_or_unsigned T>
     const auto wide  = static_cast<wider_t<T>>(x) + static_cast<wider_t<T>>(y);
     const auto value = static_cast<T>(wide);
     return {.value = value, .overflow = wide != value};
-#endif // BEMAN_BIG_INT_GNUC
+#endif // __builtin_add_overflow
 }
 
 template <signed_or_unsigned T>
@@ -268,20 +268,19 @@ template <signed_or_unsigned T>
     const auto wide  = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y);
     const auto value = static_cast<T>(wide);
     return {.value = value, .overflow = wide != value};
-#endif // BEMAN_BIG_INT_GNUC
+#endif // __builtin_sub_overflow
 }
 
-template <signed_or_unsigned T>
+template <unsigned_integer T>
 [[nodiscard]] constexpr overflow_result<T> overflowing_mul(const T x, const T y) noexcept {
 #if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_mul_overflow)
     T    value;
     bool overflow = __builtin_mul_overflow(x, y, &value);
     return {.value = value, .overflow = overflow};
 #else
-    const auto wide  = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
-    const auto value = static_cast<T>(wide);
-    return {.value = value, .overflow = wide != value};
-#endif // BEMAN_BIG_INT_GNUC
+    const T value = x * y;
+    return {.value = value, .overflow = x != 0 && value / x != y};
+#endif // __builtin_mul_overflow
 }
 
 template <class T>

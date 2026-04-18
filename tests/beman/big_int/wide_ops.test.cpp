@@ -330,30 +330,6 @@ TEST(WideOps, OverflowingSubUint) {
     EXPECT_EQ(r6.overflow, false);
 }
 
-TEST(WideOps, OverflowingMulInt) {
-    using beman::big_int::detail::overflowing_mul;
-
-    const auto r1 = overflowing_mul<int_multiprecision_t>(0, 7);
-    const auto r2 = overflowing_mul<int_multiprecision_t>(1, 1);
-    const auto r3 = overflowing_mul<int_multiprecision_t>(7, 5);
-    const auto r4 = overflowing_mul<int_multiprecision_t>(-7, 5);
-    const auto r5 = overflowing_mul<int_multiprecision_t>(std::numeric_limits<int_multiprecision_t>::max(), 2);
-    const auto r6 = overflowing_mul<int_multiprecision_t>(std::numeric_limits<int_multiprecision_t>::min(), 2);
-
-    EXPECT_EQ(r1.value, static_cast<int_multiprecision_t>(0));
-    EXPECT_EQ(r1.overflow, false);
-    EXPECT_EQ(r2.value, static_cast<int_multiprecision_t>(1));
-    EXPECT_EQ(r2.overflow, false);
-    EXPECT_EQ(r3.value, static_cast<int_multiprecision_t>(35));
-    EXPECT_EQ(r3.overflow, false);
-    EXPECT_EQ(r4.value, static_cast<int_multiprecision_t>(-35));
-    EXPECT_EQ(r4.overflow, false);
-    EXPECT_EQ(r5.value, static_cast<int_multiprecision_t>(-2));
-    EXPECT_EQ(r5.overflow, true);
-    EXPECT_EQ(r6.value, static_cast<int_multiprecision_t>(0));
-    EXPECT_EQ(r6.overflow, true);
-}
-
 TEST(WideOps, OverflowingMulUint) {
     using beman::big_int::detail::overflowing_mul;
 
