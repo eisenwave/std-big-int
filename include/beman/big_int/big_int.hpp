@@ -2553,20 +2553,20 @@ struct parse_non_allocating {
             return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
         }
         if (parsed.capacity() != 0) {
-            return parse_non_allocating_result{
-                .value      = 0,
-                .limb_count = parsed.size(),
-                .ec         = std::errc::result_out_of_range,
-            };
+            parse_non_allocating_result r;
+            r.value      = 0;
+            r.limb_count = parsed.size();
+            r.ec         = std::errc::result_out_of_range;
+            return r;
         }
         parse_non_allocating_result r;
-        r.value      = std::move(parsed);
+        r.value      = parsed;
         r.limb_count = parsed.size();
         r.ec         = std::errc{};
         return r;
     }
 
-    static constexpr auto result = parse();
+    static constexpr parse_non_allocating_result result = parse();
 
   public:
     static constexpr big_int   value      = result.value;
