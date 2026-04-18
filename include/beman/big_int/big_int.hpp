@@ -2400,9 +2400,9 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     }
 
     // The number of bits per base digit, or zero if the base is not a power of two.
-    const auto bits_per_digit = std::has_single_bit(static_cast<unsigned char>(base))
-                                    ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
-                                    : static_cast<unsigned char>(0);
+    const auto bits_per_digit     = std::has_single_bit(static_cast<unsigned char>(base))
+                                        ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
+                                        : static_cast<unsigned char>(0);
     bool       at_least_one_digit = false;
     for (; p != end; ++p) {
         const int digit = detail::digit_value(*p);
@@ -2542,25 +2542,25 @@ struct parse_non_allocating {
     // However, if the result is too large to fit into inplace storage,
     // `{limb_count(), std::errc::result_out_of_range}` is returned.
     [[nodiscard]] static consteval parse_non_allocating_result operator()() {
-        big_int result;
-        const auto [p, ec] = from_chars_auto_base(begin, end, result);
+        big_int parsed;
+        const auto [p, ec] = from_chars_auto_base(begin, end, parsed);
         if (ec != std::errc{}) {
             return {0, 0, ec};
         }
         if (p != end) {
             return {0, 0, std::errc::invalid_argument};
         }
-        if (result.capacity() != 0) {
+        if (parsed.capacity() != 0) {
             return {
                 .value      = 0,
-                .limb_count = result.size(),
+                .limb_count = parsed.size(),
                 .ec         = std::errc::result_out_of_range,
             };
         }
         return {
-            .value      = result,
-            .limb_count = result.size(),
-            .ec         = {},
+            .value      = std::move(parsed),
+            .limb_count = parsed.size(),
+            .ec         = std::errc{},
         };
     }
 
