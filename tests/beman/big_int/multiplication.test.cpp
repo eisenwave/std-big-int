@@ -37,6 +37,30 @@ static_assert(ce_mixed_sign());
 consteval bool ce_zero_absorbs() { return (big_int{12345} * big_int{0}) == big_int{0}; }
 static_assert(ce_zero_absorbs());
 
+consteval bool ce_255() {
+    big_int result{2};
+    result *= 10;
+    result += 5;
+    result *= 10;
+    result += 5;
+    return result == big_int{255};
+}
+static_assert(ce_255());
+
+consteval bool move_heap_mul() {
+    big_int result{2};
+
+    big_int lhs{2};
+    lhs <<= 155;
+
+    result *= lhs;
+    big_int result2 = std::move(result);
+    result2 *= lhs;
+    result2 += 10;
+    return result2 > big_int{255};
+}
+static_assert(move_heap_mul());
+
 // ----- runtime tests -----
 
 TEST(Multiplication, SmallPositivePositive) {
