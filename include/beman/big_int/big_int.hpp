@@ -2399,9 +2399,9 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     }
 
     // The number of bits per base digit, or zero if the base is not a power of two.
-    const auto bits_per_digit = std::has_single_bit(static_cast<unsigned char>(base))
-                                    ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
-                                    : static_cast<unsigned char>(0);
+    const auto bits_per_digit     = std::has_single_bit(static_cast<unsigned char>(base))
+                                        ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
+                                        : static_cast<unsigned char>(0);
     bool       at_least_one_digit = false;
     for (; p != end; ++p) {
         const int digit = detail::digit_value(*p);
@@ -2640,8 +2640,7 @@ template <char... digits>
 // https://github.com/llvm/llvm-project/issues/76394
 // clang-format off
 template <char... digits>
-[[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator""n<digits...>()))
-{
+[[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator""n<digits...>())) {
     return operator""n<digits...>();
 }
 // clang-format on
