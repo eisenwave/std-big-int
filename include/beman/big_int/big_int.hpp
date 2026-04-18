@@ -518,6 +518,29 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         m_storage.data = allocation.ptr;
     }
 
+    // Efficiently performs `*this |= bits << offset`, as if `bits` was wrapped in `basic_big_int`.
+    // The behavior is undefined there are any existing nonzero bits overwritten.
+    constexpr void unchecked_init_magnitude_bits_at(const uint_multiprecision_t bits, const size_type offset) {
+        const size_type limb_offset = offset / bits_per_limb;
+        const size_type bit_offset  = offset % bits_per_limb;
+        if (bit_offset == 0) {
+            grow(limb_offset + 1);
+            BEMAN_BIG_INT_DEBUG_ASSERT(limb_ptr()[limb_offset] == 0);
+            limb_ptr()[limb_offset] = bits;
+            if (limb_count() < limb_offset + 1) {
+                set_limb_count(static_cast<std::uint32_t>(limb_offset + 1));
+            }
+        } else {
+            grow(limb_offset + 2);
+            limb_ptr()[limb_offset + 0] |= bits << bit_offset;
+            limb_ptr()[limb_offset + 1] |= bits >> (bits_per_limb - bit_offset);
+            const size_type hi_limb = (bits >> (bits_per_limb - bit_offset)) != 0 ? limb_offset + 2 : limb_offset + 1;
+            if (limb_count() < hi_limb) {
+                set_limb_count(static_cast<std::uint32_t>(hi_limb));
+            }
+        }
+    }
+
     static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
     [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
@@ -572,6 +595,13 @@ struct access_bypass {
     template <size_t b, class A>
     static constexpr void negate(basic_big_int<b, A>& x) {
         x.negate();
+    }
+
+    template <size_t b, class A>
+    static constexpr void unchecked_init_magnitude_bits_at(basic_big_int<b, A>&                    x,
+                                                           const uint_multiprecision_t             bits,
+                                                           typename basic_big_int<b, A>::size_type offset) {
+        x.unchecked_init_magnitude_bits_at(bits, offset);
     }
 };
 
@@ -2382,32 +2412,147 @@ namespace detail {
                                   : -1;
 }
 
+[[nodiscard]] consteval unsigned char limb_max_input_digits_naive(const int base) {
+    BEMAN_BIG_INT_ASSERT(base >= 2);
+
+    uint_multiprecision_t x      = 1;
+    int                   result = 0;
+    while (true) {
+        if (x * static_cast<unsigned>(base) < x) {
+            break;
+        }
+        x *= static_cast<unsigned>(base);
+        ++result;
+        if (x == 0) {
+            break;
+        }
+    }
+    return static_cast<unsigned char>(result - 1);
+}
+
+inline constexpr auto limb_max_input_digits_table = []() consteval {
+    std::array<unsigned char, 37> result{};
+    for (std::size_t i = 2; i < result.size(); ++i) {
+        result[i] = limb_max_input_digits_naive(static_cast<int>(i));
+    }
+    return result;
+}();
+
+// Returns the amount of digits that `uint_multiprecision_t` can represent in the given base.
+// Mathematically, this is `floor(log(pow(2, width_v<uint_multiprecision_t>)) / log(base))`.
+[[nodiscard]] constexpr int limb_max_input_digits(const int base) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
+    return limb_max_input_digits_table[std::size_t(base)];
+}
+
+[[nodiscard]] consteval uint_multiprecision_t limb_pow_naive(const uint_multiprecision_t x, const int y) {
+    uint_multiprecision_t result = 1;
+    for (int i = 0; i < y; ++i) {
+        result *= x;
+    }
+    return result;
+}
+
+inline constexpr auto limb_max_power_table = []() consteval {
+    std::array<uint_multiprecision_t, 37> result{};
+    for (std::size_t i = 2; i < result.size(); ++i) {
+        const int max_exponent = limb_max_input_digits(static_cast<int>(i));
+        result[i]              = limb_pow_naive(i, max_exponent);
+    }
+    return result;
+}();
+
+// Returns the greatest power of `base` representable in `uint_multiprecision_t`,
+// or zero if the next greater power is exactly `pow(2, width_v<uint_multiprecision_t>)`.
+//
+// A result of zero essentially communicates that no bit of `std::uint64_t` is wasted,
+// such as in the base-2 or base-16 case.
+[[nodiscard]] constexpr uint_multiprecision_t limb_max_power(const int base) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
+    return limb_max_power_table[std::size_t(base)];
+}
+
 } // namespace detail
 
-template <size_t b, class A>
-constexpr std::from_chars_result
+template <std::size_t b, class A>
+[[nodiscard]] constexpr std::from_chars_result
 from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& out, const int base) {
     if (begin == nullptr || begin == end || base < 2 || base > 36) {
         return {end, std::errc::invalid_argument};
     }
 
-    const char* p = begin;
-    if (*p == '-') {
-        ++p;
-    }
-    if (p == end) {
+    const char* current_begin = *begin == '-' ? begin + 1 : begin;
+    if (current_begin == end) {
         return {end, std::errc::invalid_argument};
     }
 
-    // The number of bits per base digit, or zero if the base is not a power of two.
-    // clang-format off
-    const auto bits_per_digit = std::has_single_bit(static_cast<unsigned char>(base))
-                              ? static_cast<unsigned char>(std::countr_zero(static_cast<unsigned char>(base)))
-                              : static_cast<unsigned char>(0);
-    // clang-format on
+    const uint_multiprecision_t max_pow                  = detail::limb_max_power(base);
+    const std::ptrdiff_t        max_digits_per_iteration = detail::limb_max_input_digits(base);
+    const bool                  is_pow_2                 = (base & (base - 1)) == 0;
+    BEMAN_BIG_INT_DEBUG_ASSERT(max_pow != 0 || is_pow_2);
+
+    if (is_pow_2) {
+        // When the base is a power of two, parsing is significantly different.
+        // Namely, it takes place FROM LAST TO FIRST, i.e. starting with the least significant digit.
+        // This is done so that the parsed blocks of digits can simply be appended to the representation.
+        // Parsing in this way essentially involves no multiprecision operations,
+        // not even a multiprecision shift.
+
+        // TODO(eisenwave): There are two special powers of two: 2 and 16;
+        //                  for these, number of bits per digit is also a power of two,
+        //                  meaning that we can perform parsing by repeatedly parsing a whole limb
+        //                  and appending it to the representation.
+        //                  These two should be special-cased by doing such a `push_back`
+        //                  instead of the more complex `unchecked_init_magnitude_bits_at`.
+        const auto         bits_per_iteration = static_cast<big_int::size_type>(std::countr_zero(max_pow));
+        big_int::size_type bit_offset         = 0;
+
+        const char* current_end = current_begin;
+        for (; current_end != end; ++current_end) {
+            const int value = detail::digit_value(*current_end);
+            if (value < 0 || value >= base) {
+                break;
+            }
+        }
+        // This indicates that we have parsed either nothing or only the minus sign:
+        if (current_end == current_begin) {
+            return {end, std::errc::invalid_argument};
+        }
+        const char* const returned_end = current_end;
+
+        // In any other case, we have the guarantee that at least one digit can be parsed.
+        out = {};
+        while (true) {
+            const auto        digit_block_length = std::min(current_end - current_begin, max_digits_per_iteration);
+            const char* const digit_block_begin  = current_end - digit_block_length;
+            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
+
+            uint_multiprecision_t        bits{};
+            const std::from_chars_result digit_block_result =
+                std::from_chars(digit_block_begin, current_end, bits, base);
+            // We already pre-parsed the string when advancing current_end,
+            // and we made sure to only take as many digits as can fit into uint_multiprecision_t,
+            // so use of `std::from_chars` should be infallible.
+            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_result.ec == std::errc{});
+
+            detail::access_bypass::unchecked_init_magnitude_bits_at(out, bits, bit_offset);
+            bit_offset += bits_per_iteration;
+
+            if (digit_block_begin == current_begin) {
+                break;
+            }
+            current_end -= digit_block_length;
+            BEMAN_BIG_INT_DEBUG_ASSERT(current_end >= digit_block_begin);
+        }
+        if (*begin == '-') {
+            detail::access_bypass::negate(out);
+        }
+        return {returned_end, std::errc{}};
+    }
+
     bool at_least_one_digit = false;
-    for (; p != end; ++p) {
-        const int digit = detail::digit_value(*p);
+    for (; current_begin != end; ++current_begin) {
+        const int digit = detail::digit_value(*current_begin);
         if (digit < 0 || digit >= base) {
             break;
         }
@@ -2418,29 +2563,19 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             out                = {};
             at_least_one_digit = true;
         }
-        // In general, each time we concatenate a digit, we multiply with the base and add the digit.
-        // For powers of two, this is equivalent to a left shift, followed by a bitwise OR.
-        // Casting to unsigned char selects a potentially simpler specialization
-        // of the binary operators than using int.
-        if (bits_per_digit) {
-            out <<= bits_per_digit;
-            // TODO: Once `|=` exists, this `+=` should be replaced.
-            out += static_cast<unsigned char>(digit);
-        } else {
-            out *= base;
-            out += static_cast<unsigned char>(digit);
-        }
+        out *= base;
+        out += static_cast<unsigned char>(digit);
     }
     if (!at_least_one_digit) {
         return {end, std::errc::invalid_argument};
     }
-    if (begin[0] == '-') {
+    if (*begin == '-') {
         detail::access_bypass::negate(out);
     }
     if BEMAN_BIG_INT_IS_CONSTEVAL {
         out.shrink_to_fit();
     }
-    return {p, std::errc{}};
+    return {current_begin, std::errc{}};
 }
 
 namespace detail {
