@@ -1,0 +1,341 @@
+#include <string_view>
+
+#include <gtest/gtest.h>
+
+#include <beman/big_int/big_int.hpp>
+
+namespace {
+
+using namespace beman::big_int;
+
+[[nodiscard]] constexpr big_int parse(const std::string_view str, const int base) {
+    BEMAN_BIG_INT_ASSERT(base >= 2 && base <= 36);
+    big_int result;
+    const auto [p, ec] = from_chars(str.begin(), str.end(), result, base);
+    if (ec != std::errc{}) {
+        throw std::runtime_error("from_chars did not succeed.");
+    }
+    if (p != str.data() + str.size()) {
+        throw std::runtime_error("from_chars parsed only part of the string.");
+    }
+    return result;
+}
+
+// clang-format off
+static_assert(1234567890123456789012345678901234567890112233445566778899_n == parse("1100100101100101111101011111010010101011010111010110000000010101011010001111000011110010000101101011001110110000010011101110011110001010001000010010010011111010010110111101010000111000010011", 2),
+              "The tests in this file are meaningless because parsing of literals is broken.");
+
+TEST(FromChars, EveryBase_255) {
+    constexpr big_int expected = 255;
+    EXPECT_EQ(parse("11111111", 2), expected);
+    EXPECT_EQ(parse("100110", 3), expected);
+    EXPECT_EQ(parse("3333", 4), expected);
+    EXPECT_EQ(parse("2010", 5), expected);
+    EXPECT_EQ(parse("1103", 6), expected);
+    EXPECT_EQ(parse("513", 7), expected);
+    EXPECT_EQ(parse("377", 8), expected);
+    EXPECT_EQ(parse("313", 9), expected);
+    EXPECT_EQ(parse("255", 10), expected);
+    EXPECT_EQ(parse("212", 11), expected);
+    EXPECT_EQ(parse("193", 12), expected);
+    EXPECT_EQ(parse("168", 13), expected);
+    EXPECT_EQ(parse("143", 14), expected);
+    EXPECT_EQ(parse("120", 15), expected);
+    EXPECT_EQ(parse("ff", 16), expected);
+    EXPECT_EQ(parse("f0", 17), expected);
+    EXPECT_EQ(parse("e3", 18), expected);
+    EXPECT_EQ(parse("d8", 19), expected);
+    EXPECT_EQ(parse("cf", 20), expected);
+    EXPECT_EQ(parse("c3", 21), expected);
+    EXPECT_EQ(parse("bd", 22), expected);
+    EXPECT_EQ(parse("b2", 23), expected);
+    EXPECT_EQ(parse("af", 24), expected);
+    EXPECT_EQ(parse("a5", 25), expected);
+    EXPECT_EQ(parse("9l", 26), expected);
+    EXPECT_EQ(parse("9c", 27), expected);
+    EXPECT_EQ(parse("93", 28), expected);
+    EXPECT_EQ(parse("8n", 29), expected);
+    EXPECT_EQ(parse("8f", 30), expected);
+    EXPECT_EQ(parse("87", 31), expected);
+    EXPECT_EQ(parse("7v", 32), expected);
+    EXPECT_EQ(parse("7o", 33), expected);
+    EXPECT_EQ(parse("7h", 34), expected);
+    EXPECT_EQ(parse("7a", 35), expected);
+    EXPECT_EQ(parse("73", 36), expected);
+}
+
+TEST(FromChars, EveryBase_m255) {
+    constexpr big_int expected = -255;
+    EXPECT_EQ(parse("-11111111", 2), expected);
+    EXPECT_EQ(parse("-100110", 3), expected);
+    EXPECT_EQ(parse("-3333", 4), expected);
+    EXPECT_EQ(parse("-2010", 5), expected);
+    EXPECT_EQ(parse("-1103", 6), expected);
+    EXPECT_EQ(parse("-513", 7), expected);
+    EXPECT_EQ(parse("-377", 8), expected);
+    EXPECT_EQ(parse("-313", 9), expected);
+    EXPECT_EQ(parse("-255", 10), expected);
+    EXPECT_EQ(parse("-212", 11), expected);
+    EXPECT_EQ(parse("-193", 12), expected);
+    EXPECT_EQ(parse("-168", 13), expected);
+    EXPECT_EQ(parse("-143", 14), expected);
+    EXPECT_EQ(parse("-120", 15), expected);
+    EXPECT_EQ(parse("-ff", 16), expected);
+    EXPECT_EQ(parse("-f0", 17), expected);
+    EXPECT_EQ(parse("-e3", 18), expected);
+    EXPECT_EQ(parse("-d8", 19), expected);
+    EXPECT_EQ(parse("-cf", 20), expected);
+    EXPECT_EQ(parse("-c3", 21), expected);
+    EXPECT_EQ(parse("-bd", 22), expected);
+    EXPECT_EQ(parse("-b2", 23), expected);
+    EXPECT_EQ(parse("-af", 24), expected);
+    EXPECT_EQ(parse("-a5", 25), expected);
+    EXPECT_EQ(parse("-9l", 26), expected);
+    EXPECT_EQ(parse("-9c", 27), expected);
+    EXPECT_EQ(parse("-93", 28), expected);
+    EXPECT_EQ(parse("-8n", 29), expected);
+    EXPECT_EQ(parse("-8f", 30), expected);
+    EXPECT_EQ(parse("-87", 31), expected);
+    EXPECT_EQ(parse("-7v", 32), expected);
+    EXPECT_EQ(parse("-7o", 33), expected);
+    EXPECT_EQ(parse("-7h", 34), expected);
+    EXPECT_EQ(parse("-7a", 35), expected);
+    EXPECT_EQ(parse("-73", 36), expected);
+}
+
+TEST(FromChars, EveryBase_0x1p64) {
+    const big_int expected = 1_n << 64;
+    EXPECT_EQ(parse("10000000000000000000000000000000000000000000000000000000000000000", 2), expected);
+    EXPECT_EQ(parse("11112220022122120101211020120210210211221", 3), expected);
+    EXPECT_EQ(parse("100000000000000000000000000000000", 4), expected);
+    EXPECT_EQ(parse("2214220303114400424121122431", 5), expected);
+    EXPECT_EQ(parse("3520522010102100444244424", 6), expected);
+    EXPECT_EQ(parse("45012021522523134134602", 7), expected);
+    EXPECT_EQ(parse("2000000000000000000000", 8), expected);
+    EXPECT_EQ(parse("145808576354216723757", 9), expected);
+    EXPECT_EQ(parse("18446744073709551616", 10), expected);
+    EXPECT_EQ(parse("335500516a429071285", 11), expected);
+    EXPECT_EQ(parse("839365134a2a240714", 12), expected);
+    EXPECT_EQ(parse("219505a9511a867b73", 13), expected);
+    EXPECT_EQ(parse("8681049adb03db172", 14), expected);
+    EXPECT_EQ(parse("2c1d56b648c6cd111", 15), expected);
+    EXPECT_EQ(parse("10000000000000000", 16), expected);
+    EXPECT_EQ(parse("67979g60f5428011", 17), expected);
+    EXPECT_EQ(parse("2d3fgb0b9cg4bd2g", 18), expected);
+    EXPECT_EQ(parse("141c8786h1ccaagh", 19), expected);
+    EXPECT_EQ(parse("b53bjh07be4dj0g", 20), expected);
+    EXPECT_EQ(parse("5e8g4ggg7g56dig", 21), expected);
+    EXPECT_EQ(parse("2l4lf104353j8kg", 22), expected);
+    EXPECT_EQ(parse("1ddh88h2782i516", 23), expected);
+    EXPECT_EQ(parse("l12ee5fn0ji1ig", 24), expected);
+    EXPECT_EQ(parse("c9c336o0mlb7eg", 25), expected);
+    EXPECT_EQ(parse("7b7n2pcniokcgg", 26), expected);
+    EXPECT_EQ(parse("4eo8hfam6fllmp", 27), expected);
+    EXPECT_EQ(parse("2nc6j26l66rhog", 28), expected);
+    EXPECT_EQ(parse("1n3rsh11f098ro", 29), expected);
+    EXPECT_EQ(parse("14l9lkmo30o40g", 30), expected);
+    EXPECT_EQ(parse("nd075ib45k86g", 31), expected);
+    EXPECT_EQ(parse("g000000000000", 32), expected);
+    EXPECT_EQ(parse("b1w8p7j5q9r6g", 33), expected);
+    EXPECT_EQ(parse("7orp63sh4dphi", 34), expected);
+    EXPECT_EQ(parse("5g24a25twkwfg", 35), expected);
+    EXPECT_EQ(parse("3w5e11264sgsg", 36), expected);
+}
+
+TEST(FromChars, EveryBase_m0x1p64) {
+    const big_int expected = -1_n << 64;
+    EXPECT_EQ(parse("-10000000000000000000000000000000000000000000000000000000000000000", 2), expected);
+    EXPECT_EQ(parse("-11112220022122120101211020120210210211221", 3), expected);
+    EXPECT_EQ(parse("-100000000000000000000000000000000", 4), expected);
+    EXPECT_EQ(parse("-2214220303114400424121122431", 5), expected);
+    EXPECT_EQ(parse("-3520522010102100444244424", 6), expected);
+    EXPECT_EQ(parse("-45012021522523134134602", 7), expected);
+    EXPECT_EQ(parse("-2000000000000000000000", 8), expected);
+    EXPECT_EQ(parse("-145808576354216723757", 9), expected);
+    EXPECT_EQ(parse("-18446744073709551616", 10), expected);
+    EXPECT_EQ(parse("-335500516a429071285", 11), expected);
+    EXPECT_EQ(parse("-839365134a2a240714", 12), expected);
+    EXPECT_EQ(parse("-219505a9511a867b73", 13), expected);
+    EXPECT_EQ(parse("-8681049adb03db172", 14), expected);
+    EXPECT_EQ(parse("-2c1d56b648c6cd111", 15), expected);
+    EXPECT_EQ(parse("-10000000000000000", 16), expected);
+    EXPECT_EQ(parse("-67979g60f5428011", 17), expected);
+    EXPECT_EQ(parse("-2d3fgb0b9cg4bd2g", 18), expected);
+    EXPECT_EQ(parse("-141c8786h1ccaagh", 19), expected);
+    EXPECT_EQ(parse("-b53bjh07be4dj0g", 20), expected);
+    EXPECT_EQ(parse("-5e8g4ggg7g56dig", 21), expected);
+    EXPECT_EQ(parse("-2l4lf104353j8kg", 22), expected);
+    EXPECT_EQ(parse("-1ddh88h2782i516", 23), expected);
+    EXPECT_EQ(parse("-l12ee5fn0ji1ig", 24), expected);
+    EXPECT_EQ(parse("-c9c336o0mlb7eg", 25), expected);
+    EXPECT_EQ(parse("-7b7n2pcniokcgg", 26), expected);
+    EXPECT_EQ(parse("-4eo8hfam6fllmp", 27), expected);
+    EXPECT_EQ(parse("-2nc6j26l66rhog", 28), expected);
+    EXPECT_EQ(parse("-1n3rsh11f098ro", 29), expected);
+    EXPECT_EQ(parse("-14l9lkmo30o40g", 30), expected);
+    EXPECT_EQ(parse("-nd075ib45k86g", 31), expected);
+    EXPECT_EQ(parse("-g000000000000", 32), expected);
+    EXPECT_EQ(parse("-b1w8p7j5q9r6g", 33), expected);
+    EXPECT_EQ(parse("-7orp63sh4dphi", 34), expected);
+    EXPECT_EQ(parse("-5g24a25twkwfg", 35), expected);
+    EXPECT_EQ(parse("-3w5e11264sgsg", 36), expected);
+}
+
+TEST(FromChars, EveryBase_0x1p127m1) {
+    const big_int expected = (1_n << 127) - 1;
+    EXPECT_EQ(parse("1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111", 2), expected);
+    EXPECT_EQ(parse("101100201022001010121000102002120122110122221010202000122201220121120010200022001", 3), expected);
+    EXPECT_EQ(parse("1333333333333333333333333333333333333333333333333333333333333333", 4), expected);
+    EXPECT_EQ(parse("3013030220323124042102424341431241221233040112312340402", 5), expected);
+    EXPECT_EQ(parse("11324454543055553250455021551551121442554522203131", 6), expected);
+    EXPECT_EQ(parse("1406241064412313155000336513424310163013142501", 7), expected);
+    EXPECT_EQ(parse("1777777777777777777777777777777777777777777", 8), expected);
+    EXPECT_EQ(parse("11321261117012076573587122018656546120261", 9), expected);
+    EXPECT_EQ(parse("170141183460469231731687303715884105727", 10), expected);
+    EXPECT_EQ(parse("555a8020989a11327710815513a946a188726", 11), expected);
+    EXPECT_EQ(parse("2a695925806818735399a37a20a31b3534a7", 12), expected);
+    EXPECT_EQ(parse("2373464c8a3cb25ba2b7c6382b2963bb71a", 13), expected);
+    EXPECT_EQ(parse("27c22d5b9734a1517bb1dc612904a79d71", 14), expected);
+    EXPECT_EQ(parse("3e2480b3404d8bb9bca3084369ba3e187", 15), expected);
+    EXPECT_EQ(parse("7fffffffffffffffffffffffffffffff", 16), expected);
+    EXPECT_EQ(parse("13d03cge4242f3e39f9dga60476a8098", 17), expected);
+    EXPECT_EQ(parse("3d51ddf66g5befc8e19d2607hc26e31", 18), expected);
+    EXPECT_EQ(parse("e09c09h6a4eihac8fchc875gf4di41", 19), expected);
+    EXPECT_EQ(parse("337d04g0ec2d918ac3j85180dfd467", 20), expected);
+    EXPECT_EQ(parse("g3b663ge01jk6cica417i3a75c601", 21), expected);
+    EXPECT_EQ(parse("48f5dj8i8eli87ecigb8g6egjhchh", 22), expected);
+    EXPECT_EQ(parse("162g6gam6d49ik37jk2mdcl41aj6h", 23), expected);
+    EXPECT_EQ(parse("95b794mjicl2m0cbfjnjnd2hdm57", 24), expected);
+    EXPECT_EQ(parse("31ffc3d7km5eej9ge7bdfk6d7j42", 25), expected);
+    EXPECT_EQ(parse("11gf2k68m8of9j9agmk61a6g4i0n", 26), expected);
+    EXPECT_EQ(parse("a9j813g0b2fhchp3k0hjogf3i81", 27), expected);
+    EXPECT_EQ(parse("40j3ek89l5h69q3q6jh2khn6dof", 28), expected);
+    EXPECT_EQ(parse("1hp3d3elmjg86isj584dklf2djq", 29), expected);
+    EXPECT_EQ(parse("k2chs8jacc5g718abkqgokq447", 30), expected);
+    EXPECT_EQ(parse("8q7cd4uoh31nng3aqs4edr0p73", 31), expected);
+    EXPECT_EQ(parse("3vvvvvvvvvvvvvvvvvvvvvvvvv", 32), expected);
+    EXPECT_EQ(parse("1s5acer890k5h07uh412q2mo0s", 33), expected);
+    EXPECT_EQ(parse("ttq3btpo06a5neskugckddplp", 34), expected);
+    EXPECT_EQ(parse("evh2xn5qudpcldl13shtyuixm", 35), expected);
+    EXPECT_EQ(parse("7ksyyizzkutudzbv8aqztecjj", 36), expected);
+}
+
+TEST(FromChars, EveryBase_0x1p127) {
+    const big_int expected = 1_n << 127;
+    EXPECT_EQ(parse("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", 2), expected);
+    EXPECT_EQ(parse("101100201022001010121000102002120122110122221010202000122201220121120010200022002", 3), expected);
+    EXPECT_EQ(parse("2000000000000000000000000000000000000000000000000000000000000000", 4), expected);
+    EXPECT_EQ(parse("3013030220323124042102424341431241221233040112312340403", 5), expected);
+    EXPECT_EQ(parse("11324454543055553250455021551551121442554522203132", 6), expected);
+    EXPECT_EQ(parse("1406241064412313155000336513424310163013142502", 7), expected);
+    EXPECT_EQ(parse("2000000000000000000000000000000000000000000", 8), expected);
+    EXPECT_EQ(parse("11321261117012076573587122018656546120262", 9), expected);
+    EXPECT_EQ(parse("170141183460469231731687303715884105728", 10), expected);
+    EXPECT_EQ(parse("555a8020989a11327710815513a946a188727", 11), expected);
+    EXPECT_EQ(parse("2a695925806818735399a37a20a31b3534a8", 12), expected);
+    EXPECT_EQ(parse("2373464c8a3cb25ba2b7c6382b2963bb71b", 13), expected);
+    EXPECT_EQ(parse("27c22d5b9734a1517bb1dc612904a79d72", 14), expected);
+    EXPECT_EQ(parse("3e2480b3404d8bb9bca3084369ba3e188", 15), expected);
+    EXPECT_EQ(parse("80000000000000000000000000000000", 16), expected);
+    EXPECT_EQ(parse("13d03cge4242f3e39f9dga60476a8099", 17), expected);
+    EXPECT_EQ(parse("3d51ddf66g5befc8e19d2607hc26e32", 18), expected);
+    EXPECT_EQ(parse("e09c09h6a4eihac8fchc875gf4di42", 19), expected);
+    EXPECT_EQ(parse("337d04g0ec2d918ac3j85180dfd468", 20), expected);
+    EXPECT_EQ(parse("g3b663ge01jk6cica417i3a75c602", 21), expected);
+    EXPECT_EQ(parse("48f5dj8i8eli87ecigb8g6egjhchi", 22), expected);
+    EXPECT_EQ(parse("162g6gam6d49ik37jk2mdcl41aj6i", 23), expected);
+    EXPECT_EQ(parse("95b794mjicl2m0cbfjnjnd2hdm58", 24), expected);
+    EXPECT_EQ(parse("31ffc3d7km5eej9ge7bdfk6d7j43", 25), expected);
+    EXPECT_EQ(parse("11gf2k68m8of9j9agmk61a6g4i0o", 26), expected);
+    EXPECT_EQ(parse("a9j813g0b2fhchp3k0hjogf3i82", 27), expected);
+    EXPECT_EQ(parse("40j3ek89l5h69q3q6jh2khn6dog", 28), expected);
+    EXPECT_EQ(parse("1hp3d3elmjg86isj584dklf2djr", 29), expected);
+    EXPECT_EQ(parse("k2chs8jacc5g718abkqgokq448", 30), expected);
+    EXPECT_EQ(parse("8q7cd4uoh31nng3aqs4edr0p74", 31), expected);
+    EXPECT_EQ(parse("40000000000000000000000000", 32), expected);
+    EXPECT_EQ(parse("1s5acer890k5h07uh412q2mo0t", 33), expected);
+    EXPECT_EQ(parse("ttq3btpo06a5neskugckddplq", 34), expected);
+    EXPECT_EQ(parse("evh2xn5qudpcldl13shtyuixn", 35), expected);
+    EXPECT_EQ(parse("7ksyyizzkutudzbv8aqztecjk", 36), expected);
+}
+
+TEST(FromChars, EveryBase_0x1p200) {
+    const big_int expected = 1_n << 200;
+    EXPECT_EQ(parse("100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", 2), expected);
+    EXPECT_EQ(parse("1020010020011122222010012002211022002220100012201102121001102021011020010001110010111202101022110112000001121101020022221002011", 3), expected);
+    EXPECT_EQ(parse("10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", 4), expected);
+    EXPECT_EQ(parse("111020132102420112021343001342032333120043341314112104422342034202402044234211314121001", 5), expected);
+    EXPECT_EQ(parse("153532332401011220403425141024425043540104001011245043050435125240351024502304", 6), expected);
+    EXPECT_EQ(parse("141246066533632643213232344050606053061443446006544361632102630555343054", 7), expected);
+    EXPECT_EQ(parse("4000000000000000000000000000000000000000000000000000000000000000000", 8), expected);
+    EXPECT_EQ(parse("1203204588105084262810181377042234203043114671273460047336287064", 9), expected);
+    EXPECT_EQ(parse("1606938044258990275541962092341162602522202993782792835301376", 10), expected);
+    EXPECT_EQ(parse("702a695236a26a175662a9a2048793aa12225aa884798921aa43640211", 11), expected);
+    EXPECT_EQ(parse("711a44b68618019a2aa233ab1b3a354234329741725b37749147a994", 12), expected);
+    EXPECT_EQ(parse("118c655a2aa24b3c3c25c8249269882811a1367a2b7c5b60b930499", 13), expected);
+    EXPECT_EQ(parse("409840b05276d868d7a284750dd66851c40284971c8d464973c64", 14), expected);
+    EXPECT_EQ(parse("1a306ea66c3a28ae9e2acb154bda45d3d33bcc419cb2a50c1d51", 15), expected);
+    EXPECT_EQ(parse("100000000000000000000000000000000000000000000000000", 16), expected);
+    EXPECT_EQ(parse("dg16f38eebf846a55ce10e44gf26g5fb8eg148ad8b5g84f11", 17), expected);
+    EXPECT_EQ(parse("g2ceg0g4b8aa15g1hh662aacbhbd5hab7287a54c7b3d8dc4", 18), expected);
+    EXPECT_EQ(parse("15359dfh0ccef9hgch451hg8fdb3c1e569cce46a98c2efi4", 19), expected);
+    EXPECT_EQ(parse("25d8f83ed4e8idac0b962jghhebge99jd0f5bc06i10cd8g", 20), expected);
+    EXPECT_EQ(parse("51fdh8f51670kddg476b2ih0ai1j9a55j48dk27be7c0i4", 21), expected);
+    EXPECT_EQ(parse("dh5ih81f0403j656bd7i9ch363icjeb78gi7f4cki2h0c", 22), expected);
+    EXPECT_EQ(parse("1lj985917fa09i739cl96kl9gc1978d7kbelg1dkcfde4", 23), expected);
+    EXPECT_EQ(parse("74f57n8nnacman4gga8nb9dbemn4ifbe2bcfcjh0bkag", 24), expected);
+    EXPECT_EQ(parse("1621h5ea6abjf1jahiga4ilgl75ocjajae24mjb89751", 25), expected);
+    EXPECT_EQ(parse("5pg9dj501bcj73ompgoo20j8215ldjpmf56eo95mkhm", 26), expected);
+    EXPECT_EQ(parse("16364hq352m82o95jbg1b74631c3dka8ce01ga68p24", 27), expected);
+    EXPECT_EQ(parse("7clja95f6j5hiaikcg50ib2433rrikejonpi0896h4", 28), expected);
+    EXPECT_EQ(parse("1m8gen8rkhnnhs0a3qf5fajn361kf4ae06pmrf91pg", 29), expected);
+    EXPECT_EQ(parse("d6fm5miet05hlefp0n0d9chmptojk99cf225jf72g", 30), expected);
+    EXPECT_EQ(parse("3hboprqof3jja07q3c5qmnja0tuc0chm0fffbg691", 31), expected);
+    EXPECT_EQ(parse("10000000000000000000000000000000000000000", 32), expected);
+    EXPECT_EQ(parse("9l10o238v9in0ega68m2g7rv989opaac2s0bajq1", 33), expected);
+    EXPECT_EQ(parse("309k9mmbxji2j3ufnp7tpu8gi73a8tj2u823nxhi", 34), expected);
+    EXPECT_EQ(parse("xysp95s4kpn5qxodmbh36dg7i7pnpt8lg7ur2jb", 35), expected);
+    EXPECT_EQ(parse("bnklg118comha6gqury14067gur54n8won6guf4", 36), expected);
+}
+
+TEST(FromChars, EveryBase_1234567890123456789012345678901234567890112233445566778899) {
+    const big_int expected = 1234567890123456789012345678901234567890112233445566778899_n;
+    EXPECT_EQ(parse("1100100101100101111101011111010010101011010111010110000000010101011010001111000011110010000101101011001110110000010011101110011110001010001000010010010011111010010110111101010000111000010011", 2), expected);
+    EXPECT_EQ(parse("200112211110102021212200222012120002011210101222201200002000101122212221111212022122211110201211211110122020212122000000", 3), expected);
+    EXPECT_EQ(parse("30211211331133102223113112000111122033003302011223032300103232132022020102103322112331100320103", 4), expected);
+    EXPECT_EQ(parse("2443030312003032423221132100412422141210014133224140342114014311130233010043411044", 5), expected);
+    EXPECT_EQ(parse("15334321411452312252221453151303140525001150011340242051412445054523101043", 6), expected);
+    EXPECT_EQ(parse("26440656114205151522424022616202405154534130314565642632315310540442", 7), expected);
+    EXPECT_EQ(parse("1445457537225327260025321703620553166023563612102223722675207023", 8), expected);
+    EXPECT_EQ(parse("615743367780865502153358650060348787455278743654743566778000", 9), expected);
+    EXPECT_EQ(parse("1234567890123456789012345678901234567890112233445566778899", 10), expected);
+    EXPECT_EQ(parse("72017331781188537226214691a6861169a4a5a34a5556533343982", 11), expected);
+    EXPECT_EQ(parse("95072955358a5a5958917776724801051a7700981b01076971783", 12), expected);
+    EXPECT_EQ(parse("1ba4268b1cba8618c75baba39769b2424353a8783013593510b9", 13), expected);
+    EXPECT_EQ(parse("877010525452793a66c39bb601492084683853c6222b250d59", 14), expected);
+    EXPECT_EQ(parse("455312ee1037c1d82b7821ba032748dadb6411716c18b1d69", 15), expected);
+    EXPECT_EQ(parse("32597d7d2ad758055a3c3c85acec13b9e288493e96f50e13", 16), expected);
+    EXPECT_EQ(parse("31aeef86cef56442g4220366g988a26bb8f760e3078b9d1", 17), expected);
+    EXPECT_EQ(parse("406a0h99fh5dfa2d0ahd0036d8g8bf8h2d2dg39c62d6d9", 18), expected);
+    EXPECT_EQ(parse("6d7525g4h9ea7g0a98g9afa5g3i40d07f41507ac247h1", 19), expected);
+    EXPECT_EQ(parse("e0e35i40eg2286j8hg32bf8jb3f44aegicfij6jc774j", 20), expected);
+    EXPECT_EQ(parse("1f3a7ac32bec3fh1dei96hkfbhj2i4ck71f454g516f9", 21), expected);
+    EXPECT_EQ(parse("52gjd917fkl2la9e68ac141jc2fb0330h99h0k0l29d", 22), expected);
+    EXPECT_EQ(parse("i543gdle859f40efkheafjm1870d97bl1id8dghdmi", 23), expected);
+    EXPECT_EQ(parse("349bd97fh5ig7dc36d7817dhbe7mh8e40b74a14gm3", 24), expected);
+    EXPECT_EQ(parse("en3370fhmhb8b0lec9751liclkjb91n682i10nl5o", 25), expected);
+    EXPECT_EQ(parse("32lckgdd55kpdmhii2nhjebd41426i262d1449mp9", 26), expected);
+    EXPECT_EQ(parse("iemcb7niq5f24laqji20ahnpdn8hmcjmmch6nh00", 27), expected);
+    EXPECT_EQ(parse("4dl0bb0blfaoipc8f7elhr5d7p0n28iob4rhmo9n", 28), expected);
+    EXPECT_EQ(parse("14446650lm8disc37ohldq5f36dn51dbqrjmclll", 29), expected);
+    EXPECT_EQ(parse("9457qs5cc4cjgsslml19i074rnl82ohein77m39", 30), expected);
+    EXPECT_EQ(parse("2jfat1a95mrgd7ej9ducbir25ouseir6e53el5p", 31), expected);
+    EXPECT_EQ(parse("p5ivbt5bblg1aq7gu8bb7c2esu52297qbfa3gj", 32), expected);
+    EXPECT_EQ(parse("822lnwm95hb4bj95ulwgpdln3q8s81okhbjn2o", 33), expected);
+    EXPECT_EQ(parse("2msi9cfaccqunvoom5m362coqrxcmttlqr3jf1", 34), expected);
+    EXPECT_EQ(parse("vyrcqwj3tp1erk7nkx7xw4xme63wchx6ojh99", 35), expected);
+    EXPECT_EQ(parse("blrdpawjeweaxb93a5h07u19ogcvpgt5tf66r", 36), expected);
+}
+// clang-format on
+
+} // namespace
