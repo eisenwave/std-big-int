@@ -2559,11 +2559,11 @@ struct parse_non_allocating {
                 .ec         = std::errc::result_out_of_range,
             };
         }
-        return parse_non_allocating_result{
-            .value      = std::move(parsed),
-            .limb_count = parsed.size(),
-            .ec         = std::errc{},
-        };
+        parse_non_allocating_result r;
+        r.value      = std::move(parsed);
+        r.limb_count = parsed.size();
+        r.ec         = std::errc{};
+        return r;
     }
 
     static constexpr auto result = parse();
