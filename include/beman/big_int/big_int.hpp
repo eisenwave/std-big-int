@@ -2571,7 +2571,7 @@ struct parse_non_allocating {
 
 template <std::size_t limb_count>
 [[nodiscard]] consteval std::array<uint_multiprecision_t, limb_count>
-literal_operator_n_compute_limbs(const char* begin, const char* const end) {
+literal_operator_n_compute_limbs(const char* const begin, const char* const end) {
     std::array<uint_multiprecision_t, limb_count> result;
     big_int                                       parsed;
     const auto [p, ec] = detail::from_chars_auto_base(begin, end, parsed);
@@ -2622,12 +2622,7 @@ template <char... digits>
         // we can precompute a constexpr limb array which is used for fast runtime initialization.
         // We already know the limb count from the previous parsing attempt:
         constexpr const auto& limbs = detail::literal_operator_n_limbs_v<buffer>;
-
-        big_int result(limbs.data(), limbs.data() + limbs.size());
-        if (buffer[0] == '-') {
-            detail::access_bypass::negate(result);
-        }
-        return result;
+        return big_int(limbs.data(), limbs.data() + limbs.size());
     } else {
         static_assert(detail::parse_non_allocating<buffer>::ec == std::errc::invalid_argument);
         static_assert(false, "The given literal is not a valid integer-literal.");
