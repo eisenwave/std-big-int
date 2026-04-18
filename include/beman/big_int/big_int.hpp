@@ -2433,7 +2433,7 @@ namespace detail {
 inline constexpr auto limb_max_input_digits_table = [] {
     std::array<unsigned char, 37> result{};
     for (std::size_t i = 2; i < result.size(); ++i) {
-        result[i] = static_cast<unsigned char>(limb_max_input_digits_naive(int(i)));
+        result[i] = limb_max_input_digits_naive(static_cast<int>(i));
     }
     return result;
 }();
@@ -2456,7 +2456,7 @@ inline constexpr auto limb_max_input_digits_table = [] {
 inline constexpr auto limb_max_power_table = [] {
     std::array<uint_multiprecision_t, 37> result{};
     for (std::size_t i = 2; i < result.size(); ++i) {
-        const int max_exponent = limb_max_input_digits(int(i));
+        const int max_exponent = limb_max_input_digits(static_cast<int>(i));
         result[i]              = limb_pow_naive(i, max_exponent);
     }
     return result;
