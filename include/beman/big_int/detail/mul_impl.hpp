@@ -218,7 +218,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
                                   scratch_allocator<Allocator>&          scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + b.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size(a) + trimmed_size(b));
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 

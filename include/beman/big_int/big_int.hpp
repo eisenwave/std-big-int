@@ -2509,7 +2509,16 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
         const char* current_end = current_begin;
         for (; current_end != end; ++current_end) {
             const int value = detail::digit_value(*current_end);
-            if (value < 0 || value >= base) {
+
+            // TODO(ckormanyos): The query "value >= base" seems very likely to be incorrect for both
+            //                   hexadecimal *and* decimal values. The result of digit_value(...) is an
+            //                   *ASCII alpha-numeric character* like ['0'-'9'] or ['a'-'F'] or ['a'-'f'].
+            //                   For either decimal or hexadecimal conversions, any and all results
+            //                   of digit_value will exceed the base.
+            //                   I don't know if a second query makes sense or, if so, what it should be.
+            //                   The subroutine digit_value already returns -1 for invalid base-digits.
+
+            if (value < 0 /*|| value >= base*/) {
                 break;
             }
         }
