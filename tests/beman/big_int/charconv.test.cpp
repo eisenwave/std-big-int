@@ -27,6 +27,78 @@ static_assert(1234567890123456789012345678901234567890112233445566778899_n == pa
 // Powers of two are handled differently, so a second check makes sense.
 static_assert(1234567890123456789012345678901234567890112233445566778899_n == parse("2443030312003032423221132100412422141210014133224140342114014311130233010043411044", 5));
 
+TEST(FromChars, DigitValue) {
+    EXPECT_EQ(detail::digit_value('0'), 0);
+    EXPECT_EQ(detail::digit_value('1'), 1);
+    EXPECT_EQ(detail::digit_value('2'), 2);
+    EXPECT_EQ(detail::digit_value('3'), 3);
+    EXPECT_EQ(detail::digit_value('4'), 4);
+    EXPECT_EQ(detail::digit_value('5'), 5);
+    EXPECT_EQ(detail::digit_value('6'), 6);
+    EXPECT_EQ(detail::digit_value('7'), 7);
+    EXPECT_EQ(detail::digit_value('8'), 8);
+    EXPECT_EQ(detail::digit_value('9'), 9);
+
+    EXPECT_EQ(detail::digit_value('a'), 10);
+    EXPECT_EQ(detail::digit_value('b'), 11);
+    EXPECT_EQ(detail::digit_value('c'), 12);
+    EXPECT_EQ(detail::digit_value('d'), 13);
+    EXPECT_EQ(detail::digit_value('e'), 14);
+    EXPECT_EQ(detail::digit_value('f'), 15);
+    EXPECT_EQ(detail::digit_value('g'), 16);
+    EXPECT_EQ(detail::digit_value('h'), 17);
+    EXPECT_EQ(detail::digit_value('i'), 18);
+    EXPECT_EQ(detail::digit_value('j'), 19);
+    EXPECT_EQ(detail::digit_value('k'), 20);
+    EXPECT_EQ(detail::digit_value('l'), 21);
+    EXPECT_EQ(detail::digit_value('m'), 22);
+    EXPECT_EQ(detail::digit_value('n'), 23);
+    EXPECT_EQ(detail::digit_value('o'), 24);
+    EXPECT_EQ(detail::digit_value('p'), 25);
+    EXPECT_EQ(detail::digit_value('q'), 26);
+    EXPECT_EQ(detail::digit_value('r'), 27);
+    EXPECT_EQ(detail::digit_value('s'), 28);
+    EXPECT_EQ(detail::digit_value('t'), 29);
+    EXPECT_EQ(detail::digit_value('u'), 30);
+    EXPECT_EQ(detail::digit_value('v'), 31);
+    EXPECT_EQ(detail::digit_value('w'), 32);
+    EXPECT_EQ(detail::digit_value('x'), 33);
+    EXPECT_EQ(detail::digit_value('y'), 34);
+    EXPECT_EQ(detail::digit_value('z'), 35);
+
+    EXPECT_EQ(detail::digit_value('A'), 10);
+    EXPECT_EQ(detail::digit_value('B'), 11);
+    EXPECT_EQ(detail::digit_value('C'), 12);
+    EXPECT_EQ(detail::digit_value('D'), 13);
+    EXPECT_EQ(detail::digit_value('E'), 14);
+    EXPECT_EQ(detail::digit_value('F'), 15);
+    EXPECT_EQ(detail::digit_value('G'), 16);
+    EXPECT_EQ(detail::digit_value('H'), 17);
+    EXPECT_EQ(detail::digit_value('I'), 18);
+    EXPECT_EQ(detail::digit_value('J'), 19);
+    EXPECT_EQ(detail::digit_value('K'), 20);
+    EXPECT_EQ(detail::digit_value('L'), 21);
+    EXPECT_EQ(detail::digit_value('M'), 22);
+    EXPECT_EQ(detail::digit_value('N'), 23);
+    EXPECT_EQ(detail::digit_value('O'), 24);
+    EXPECT_EQ(detail::digit_value('P'), 25);
+    EXPECT_EQ(detail::digit_value('Q'), 26);
+    EXPECT_EQ(detail::digit_value('R'), 27);
+    EXPECT_EQ(detail::digit_value('S'), 28);
+    EXPECT_EQ(detail::digit_value('T'), 29);
+    EXPECT_EQ(detail::digit_value('U'), 30);
+    EXPECT_EQ(detail::digit_value('V'), 31);
+    EXPECT_EQ(detail::digit_value('W'), 32);
+    EXPECT_EQ(detail::digit_value('X'), 33);
+    EXPECT_EQ(detail::digit_value('Y'), 34);
+    EXPECT_EQ(detail::digit_value('Z'), 35);
+
+    constexpr std::string_view nondigit_basic_characters = "\t\f\n !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    for (const char c : nondigit_basic_characters) {
+        EXPECT_EQ(detail::digit_value(c), -1);
+    }
+}
+
 TEST(FromChars, EveryBase_255) {
     constexpr big_int expected = 255;
     EXPECT_EQ(parse("11111111", 2), expected);
