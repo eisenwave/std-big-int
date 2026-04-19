@@ -37,7 +37,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 template <class Allocator>
 struct scratch_allocator {
     using alloc_traits = std::allocator_traits<Allocator>;
-    using pointer      = alloc_traits::pointer;
+    using pointer      = typename alloc_traits::pointer;
 
     BEMAN_BIG_INT_NO_UNIQUE_ADDRESS Allocator m_alloc;
     pointer                                   m_base;

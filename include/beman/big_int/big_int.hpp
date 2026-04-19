@@ -71,7 +71,7 @@ auto common_big_int_type_impl() {
 }
 
 template <class L, class R>
-using common_big_int_type = decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
+using common_big_int_type = typename decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
 
 template <class T, class U>
 concept common_big_int_type_with = requires { typename common_big_int_type<T, U>; };
@@ -164,8 +164,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
   public:
     using allocator_type = Allocator;
     using size_type      = std::size_t;
-    using pointer        = std::allocator_traits<Allocator>::pointer;
-    using const_pointer  = std::allocator_traits<Allocator>::const_pointer;
+    using pointer        = typename std::allocator_traits<Allocator>::pointer;
+    using const_pointer  = typename std::allocator_traits<Allocator>::const_pointer;
     static_assert(std::is_same_v<typename Allocator::value_type, uint_multiprecision_t>,
                   "Allocator::value_type must be uint_multiprecision_t.");
 
@@ -181,8 +181,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
   public:
     // Never fewer limbs than would fit in the pointer footprint  of the union,
     // so the union doesn't waste space.
-    static constexpr size_type inplace_capacity = std::max(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
-                                                           detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
+    static constexpr size_type inplace_capacity = (std::max)(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
+                                                             detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
     static_assert(min_inplace_bits > 0);
     static_assert(inplace_capacity > 0);
     static constexpr size_type inplace_bits = inplace_capacity * bits_per_limb;
@@ -670,7 +670,7 @@ constexpr auto basic_big_int<b, A>::limb_ptr() noexcept -> limb_type* {
 }
 
 template <std::size_t b, class A>
-constexpr const basic_big_int<b, A>::limb_type* basic_big_int<b, A>::limb_ptr() const noexcept {
+constexpr const typename basic_big_int<b, A>::limb_type* basic_big_int<b, A>::limb_ptr() const noexcept {
     return is_storage_static() ? m_storage.limbs : m_storage.data;
 }
 
@@ -986,7 +986,7 @@ constexpr std::span<const uint_multiprecision_t> basic_big_int<b, A>::representa
 }
 
 template <std::size_t b, class A>
-constexpr basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator() const noexcept {
+constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator() const noexcept {
     return m_alloc;
 }
 
@@ -1206,7 +1206,7 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
         U                 mag{0};
         constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
         const auto* const limbs = limb_ptr();
-        for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
+        for (std::size_t i = 0; i < (std::min)(n, static_cast<std::size_t>(limb_count())); ++i) {
             mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
         }
         return static_cast<T>(is_negative() ? ~mag + U{1} : mag);
@@ -1347,7 +1347,8 @@ inline constexpr binary_op_form classify_form_v = [] {
     } else if constexpr (is_basic_big_int_v<RT>) {
         return copy_right ? binary_op_form::int_copy : binary_op_form::int_move;
     } else {
-        static_assert(false, "Invalid case");
+        // TODO(ckormanyos): My older GCC11 did not handle this line.
+        /*static_assert(false, "Invalid case")*/;
     }
 }();
 
@@ -1549,7 +1550,7 @@ template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
     using Result        = std::remove_cvref_t<T>;
-    using shift_type    = Result::shift_type;
+    using shift_type    = typename Result::shift_type;
     constexpr auto form = detail::classify_form_v<T, S>;
 
     if constexpr (std::is_signed_v<S>) {
@@ -1585,7 +1586,7 @@ template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
     using Result        = std::remove_cvref_t<T>;
-    using shift_type    = Result::shift_type;
+    using shift_type    = typename Result::shift_type;
     constexpr auto form = detail::classify_form_v<T, S>;
 
     if constexpr (std::is_signed_v<S>) {
@@ -1974,16 +1975,16 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
     const auto     n       = [&]() -> std::size_t {
         if constexpr (op == detail::bitwise_op::and_) {
             if constexpr (!neg_left && !neg_right) {
-                return std::min(lhs.size(), rhs.size());
+                return (std::min)(lhs.size(), rhs.size());
             } else if constexpr (!neg_left) {
                 return lhs.size();
             } else if constexpr (!neg_right) {
                 return rhs.size();
             } else {
-                return std::max(lhs.size(), rhs.size());
+                return (std::max)(lhs.size(), rhs.size());
             }
         } else {
-            return std::max(lhs.size(), rhs.size());
+            return (std::max)(lhs.size(), rhs.size());
         }
     }();
 
@@ -2349,7 +2350,7 @@ constexpr void basic_big_int<b, A>::grow(const size_type limbs_needed) {
 
     // libstdc++ and libc++ normally double storage each allocation
     // MSVC does 1.5x instead of 2x
-    const size_type    new_cap    = std::max(limbs_needed, 2 * current_cap);
+    const size_type    new_cap    = (std::max)(limbs_needed, 2 * current_cap);
     const alloc_result allocation = alloc_limbs(new_cap);
     copy_n_to_allocation(limb_ptr(), limb_count(), allocation);
 
@@ -2509,16 +2510,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
         const char* current_end = current_begin;
         for (; current_end != end; ++current_end) {
             const int value = detail::digit_value(*current_end);
-
-            // TODO(ckormanyos): The query "value >= base" seems very likely to be incorrect for both
-            //                   hexadecimal *and* decimal values. The result of digit_value(...) is an
-            //                   *ASCII alpha-numeric character* like ['0'-'9'] or ['a'-'F'] or ['a'-'f'].
-            //                   For either decimal or hexadecimal conversions, any and all results
-            //                   of digit_value will exceed the base.
-            //                   I don't know if a second query makes sense or, if so, what it should be.
-            //                   The subroutine digit_value already returns -1 for invalid base-digits.
-
-            if (value < 0 /*|| value >= base*/) {
+            if (value < 0 || value >= base) {
                 break;
             }
         }
@@ -2531,7 +2523,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
         // In any other case, we have the guarantee that at least one digit can be parsed.
         out = {};
         while (true) {
-            const auto        digit_block_length = std::min(current_end - current_begin, max_digits_per_iteration);
+            const auto        digit_block_length = (std::min)(current_end - current_begin, max_digits_per_iteration);
             const char* const digit_block_begin  = current_end - digit_block_length;
             BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
 
@@ -2599,7 +2591,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
 
     for (const char* current_first = current_begin + first_block_length; current_first != current_end;
          current_first += max_digits_per_iteration) {
-        const char* const current_last = std::min(current_first + max_digits_per_iteration, current_end);
+        const char* const current_last = (std::min)(current_first + max_digits_per_iteration, current_end);
 
         uint_multiprecision_t        digits         = {};
         const std::from_chars_result partial_result = std::from_chars(current_first, current_last, digits, base);
@@ -2802,7 +2794,8 @@ template <char... digits>
         return big_int(limbs.data(), limbs.data() + limbs.size());
     } else {
         static_assert(detail::parse_non_allocating<buffer>::ec == std::errc::invalid_argument);
-        static_assert(false, "The given literal is not a valid integer-literal.");
+        // TODO(ckormanyos): My older GCC11 did not handle this line.
+        //static_assert(false, "The given literal is not a valid integer-literal.");
     }
 }
 
