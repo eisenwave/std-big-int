@@ -1360,8 +1360,7 @@ inline constexpr binary_op_form classify_form_v = [] {
     } else if constexpr (is_basic_big_int_v<RT>) {
         return copy_right ? binary_op_form::int_copy : binary_op_form::int_move;
     } else {
-        // TODO(ckormanyos): My older GCC11 did not handle this line.
-        /*static_assert(false, "Invalid case")*/;
+        static_assert(false, "Invalid case");
     }
 }();
 
@@ -2798,8 +2797,7 @@ template <char... digits>
         return big_int(limbs.data(), limbs.data() + limbs.size());
     } else {
         static_assert(detail::parse_non_allocating<buffer>::ec == std::errc::invalid_argument);
-        // TODO(ckormanyos): My older GCC11 did not handle this line.
-        //static_assert(false, "The given literal is not a valid integer-literal.");
+        static_assert(false, "The given literal is not a valid integer-literal.");
     }
 }
 
