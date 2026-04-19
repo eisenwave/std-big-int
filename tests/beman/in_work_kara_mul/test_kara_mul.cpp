@@ -30,7 +30,7 @@ random_engine_limb_type generator_limb { detail::time_point<typename random_engi
 random_engine_length_type generator_length { detail::time_point<typename random_engine_length_type::result_type>() };
 
 std::uniform_int_distribution distribution_limb { UINT64_C(0x1000000000000000), UINT64_C(0xFFFFFFFFFFFFFFFF) };
-std::uniform_int_distribution distribution_length { std::size_t { UINT8_C(2) }, std::size_t { UINT8_C(128) } };
+std::uniform_int_distribution distribution_length { std::size_t { UINT8_C(48) }, std::size_t { UINT8_C(128) } };
 
 template<typename IntegralTimePointType,
           typename ClockType>
