@@ -2408,12 +2408,28 @@ using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
 // [big.int.literal]
 namespace detail {
 
-[[nodiscard]] constexpr int digit_value(char c) noexcept {
+[[nodiscard]] constexpr int digit_value_naive(const char c) noexcept {
     static_assert('A' == 0x41 && 'Z' == 0x5a, "This function requires the ordinary literal encoding to be ASCII.");
     return '0' <= c && c <= '9'   ? c - '0'
            : 'A' <= c && c <= 'Z' ? c - 'A' + 10
            : 'a' <= c && c <= 'z' ? c - 'a' + 10
                                   : -1;
+}
+
+inline constexpr auto digit_value_table = []() consteval {
+    static_assert(CHAR_BIT == 8);
+    std::array<signed char, 256> result;
+    for (std::size_t i = 0; i < 256; ++i) {
+        result[i] = static_cast<signed char>(digit_value_naive(static_cast<char>(i)));
+    }
+    return result;
+}();
+
+// Returns the value of a digit encoded in `c` using the ordinary literal encoding.
+// For example, `digit_value('f')` returns `15`, which is consistent with `std::from_chars`.
+// Returns `-1` if the `c` is not alphanumeric.
+[[nodiscard]] constexpr int digit_value(const char c) noexcept {
+    return digit_value_table[static_cast<std::size_t>(c)];
 }
 
 [[nodiscard]] consteval unsigned char limb_max_input_digits_naive(const int base) {
