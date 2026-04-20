@@ -2246,12 +2246,11 @@ constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int&
 // limbs and carry a single remainder limb between iterations.
 template <std::size_t b, class A>
 template <std::size_t extent_a>
-constexpr void basic_big_int<b, A>::divmod_into_short(
-    const std::span<const uint_multiprecision_t, extent_a> dividend,
-    const bool                                             dividend_neg,
-    const uint_multiprecision_t                            divisor,
-    const bool                                             divisor_neg,
-    const bool                                             want_quotient) {
+constexpr void basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision_t, extent_a> dividend,
+                                                      const bool                  dividend_neg,
+                                                      const uint_multiprecision_t divisor,
+                                                      const bool                  divisor_neg,
+                                                      const bool                  want_quotient) {
     BEMAN_BIG_INT_ASSERT(divisor != 0);
 
     const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
@@ -2283,8 +2282,8 @@ constexpr void basic_big_int<b, A>::divmod_into_short(
     const uint_multiprecision_t      remainder = detail::divide_unsigned_short(quot_span, dividend_trim, divisor);
 
     if (want_quotient) {
-        const std::size_t qsize = detail::trimmed_size(
-            std::span<const uint_multiprecision_t>{limb_ptr(), dividend_trim.size()});
+        const std::size_t qsize =
+            detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), dividend_trim.size()});
         set_limb_count(static_cast<std::uint32_t>(qsize));
     } else {
         limb_ptr()[0] = remainder;
@@ -2306,12 +2305,11 @@ constexpr void basic_big_int<b, A>::divmod_into_short(
 // before falling through to `detail::divide_unsigned`.
 template <std::size_t b, class A>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr void basic_big_int<b, A>::divmod_into(
-    const std::span<const uint_multiprecision_t, extent_a> dividend,
-    const bool                                             dividend_neg,
-    const std::span<const uint_multiprecision_t, extent_b> divisor,
-    const bool                                             divisor_neg,
-    const bool                                             want_quotient) {
+constexpr void basic_big_int<b, A>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
+                                                const bool                                             dividend_neg,
+                                                const std::span<const uint_multiprecision_t, extent_b> divisor,
+                                                const bool                                             divisor_neg,
+                                                const bool                                             want_quotient) {
     const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
     const auto divisor_trim  = divisor.first(detail::trimmed_size(divisor));
 
@@ -2367,14 +2365,10 @@ constexpr void basic_big_int<b, A>::divmod_into(
         detail::scratch_allocator<allocator_type> scratch(r_cap + t_cap, m_alloc);
         const std::span<uint_multiprecision_t>    rem_span = scratch.allocate(r_cap);
 
-        detail::divide_unsigned(std::span<uint_multiprecision_t>{limb_ptr(), q_cap},
-                                rem_span,
-                                dividend_trim,
-                                divisor_trim,
-                                scratch);
+        detail::divide_unsigned(
+            std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, rem_span, dividend_trim, divisor_trim, scratch);
 
-        const std::size_t qsize =
-            detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
+        const std::size_t qsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
         set_limb_count(static_cast<std::uint32_t>(qsize));
     } else {
         // *this will hold the remainder.
@@ -2385,14 +2379,10 @@ constexpr void basic_big_int<b, A>::divmod_into(
         detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
         const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
 
-        detail::divide_unsigned(quot_span,
-                                std::span<uint_multiprecision_t>{limb_ptr(), r_cap},
-                                dividend_trim,
-                                divisor_trim,
-                                scratch);
+        detail::divide_unsigned(
+            quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
 
-        const std::size_t rsize =
-            detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
+        const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
         set_limb_count(static_cast<std::uint32_t>(rsize));
     }
 

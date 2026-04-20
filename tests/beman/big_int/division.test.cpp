@@ -104,26 +104,23 @@ TEST(Division, IdentityByOne) {
 
 TEST(Division, MultiLimbBySingleLimb) {
     // (2^64) / 2 == 2^63
-    const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
-    const big_int r      = two_64 / big_int{2};
-    const big_int expected =
-        big_int{static_cast<std::uint64_t>(1) << 63};
+    const big_int two_64   = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
+    const big_int r        = two_64 / big_int{2};
+    const big_int expected = big_int{static_cast<std::uint64_t>(1) << 63};
     EXPECT_EQ(r, expected);
 }
 
 TEST(Division, MultiLimbByMultiLimb) {
     // ((2^64) + 5) / ((2^64) + 1) == 1, remainder 4.
-    const big_int two_64_plus_5 =
-        big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{6};
-    const big_int two_64_plus_1 =
-        big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{2};
+    const big_int two_64_plus_5 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{6};
+    const big_int two_64_plus_1 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{2};
     EXPECT_EQ(two_64_plus_5 / two_64_plus_1, 1);
 }
 
 TEST(Division, DivideMultiLimbExact) {
     // (a * b) / b == a for randomly constructed big operands.
-    const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{123};
-    const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{7};
+    const big_int a       = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{123};
+    const big_int b       = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{7};
     const big_int product = a * b;
     EXPECT_EQ(product / b, a);
     EXPECT_EQ(product / a, b);

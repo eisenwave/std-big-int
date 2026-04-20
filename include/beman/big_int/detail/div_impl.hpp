@@ -167,8 +167,7 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         if ((remainder[r_order] <= divisor[y_order]) && (r_order > 0)) {
             // Top remainder limb <= top divisor limb: safe single-limb divide
             // (remainder_top, remainder_top-1) / divisor_top.
-            const wide<uint_multiprecision_t> num{.low_bits  = remainder[r_order - 1],
-                                                  .high_bits = remainder[r_order]};
+            const wide<uint_multiprecision_t> num{.low_bits = remainder[r_order - 1], .high_bits = remainder[r_order]};
             const uint_multiprecision_t       den = divisor[y_order];
             if (num.high_bits < den) {
                 const auto [v, _] = narrowing_div(num, den);
@@ -186,9 +185,8 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
             const uint_wide_t num_wide =
                 (static_cast<uint_wide_t>(remainder[r_order]) << limb_bits) | remainder[r_order - 1];
             const uint_wide_t den_wide =
-                (y_order > 0)
-                    ? ((static_cast<uint_wide_t>(divisor[y_order]) << limb_bits) | divisor[y_order - 1])
-                    : (static_cast<uint_wide_t>(divisor[y_order]) << limb_bits);
+                (y_order > 0) ? ((static_cast<uint_wide_t>(divisor[y_order]) << limb_bits) | divisor[y_order - 1])
+                              : (static_cast<uint_wide_t>(divisor[y_order]) << limb_bits);
             BEMAN_BIG_INT_DEBUG_ASSERT(den_wide != 0);
             guess = static_cast<uint_multiprecision_t>(num_wide / den_wide);
         }
@@ -304,9 +302,9 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         if (r_order < y_order) {
             break;
         }
-    } while ((r_order > y_order) ||
-             (compare_unsigned_spans(std::span<const uint_multiprecision_t>{remainder.data(), r_order + 1},
-                                     divisor) >= 0));
+    } while (
+        (r_order > y_order) ||
+        (compare_unsigned_spans(std::span<const uint_multiprecision_t>{remainder.data(), r_order + 1}, divisor) >= 0));
 
     scratch.deallocate(t_cap);
 
