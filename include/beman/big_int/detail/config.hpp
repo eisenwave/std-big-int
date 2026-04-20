@@ -27,14 +27,14 @@
 
 // Undefine min()/max() for MSVC ===============================================
 #if defined(BEMAN_BIG_INT_MSVC)
-#define NOMINMAX
+    #define NOMINMAX
 #endif
 
 // Unsupported static_assert to nothing (for old compilers) ==============
 #if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC < 13)))
-#define BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS(...)
+    #define BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS(...)
 #else
-#define BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS(...) static_assert(false, __VA_ARGS__)
+    #define BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS(...) static_assert(false, __VA_ARGS__)
 #endif
 
 // Diagnostic suppression ======================================================
