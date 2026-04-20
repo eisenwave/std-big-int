@@ -18,9 +18,9 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overread")
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <cstddef>
-#include <format>
 #include <ios>
 #include <random>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -35,7 +35,7 @@ using cpp_int = ::boost::multiprecision::cpp_int;
 // Generates a random hex string for a size of exactly `bits` bits,
 // meaning the MSB is 1 (so the value is in [2^(bits-1), 2^bits)).
 // `bits == 0` returns "0".
-inline std::string random_hex_of_bits(std::mt19937_64& rng, std::size_t bits) {
+[[nodiscard]] inline std::string random_hex_of_bits(std::mt19937_64& rng, std::size_t bits) {
     static constexpr char table[] = "0123456789abcdef";
     if (bits == 0) {
         return std::string{"0"};
@@ -59,7 +59,7 @@ inline std::string random_hex_of_bits(std::mt19937_64& rng, std::size_t bits) {
 }
 
 // Parses a signed hex string (e.g. "deadbeef" or "-deadbeef"; no "0x" prefix) into a beman::big_int.
-inline ::beman::big_int::big_int parse_big_int(std::string_view signed_hex) {
+[[nodiscard]] inline ::beman::big_int::big_int parse_big_int(std::string_view signed_hex) {
     ::beman::big_int::big_int out;
     const char* const         first = signed_hex.data();
     const char* const         last  = first + signed_hex.size();
@@ -71,7 +71,7 @@ inline ::beman::big_int::big_int parse_big_int(std::string_view signed_hex) {
 }
 
 // Parses a signed hex string (e.g. "deadbeef" or "-deadbeef"; no "0x" prefix) into a boost cpp_int.
-inline cpp_int parse_cpp_int(std::string_view signed_hex) {
+[[nodiscard]] inline cpp_int parse_cpp_int(std::string_view signed_hex) {
     std::string s;
     s.reserve(signed_hex.size() + 3);
     if (!signed_hex.empty() && signed_hex.front() == '-') {
@@ -83,52 +83,53 @@ inline cpp_int parse_cpp_int(std::string_view signed_hex) {
     return cpp_int{s};
 }
 
-// Canonical lowercase-hex rendering of a beman::big_int. Prints limbs from
-// MSB to LSB, with a leading '-' for negative values. Zero renders as "0".
-// Used both as a hashable canonical form for comparison and for diagnostics.
-inline std::string to_hex(const ::beman::big_int::big_int& bn) {
-    const auto  rep = bn.representation();
-    std::size_t n   = rep.size();
-    while (n > 1 && rep[n - 1] == 0) {
+// Returns the number of bytes before the trailing run of zero bytes.
+[[nodiscard]] inline std::size_t significant_byte_len(std::span<const std::byte> bytes) noexcept {
+    std::size_t n = bytes.size();
+    while (n > 0 && bytes[n - 1] == std::byte{0}) {
         --n;
     }
-    std::string s;
-    if (bn < 0) {
-        s.push_back('-');
-    }
-    s += std::format("{:x}", rep[n - 1]);
-    // libstdc++ restricts the dynamic-width argument of std::format to
-    // {int, unsigned, long long, unsigned long long} — std::size_t is
-    // rejected at constant-evaluation time. Pass an int explicitly.
-    constexpr int limb_hex = static_cast<int>(sizeof(::beman::big_int::uint_multiprecision_t) * 2);
-    for (std::size_t i = n - 1; i > 0; --i) {
-        s += std::format("{:0{}x}", rep[i - 1], limb_hex);
-    }
-    return s;
+    return n;
 }
 
-// Asserts that a beman::big_int and a boost::cpp_int represent the exact same
-// integer. Uses a canonical hex-string roundtrip so the check is independent
-// of the internal limb width used by each library - boost.multiprecision uses
-// 32-bit limbs on platforms without __int128 (e.g. MSVC) while beman uses
-// 64-bit, so a direct limb-by-limb comparison isn't portable.
+// Asserts that a beman::big_int and a boost::cpp_int represent the same integer.
+// Compares sign + zeroness directly, then compares magnitudes via std::as_bytes.
+// Both libraries store limbs in little endian order,
+// so the byte sequences are identical regardless of limb width
 [[nodiscard]] inline ::testing::AssertionResult same_value(const ::beman::big_int::big_int& bn, const cpp_int& cp) {
-    // cpp_int::str() refuses to render a negative magnitude as hex or octal
-    // ("Base 8 or 16 printing of negative numbers is not supported."), so
-    // print the magnitude of abs(cp) and prepend '-' ourselves when needed.
-    const bool        cp_neg = !cp.is_zero() && cp.backend().sign();
-    const std::string cp_mag = (cp_neg ? cpp_int{-cp} : cp).str(0, std::ios_base::hex);
-    std::string       cp_hex;
-    cp_hex.reserve(cp_mag.size() + 1);
-    if (cp_neg) {
-        cp_hex.push_back('-');
+    const bool bn_zero = (bn == 0);
+    const bool cp_zero = cp.is_zero();
+    if (bn_zero != cp_zero) {
+        return ::testing::AssertionFailure()
+               << "zeroness mismatch: big_int::is_zero=" << bn_zero << " cpp_int::is_zero=" << cp_zero;
     }
-    cp_hex += cp_mag;
-    const auto expected_bn = parse_big_int(cp_hex);
-    if (bn == expected_bn) {
-        return ::testing::AssertionSuccess();
+    if (!bn_zero) {
+        const bool bn_neg = (bn < 0);
+        const bool cp_neg = cp.backend().sign();
+        if (bn_neg != cp_neg) {
+            return ::testing::AssertionFailure() << "sign mismatch: big_int<0=" << bn_neg << " cpp_int.sign()=" << cp_neg;
+        }
     }
-    return ::testing::AssertionFailure() << "value mismatch: big_int=" << to_hex(bn) << " cpp_int=" << cp_hex;
+
+    const std::span<const ::boost::multiprecision::limb_type> cp_rep{cp.backend().limbs(), cp.backend().size()};
+    const auto bn_bytes = std::as_bytes(bn.representation());
+    const auto cp_bytes = std::as_bytes(cp_rep);
+
+    const auto bn_sig = significant_byte_len(bn_bytes);
+    const auto cp_sig = significant_byte_len(cp_bytes);
+
+    if (bn_sig != cp_sig) {
+        return ::testing::AssertionFailure()
+               << "significant byte count differs: big_int=" << bn_sig << " cpp_int=" << cp_sig;
+    }
+    for (std::size_t i = 0; i < bn_sig; ++i) {
+        if (bn_bytes[i] != cp_bytes[i]) {
+            return ::testing::AssertionFailure()
+                   << "byte " << i << " differs: big_int=0x" << std::hex << std::to_integer<int>(bn_bytes[i])
+                   << " cpp_int=0x" << std::to_integer<int>(cp_bytes[i]);
+        }
+    }
+    return ::testing::AssertionSuccess();
 }
 
 } // namespace detail
@@ -161,7 +162,7 @@ check_cpp_int_equal(BinOp&& op, std::string_view lhs, std::string_view rhs) {
 // Uses a function-local std::mt19937_64 seeded with the fixed value 42 so
 // that the sequence is deterministic across runs.
 // The RNG state advances on every call and is shared across all callers of this function.
-inline std::string random_big_int(std::size_t bits, bool negative = false) {
+[[nodiscard]] inline std::string random_big_int(std::size_t bits, bool negative = false) {
     // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp) - deterministic seed is intentional for test reproducibility.
     static std::mt19937_64 rng{42};
     if (bits == 0) {
