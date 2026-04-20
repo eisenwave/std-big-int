@@ -117,8 +117,7 @@ auto int_string_clz(std::string& str) -> void {
     }
 }
 
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
-std::string {
+auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) -> std::string {
     std::stringstream strm{};
 
     strm << std::hex << std::setw(limb_chars) << std::setfill('0') << std::right << val_limb;
