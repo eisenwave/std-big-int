@@ -107,7 +107,8 @@ using cpp_int = ::boost::multiprecision::cpp_int;
         const bool bn_neg = (bn < 0);
         const bool cp_neg = cp.backend().sign();
         if (bn_neg != cp_neg) {
-            return ::testing::AssertionFailure() << "sign mismatch: big_int<0=" << bn_neg << " cpp_int.sign()=" << cp_neg;
+            return ::testing::AssertionFailure()
+                   << "sign mismatch: big_int<0=" << bn_neg << " cpp_int.sign()=" << cp_neg;
         }
     }
 
