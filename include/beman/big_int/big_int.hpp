@@ -554,8 +554,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
     }
 
-    static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
-    [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
+    // If `true`, `inplace_to_bit_uint` may be called.
+    // Otherwise, the function is deleted.
+    static constexpr bool has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
+    [[nodiscard]] BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT auto
+    inplace_to_bit_uint() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
         requires has_inplace_to_bit_uint
     {
@@ -567,8 +570,25 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         = delete;
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
-    static constexpr bool        has_inplace_to_bit_sint = inplace_bits < BEMAN_BIG_INT_BITINT_MAXWIDTH;
-    [[nodiscard]] constexpr auto inplace_to_sbit_int() const noexcept
+    // If `true`, `inplace_to_wide_bit_uint` may be called.
+    // Otherwise, the function is deleted.
+    static constexpr bool has_inplace_to_wide_bit_uint = inplace_bits * 2 <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
+    [[nodiscard]] BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT auto
+    inplace_to_wide_bit_uint() const noexcept
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+        requires has_inplace_to_wide_bit_uint
+    {
+        return static_cast<unsigned _BitInt(2 * inplace_bits)>(inplace_to_bit_uint());
+    }
+#else
+        = delete;
+#endif // BEMAN_BIG_INT_HAS_BITINT
+
+    // If `true`, `inplace_to_bit_sint` may be called.
+    // Otherwise, the function is deleted.
+    static constexpr bool has_inplace_to_bit_sint = inplace_bits < BEMAN_BIG_INT_BITINT_MAXWIDTH;
+    [[nodiscard]] BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT auto
+    inplace_to_sbit_int() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
         requires has_inplace_to_bit_sint
     {
@@ -1183,15 +1203,13 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
     if constexpr (std::is_same_v<T, bool>) {
         return !is_zero();
     } else if constexpr (std::is_floating_point_v<T>) {
-#ifdef BEMAN_BIG_INT_HAS_BITINT
-        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            if constexpr (has_inplace_to_bit_sint) {
+        if constexpr (has_inplace_to_bit_sint) {
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
                 if (is_storage_static()) {
                     return static_cast<T>(inplace_to_sbit_int());
                 }
             }
         }
-#endif
         // If the value exceeds the maximum finite value of T, return infinity.
         // See P3899R1.
         if (width_mag() >= static_cast<std::size_t>(std::numeric_limits<T>::max_exponent)) {
@@ -1206,15 +1224,13 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
         }
         return is_negative() ? -result : result;
     } else {
-#ifdef BEMAN_BIG_INT_HAS_BITINT
-        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            if constexpr (has_inplace_to_bit_sint) {
+        if constexpr (has_inplace_to_bit_sint) {
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
                 if (is_storage_static()) {
                     return static_cast<T>(inplace_to_sbit_int());
                 }
             }
         }
-#endif
         using U = std::make_unsigned_t<T>;
         U                 mag{0};
         constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
@@ -1714,8 +1730,10 @@ constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexce
             return false;
         }
         if constexpr (has_inplace_to_bit_uint) {
-            if (is_storage_static()) {
-                return inplace_to_bit_uint() == x;
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                if (is_storage_static()) {
+                    return inplace_to_bit_uint() == x;
+                }
             }
         }
         return equals_limbs(detail::to_fixed_span(detail::to_limbs(x)), false);
@@ -1782,22 +1800,26 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
             return std::strong_ordering::less;
         }
         if constexpr (has_inplace_to_bit_uint) {
-            if (is_storage_static()) {
-                return inplace_to_bit_uint() <=> x;
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                if (is_storage_static()) {
+                    return inplace_to_bit_uint() <=> x;
+                }
             }
         }
         return compare_limbs(detail::to_fixed_span(detail::to_limbs(x)), false);
     } else {
         if constexpr (has_inplace_to_bit_uint) {
-            if (is_storage_static()) {
-                const auto sign_compare = (x < 0) <=> is_negative();
-                if (std::is_neq(sign_compare)) {
-                    return sign_compare;
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                if (is_storage_static()) {
+                    const auto sign_compare = (x < 0) <=> is_negative();
+                    if (std::is_neq(sign_compare)) {
+                        return sign_compare;
+                    }
+                    // For two-negative operands, bigger magnitude means a smaller
+                    // value, so swap the operand order of the magnitude compare.
+                    return is_negative() ? detail::uabs(x) <=> inplace_to_bit_uint()
+                                         : inplace_to_bit_uint() <=> detail::uabs(x);
                 }
-                // For two-negative operands, bigger magnitude means a smaller
-                // value, so swap the operand order of the magnitude compare.
-                return is_negative() ? detail::uabs(x) <=> inplace_to_bit_uint()
-                                     : inplace_to_bit_uint() <=> detail::uabs(x);
             }
         }
         const auto limbs = detail::to_limbs(detail::uabs(x));
@@ -2087,20 +2109,51 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
 
-    Result r;
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
+        Result r;
+        if constexpr (Result::has_inplace_to_wide_bit_uint) {
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                if (x.is_storage_static() && y.is_storage_static()) {
+                    const auto product = x.inplace_to_wide_bit_uint() * y.inplace_to_wide_bit_uint();
+                    r.assign_magnitude(product);
+                    if (product != 0 && x.is_negative() != y.is_negative()) {
+                        r.set_sign(true);
+                    }
+                    return r;
+                }
+            }
+        }
         r.multiply_into(x.representation(), x.is_negative(), y.representation(), y.is_negative());
+        return r;
     } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
+        Result r;
+        if constexpr (Result::has_inplace_to_wide_bit_uint) {
+            if constexpr (detail::width_v<std::remove_cvref_t<R>> <= Result::inplace_bits) {
+                if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                    if (x.is_storage_static()) {
+                        const auto product = x.inplace_to_wide_bit_uint() * detail::uabs(y);
+                        r.assign_magnitude(product);
+                        if (product != 0 && x.is_negative() != detail::integer_signbit(y)) {
+                            r.set_sign(true);
+                        }
+                        return r;
+                    }
+                }
+            }
+        }
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.multiply_into(
             x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+        return r;
     } else if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
-        const auto x_limbs = detail::to_limbs(detail::uabs(x));
-        r.multiply_into(
-            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
+        // Multiplication is commutative, so in the `int * big_int` case,
+        // we delegate to `big_int * int`.
+        // The unary plus operator produces a prvalue, which reduces template instantiations.
+        return std::forward<R>(y) * +x;
+    } else {
+        static_assert(false, "Unknown form of multiplication.");
     }
-    return r;
 }
 
 // Compound addition and subtraction
@@ -2162,18 +2215,21 @@ constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int&
 
 template <std::size_t b, class A>
 template <detail::unsigned_integer T>
-constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
-    if constexpr (sizeof(T) <= sizeof(limb_type)) {
+constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
+    constexpr size_type value_limbs = detail::div_to_pos_inf(detail::width_v<T>, bits_per_limb);
+    if constexpr (value_limbs == 1) {
         limb_ptr()[0] = static_cast<limb_type>(value);
         set_limb_count(1);
     } else {
-        constexpr std::size_t n   = sizeof(T) / sizeof(limb_type);
-        auto*                 dst = limb_ptr();
-        for (std::size_t i = 0; i < n; ++i) {
+        if constexpr (value_limbs > inplace_capacity) {
+            grow(value_limbs);
+        }
+        auto* const dst = limb_ptr();
+        for (std::size_t i = 0; i < value_limbs; ++i) {
             dst[i] = static_cast<limb_type>(value);
             value >>= bits_per_limb;
         }
-        set_limb_count(static_cast<std::uint32_t>(n));
+        set_limb_count(static_cast<std::uint32_t>(value_limbs));
         while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
             set_limb_count(limb_count() - 1);
         }

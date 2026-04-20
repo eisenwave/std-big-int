@@ -5,8 +5,6 @@
 #define BEMAN_BIG_INT_WIDE_OPS_HPP
 
 #include <bit>
-#include <concepts>
-#include <limits>
 
 #include <beman/big_int/detail/config.hpp>
 
@@ -15,9 +13,6 @@
 #endif
 
 namespace beman::big_int::detail {
-
-template <std::integral T>
-inline constexpr std::size_t width_v = std::numeric_limits<std::make_unsigned_t<T>>::digits;
 
 // Denotes the integer type with twice the width of `T`
 // and with the same signedness.
