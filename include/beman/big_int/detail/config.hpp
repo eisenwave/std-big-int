@@ -26,7 +26,13 @@
 #endif // __GNUC__
 
 // Undefine min()/max() for MSVC ===============================================
-#if defined(BEMAN_BIG_INT_MSVC)
+#ifdef min
+    #error min is defined as a macro. Define NOMINMAX.
+#endif
+#ifdef max
+    #error min is defined as a macro. Define NOMINMAX.
+#endif
+#ifdef BEMAN_BIG_INT_MSVC
     #define NOMINMAX
 #endif
 
