@@ -71,7 +71,8 @@ auto common_big_int_type_impl() {
 }
 
 template <class L, class R>
-using common_big_int_type = typename decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
+using common_big_int_type =
+    typename decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
 
 template <class T, class U>
 concept common_big_int_type_with = requires { typename common_big_int_type<T, U>; };
@@ -197,8 +198,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
   public:
     // Never fewer limbs than would fit in the pointer footprint  of the union,
     // so the union doesn't waste space.
-    static constexpr size_type inplace_capacity = (std::max)(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
-                                                             detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
+    static constexpr size_type inplace_capacity =
+        (std::max)(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
+                   detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
     static_assert(min_inplace_bits > 0);
     static_assert(inplace_capacity > 0);
     static constexpr size_type inplace_bits = inplace_capacity * bits_per_limb;
