@@ -30,12 +30,12 @@ std::pair<beman::big_int::big_int, beman::big_int::big_int>;
 
 auto int_string_clz(std::string& str) -> void;
 
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
-std::string;
+auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb)
+    -> std::string;
 
 using random_engine_limb_type = ::std::mt19937_64;
 using random_engine_length_type =
-::std::linear_congruential_engine<::std::uint32_t, UINT32_C(48271), UINT32_C(0), UINT32_C(2147483647)>;
+    ::std::linear_congruential_engine<::std::uint32_t, UINT32_C(48271), UINT32_C(0), UINT32_C(2147483647)>;
 
 random_engine_limb_type   generator_limb{detail::time_point<typename random_engine_limb_type::result_type>()};
 random_engine_length_type generator_length{detail::time_point<typename random_engine_length_type::result_type>()};
@@ -53,14 +53,8 @@ auto time_point() -> IntegralTimePointType {
     using local_integral_time_point_type = IntegralTimePointType;
     using local_clock_type               = ClockType;
 
-    const auto current_now =
-        static_cast<::std::uintmax_t>
-        (
-          ::std::chrono::duration_cast<::std::chrono::nanoseconds>
-          (
-            local_clock_type::now().time_since_epoch()
-          ).count()
-        );
+    const auto current_now = static_cast<::std::uintmax_t>(
+        ::std::chrono::duration_cast<::std::chrono::nanoseconds>(local_clock_type::now().time_since_epoch()).count());
 
     return static_cast<local_integral_time_point_type>(current_now);
 }
@@ -69,8 +63,7 @@ auto time_point() -> IntegralTimePointType {
 // having random lengths and random limb content. Do not rely on
 // std::from_range, which is not yet available on every toolchain in CI.
 auto make_from_limbs(std::string* p_str_a, std::string* p_str_b) ->
-std::pair<beman::big_int::big_int, beman::big_int::big_int>
-{
+    std::pair<beman::big_int::big_int, beman::big_int::big_int> {
     using local_big_int_type = beman::big_int::big_int;
 
     local_big_int_type a{0};
@@ -79,23 +72,20 @@ std::pair<beman::big_int::big_int, beman::big_int::big_int>
     std::size_t len_a{distribution_length(generator_length)};
     std::size_t len_b{distribution_length(generator_length)};
 
-    if (p_str_a != nullptr)
-    {
+    if (p_str_a != nullptr) {
         *p_str_a = "";
     };
-    if (p_str_b != nullptr)
-    {
+    if (p_str_b != nullptr) {
         *p_str_b = "";
     };
 
-    for (std::size_t i = len_a; i > 0; --i)
-    {
+    for (std::size_t i = len_a; i > 0; --i) {
         const beman::big_int::uint_multiprecision_t next_limb{distribution_limb(generator_limb)};
 
         a <<= limb_width;
         a = a + next_limb;
 
-        if(p_str_a != nullptr) {
+        if (p_str_a != nullptr) {
             *p_str_a += get_next_limb_as_16char_str(next_limb);
         }
     }
@@ -106,22 +96,20 @@ std::pair<beman::big_int::big_int, beman::big_int::big_int>
         b <<= limb_width;
         b = b + next_limb;
 
-        if(p_str_b != nullptr) {
+        if (p_str_b != nullptr) {
             *p_str_b += get_next_limb_as_16char_str(next_limb);
         }
     }
 
-    return{a, b};
+    return{ a, b };
 }
 
-auto int_string_clz(std::string& str) -> void
-{
+auto int_string_clz(std::string& str) -> void {
     std::ptrdiff_t clz_count{};
 
     auto str_itr = str.cbegin();
 
-    while (*str_itr++ == '0')
-    {
+    while (*str_itr++ == '0') {
         ++clz_count;
     }
 
@@ -131,7 +119,7 @@ auto int_string_clz(std::string& str) -> void
 }
 
 auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
-    std::string
+std::string
 {
     std::stringstream strm{};
 
@@ -142,10 +130,7 @@ auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val
 
 } // namespace detail
 
-auto test_one_multiplication() -> bool;
-
-auto test_one_multiplication() -> bool
-{
+auto test_one_multiplication() -> bool {
     using local_big_int_type = beman::big_int::big_int;
 
     static unsigned seed_prescaler{0U};
@@ -170,11 +155,7 @@ auto test_one_multiplication() -> bool
     std::string str_c{};
 
     for (const auto& next_limb : c_rep) {
-        str_c.insert
-        (
-            std::string::size_type { UINT8_C(0) },
-            detail::get_next_limb_as_16char_str(next_limb)
-        );
+        str_c.insert(std::string::size_type { UINT8_C(0) }, detail::get_next_limb_as_16char_str(next_limb));
     }
 
     detail::int_string_clz(str_a);
