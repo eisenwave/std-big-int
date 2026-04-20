@@ -2402,11 +2402,8 @@ constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y) {
     Result r;
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
-        r.divmod_into(x.representation(),
-                      x.is_negative(),
-                      y.representation(),
-                      y.is_negative(),
-                      detail::division_op::div);
+        r.divmod_into(
+            x.representation(), x.is_negative(), y.representation(), y.is_negative(), detail::division_op::div);
     } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.divmod_into(x.representation(),
@@ -2433,11 +2430,8 @@ constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
     Result r;
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
-        r.divmod_into(x.representation(),
-                      x.is_negative(),
-                      y.representation(),
-                      y.is_negative(),
-                      detail::division_op::rem);
+        r.divmod_into(
+            x.representation(), x.is_negative(), y.representation(), y.is_negative(), detail::division_op::rem);
     } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.divmod_into(x.representation(),
