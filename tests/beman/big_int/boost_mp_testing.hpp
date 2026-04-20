@@ -112,8 +112,8 @@ using cpp_int = ::boost::multiprecision::cpp_int;
     }
 
     const std::span<const ::boost::multiprecision::limb_type> cp_rep{cp.backend().limbs(), cp.backend().size()};
-    const auto bn_bytes = std::as_bytes(bn.representation());
-    const auto cp_bytes = std::as_bytes(cp_rep);
+    const auto                                                bn_bytes = std::as_bytes(bn.representation());
+    const auto                                                cp_bytes = std::as_bytes(cp_rep);
 
     const auto bn_sig = significant_byte_len(bn_bytes);
     const auto cp_sig = significant_byte_len(cp_bytes);
