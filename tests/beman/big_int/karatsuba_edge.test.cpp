@@ -75,17 +75,17 @@ TEST(Multiplication, KaratsubaEdge01) {
         "cfecdeee87674ce158990e5307aa6d69a138d5e31e608e910e08295422156018fec67dc97ffec76fb2504cf58c9871dc84ef6bbc542f8"
         "d06dcbd07e8c65e9b9b49");
 
-    big_int a { };
-    big_int b { };
-    big_int expected { };
+    big_int a{};
+    big_int b{};
+    big_int expected{};
 
-    const std::from_chars_result fc_result_a { from_chars(str_a.c_str(), str_a.c_str() + str_a.size(), a, 16) };
-    const std::from_chars_result fc_result_b { from_chars(str_b.c_str(), str_b.c_str() + str_b.size(), b, 16) };
-    const std::from_chars_result fc_result_c { from_chars(str_expected.c_str(), str_expected.c_str() + str_expected.size(), expected, 16) };
+    const std::from_chars_result fc_result_a{ from_chars(str_a.c_str(), str_a.c_str() + str_a.size(), a, 16)};
+    const std::from_chars_result fc_result_b{ from_chars(str_b.c_str(), str_b.c_str() + str_b.size(), b, 16)};
+    const std::from_chars_result fc_result_c{ from_chars(str_expected.c_str(), str_expected.c_str() + str_expected.size(), expected, 16)};
 
-    EXPECT_EQ(fc_result_a.ec, std::errc { });
-    EXPECT_EQ(fc_result_b.ec, std::errc { });
-    EXPECT_EQ(fc_result_c.ec, std::errc { });
+    EXPECT_EQ(fc_result_a.ec, std::errc{});
+    EXPECT_EQ(fc_result_b.ec, std::errc{});
+    EXPECT_EQ(fc_result_c.ec, std::errc{});
 
     const big_int c{a * b};
 
