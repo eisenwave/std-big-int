@@ -2,162 +2,36 @@
 // SPDX-License-Identifier: BSL-1.0
 //
 
-#include <beman/big_int/big_int.hpp>
+#include "boost_mp_testing.hpp"
 
 #include <gtest/gtest.h>
 
-#include <chrono>
-#include <cstdint>
-#include <iomanip>
-#include <iostream>
-#include <random>
-#include <sstream>
-#include <utility>
+namespace bmp = ::beman::big_int::boost_mp_testing;
 
 namespace local {
 
 namespace detail {
 
-template <class IntegralTimePointType, class ClockType = std::chrono::high_resolution_clock>
-auto time_point() -> IntegralTimePointType;
-
-auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = nullptr)
-    -> std::pair<beman::big_int::big_int, beman::big_int::big_int>;
-
-auto int_string_clz(std::string& str) -> void;
-
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) -> std::string;
-
-using random_engine_limb_type = ::std::mt19937_64;
 using random_engine_length_type =
     ::std::linear_congruential_engine<::std::uint32_t, UINT32_C(48271), UINT32_C(0), UINT32_C(2147483647)>;
 
-random_engine_limb_type   generator_limb{detail::time_point<typename random_engine_limb_type::result_type>()};
-random_engine_length_type generator_length{detail::time_point<typename random_engine_length_type::result_type>()};
+random_engine_length_type generator_limb_length{static_cast<typename random_engine_length_type::result_type>(42)};
 
-std::uniform_int_distribution distribution_limb{UINT64_C(0x0000000000000001), UINT64_C(0xFFFFFFFFFFFFFFFF)};
-std::uniform_int_distribution distribution_length{std::size_t{UINT8_C(48)}, std::size_t{UINT8_C(128)}};
-
-constexpr std::streamsize limb_chars{
-    static_cast<std::streamsize>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits / 4)};
-constexpr unsigned limb_width{
-    static_cast<unsigned>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits)};
-
-template <class IntegralTimePointType, class ClockType>
-auto time_point() -> IntegralTimePointType {
-    using local_integral_time_point_type = IntegralTimePointType;
-    using local_clock_type               = ClockType;
-
-    const auto current_now = static_cast<::std::uintmax_t>(
-        ::std::chrono::duration_cast<::std::chrono::nanoseconds>(local_clock_type::now().time_since_epoch()).count());
-
-    return static_cast<local_integral_time_point_type>(current_now);
-}
-
-// Build a pair of big_int from little-endian arrays of 64-bit limbs
-// having random lengths and random limb content. Do not rely on
-// std::from_range, which is not yet available on every toolchain in CI.
-auto make_from_limbs(std::string* p_str_a, std::string* p_str_b)
-    -> std::pair<beman::big_int::big_int, beman::big_int::big_int> {
-    using local_big_int_type = beman::big_int::big_int;
-
-    local_big_int_type a{0};
-    local_big_int_type b{0};
-
-    std::size_t len_a{distribution_length(generator_length)};
-    std::size_t len_b{distribution_length(generator_length)};
-
-    if (p_str_a != nullptr) {
-        *p_str_a = "";
-    };
-    if (p_str_b != nullptr) {
-        *p_str_b = "";
-    };
-
-    for (std::size_t i = len_a; i > 0; --i) {
-        const beman::big_int::uint_multiprecision_t next_limb{distribution_limb(generator_limb)};
-
-        a <<= limb_width;
-        a = a + next_limb;
-
-        if (p_str_a != nullptr) {
-            *p_str_a += get_next_limb_as_16char_str(next_limb);
-        }
-    }
-
-    for (std::size_t i = len_b; i > 0; --i) {
-        const beman::big_int::uint_multiprecision_t next_limb{distribution_limb(generator_limb)};
-
-        b <<= limb_width;
-        b = b + next_limb;
-
-        if (p_str_b != nullptr) {
-            *p_str_b += get_next_limb_as_16char_str(next_limb);
-        }
-    }
-
-    return {a, b};
-}
-
-auto int_string_clz(std::string& str) -> void {
-    std::ptrdiff_t clz_count{};
-
-    auto str_itr = str.cbegin();
-
-    while (*str_itr++ == '0') {
-        ++clz_count;
-    }
-
-    if (clz_count != std::size_t{UINT8_C(0)}) {
-        str.erase(str.begin(), str.begin() + clz_count);
-    }
-}
-
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) -> std::string {
-    std::stringstream strm{};
-
-    strm << std::hex << std::setw(limb_chars) << std::setfill('0') << std::right << val_limb;
-
-    return strm.str();
-}
+std::uniform_int_distribution distribution_limb_length{std::size_t{UINT8_C(48)}, std::size_t{UINT8_C(128)}};
 
 } // namespace detail
 
-auto test_one_multiplication() -> bool {
-    using local_big_int_type = beman::big_int::big_int;
+auto test_one_multiplication() -> void {
+    constexpr std::size_t limb_bits{
+        static_cast<std::size_t>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    static unsigned seed_prescaler{0U};
+    const std::size_t len_a_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
+    const std::size_t len_b_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
 
-    if ((++seed_prescaler % 512U) == 0U) {
-        detail::generator_limb.seed(detail::time_point<typename detail::random_engine_limb_type::result_type>());
-        detail::generator_length.seed(detail::time_point<typename detail::random_engine_length_type::result_type>());
-    }
+    const std::string str_a{bmp::random_big_int(len_a_in_bits)};
+    const std::string str_b{bmp::random_big_int(len_b_in_bits)};
 
-    beman::big_int::big_int a{};
-    beman::big_int::big_int b{};
-
-    std::string str_a{};
-    std::string str_b{};
-
-    const auto ab_pair{detail::make_from_limbs(&str_a, &str_b)};
-
-    const local_big_int_type c{ab_pair.first * ab_pair.second};
-
-    const auto& c_rep{c.representation()};
-
-    std::string str_c{};
-
-    for (const auto& next_limb : c_rep) {
-        str_c.insert(std::string::size_type{UINT8_C(0)}, detail::get_next_limb_as_16char_str(next_limb));
-    }
-
-    detail::int_string_clz(str_a);
-    detail::int_string_clz(str_b);
-    detail::int_string_clz(str_c);
-
-    const bool result_is_ok{(!str_c.empty())};
-
-    return result_is_ok;
+    EXPECT_TRUE(bmp::check_cpp_int_equal(std::multiplies<>{}, str_a, str_b));
 }
 
 } // namespace local
@@ -175,24 +49,11 @@ TEST(Multiplication, KaratsubaExercise01) {
     // IntegerString[%, 16]
     //
 
-    constexpr unsigned trials{128U};
-
-    bool result_is_ok{true};
+    constexpr unsigned trials{256U};
 
     for (unsigned index{0U}; index < trials; ++index) {
         static_cast<void>(index);
 
-        // TODO(ckormanyos): Having control values would be nice. I wonder if it
-        //                   would be possible to clone Boost.Config and Boost.Math
-        //                   and obtain control values from Boost?
-        try {
-            const bool result_one_multiplication_is_ok{local::test_one_multiplication()};
-
-            result_is_ok = (result_one_multiplication_is_ok && result_is_ok);
-        } catch (...) {
-            result_is_ok = false;
-        }
-
-        EXPECT_EQ(result_is_ok, true);
+        local::test_one_multiplication();
     }
 }
