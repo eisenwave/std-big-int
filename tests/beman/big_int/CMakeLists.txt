@@ -2,8 +2,24 @@
 # SPDX-License-Identifier: BSL-1.0
 
 include(GoogleTest)
+include(FetchContent)
 
 file(GLOB TEST_SOURCES "*.test.cpp")
+
+# Pull in Boost.Multiprecision for parity tests that cross-check beman::big_int
+# against boost::cpp_int.
+# The standalone release of this library is self-contained
+
+FetchContent_Declare(
+    boost_multiprecision
+    URL
+        https://github.com/boostorg/multiprecision/archive/refs/tags/Boost_1_89_0.tar.gz
+    URL_HASH
+        SHA256=d6000cc58594fead142eee4bf3a1aec39bf144dcb6accd8f4b8e6d780d258482
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SYSTEM
+)
+FetchContent_MakeAvailable(boost_multiprecision)
 
 foreach(test_source ${TEST_SOURCES})
     get_filename_component(test_name ${test_source} NAME_WE)
@@ -13,7 +29,7 @@ foreach(test_source ${TEST_SOURCES})
     target_sources(${test_target} PRIVATE ${test_source})
     target_link_libraries(
         ${test_target}
-        PRIVATE beman::big_int GTest::gtest_main
+        PRIVATE beman::big_int GTest::gtest_main Boost::multiprecision
     )
     if(
         CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
