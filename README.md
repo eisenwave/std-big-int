@@ -31,7 +31,7 @@ Full runnable examples can be found in [`examples/`](examples/).
 
 This project requires at least the following to build:
 
-* A C++ compiler that conforms to the C++20 standard or greater
+* A C++ compiler that conforms to the C++23 standard or greater
 * CMake 3.30 or later
 * (Test Only) GoogleTest
 
@@ -42,12 +42,12 @@ You can disable building tests by setting CMake option `BEMAN_BIG_INT_BUILD_TEST
 
 | Compiler   | Version | C++ Standards | Standard Library  |
 |------------|---------|---------------|-------------------|
-| GCC        | 15-13   | C++26-C++17   | libstdc++         |
-| GCC        | 12-11   | C++23-C++17   | libstdc++         |
-| Clang      | 22-19   | C++26-C++17   | libstdc++, libc++ |
-| Clang      | 18-17   | C++26-C++17   | libc++            |
-| Clang      | 18-17   | C++20, C++17  | libstdc++         |
-| AppleClang | latest  | C++26-C++17   | libc++            |
+| GCC        | 15-13   | C++26-C++23   | libstdc++         |
+| GCC        | 12-11   | C++23-C++23   | libstdc++         |
+| Clang      | 22-19   | C++26-C++23   | libstdc++, libc++ |
+| Clang      | 18-17   | C++26-C++23   | libc++            |
+| Clang      | 18-17   | C++23         | libstdc++         |
+| AppleClang | latest  | C++26-C++23   | libc++            |
 | MSVC       | latest  | C++23         | MSVC STL          |
 
 ## Development
