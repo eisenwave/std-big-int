@@ -97,7 +97,10 @@ inline std::string to_hex(const ::beman::big_int::big_int& bn) {
         s.push_back('-');
     }
     s += std::format("{:x}", rep[n - 1]);
-    constexpr std::size_t limb_hex = sizeof(::beman::big_int::uint_multiprecision_t) * 2;
+    // libstdc++ restricts the dynamic-width argument of std::format to
+    // {int, unsigned, long long, unsigned long long} — std::size_t is
+    // rejected at constant-evaluation time. Pass an int explicitly.
+    constexpr int limb_hex = static_cast<int>(sizeof(::beman::big_int::uint_multiprecision_t) * 2);
     for (std::size_t i = n - 1; i > 0; --i) {
         s += std::format("{:0{}x}", rep[i - 1], limb_hex);
     }
