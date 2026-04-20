@@ -158,10 +158,7 @@ template <bitwise_op op, cv_unqualified_integral T>
     } else if constexpr (op == bitwise_op::xor_) {
         return static_cast<T>(x ^ y);
     } else {
-#if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC < 13)))
-#else
-        static_assert(false, "Unsupported operation.");
-#endif
+        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("Unsupported operation.");
     }
 }
 
@@ -199,8 +196,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // Never fewer limbs than would fit in the pointer footprint  of the union,
     // so the union doesn't waste space.
     static constexpr size_type inplace_capacity =
-        (std::max)(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
-                   detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
+        std::max(detail::div_to_pos_inf(min_inplace_bits, bits_per_limb),
+                 detail::div_to_pos_inf(sizeof(pointer), sizeof(limb_type)));
     static_assert(min_inplace_bits > 0);
     static_assert(inplace_capacity > 0);
     static constexpr size_type inplace_bits = inplace_capacity * bits_per_limb;
@@ -1240,7 +1237,7 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
         U                 mag{0};
         constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
         const auto* const limbs = limb_ptr();
-        for (std::size_t i = 0; i < (std::min)(n, static_cast<std::size_t>(limb_count())); ++i) {
+        for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
             mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
         }
         return static_cast<T>(is_negative() ? ~mag + U{1} : mag);
@@ -1381,10 +1378,7 @@ inline constexpr binary_op_form classify_form_v = [] {
     } else if constexpr (is_basic_big_int_v<RT>) {
         return copy_right ? binary_op_form::int_copy : binary_op_form::int_move;
     } else {
-#if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC < 13)))
-#else
-        static_assert(false, "Invalid case");
-#endif
+        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("Invalid case");
     }
 }();
 
@@ -2015,16 +2009,16 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
     const auto     n       = [&]() -> std::size_t {
         if constexpr (op == detail::bitwise_op::and_) {
             if constexpr (!neg_left && !neg_right) {
-                return (std::min)(lhs.size(), rhs.size());
+                return std::min(lhs.size(), rhs.size());
             } else if constexpr (!neg_left) {
                 return lhs.size();
             } else if constexpr (!neg_right) {
                 return rhs.size();
             } else {
-                return (std::max)(lhs.size(), rhs.size());
+                return std::max(lhs.size(), rhs.size());
             }
         } else {
-            return (std::max)(lhs.size(), rhs.size());
+            return std::max(lhs.size(), rhs.size());
         }
     }();
 
@@ -2160,7 +2154,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
         // The unary plus operator produces a prvalue, which reduces template instantiations.
         return std::forward<R>(y) * +x;
     } else {
-        static_assert(false, "Unknown form of multiplication.");
+        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("Unknown form of multiplication.");
     }
 }
 
@@ -2417,7 +2411,7 @@ constexpr void basic_big_int<b, A>::grow(const size_type limbs_needed) {
 
     // libstdc++ and libc++ normally double storage each allocation
     // MSVC does 1.5x instead of 2x
-    const size_type    new_cap    = (std::max)(limbs_needed, 2 * current_cap);
+    const size_type    new_cap    = std::max(limbs_needed, 2 * current_cap);
     const alloc_result allocation = alloc_limbs(new_cap);
     copy_n_to_allocation(limb_ptr(), limb_count(), allocation);
 
@@ -2606,7 +2600,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
         // In any other case, we have the guarantee that at least one digit can be parsed.
         out = {};
         while (true) {
-            const auto        digit_block_length = (std::min)(current_end - current_begin, max_digits_per_iteration);
+            const auto        digit_block_length = std::min(current_end - current_begin, max_digits_per_iteration);
             const char* const digit_block_begin  = current_end - digit_block_length;
             BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
 
@@ -2673,8 +2667,8 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     out = leading_digits;
 
     for (const char* current_first = current_begin + first_block_length; current_first != current_end;
-         current_first += max_digits_per_iteration) {
-        const char* const current_last = (std::min)(current_first + max_digits_per_iteration, current_end);
+        current_first += max_digits_per_iteration) {
+        const char* const current_last = std::min(current_first + max_digits_per_iteration, current_end);
 
         uint_multiprecision_t        digits         = {};
         const std::from_chars_result partial_result = std::from_chars(current_first, current_last, digits, base);
@@ -2877,10 +2871,7 @@ template <char... digits>
         return big_int(limbs.data(), limbs.data() + limbs.size());
     } else {
         static_assert(detail::parse_non_allocating<buffer>::ec == std::errc::invalid_argument);
-#if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC < 13)))
-#else
-        static_assert(false, "The given literal is not a valid integer-literal.");
-#endif
+        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("The given literal is not a valid integer-literal.");
     }
 }
 
