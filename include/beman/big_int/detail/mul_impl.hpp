@@ -239,8 +239,8 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     // where B = 2^bits_per_limb
     const auto a_l = a.first(std::min(a.size(), n));
 
-    const uint_multiprecision_t zero { 0U };
-    const auto                  a_h  = a.size() > n ? a.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
+    const uint_multiprecision_t zero{0U};
+    const auto                  a_h = a.size() > n ? a.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
 
     const auto b_l = b.first(std::min(b.size(), n));
     const auto b_h = b.size() > n ? b.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
