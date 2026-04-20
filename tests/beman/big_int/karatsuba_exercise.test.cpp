@@ -100,7 +100,7 @@ auto make_from_limbs(std::string* p_str_a, std::string* p_str_b)
         }
     }
 
-    return { a, b };
+    return {a, b};
 }
 
 auto int_string_clz(std::string& str) -> void {
