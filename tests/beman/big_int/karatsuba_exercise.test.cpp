@@ -1,6 +1,7 @@
 
 // cd C:\Users\ckorm\Documents\Ks\PC_Software\Test
-// set GCC=C:\Users\ckorm\Documents\Ks\uC_Software\Boards\real-time-cpp\ref_app\tools\Util\msys64\usr\local\gcc-13.2.0-x86_64-w64-mingw32\bin\g++.exe
+// set
+// GCC=C:\Users\ckorm\Documents\Ks\uC_Software\Boards\real-time-cpp\ref_app\tools\Util\msys64\usr\local\gcc-13.2.0-x86_64-w64-mingw32\bin\g++.exe
 // %GCC% -std=c++20 -Wall -Wextra -O3 -IC:/ChrisGitRepos/std-big-int/include ./test.cpp -o
 // test.exe
 // .\test.exe
