@@ -106,7 +106,7 @@ inline std::string to_hex(const ::beman::big_int::big_int& bn) {
 
 // Asserts that a beman::big_int and a boost::cpp_int represent the exact same
 // integer. Uses a canonical hex-string roundtrip so the check is independent
-// of the internal limb width used by each library — boost.multiprecision uses
+// of the internal limb width used by each library - boost.multiprecision uses
 // 32-bit limbs on platforms without __int128 (e.g. MSVC) while beman uses
 // 64-bit, so a direct limb-by-limb comparison isn't portable.
 [[nodiscard]] inline ::testing::AssertionResult same_value(const ::beman::big_int::big_int& bn, const cpp_int& cp) {
@@ -159,7 +159,7 @@ check_cpp_int_equal(BinOp&& op, std::string_view lhs, std::string_view rhs) {
 // that the sequence is deterministic across runs.
 // The RNG state advances on every call and is shared across all callers of this function.
 inline std::string random_big_int(std::size_t bits, bool negative = false) {
-    // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp) — deterministic seed is intentional for test reproducibility.
+    // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp) - deterministic seed is intentional for test reproducibility.
     static std::mt19937_64 rng{42};
     if (bits == 0) {
         return std::string{"0"};
