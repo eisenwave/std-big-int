@@ -9,17 +9,25 @@
 #include <beman/big_int/detail/wide_ops.hpp>
 
 #include <algorithm>
+#include <compare>
 #include <span>
 
 namespace beman::big_int::detail {
 
+// Selects whether a division routine should yield the quotient or the remainder.
+enum class division_op : bool {
+    div, // compute quotient
+    rem, // compute remainder
+};
+
 // ---------------------------------------------------------------------------
 // Three-way compare of two little-endian unsigned spans.
-// Returns -1 / 0 / +1. Operands need not be trimmed: trailing zero limbs on
-// either side are treated as insignificant.
+// Operands need not be trimmed: trailing zero limbs on either side are
+// treated as insignificant.
 // ---------------------------------------------------------------------------
-constexpr int compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
-                                     const std::span<const uint_multiprecision_t> b) noexcept {
+[[nodiscard]] constexpr std::strong_ordering
+compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
+                       const std::span<const uint_multiprecision_t> b) noexcept {
     const std::size_t na = a.size();
     const std::size_t nb = b.size();
     const std::size_t n  = std::max(na, nb);
@@ -27,16 +35,16 @@ constexpr int compare_unsigned_spans(const std::span<const uint_multiprecision_t
         const auto ai = i < na ? a[i] : uint_multiprecision_t{0};
         const auto bi = i < nb ? b[i] : uint_multiprecision_t{0};
         if (ai != bi) {
-            return ai < bi ? -1 : 1;
+            return ai < bi ? std::strong_ordering::less : std::strong_ordering::greater;
         }
     }
-    return 0;
+    return std::strong_ordering::equal;
 }
 
 // ---------------------------------------------------------------------------
 // In-place +1 on a little-endian unsigned span. Returns true on carry out.
 // ---------------------------------------------------------------------------
-constexpr bool increment_span(const std::span<uint_multiprecision_t> s) noexcept {
+[[nodiscard]] constexpr bool increment_span(const std::span<uint_multiprecision_t> s) noexcept {
     for (auto& limb : s) {
         if (++limb != 0) {
             return false;
@@ -49,7 +57,7 @@ constexpr bool increment_span(const std::span<uint_multiprecision_t> s) noexcept
 // In-place -1 on a little-endian unsigned span. Returns true on borrow out
 // (i.e. the span was all zero on entry).
 // ---------------------------------------------------------------------------
-constexpr bool decrement_span(const std::span<uint_multiprecision_t> s) noexcept {
+[[nodiscard]] constexpr bool decrement_span(const std::span<uint_multiprecision_t> s) noexcept {
     for (auto& limb : s) {
         if (limb-- != 0) {
             return false;
@@ -70,9 +78,10 @@ constexpr bool decrement_span(const std::span<uint_multiprecision_t> s) noexcept
 //   - quotient may alias dividend (we read dividend[i] before writing
 //     quotient[i]; subsequent iterations touch strictly lower indices).
 // ---------------------------------------------------------------------------
-constexpr uint_multiprecision_t divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
-                                                      const std::span<const uint_multiprecision_t> dividend,
-                                                      const uint_multiprecision_t                  divisor) noexcept {
+[[nodiscard]] constexpr uint_multiprecision_t
+divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
+                      const std::span<const uint_multiprecision_t> dividend,
+                      const uint_multiprecision_t                  divisor) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(divisor != 0);
     BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
@@ -261,7 +270,7 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         const std::size_t rem_logical_size = std::max(r_order + 1, t_size);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem_logical_size <= remainder.size());
         const std::span<const uint_multiprecision_t> rem_view{remainder.data(), rem_logical_size};
-        const int                                    cmp = compare_unsigned_spans(rem_view, t_view);
+        const std::strong_ordering                   cmp = compare_unsigned_spans(rem_view, t_view);
         if (cmp > 0) {
             static_cast<void>(subtract_unsigned_spans(remainder.first(rem_logical_size), rem_view, t_view));
         } else {
