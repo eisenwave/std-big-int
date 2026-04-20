@@ -71,7 +71,8 @@ auto common_big_int_type_impl() {
 }
 
 template <class L, class R>
-using common_big_int_type = typename decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
+using common_big_int_type =
+    typename decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
 
 template <class T, class U>
 concept common_big_int_type_with = requires { typename common_big_int_type<T, U>; };
