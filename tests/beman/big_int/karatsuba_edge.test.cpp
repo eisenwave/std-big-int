@@ -75,7 +75,8 @@ TEST(Multiplication, KaratsubaEdge01) {
 
     const auto fc_result_a{from_chars(str_a.c_str(), str_a.c_str() + str_a.size(), a, 16)};
     const auto fc_result_b{from_chars(str_b.c_str(), str_b.c_str() + str_b.size(), b, 16)};
-    const auto fc_result_expected{from_chars(str_expected.c_str(), str_expected.c_str() + str_expected.size(), expected, 16)};
+    const auto fc_result_expected{
+        from_chars(str_expected.c_str(), str_expected.c_str() + str_expected.size(), expected, 16)};
 
     static_cast<void>(fc_result_a.ptr);
     static_cast<void>(fc_result_b.ptr);
