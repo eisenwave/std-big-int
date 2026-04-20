@@ -186,6 +186,9 @@ TEST(Multiplication, KaratsubaExercise01) {
     for (unsigned index{0U}; index < trials; ++index) {
         static_cast<void>(index);
 
+        // TODO(ckormanyos): Having control values would be nice. I wonder if it
+        //                   would be possible to clone Boost.Config and Boost.Math
+        //                   and obtain control values from Boost?
         try {
             const bool result_one_multiplication_is_ok{local::test_one_multiplication()};
 
