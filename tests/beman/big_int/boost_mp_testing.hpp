@@ -8,11 +8,18 @@
 
 #include <gtest/gtest.h>
 
-#include <boost/multiprecision/cpp_int.hpp>
-
 #include <beman/big_int/big_int.hpp>
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overflow")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overread")
+
+#include <boost/multiprecision/cpp_int.hpp>
+
 #include <cstddef>
+#include <format>
+#include <ios>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -24,13 +31,6 @@ namespace beman::big_int::boost_mp_testing {
 namespace detail {
 
 using cpp_int = ::boost::multiprecision::cpp_int;
-
-// The limb-level comparison assumes both libraries store magnitude in
-// same-width limbs. Both default to 64-bit on platforms with __int128; on a
-// 32-bit-limb build of beman, boost cpp_int would still be 64-bit, and the
-// limb arrays wouldn't line up.
-static_assert(sizeof(uint_multiprecision_t) == sizeof(::boost::multiprecision::limb_type),
-              "Matching limb widths required between beman::big_int and boost::cpp_int for this test helper.");
 
 // Generates a random hex string for a size of exactly `bits` bits,
 // meaning the MSB is 1 (so the value is in [2^(bits-1), 2^bits)).
@@ -83,53 +83,49 @@ inline cpp_int parse_cpp_int(std::string_view signed_hex) {
     return cpp_int{s};
 }
 
-// Trims trailing zero limbs for robust comparison.
-inline std::size_t trimmed_len(const ::beman::big_int::uint_multiprecision_t* limbs, std::size_t n) noexcept {
-    while (n > 1 && limbs[n - 1] == 0) {
+// Canonical lowercase-hex rendering of a beman::big_int. Prints limbs from
+// MSB to LSB, with a leading '-' for negative values. Zero renders as "0".
+// Used both as a hashable canonical form for comparison and for diagnostics.
+inline std::string to_hex(const ::beman::big_int::big_int& bn) {
+    const auto  rep = bn.representation();
+    std::size_t n   = rep.size();
+    while (n > 1 && rep[n - 1] == 0) {
         --n;
     }
-    return n;
+    std::string s;
+    if (bn < 0) {
+        s.push_back('-');
+    }
+    s += std::format("{:x}", rep[n - 1]);
+    constexpr std::size_t limb_hex = sizeof(::beman::big_int::uint_multiprecision_t) * 2;
+    for (std::size_t i = n - 1; i > 0; --i) {
+        s += std::format("{:0{}x}", rep[i - 1], limb_hex);
+    }
+    return s;
 }
 
 // Asserts that a beman::big_int and a boost::cpp_int represent the exact same
-// integer, by comparing:
-//   1) zeroness,
-//   2) sign,
-//   3) trimmed limb arrays.
+// integer. Uses a canonical hex-string roundtrip so the check is independent
+// of the internal limb width used by each library — boost.multiprecision uses
+// 32-bit limbs on platforms without __int128 (e.g. MSVC) while beman uses
+// 64-bit, so a direct limb-by-limb comparison isn't portable.
 [[nodiscard]] inline ::testing::AssertionResult same_value(const ::beman::big_int::big_int& bn, const cpp_int& cp) {
-    const bool bn_zero = (bn == 0);
-    const bool cp_zero = cp.is_zero();
-    if (bn_zero != cp_zero) {
-        return ::testing::AssertionFailure()
-               << "zeroness mismatch: big_int::is_zero=" << bn_zero << " cpp_int::is_zero=" << cp_zero;
+    // cpp_int::str() refuses to render a negative magnitude as hex or octal
+    // ("Base 8 or 16 printing of negative numbers is not supported."), so
+    // print the magnitude of abs(cp) and prepend '-' ourselves when needed.
+    const bool        cp_neg = !cp.is_zero() && cp.backend().sign();
+    const std::string cp_mag = (cp_neg ? cpp_int{-cp} : cp).str(0, std::ios_base::hex);
+    std::string       cp_hex;
+    cp_hex.reserve(cp_mag.size() + 1);
+    if (cp_neg) {
+        cp_hex.push_back('-');
     }
-    if (!bn_zero) {
-        const bool bn_neg = (bn < 0);
-        const bool cp_neg = cp.backend().sign();
-        if (bn_neg != cp_neg) {
-            return ::testing::AssertionFailure()
-                   << "sign mismatch: big_int<0=" << bn_neg << " cpp_int.sign()=" << cp_neg;
-        }
+    cp_hex += cp_mag;
+    const auto expected_bn = parse_big_int(cp_hex);
+    if (bn == expected_bn) {
+        return ::testing::AssertionSuccess();
     }
-
-    const auto        bn_rep  = bn.representation();
-    const auto* const cp_ptr  = cp.backend().limbs();
-    const auto        bn_size = trimmed_len(bn_rep.data(), bn_rep.size());
-    const auto        cp_size = trimmed_len(cp_ptr, cp.backend().size());
-
-    if (bn_size != cp_size) {
-        return ::testing::AssertionFailure()
-               << "trimmed limb count mismatch: big_int=" << bn_size << " cpp_int=" << cp_size;
-    }
-    for (std::size_t i = 0; i < bn_size; ++i) {
-        const auto bn_limb = bn_rep[i];
-        const auto cp_limb = static_cast<::beman::big_int::uint_multiprecision_t>(cp_ptr[i]);
-        if (bn_limb != cp_limb) {
-            return ::testing::AssertionFailure()
-                   << "limb[" << i << "] differs: big_int=" << std::hex << bn_limb << " cpp_int=" << cp_limb;
-        }
-    }
-    return ::testing::AssertionSuccess();
+    return ::testing::AssertionFailure() << "value mismatch: big_int=" << to_hex(bn) << " cpp_int=" << cp_hex;
 }
 
 } // namespace detail
@@ -178,5 +174,7 @@ inline std::string random_big_int(std::size_t bits, bool negative = false) {
 }
 
 } // namespace beman::big_int::boost_mp_testing
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 #endif // BEMAN_BIG_INT_TESTS_BOOST_MP_TESTING_HPP
