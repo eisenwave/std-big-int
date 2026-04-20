@@ -271,7 +271,7 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         BEMAN_BIG_INT_DEBUG_ASSERT(rem_logical_size <= remainder.size());
         const std::span<const uint_multiprecision_t> rem_view{remainder.data(), rem_logical_size};
         const std::strong_ordering                   cmp = compare_unsigned_spans(rem_view, t_view);
-        if (cmp > 0) {
+        if (cmp == std::strong_ordering::greater) {
             static_cast<void>(subtract_unsigned_spans(remainder.first(rem_logical_size), rem_view, t_view));
         } else {
             // rem <= t implies rem has no nonzero limbs past t_size-1, so
@@ -311,9 +311,9 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         if (r_order < y_order) {
             break;
         }
-    } while (
-        (r_order > y_order) ||
-        (compare_unsigned_spans(std::span<const uint_multiprecision_t>{remainder.data(), r_order + 1}, divisor) >= 0));
+    } while ((r_order > y_order) ||
+             (compare_unsigned_spans(std::span<const uint_multiprecision_t>{remainder.data(), r_order + 1}, divisor) !=
+              std::strong_ordering::less));
 
     scratch.deallocate(t_cap);
 

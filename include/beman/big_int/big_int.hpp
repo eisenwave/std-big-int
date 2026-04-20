@@ -2327,7 +2327,7 @@ constexpr void basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     }
 
     const std::strong_ordering mag_cmp = detail::compare_unsigned_spans(dividend_trim, divisor_trim);
-    if (mag_cmp < 0) {
+    if (mag_cmp == std::strong_ordering::less) {
         // |dividend| < |divisor|: quotient is 0, remainder is dividend.
         if (want_quotient) {
             limb_ptr()[0] = 0;
