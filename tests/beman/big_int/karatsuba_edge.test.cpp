@@ -87,7 +87,7 @@ TEST(Multiplication, KaratsubaEdge01) {
     EXPECT_EQ(fc_result_b.ec, std::errc { });
     EXPECT_EQ(fc_result_c.ec, std::errc { });
 
-    const big_int c { a * b };
+    const big_int c{a * b};
 
     EXPECT_EQ(c, expected);
 }
