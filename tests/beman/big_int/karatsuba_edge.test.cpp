@@ -79,9 +79,10 @@ TEST(Multiplication, KaratsubaEdge01) {
     big_int b{};
     big_int expected{};
 
-    const std::from_chars_result fc_result_a{ from_chars(str_a.c_str(), str_a.c_str() + str_a.size(), a, 16)};
-    const std::from_chars_result fc_result_b{ from_chars(str_b.c_str(), str_b.c_str() + str_b.size(), b, 16)};
-    const std::from_chars_result fc_result_c{ from_chars(str_expected.c_str(), str_expected.c_str() + str_expected.size(), expected, 16)};
+    const std::from_chars_result fc_result_a{from_chars(str_a.c_str(), str_a.c_str() + str_a.size(), a, 16)};
+    const std::from_chars_result fc_result_b{from_chars(str_b.c_str(), str_b.c_str() + str_b.size(), b, 16)};
+    const std::from_chars_result fc_result_c{
+        from_chars(str_expected.c_str(), str_expected.c_str() + str_expected.size(), expected, 16)};
 
     EXPECT_EQ(fc_result_a.ec, std::errc{});
     EXPECT_EQ(fc_result_b.ec, std::errc{});
