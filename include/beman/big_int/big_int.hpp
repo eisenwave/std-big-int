@@ -16,6 +16,7 @@
 #include <memory>
 #include <ranges>
 #include <span>
+
 #if __has_include(<stdfloat>)
     #include <stdfloat>
 #endif
@@ -24,6 +25,7 @@
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
 #include <beman/big_int/detail/mul_impl.hpp>
+#include <beman/big_int/detail/div_impl.hpp>
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.
@@ -324,6 +326,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <class T>
     constexpr basic_big_int& operator*=(const T& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
+    template <class T>
+    constexpr basic_big_int& operator/=(const T& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
+    template <class T>
+    constexpr basic_big_int& operator%=(const T& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
 
     // [big.int.ops]
     [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
@@ -361,7 +369,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y);
     template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y);
-    // TODO : div, mod
+    template <class L, class R>
+    friend constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y);
+    template <class L, class R>
+    friend constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y);
 
     template <class L, class R>
     friend constexpr detail::common_big_int_type<L, R> operator&(L&& x, R&& y);
@@ -445,6 +456,24 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                                  bool                                             a_neg,
                                  std::span<const uint_multiprecision_t, extent_b> b,
                                  bool                                             b_neg);
+
+    // Computes floor(a / b) (if `op == detail::division_op::div`) or a % b (otherwise) with
+    // C++ truncated-division sign semantics, and stores the result in `*this`.
+    template <std::size_t extent_a, std::size_t extent_b>
+    constexpr void divmod_into(std::span<const uint_multiprecision_t, extent_a> dividend,
+                               bool                                             dividend_neg,
+                               std::span<const uint_multiprecision_t, extent_b> divisor,
+                               bool                                             divisor_neg,
+                               detail::division_op                              op);
+
+    // Single-limb divisor fast path. Avoids limb-vector promotion and
+    // allocation of a scratch remainder buffer.
+    template <std::size_t extent_a>
+    constexpr void divmod_into_short(std::span<const uint_multiprecision_t, extent_a> dividend,
+                                     bool                                             dividend_neg,
+                                     uint_multiprecision_t                            divisor,
+                                     bool                                             divisor_neg,
+                                     detail::division_op                              op);
 
     // Shared implementation behind copy-assign, move-assign, and the lvalue
     // branches of `operator+` / `operator-`.
@@ -2208,6 +2237,284 @@ constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int&
         const auto rhs_limbs     = detail::to_limbs(detail::uabs(rhs));
         multiply_into(
             temp.representation(), temp.is_negative(), detail::to_fixed_span(rhs_limbs), detail::integer_signbit(rhs));
+    }
+    return *this;
+}
+
+// Single-limb divisor fast path from Knuth
+// Avoids allocating a remainder scratch buffer and a `t` buffer: we just stream the quotient through `*this`'s
+// limbs and carry a single remainder limb between iterations.
+template <std::size_t b, class A>
+template <std::size_t extent_a>
+constexpr void basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision_t, extent_a> dividend,
+                                                      const bool                  dividend_neg,
+                                                      const uint_multiprecision_t divisor,
+                                                      const bool                  divisor_neg,
+                                                      const detail::division_op   op) {
+    BEMAN_BIG_INT_ASSERT(divisor != 0);
+
+    const bool want_quotient = op == detail::division_op::div;
+    const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
+    const bool result_neg    = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
+
+    if (detail::is_span_zero(dividend_trim)) {
+        limb_ptr()[0] = 0;
+        set_limb_count(1);
+        set_sign(false);
+        return;
+    }
+
+    // Single-limb dividend: native divide/modulo.
+    if (dividend_trim.size() == 1) {
+        const uint_multiprecision_t d = dividend_trim[0];
+        limb_ptr()[0]                 = want_quotient ? (d / divisor) : (d % divisor);
+        set_limb_count(1);
+        set_sign(false);
+        if (!is_zero()) {
+            set_sign(result_neg);
+        }
+        return;
+    }
+
+    // Stream the quotient through *this's limb buffer,
+    // returning the scalar remainder.
+    grow(dividend_trim.size());
+    std::span<uint_multiprecision_t> quot_span{limb_ptr(), dividend_trim.size()};
+    const uint_multiprecision_t      remainder = detail::divide_unsigned_short(quot_span, dividend_trim, divisor);
+
+    if (want_quotient) {
+        const std::size_t qsize =
+            detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), dividend_trim.size()});
+        set_limb_count(static_cast<std::uint32_t>(qsize));
+    } else {
+        limb_ptr()[0] = remainder;
+        set_limb_count(1);
+    }
+
+    set_sign(false);
+    if (!is_zero()) {
+        set_sign(result_neg);
+    }
+}
+
+// Generic divide/modulus dispatcher.
+// Handles the four special cases:
+//   1) zero divisor,
+//   2) zero dividend,
+//   3) |dividend| < |divisor|,
+//   4) single-limb divisor
+// before falling through to `detail::divide_unsigned`.
+template <std::size_t b, class A>
+template <std::size_t extent_a, std::size_t extent_b>
+constexpr void basic_big_int<b, A>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
+                                                const bool                                             dividend_neg,
+                                                const std::span<const uint_multiprecision_t, extent_b> divisor,
+                                                const bool                                             divisor_neg,
+                                                const detail::division_op                              op) {
+    const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
+    const auto divisor_trim  = divisor.first(detail::trimmed_size(divisor));
+
+    BEMAN_BIG_INT_ASSERT(!detail::is_span_zero(divisor_trim));
+
+    const bool want_quotient = op == detail::division_op::div;
+    const bool result_neg    = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
+
+    if (detail::is_span_zero(dividend_trim)) {
+        limb_ptr()[0] = 0;
+        set_limb_count(1);
+        set_sign(false);
+        return;
+    }
+
+    const std::strong_ordering mag_cmp = detail::compare_unsigned_spans(dividend_trim, divisor_trim);
+    if (mag_cmp == std::strong_ordering::less) {
+        // |dividend| < |divisor|: quotient is 0, remainder is dividend.
+        if (want_quotient) {
+            limb_ptr()[0] = 0;
+            set_limb_count(1);
+            set_sign(false);
+        } else {
+            grow(dividend_trim.size());
+            std::copy(dividend_trim.begin(), dividend_trim.end(), limb_ptr());
+            set_limb_count(static_cast<std::uint32_t>(dividend_trim.size()));
+            set_sign(false);
+            if (!is_zero()) {
+                set_sign(result_neg);
+            }
+        }
+        return;
+    }
+
+    // Single-limb divisor fast path.
+    if (divisor_trim.size() == 1) {
+        divmod_into_short(dividend_trim, dividend_neg, divisor_trim[0], divisor_neg, op);
+        return;
+    }
+
+    // Multi-limb long division.
+    const std::size_t n_div = dividend_trim.size();
+    const std::size_t m_div = divisor_trim.size();
+    const std::size_t q_cap = n_div - m_div + 1;
+    const std::size_t r_cap = n_div + 1;
+    const std::size_t t_cap = n_div + 1;
+
+    if (want_quotient) {
+        // *this will hold the quotient.
+        // Remainder and `t` go in scratch.
+        grow(q_cap);
+        std::fill_n(limb_ptr(), q_cap, limb_type{0});
+
+        detail::scratch_allocator<allocator_type> scratch(r_cap + t_cap, m_alloc);
+        const std::span<uint_multiprecision_t>    rem_span = scratch.allocate(r_cap);
+
+        detail::divide_unsigned(
+            std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, rem_span, dividend_trim, divisor_trim, scratch);
+
+        const std::size_t qsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
+        set_limb_count(static_cast<std::uint32_t>(qsize));
+    } else {
+        // *this will hold the remainder.
+        // Quotient and `t` go in scratch.
+        grow(r_cap);
+        std::fill_n(limb_ptr(), r_cap, limb_type{0});
+
+        detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
+        const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
+
+        detail::divide_unsigned(
+            quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
+
+        const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
+        set_limb_count(static_cast<std::uint32_t>(rsize));
+    }
+
+    set_sign(false);
+    if (!is_zero()) {
+        set_sign(result_neg);
+    }
+}
+
+template <class L, class R>
+constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y) {
+    using Result        = detail::common_big_int_type<L, R>;
+    constexpr auto form = detail::classify_form_v<L, R>;
+
+    Result r;
+    if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
+                  form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
+        r.divmod_into(
+            x.representation(), x.is_negative(), y.representation(), y.is_negative(), detail::division_op::div);
+    } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
+        const auto y_limbs = detail::to_limbs(detail::uabs(y));
+        r.divmod_into(x.representation(),
+                      x.is_negative(),
+                      detail::to_fixed_span(y_limbs),
+                      detail::integer_signbit(y),
+                      detail::division_op::div);
+    } else if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+        const auto x_limbs = detail::to_limbs(detail::uabs(x));
+        r.divmod_into(detail::to_fixed_span(x_limbs),
+                      detail::integer_signbit(x),
+                      y.representation(),
+                      y.is_negative(),
+                      detail::division_op::div);
+    }
+    return r;
+}
+
+template <class L, class R>
+constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
+    using Result        = detail::common_big_int_type<L, R>;
+    constexpr auto form = detail::classify_form_v<L, R>;
+
+    Result r;
+    if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
+                  form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
+        r.divmod_into(
+            x.representation(), x.is_negative(), y.representation(), y.is_negative(), detail::division_op::rem);
+    } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
+        const auto y_limbs = detail::to_limbs(detail::uabs(y));
+        r.divmod_into(x.representation(),
+                      x.is_negative(),
+                      detail::to_fixed_span(y_limbs),
+                      detail::integer_signbit(y),
+                      detail::division_op::rem);
+    } else if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+        const auto x_limbs = detail::to_limbs(detail::uabs(x));
+        r.divmod_into(detail::to_fixed_span(x_limbs),
+                      detail::integer_signbit(x),
+                      y.representation(),
+                      y.is_negative(),
+                      detail::division_op::rem);
+    }
+    return r;
+}
+
+// Compound division and modulus assignments.
+template <std::size_t b, class A>
+template <class T>
+constexpr auto basic_big_int<b, A>::operator/=(const T& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<T>, basic_big_int>) {
+            // Self-division: `std::move(*this)` below would zero `rhs` when &rhs == this.
+            if (&rhs == this) {
+                BEMAN_BIG_INT_ASSERT(!is_zero());
+                *this = basic_big_int{1};
+                return *this;
+            }
+        }
+        const basic_big_int temp = std::move(*this);
+        *this                    = basic_big_int{};
+        divmod_into(temp.representation(),
+                    temp.is_negative(),
+                    rhs.representation(),
+                    rhs.is_negative(),
+                    detail::division_op::div);
+    } else {
+        const basic_big_int temp = std::move(*this);
+        *this                    = basic_big_int{};
+        const auto rhs_limbs     = detail::to_limbs(detail::uabs(rhs));
+        divmod_into(temp.representation(),
+                    temp.is_negative(),
+                    detail::to_fixed_span(rhs_limbs),
+                    detail::integer_signbit(rhs),
+                    detail::division_op::div);
+    }
+    return *this;
+}
+
+template <std::size_t b, class A>
+template <class T>
+constexpr auto basic_big_int<b, A>::operator%=(const T& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<T>, basic_big_int>) {
+            // Self-modulus: `std::move(*this)` below would zero `rhs` when &rhs == this.
+            if (&rhs == this) {
+                BEMAN_BIG_INT_ASSERT(!is_zero());
+                *this = basic_big_int{};
+                return *this;
+            }
+        }
+        const basic_big_int temp = std::move(*this);
+        *this                    = basic_big_int{};
+        divmod_into(temp.representation(),
+                    temp.is_negative(),
+                    rhs.representation(),
+                    rhs.is_negative(),
+                    detail::division_op::rem);
+    } else {
+        const basic_big_int temp = std::move(*this);
+        *this                    = basic_big_int{};
+        const auto rhs_limbs     = detail::to_limbs(detail::uabs(rhs));
+        divmod_into(temp.representation(),
+                    temp.is_negative(),
+                    detail::to_fixed_span(rhs_limbs),
+                    detail::integer_signbit(rhs),
+                    detail::division_op::rem);
     }
     return *this;
 }

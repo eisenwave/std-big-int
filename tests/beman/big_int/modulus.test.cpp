@@ -1,0 +1,219 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+#include <cstdint>
+#include <limits>
+
+#include <gtest/gtest.h>
+
+#include <beman/big_int/big_int.hpp>
+
+namespace {
+
+using beman::big_int::basic_big_int;
+using beman::big_int::big_int;
+using beman::big_int::uint_multiprecision_t;
+
+// ----- compile-time sanity -----
+
+consteval bool ce_zero_mod_one() { return (big_int{0} % big_int{1}) == big_int{0}; }
+static_assert(ce_zero_mod_one());
+
+consteval bool ce_small_positive() { return (big_int{7} % big_int{3}) == big_int{1}; }
+static_assert(ce_small_positive());
+
+consteval bool ce_exact_multiple() { return (big_int{42} % big_int{6}) == big_int{0}; }
+static_assert(ce_exact_multiple());
+
+consteval bool ce_sign_neg_pos() { return (big_int{-7} % big_int{3}) == big_int{-1}; }
+static_assert(ce_sign_neg_pos());
+
+consteval bool ce_sign_pos_neg() { return (big_int{7} % big_int{-3}) == big_int{1}; }
+static_assert(ce_sign_pos_neg());
+
+consteval bool ce_sign_neg_neg() { return (big_int{-7} % big_int{-3}) == big_int{-1}; }
+static_assert(ce_sign_neg_neg());
+
+consteval bool ce_self_mod() { return (big_int{42} % big_int{42}) == big_int{0}; }
+static_assert(ce_self_mod());
+
+consteval bool ce_mod_by_one() { return (big_int{42} % big_int{1}) == big_int{0}; }
+static_assert(ce_mod_by_one());
+
+consteval bool ce_dividend_less_than_divisor() { return (big_int{3} % big_int{7}) == big_int{3}; }
+static_assert(ce_dividend_less_than_divisor());
+
+// ----- runtime tests -----
+
+TEST(Modulus, SmallPositivePositive) {
+    EXPECT_EQ(big_int{7} % big_int{3}, 1);
+    EXPECT_EQ(big_int{100} % big_int{3}, 1);
+    EXPECT_EQ(big_int{42} % big_int{7}, 0);
+}
+
+TEST(Modulus, ExactMultiples) {
+    EXPECT_EQ(big_int{0} % big_int{5}, 0);
+    EXPECT_EQ(big_int{10} % big_int{2}, 0);
+    EXPECT_EQ(big_int{999} % big_int{3}, 0);
+}
+
+TEST(Modulus, SignRuleRemainderFollowsDividend) {
+    // C++ truncated modulus: remainder sign matches dividend sign.
+    EXPECT_EQ(big_int{7} % big_int{3}, 1);
+    EXPECT_EQ(big_int{-7} % big_int{3}, -1);
+    EXPECT_EQ(big_int{7} % big_int{-3}, 1);
+    EXPECT_EQ(big_int{-7} % big_int{-3}, -1);
+}
+
+TEST(Modulus, MixedSigns) {
+    EXPECT_EQ(big_int{-42} % big_int{7}, 0);
+    EXPECT_EQ(big_int{42} % big_int{-7}, 0);
+    EXPECT_EQ(big_int{-42} % big_int{-7}, 0);
+
+    EXPECT_EQ(big_int{-100} % big_int{3}, -1);
+    EXPECT_EQ(big_int{100} % big_int{-3}, 1);
+    EXPECT_EQ(big_int{-100} % big_int{-3}, -1);
+}
+
+TEST(Modulus, DividendLessThanDivisor) {
+    EXPECT_EQ(big_int{3} % big_int{7}, 3);
+    EXPECT_EQ(big_int{-3} % big_int{7}, -3);
+    EXPECT_EQ(big_int{3} % big_int{-7}, 3);
+    EXPECT_EQ(big_int{-3} % big_int{-7}, -3);
+}
+
+TEST(Modulus, ZeroDividend) {
+    EXPECT_EQ(big_int{0} % big_int{5}, 0);
+    EXPECT_EQ(big_int{0} % big_int{-5}, 0);
+    EXPECT_EQ(big_int{0} % big_int{9999999}, 0);
+}
+
+TEST(Modulus, DividendEqualsDivisor) {
+    EXPECT_EQ(big_int{42} % big_int{42}, 0);
+    EXPECT_EQ(big_int{-42} % big_int{42}, 0);
+    EXPECT_EQ(big_int{42} % big_int{-42}, 0);
+    EXPECT_EQ(big_int{-42} % big_int{-42}, 0);
+}
+
+TEST(Modulus, ModulusByOne) {
+    EXPECT_EQ(big_int{42} % big_int{1}, 0);
+    EXPECT_EQ(big_int{-42} % big_int{1}, 0);
+    EXPECT_EQ(big_int{42} % big_int{-1}, 0);
+    EXPECT_EQ(big_int{-42} % big_int{-1}, 0);
+}
+
+TEST(Modulus, MultiLimbBySingleLimb) {
+    // (2^64 + 5) % 10 == 1 (since 2^64 = 18446744073709551616 ends in 6)
+    const big_int huge = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{6};
+    EXPECT_EQ(huge % big_int{10}, 1);
+}
+
+TEST(Modulus, MultiLimbByMultiLimb) {
+    // ((2^64) + 5) % ((2^64) + 1) == 4
+    const big_int two_64_plus_5 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{6};
+    const big_int two_64_plus_1 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{2};
+    EXPECT_EQ(two_64_plus_5 % two_64_plus_1, 4);
+}
+
+TEST(Modulus, DivisionInvariant) {
+    // For any a, b != 0: a == (a / b) * b + (a % b).
+    const big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{123};
+    const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{7};
+    EXPECT_EQ((a / b) * b + (a % b), a);
+
+    const big_int c{-1'000'000'007LL};
+    const big_int d{99'991LL};
+    EXPECT_EQ((c / d) * d + (c % d), c);
+}
+
+TEST(Modulus, MultiplyAndMod) {
+    // (x * y) % y == 0 for a sequence of pairs.
+    for (int i = 1; i < 50; ++i) {
+        for (int j = 1; j < 50; ++j) {
+            const big_int x{i * 1'000'000'007LL};
+            const big_int y{j * 99'991LL};
+            EXPECT_EQ((x * y) % y, 0);
+        }
+    }
+}
+
+TEST(Modulus, LargeShiftBasis) {
+    // (2^200 + 7) % (2^100) == 7 (low 100 bits)
+    const big_int dividend = (big_int{1} << 200) + big_int{7};
+    const big_int divisor  = big_int{1} << 100;
+    EXPECT_EQ(dividend % divisor, 7);
+}
+
+TEST(Modulus, CompoundAssignmentBigInt) {
+    big_int a{42};
+    a %= big_int{5};
+    EXPECT_EQ(a, 2);
+
+    big_int b{-42};
+    b %= big_int{5};
+    EXPECT_EQ(b, -2);
+}
+
+TEST(Modulus, CompoundAssignmentPrimitive) {
+    big_int a{100};
+    a %= 7;
+    EXPECT_EQ(a, 2);
+
+    big_int b{-100};
+    b %= 3;
+    EXPECT_EQ(b, -1);
+
+    big_int c{100};
+    c %= -3;
+    EXPECT_EQ(c, 1);
+}
+
+TEST(Modulus, CompoundAssignmentMultiLimb) {
+    big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{10}; // 2^64 + 9
+    a %= big_int{7};
+    // (2^64 + 9) mod 7: 2^64 mod 7 = 2, so (2 + 9) mod 7 = 11 mod 7 = 4
+    EXPECT_EQ(a, 4);
+}
+
+TEST(Modulus, SelfMod) {
+    // Exercises the move-into-temp aliasing guard in operator%=.
+    big_int a{123456789};
+    a %= a;
+    EXPECT_EQ(a, 0);
+
+    big_int b{-123456789};
+    b %= b;
+    EXPECT_EQ(b, 0);
+}
+
+TEST(Modulus, PrimitiveRhsSingleLimbFastPath) {
+    // Large dividend, small primitive divisor — hits divmod_into_short.
+    const big_int huge = (big_int{1} << 256) + big_int{12345};
+    const big_int r    = huge % 7U;
+    // Verify: huge == (huge / 7) * 7 + r, and 0 <= r < 7.
+    EXPECT_TRUE(r >= big_int{0});
+    EXPECT_TRUE(r < big_int{7});
+    EXPECT_EQ((huge / 7U) * big_int{7} + r, huge);
+}
+
+TEST(Modulus, PrimitiveLhs) {
+    EXPECT_EQ(7 % big_int{3}, 1);
+    EXPECT_EQ(-7 % big_int{3}, -1);
+    EXPECT_EQ(7 % big_int{-3}, 1);
+}
+
+TEST(Modulus, HeapPromotionBoundary) {
+    // Value well above default inplace_capacity.
+    big_int dividend{1};
+    dividend <<= 320;
+    dividend = dividend + big_int{12345};
+    const big_int divisor{65537};
+
+    const big_int r = dividend % divisor;
+    EXPECT_TRUE(r >= big_int{0});
+    EXPECT_TRUE(r < divisor);
+    // Division invariant holds.
+    EXPECT_EQ((dividend / divisor) * divisor + r, dividend);
+}
+
+} // namespace
