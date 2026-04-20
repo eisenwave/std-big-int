@@ -168,11 +168,12 @@ using int_wide_t = long long;
 
 } // namespace beman::big_int
 
-// Concepts ====================================================================
+// Integer concepts and traits =================================================
 
 #include <cstdint>
 #include <type_traits>
 #include <concepts>
+#include <limits>
 
 namespace beman::big_int::detail {
 
@@ -256,6 +257,29 @@ template <class T>
 [[nodiscard, maybe_unused]] constexpr make_signed_or_unsigned_t<T> to_signed_or_unsigned(const T x) {
     return static_cast<make_signed_or_unsigned_t<T>>(x);
 }
+
+template <integral T>
+struct width : std::integral_constant<std::size_t,
+                                      static_cast<std::size_t>(std::numeric_limits<std::make_unsigned_t<T>>::digits)> {
+};
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+template <std::size_t N>
+struct width<_BitInt(N)> : std::integral_constant<std::size_t, N> {};
+template <std::size_t N>
+struct width<unsigned _BitInt(N)> : std::integral_constant<std::size_t, N> {};
+template <class T>
+struct width<const T> : width<T> {};
+template <class T>
+struct width<volatile T> : width<T> {};
+template <class T>
+struct width<const volatile T> : width<T> {};
+template <integral T>
+inline constexpr std::size_t width_v = width<T>::value;
+#else
+template <integral T>
+inline constexpr std::size_t width_v = std::numeric_limits<std::make_unsigned_t<T>>::digits;
+#endif // BEMAN_BIG_INT_HAS_BITINT
 
 } // namespace beman::big_int::detail
 
@@ -436,6 +460,22 @@ namespace beman::big_int {
     #define BEMAN_BIG_INT_IS_CONSTEVAL (::std::is_constant_evaluated())
     #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!::std::is_constant_evaluated())
 #endif
+
+// consteval bit_cast to _BitInt ===============================================
+
+// At the time of writing, not even clang trunk supports bit-casting to _BitInt
+// during constant evaluation.
+// The intended usage of this macro is
+// `if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT`
+// so as to guard against accidental constexpr use of such bit-casts.
+
+#ifdef BEMAN_BIG_INT_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT
+    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT constexpr(true)
+    #define BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT constexpr
+#else
+    #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT BEMAN_BIG_INT_IS_NOT_CONSTEVAL
+    #define BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT
+#endif // BEMAN_BIG_INT_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT
 
 // =============================================================================
 
