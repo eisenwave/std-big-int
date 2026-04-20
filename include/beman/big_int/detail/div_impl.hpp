@@ -248,16 +248,17 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
             t_full[i] = 0;
         }
 
-        uint_wide_t mul_carry = 0;
+        uint_multiprecision_t mul_carry = 0;
         for (std::size_t i = 0; i < divisor.size(); ++i) {
-            mul_carry += static_cast<uint_wide_t>(divisor[i]) * static_cast<uint_wide_t>(guess);
-            t_full[i + shift] = static_cast<uint_multiprecision_t>(mul_carry);
-            mul_carry >>= limb_bits;
+            const auto [lo, hi] = widening_mul(divisor[i], guess);
+            const auto [sum, carry]   = carrying_add(lo, mul_carry);
+            t_full[i + shift]   = sum;
+            mul_carry           = hi + static_cast<uint_multiprecision_t>(carry);
         }
         std::size_t t_size = divisor.size() + shift;
         if (mul_carry != 0) {
             BEMAN_BIG_INT_DEBUG_ASSERT(t_size < t_cap);
-            t_full[t_size] = static_cast<uint_multiprecision_t>(mul_carry);
+            t_full[t_size] = mul_carry;
             ++t_size;
         }
         // Trim zero high limbs of t.
