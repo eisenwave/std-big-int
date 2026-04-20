@@ -158,7 +158,7 @@ template <bitwise_op op, cv_unqualified_integral T>
     } else if constexpr (op == bitwise_op::xor_) {
         return static_cast<T>(x ^ y);
     } else {
-        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("Unsupported operation.");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("Unsupported operation.");
     }
 }
 
@@ -1377,7 +1377,7 @@ inline constexpr binary_op_form classify_form_v = [] {
     } else if constexpr (is_basic_big_int_v<RT>) {
         return copy_right ? binary_op_form::int_copy : binary_op_form::int_move;
     } else {
-        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("Invalid case");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("Invalid case");
     }
 }();
 
@@ -2153,7 +2153,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
         // The unary plus operator produces a prvalue, which reduces template instantiations.
         return std::forward<R>(y) * +x;
     } else {
-        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("Unknown form of multiplication.");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("Unknown form of multiplication.");
     }
 }
 
@@ -2870,7 +2870,7 @@ template <char... digits>
         return big_int(limbs.data(), limbs.data() + limbs.size());
     } else {
         static_assert(detail::parse_non_allocating<buffer>::ec == std::errc::invalid_argument);
-        BEMAN_BIG_INT_STATIC_ASSERT_LEGACY_COMPILERS("The given literal is not a valid integer-literal.");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("The given literal is not a valid integer-literal.");
     }
 }
 
