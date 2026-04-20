@@ -2665,8 +2665,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     BEMAN_BIG_INT_DEBUG_ASSERT(first_result.ec == std::errc{});
     out = leading_digits;
 
-    for (const char* current_first = current_begin + first_block_length;
-         current_first != current_end;
+    for (const char* current_first = current_begin + first_block_length; current_first != current_end;
          current_first += max_digits_per_iteration) {
         const char* const current_last = std::min(current_first + max_digits_per_iteration, current_end);
 
