@@ -250,10 +250,10 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
 
         uint_multiprecision_t mul_carry = 0;
         for (std::size_t i = 0; i < divisor.size(); ++i) {
-            const auto [lo, hi] = widening_mul(divisor[i], guess);
-            const auto [sum, carry]   = carrying_add(lo, mul_carry);
-            t_full[i + shift]   = sum;
-            mul_carry           = hi + static_cast<uint_multiprecision_t>(carry);
+            const auto [lo, hi]     = widening_mul(divisor[i], guess);
+            const auto [sum, carry] = carrying_add(lo, mul_carry);
+            t_full[i + shift]       = sum;
+            mul_carry               = hi + static_cast<uint_multiprecision_t>(carry);
         }
         std::size_t t_size = divisor.size() + shift;
         if (mul_carry != 0) {
