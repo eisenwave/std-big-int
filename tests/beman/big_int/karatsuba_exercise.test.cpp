@@ -1,4 +1,5 @@
-
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
 // cd C:\Users\ckorm\Documents\Ks\PC_Software\Test
 // set
 // GCC=C:\Users\ckorm\Documents\Ks\uC_Software\Boards\real-time-cpp\ref_app\tools\Util\msys64\usr\local\gcc-13.2.0-x86_64-w64-mingw32\bin\g++.exe
