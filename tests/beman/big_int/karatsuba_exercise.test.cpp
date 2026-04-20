@@ -38,25 +38,19 @@ using random_engine_limb_type = ::std::mt19937_64;
 using random_engine_length_type =
     ::std::linear_congruential_engine<::std::uint32_t, UINT32_C(48271), UINT32_C(0), UINT32_C(2147483647)>;
 
-random_engine_limb_type generator_limb
-    {detail::time_point<typename random_engine_limb_type::result_type>()};
-random_engine_length_type generator_length
-    {detail::time_point<typename random_engine_length_type::result_type>()};
+random_engine_limb_type   generator_limb{detail::time_point<typename random_engine_limb_type::result_type>()};
+random_engine_length_type generator_length{detail::time_point<typename random_engine_length_type::result_type>()};
 
-std::uniform_int_distribution distribution_limb
-    {UINT64_C(0x0000000000000001), UINT64_C(0xFFFFFFFFFFFFFFFF)};
-std::uniform_int_distribution distribution_length
-    {std::size_t { UINT8_C(48) }, std::size_t{UINT8_C(128)}};
+std::uniform_int_distribution distribution_limb{UINT64_C(0x0000000000000001), UINT64_C(0xFFFFFFFFFFFFFFFF)};
+std::uniform_int_distribution distribution_length{std::size_t{UINT8_C(48)}, std::size_t{UINT8_C(128)}};
 
-constexpr std::streamsize limb_chars
-    {static_cast<std::streamsize>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits / 4)};
-constexpr unsigned limb_width
-    {static_cast<unsigned>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits)};
+constexpr std::streamsize limb_chars{
+    static_cast<std::streamsize>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits / 4)};
+constexpr unsigned limb_width{
+    static_cast<unsigned>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits)};
 
-template<class IntegralTimePointType,
-         class ClockType>
-auto time_point() -> IntegralTimePointType
-{
+template <class IntegralTimePointType, class ClockType>
+auto time_point() -> IntegralTimePointType {
     using local_integral_time_point_type = IntegralTimePointType;
     using local_clock_type               = ClockType;
 
