@@ -25,13 +25,13 @@ namespace detail {
 template <class IntegralTimePointType, class ClockType = std::chrono::high_resolution_clock>
 auto time_point() -> IntegralTimePointType;
 
-auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = nullptr) ->
-std::pair<beman::big_int::big_int, beman::big_int::big_int>;
+auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = nullptr)
+    -> std::pair<beman::big_int::big_int, beman::big_int::big_int>;
 
 auto int_string_clz(std::string& str) -> void;
 
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb)
-    -> std::string;
+auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
+std::string;
 
 using random_engine_limb_type = ::std::mt19937_64;
 using random_engine_length_type =
@@ -62,8 +62,8 @@ auto time_point() -> IntegralTimePointType {
 // Build a pair of big_int from little-endian arrays of 64-bit limbs
 // having random lengths and random limb content. Do not rely on
 // std::from_range, which is not yet available on every toolchain in CI.
-auto make_from_limbs(std::string* p_str_a, std::string* p_str_b) ->
-    std::pair<beman::big_int::big_int, beman::big_int::big_int> {
+auto make_from_limbs(std::string* p_str_a, std::string* p_str_b)
+    -> std::pair<beman::big_int::big_int, beman::big_int::big_int> {
     using local_big_int_type = beman::big_int::big_int;
 
     local_big_int_type a{0};
@@ -101,7 +101,7 @@ auto make_from_limbs(std::string* p_str_a, std::string* p_str_b) ->
         }
     }
 
-    return{ a, b };
+    return { a, b };
 }
 
 auto int_string_clz(std::string& str) -> void {
@@ -113,14 +113,13 @@ auto int_string_clz(std::string& str) -> void {
         ++clz_count;
     }
 
-    if (clz_count != std::size_t { UINT8_C(0) }) {
+    if (clz_count != std::size_t{UINT8_C(0)}) {
         str.erase(str.begin(), str.begin() + clz_count);
     }
 }
 
 auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
-std::string
-{
+std::string {
     std::stringstream strm{};
 
     strm << std::hex << std::setw(limb_chars) << std::setfill('0') << std::right << val_limb;
@@ -155,7 +154,7 @@ auto test_one_multiplication() -> bool {
     std::string str_c{};
 
     for (const auto& next_limb : c_rep) {
-        str_c.insert(std::string::size_type { UINT8_C(0) }, detail::get_next_limb_as_16char_str(next_limb));
+        str_c.insert(std::string::size_type{UINT8_C(0)}, detail::get_next_limb_as_16char_str(next_limb));
     }
 
     detail::int_string_clz(str_a);
