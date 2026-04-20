@@ -22,21 +22,20 @@ namespace local {
 
 namespace detail {
 
-template <class IntegralTimePointType,
-          class ClockType = std::chrono::high_resolution_clock>
+template <class IntegralTimePointType, class ClockType = std::chrono::high_resolution_clock>
 auto time_point() -> IntegralTimePointType;
 
-auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = nullptr)
-    -> std::pair<beman::big_int::big_int, beman::big_int::big_int>;
+auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = nullptr) ->
+std::pair<beman::big_int::big_int, beman::big_int::big_int>;
 
 auto int_string_clz(std::string& str) -> void;
 
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb)
-    -> std::string;
+auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
+std::string;
 
 using random_engine_limb_type = ::std::mt19937_64;
 using random_engine_length_type =
-    ::std::linear_congruential_engine<::std::uint32_t, UINT32_C(48271), UINT32_C(0), UINT32_C(2147483647)>;
+::std::linear_congruential_engine<::std::uint32_t, UINT32_C(48271), UINT32_C(0), UINT32_C(2147483647)>;
 
 random_engine_limb_type   generator_limb{detail::time_point<typename random_engine_limb_type::result_type>()};
 random_engine_length_type generator_length{detail::time_point<typename random_engine_length_type::result_type>()};
@@ -66,13 +65,12 @@ auto time_point() -> IntegralTimePointType {
     return static_cast<local_integral_time_point_type>(current_now);
 }
 
-auto make_from_limbs(std::string* p_str_a, std::string* p_str_b)
-    -> std::pair<beman::big_int::big_int, beman::big_int::big_int>
+// Build a pair of big_int from little-endian arrays of 64-bit limbs
+// having random lengths and random limb content. Do not rely on
+// std::from_range, which is not yet available on every toolchain in CI.
+auto make_from_limbs(std::string* p_str_a, std::string* p_str_b) ->
+std::pair<beman::big_int::big_int, beman::big_int::big_int>
 {
-    // Build a pair of big_int from little-endian arrays of 64-bit limbs
-    // having random lengths and random limb content. Do not rely on
-    // std::from_range, which is not yet available on every toolchain in CI.
-
     using local_big_int_type = beman::big_int::big_int;
 
     local_big_int_type a{0};
@@ -81,12 +79,18 @@ auto make_from_limbs(std::string* p_str_a, std::string* p_str_b)
     std::size_t len_a{distribution_length(generator_length)};
     std::size_t len_b{distribution_length(generator_length)};
 
-    if (p_str_a != nullptr) { *p_str_a = ""; };
-    if (p_str_b != nullptr) { *p_str_b = ""; };
+    if (p_str_a != nullptr)
+    {
+        *p_str_a = "";
+    };
+    if (p_str_b != nullptr)
+    {
+        *p_str_b = "";
+    };
 
     for (std::size_t i = len_a; i > 0; --i)
     {
-        const beman::big_int::uint_multiprecision_t next_limb { distribution_limb(generator_limb) };
+        const beman::big_int::uint_multiprecision_t next_limb{distribution_limb(generator_limb)};
 
         a <<= limb_width;
         a = a + next_limb;
@@ -116,15 +120,18 @@ auto int_string_clz(std::string& str) -> void
 
     auto str_itr = str.cbegin();
 
-    while(*str_itr++ == '0') { ++clz_count; }
+    while (*str_itr++ == '0')
+    {
+        ++clz_count;
+    }
 
     if (clz_count != std::size_t { UINT8_C(0) }) {
         str.erase(str.begin(), str.begin() + clz_count);
     }
 }
 
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb)
-    -> std::string
+auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
+    std::string
 {
     std::stringstream strm{};
 
@@ -156,7 +163,7 @@ auto test_one_multiplication() -> bool
 
     const auto ab_pair{detail::make_from_limbs(&str_a, &str_b)};
 
-    const local_big_int_type c { ab_pair.first * ab_pair.second };
+    const local_big_int_type c{ab_pair.first * ab_pair.second};
 
     const auto& c_rep{c.representation()};
 
@@ -179,7 +186,7 @@ auto test_one_multiplication() -> bool
     return result_is_ok;
 }
 
-} /// namespace local
+} // namespace local
 
 TEST(Multiplication, KaratsubaExercise01) {
     // For future reference, include a sample Mathematica session that
@@ -205,8 +212,7 @@ TEST(Multiplication, KaratsubaExercise01) {
             const bool result_one_multiplication_is_ok{local::test_one_multiplication()};
 
             result_is_ok = (result_one_multiplication_is_ok && result_is_ok);
-        }
-        catch (...) {
+        } catch (...) {
             result_is_ok = false;
         }
 
