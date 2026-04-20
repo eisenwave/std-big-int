@@ -71,7 +71,8 @@ auto common_big_int_type_impl() {
 }
 
 template <class L, class R>
-using common_big_int_type = decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
+using common_big_int_type =
+    typename decltype(common_big_int_type_impl<std::remove_cvref_t<L>, std::remove_cvref_t<R>>())::type;
 
 template <class T, class U>
 concept common_big_int_type_with = requires { typename common_big_int_type<T, U>; };
@@ -157,7 +158,7 @@ template <bitwise_op op, cv_unqualified_integral T>
     } else if constexpr (op == bitwise_op::xor_) {
         return static_cast<T>(x ^ y);
     } else {
-        static_assert(false, "Unsupported operation.");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("Unsupported operation.");
     }
 }
 
@@ -177,8 +178,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
   public:
     using allocator_type = Allocator;
     using size_type      = std::size_t;
-    using pointer        = std::allocator_traits<Allocator>::pointer;
-    using const_pointer  = std::allocator_traits<Allocator>::const_pointer;
+    using pointer        = typename std::allocator_traits<Allocator>::pointer;
+    using const_pointer  = typename std::allocator_traits<Allocator>::const_pointer;
     static_assert(std::is_same_v<typename Allocator::value_type, uint_multiprecision_t>,
                   "Allocator::value_type must be uint_multiprecision_t.");
 
@@ -703,7 +704,7 @@ constexpr auto basic_big_int<b, A>::limb_ptr() noexcept -> limb_type* {
 }
 
 template <std::size_t b, class A>
-constexpr const basic_big_int<b, A>::limb_type* basic_big_int<b, A>::limb_ptr() const noexcept {
+constexpr const typename basic_big_int<b, A>::limb_type* basic_big_int<b, A>::limb_ptr() const noexcept {
     return is_storage_static() ? m_storage.limbs : m_storage.data;
 }
 
@@ -1019,7 +1020,7 @@ constexpr std::span<const uint_multiprecision_t> basic_big_int<b, A>::representa
 }
 
 template <std::size_t b, class A>
-constexpr basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator() const noexcept {
+constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator() const noexcept {
     return m_alloc;
 }
 
@@ -1376,7 +1377,7 @@ inline constexpr binary_op_form classify_form_v = [] {
     } else if constexpr (is_basic_big_int_v<RT>) {
         return copy_right ? binary_op_form::int_copy : binary_op_form::int_move;
     } else {
-        static_assert(false, "Invalid case");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("Invalid case");
     }
 }();
 
@@ -1578,7 +1579,7 @@ template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
     using Result        = std::remove_cvref_t<T>;
-    using shift_type    = Result::shift_type;
+    using shift_type    = typename Result::shift_type;
     constexpr auto form = detail::classify_form_v<T, S>;
 
     if constexpr (std::is_signed_v<S>) {
@@ -1614,7 +1615,7 @@ template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
     using Result        = std::remove_cvref_t<T>;
-    using shift_type    = Result::shift_type;
+    using shift_type    = typename Result::shift_type;
     constexpr auto form = detail::classify_form_v<T, S>;
 
     if constexpr (std::is_signed_v<S>) {
@@ -2152,7 +2153,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
         // The unary plus operator produces a prvalue, which reduces template instantiations.
         return std::forward<R>(y) * +x;
     } else {
-        static_assert(false, "Unknown form of multiplication.");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("Unknown form of multiplication.");
     }
 }
 
@@ -2869,7 +2870,7 @@ template <char... digits>
         return big_int(limbs.data(), limbs.data() + limbs.size());
     } else {
         static_assert(detail::parse_non_allocating<buffer>::ec == std::errc::invalid_argument);
-        static_assert(false, "The given literal is not a valid integer-literal.");
+        BEMAN_BIG_INT_STATIC_ASSERT_FALSE("The given literal is not a valid integer-literal.");
     }
 }
 

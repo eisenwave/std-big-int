@@ -37,7 +37,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 template <class Allocator>
 struct scratch_allocator {
     using alloc_traits = std::allocator_traits<Allocator>;
-    using pointer      = alloc_traits::pointer;
+    using pointer      = typename alloc_traits::pointer;
 
     BEMAN_BIG_INT_NO_UNIQUE_ADDRESS Allocator m_alloc;
     pointer                                   m_base;
@@ -218,7 +218,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
                                   scratch_allocator<Allocator>&          scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + b.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size(a) + trimmed_size(b));
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 
@@ -239,8 +239,8 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     // where B = 2^bits_per_limb
     const auto a_l = a.first(std::min(a.size(), n));
 
-    const uint_multiprecision_t zero = 0;
-    const auto                  a_h  = a.size() > n ? a.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
+    const uint_multiprecision_t zero{0U};
+    const auto                  a_h = a.size() > n ? a.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
 
     const auto b_l = b.first(std::min(b.size(), n));
     const auto b_h = b.size() > n ? b.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
@@ -264,8 +264,8 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     //
     // result[0, 2*n) = result_low (will hold a_l * b_l)
     // result[2*n, result.size()) = result_high (will hold a_h * b_h)
-    const auto result_low  = result.first(2 * n);
-    const auto result_high = result.size() > 2 * n ? result.subspan(2 * n) : std::span<uint_multiprecision_t>{};
+    auto result_low  = result.first(2 * n);
+    auto result_high = result.size() > 2 * n ? result.subspan(2 * n) : std::span<uint_multiprecision_t>{};
 
     // Compute result_low = a_l * b_l
     multiply_karatsuba(result_low, a_l, b_l, scratch);
@@ -277,12 +277,17 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
 
     // Compute result_high = a_h * b_h
     if (!result_high.empty()) {
-        multiply_karatsuba(result_high, a_h, b_h, scratch);
-        const std::size_t result_high_size =
-            trimmed_size(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
+        if ((a.size() > n) && (b.size() > n)) {
+            multiply_karatsuba(result_high, a_h, b_h, scratch);
 
-        // Zero unused limbs in result_high region
-        std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
+            const std::size_t result_high_size =
+                trimmed_size(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
+
+            // Zero unused limbs in result_high region
+            std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
+        } else {
+            result_high = std::span<uint_multiprecision_t>{};
+        }
     }
 
     // Compute t2 = a_h + a_l
