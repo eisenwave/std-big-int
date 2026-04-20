@@ -157,7 +157,10 @@ template <bitwise_op op, cv_unqualified_integral T>
     } else if constexpr (op == bitwise_op::xor_) {
         return static_cast<T>(x ^ y);
     } else {
+#if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC < 13)))
+#else
         static_assert(false, "Unsupported operation.");
+#endif
     }
 }
 
@@ -1360,7 +1363,10 @@ inline constexpr binary_op_form classify_form_v = [] {
     } else if constexpr (is_basic_big_int_v<RT>) {
         return copy_right ? binary_op_form::int_copy : binary_op_form::int_move;
     } else {
+#if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC < 13)))
+#else
         static_assert(false, "Invalid case");
+#endif
     }
 }();
 
@@ -2813,7 +2819,10 @@ template <char... digits>
         return big_int(limbs.data(), limbs.data() + limbs.size());
     } else {
         static_assert(detail::parse_non_allocating<buffer>::ec == std::errc::invalid_argument);
+#if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC < 13)))
+#else
         static_assert(false, "The given literal is not a valid integer-literal.");
+#endif
     }
 }
 
