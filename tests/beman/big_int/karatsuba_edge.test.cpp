@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 
 #if defined(BEMAN_BIG_INT_MSVC)
-#include <string>
+    #include <string>
 #endif
 
 TEST(Multiplication, KaratsubaEdge01) {
