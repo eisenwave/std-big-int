@@ -285,8 +285,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
 
             // Zero unused limbs in result_high region
             std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
-        }
-        else {
+        } else {
             result_high = std::span<uint_multiprecision_t>{};
         }
     }
