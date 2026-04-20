@@ -35,7 +35,7 @@ using cpp_int = ::boost::multiprecision::cpp_int;
 // Generates a random hex string for a size of exactly `bits` bits,
 // meaning the MSB is 1 (so the value is in [2^(bits-1), 2^bits)).
 // `bits == 0` returns "0".
-[[nodiscard]] inline std::string random_hex_of_bits(std::mt19937_64& rng, std::size_t bits) {
+[[nodiscard]] inline std::string random_hex_of_bits(std::mt19937_64& rng, const std::size_t bits) {
     static constexpr char table[] = "0123456789abcdef";
     if (bits == 0) {
         return std::string{"0"};
@@ -59,7 +59,7 @@ using cpp_int = ::boost::multiprecision::cpp_int;
 }
 
 // Parses a signed hex string (e.g. "deadbeef" or "-deadbeef"; no "0x" prefix) into a beman::big_int.
-[[nodiscard]] inline ::beman::big_int::big_int parse_big_int(std::string_view signed_hex) {
+[[nodiscard]] inline ::beman::big_int::big_int parse_big_int(const std::string_view signed_hex) {
     ::beman::big_int::big_int out;
     const char* const         first = signed_hex.data();
     const char* const         last  = first + signed_hex.size();
@@ -84,7 +84,7 @@ using cpp_int = ::boost::multiprecision::cpp_int;
 }
 
 // Returns the number of bytes before the trailing run of zero bytes.
-[[nodiscard]] inline std::size_t significant_byte_len(std::span<const std::byte> bytes) noexcept {
+[[nodiscard]] inline std::size_t significant_byte_len(const std::span<const std::byte> bytes) noexcept {
     std::size_t n = bytes.size();
     while (n > 0 && bytes[n - 1] == std::byte{0}) {
         --n;
@@ -144,7 +144,7 @@ using cpp_int = ::boost::multiprecision::cpp_int;
 //     EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "deadbeefcafebabe", "1234567890abcdef"));
 template <class BinOp>
 [[nodiscard]] inline ::testing::AssertionResult
-check_cpp_int_equal(BinOp&& op, std::string_view lhs, std::string_view rhs) {
+check_cpp_int_equal(BinOp&& op, const std::string_view lhs, const std::string_view rhs) {
     const auto a_bn = detail::parse_big_int(lhs);
     const auto b_bn = detail::parse_big_int(rhs);
     const auto a_cp = detail::parse_cpp_int(lhs);
@@ -162,7 +162,7 @@ check_cpp_int_equal(BinOp&& op, std::string_view lhs, std::string_view rhs) {
 // Uses a function-local std::mt19937_64 seeded with the fixed value 42 so
 // that the sequence is deterministic across runs.
 // The RNG state advances on every call and is shared across all callers of this function.
-[[nodiscard]] inline std::string random_big_int(std::size_t bits, bool negative = false) {
+[[nodiscard]] inline std::string random_big_int(const std::size_t bits, const bool negative = false) {
     // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp) - deterministic seed is intentional for test reproducibility.
     static std::mt19937_64 rng{42};
     if (bits == 0) {
