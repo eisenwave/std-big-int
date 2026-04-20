@@ -15,20 +15,22 @@ namespace detail {
 using random_engine_length_type =
     ::std::linear_congruential_engine<::std::uint32_t, UINT32_C(48271), UINT32_C(0), UINT32_C(2147483647)>;
 
-random_engine_length_type generator_length{detail::time_point<typename random_engine_length_type::result_type>()};
+random_engine_length_type generator_limb_length{static_cast<typename random_engine_length_type::result_type>(42)};
 
-std::uniform_int_distribution distribution_length{std::size_t{UINT8_C(48)}, std::size_t{UINT8_C(128)}};
+std::uniform_int_distribution distribution_limb_length{std::size_t{UINT8_C(48)}, std::size_t{UINT8_C(128)}};
 
 } // namespace detail
 
 auto test_one_multiplication() -> void {
-    std::size_t len_a{detail::distribution_length(detail::generator_length)};
-    std::size_t len_b{detail::distribution_length(detail::generator_length)};
+    constexpr std::size_t limb_bits{static_cast<std::size_t>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    std::string str_a{random_big_int(len_a)};
-    std::string str_b{random_big_int(len_b)};
+    std::size_t len_a_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
+    std::size_t len_b_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
 
-    EXPECT_TRUE(check_cpp_int_equal(std::multiplies<>{}, str_a, str_b));
+    std::string str_a{bmp::random_big_int(len_a_in_bits)};
+    std::string str_b{bmp::random_big_int(len_b_in_bits)};
+
+    EXPECT_TRUE(bmp::check_cpp_int_equal(std::multiplies<>{}, str_a, str_b));
 }
 
 } // namespace local
@@ -51,6 +53,6 @@ TEST(Multiplication, KaratsubaExercise01) {
     for (unsigned index{0U}; index < trials; ++index) {
         static_cast<void>(index);
 
-        const bool result_one_multiplication_is_ok{local::test_one_multiplication()};
+        local::test_one_multiplication();
     }
 }
