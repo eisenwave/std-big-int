@@ -30,8 +30,7 @@ auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = null
 
 auto int_string_clz(std::string& str) -> void;
 
-auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) ->
-std::string;
+auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb) -> std::string;
 
 using random_engine_limb_type = ::std::mt19937_64;
 using random_engine_length_type =
