@@ -25,11 +25,11 @@ auto test_one_multiplication() -> void {
     constexpr std::size_t limb_bits{
         static_cast<std::size_t>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    std::size_t len_a_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
-    std::size_t len_b_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
+    const std::size_t len_a_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
+    const std::size_t len_b_in_bits{detail::distribution_limb_length(detail::generator_limb_length) * limb_bits};
 
-    std::string str_a{bmp::random_big_int(len_a_in_bits)};
-    std::string str_b{bmp::random_big_int(len_b_in_bits)};
+    const std::string str_a{bmp::random_big_int(len_a_in_bits)};
+    const std::string str_b{bmp::random_big_int(len_b_in_bits)};
 
     EXPECT_TRUE(bmp::check_cpp_int_equal(std::multiplies<>{}, str_a, str_b));
 }
