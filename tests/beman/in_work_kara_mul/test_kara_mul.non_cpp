@@ -22,7 +22,8 @@ namespace detail {
 template <typename IntegralTimePointType, typename ClockType = std::chrono::high_resolution_clock>
 auto time_point() -> IntegralTimePointType;
 
-auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = nullptr) -> std::pair<beman::big_int::big_int, beman::big_int::big_int>;
+auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = nullptr)
+    -> std::pair<beman::big_int::big_int, beman::big_int::big_int>;
 
 auto int_string_clz(std::string& str) -> void;
 
