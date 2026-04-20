@@ -63,7 +63,7 @@ inline ::beman::big_int::big_int parse_big_int(std::string_view signed_hex) {
     ::beman::big_int::big_int out;
     const char* const         first = signed_hex.data();
     const char* const         last  = first + signed_hex.size();
-    const auto [p, ec]               = ::beman::big_int::from_chars(first, last, out, 16);
+    const auto [p, ec]              = ::beman::big_int::from_chars(first, last, out, 16);
     if (ec != std::errc{} || p != last) {
         throw std::runtime_error("parse_big_int: from_chars failed to parse hex string");
     }
@@ -107,7 +107,8 @@ inline std::size_t trimmed_len(const ::beman::big_int::uint_multiprecision_t* li
         const bool bn_neg = (bn < 0);
         const bool cp_neg = cp.backend().sign();
         if (bn_neg != cp_neg) {
-            return ::testing::AssertionFailure() << "sign mismatch: big_int<0=" << bn_neg << " cpp_int.sign()=" << cp_neg;
+            return ::testing::AssertionFailure()
+                   << "sign mismatch: big_int<0=" << bn_neg << " cpp_int.sign()=" << cp_neg;
         }
     }
 

@@ -20,22 +20,20 @@ using bmp::random_big_int;
 
 TEST(VsCppInt, AddSpecific) {
     EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "1", "1"));
-    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "ffffffffffffffff", "1"));                  // limb carry out
-    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "ffffffffffffffffffffffffffffffff", "1"));  // two-limb carry out
-    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "-deadbeef", "deadbeef"));                  // cancel to zero
-    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{},
-                                    "deadbeefcafebabef00dfacec0ffee1234567890abcdef",
-                                    "1234567890abcdeffedcba9876543210"));
+    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "ffffffffffffffff", "1"));                 // limb carry out
+    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "ffffffffffffffffffffffffffffffff", "1")); // two-limb carry out
+    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "-deadbeef", "deadbeef"));                 // cancel to zero
+    EXPECT_TRUE(check_cpp_int_equal(
+        std::plus<>{}, "deadbeefcafebabef00dfacec0ffee1234567890abcdef", "1234567890abcdeffedcba9876543210"));
 }
 
 TEST(VsCppInt, SubSpecific) {
     EXPECT_TRUE(check_cpp_int_equal(std::minus<>{}, "1", "1"));
-    EXPECT_TRUE(check_cpp_int_equal(std::minus<>{}, "10000000000000000", "1"));  // borrow through limb
-    EXPECT_TRUE(check_cpp_int_equal(std::minus<>{}, "1", "10000000000000000"));  // negative result
+    EXPECT_TRUE(check_cpp_int_equal(std::minus<>{}, "10000000000000000", "1")); // borrow through limb
+    EXPECT_TRUE(check_cpp_int_equal(std::minus<>{}, "1", "10000000000000000")); // negative result
     EXPECT_TRUE(check_cpp_int_equal(std::minus<>{}, "-ffffffff", "-ffffffff")); // negative cancel
-    EXPECT_TRUE(check_cpp_int_equal(std::minus<>{},
-                                    "deadbeefcafebabef00dfacec0ffee1234567890abcdef",
-                                    "1234567890abcdeffedcba9876543210"));
+    EXPECT_TRUE(check_cpp_int_equal(
+        std::minus<>{}, "deadbeefcafebabef00dfacec0ffee1234567890abcdef", "1234567890abcdeffedcba9876543210"));
 }
 
 TEST(VsCppInt, MulSpecific) {
@@ -43,9 +41,8 @@ TEST(VsCppInt, MulSpecific) {
     EXPECT_TRUE(check_cpp_int_equal(std::multiplies<>{}, "ffffffff", "ffffffff"));
     EXPECT_TRUE(check_cpp_int_equal(std::multiplies<>{}, "ffffffffffffffff", "ffffffffffffffff"));
     EXPECT_TRUE(check_cpp_int_equal(std::multiplies<>{}, "-abcdef", "123456"));
-    EXPECT_TRUE(check_cpp_int_equal(std::multiplies<>{},
-                                    "deadbeefcafebabef00dfacec0ffee1234567890abcdef",
-                                    "1234567890abcdeffedcba9876543210"));
+    EXPECT_TRUE(check_cpp_int_equal(
+        std::multiplies<>{}, "deadbeefcafebabef00dfacec0ffee1234567890abcdef", "1234567890abcdeffedcba9876543210"));
 }
 
 // ----- random parity sweep -----
@@ -82,18 +79,12 @@ TEST(VsCppInt, MulRandom) { run_parity_sweep(std::multiplies<>{}); }
 // hit on its own.
 TEST(VsCppInt, ZeroCornerCases) {
     EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "0", "0"));
-    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{},
-                                    "deadbeefcafebabef00dfacec0ffee1234567890abcdef",
-                                    "0"));
-    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{},
-                                    "0",
-                                    "deadbeefcafebabef00dfacec0ffee1234567890abcdef"));
+    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "deadbeefcafebabef00dfacec0ffee1234567890abcdef", "0"));
+    EXPECT_TRUE(check_cpp_int_equal(std::plus<>{}, "0", "deadbeefcafebabef00dfacec0ffee1234567890abcdef"));
     EXPECT_TRUE(check_cpp_int_equal(std::minus<>{},
                                     "deadbeefcafebabef00dfacec0ffee1234567890abcdef",
                                     "deadbeefcafebabef00dfacec0ffee1234567890abcdef"));
-    EXPECT_TRUE(check_cpp_int_equal(std::multiplies<>{},
-                                    "deadbeefcafebabef00dfacec0ffee1234567890abcdef",
-                                    "0"));
+    EXPECT_TRUE(check_cpp_int_equal(std::multiplies<>{}, "deadbeefcafebabef00dfacec0ffee1234567890abcdef", "0"));
 }
 
 } // namespace
