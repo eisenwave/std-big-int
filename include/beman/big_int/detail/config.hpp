@@ -37,9 +37,7 @@
 #endif
 
 // Unsupported static_assert to nothing (for old compilers) ==============
-#if   (defined(BEMAN_BIG_INT_CLANG) && (BEMAN_BIG_INT_CLANG < 16))
-    #define BEMAN_BIG_INT_STATIC_ASSERT_FALSE(...)
-#elif (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC <= 13))
+#if (!defined(BEMAN_BIG_INT_CLANG) && (defined(BEMAN_BIG_INT_GCC) && (BEMAN_BIG_INT_GCC <= 13)))
     #define BEMAN_BIG_INT_STATIC_ASSERT_FALSE(...)
 #else
     #define BEMAN_BIG_INT_STATIC_ASSERT_FALSE(...) static_assert(false, __VA_ARGS__)

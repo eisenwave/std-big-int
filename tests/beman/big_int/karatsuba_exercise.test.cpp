@@ -12,17 +12,11 @@
 
 #include <chrono>
 #include <cstdint>
-#if defined(__cpp_lib_format) && (__cpp_lib_format >= 201907L)
-#include <format>
-#else
 #include <iomanip>
-#endif
 #include <iostream>
 #include <random>
-#include <utility>
-#if !(defined(__cpp_lib_format) && (__cpp_lib_format >= 201907L))
 #include <sstream>
-#endif
+#include <utility>
 
 namespace local {
 
@@ -37,10 +31,8 @@ auto make_from_limbs(std::string* p_str_a = nullptr, std::string* p_str_b = null
 
 auto int_string_clz(std::string& str) -> void;
 
-#if !(defined(__cpp_lib_format) && (__cpp_lib_format >= 201907L))
 auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb)
     -> std::string;
-#endif
 
 using random_engine_limb_type = ::std::mt19937_64;
 using random_engine_length_type =
@@ -106,11 +98,7 @@ auto make_from_limbs(std::string* p_str_a, std::string* p_str_b)
         a = a + next_limb;
 
         if(p_str_a != nullptr) {
-#if defined(__cpp_lib_format) && (__cpp_lib_format >= 201907L)
-            *p_str_a += std::format("{:0{}x}", next_limb, limb_chars);
-#else
             *p_str_a += get_next_limb_as_16char_str(next_limb);
-#endif
         }
     }
 
@@ -121,11 +109,7 @@ auto make_from_limbs(std::string* p_str_a, std::string* p_str_b)
         b = b + next_limb;
 
         if(p_str_b != nullptr) {
-#if defined(__cpp_lib_format) && (__cpp_lib_format >= 201907L)
-            *p_str_b += std::format("{:0{}x}", next_limb, limb_chars);
-#else
             *p_str_b += get_next_limb_as_16char_str(next_limb);
-#endif
         }
     }
 
@@ -145,7 +129,6 @@ auto int_string_clz(std::string& str) -> void
     }
 }
 
-#if !(defined(__cpp_lib_format) && (__cpp_lib_format >= 201907L))
 auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val_limb)
     -> std::string
 {
@@ -155,7 +138,6 @@ auto get_next_limb_as_16char_str(const beman::big_int::uint_multiprecision_t val
 
     return strm.str();
 }
-#endif
 
 } // namespace detail
 
@@ -190,11 +172,7 @@ auto test_one_multiplication() -> bool
         str_c.insert
         (
             std::string::size_type { UINT8_C(0) },
-#if defined(__cpp_lib_format) && (__cpp_lib_format >= 201907L)
-            std::format("{:0{}x}", next_limb, detail::limb_chars)
-#else
             detail::get_next_limb_as_16char_str(next_limb)
-#endif
         );
     }
 
