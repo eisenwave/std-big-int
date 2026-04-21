@@ -92,12 +92,10 @@ auto run_one_mersenne(const unsigned p2) -> void {
     EXPECT_EQ(result_is_ok, true);
 }
 
-// Note: We test millonns of decimal digits, since
-// 2^15317227 - 1 approx 5.989550289491989*10^4610944
-
+// Note: We test millons of decimal digits, since
 // Mathematica:
-// 2^1398269 - 1
-// IntegerString[%, 16]
+//   N[2^20996011 - 1]
+//   1.259768954503301*10^6320429
 
 constexpr std::array<unsigned, std::size_t{7}> my_mersenne_powers_of_two{
     1257787U, 1398269U, 2976221U, 3021377U, 6972593U, 13466917U, 20996011U};
