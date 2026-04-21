@@ -60,9 +60,10 @@ auto run_one_mersenne(const unsigned p2) -> void {
     const big_int_type big_int_two{2};
     const big_int_type big_int_mersenne{big_int_type{local::pow(big_int_two, p2)} - 1};
 
-    const std::span<const ::boost::multiprecision::limb_type> cpp_int_rep{cpp_int_mersenne.backend().limbs(), cpp_int_mersenne.backend().size()};
-    const auto                                                big_int_bytes = std::as_bytes(big_int_mersenne.representation());
-    const auto                                                cpp_int_bytes = std::as_bytes(cpp_int_rep);
+    const std::span<const ::boost::multiprecision::limb_type> cpp_int_rep{cpp_int_mersenne.backend().limbs(),
+                                                                          cpp_int_mersenne.backend().size()};
+    const auto big_int_bytes = std::as_bytes(big_int_mersenne.representation());
+    const auto cpp_int_bytes = std::as_bytes(cpp_int_rep);
 
     const auto big_int_sig = local::significant_byte_len(big_int_bytes);
     const auto cpp_int_sig = local::significant_byte_len(cpp_int_bytes);
