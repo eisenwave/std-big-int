@@ -300,7 +300,7 @@ TEST(Multiplication, MultiLimbSquaring) {
 TEST(Multiplication, Mersenne) {
 
     // 2^1398269 - 1
-    const std::string control_val {"8147175644125730751426772643891354260153137830850222710321145104846993\
+    const std::string control_val{"8147175644125730751426772643891354260153137830850222710321145104846993\
 8030899616083409802399485862788639879215619853405154094496852134285342\
 7072702419703892629597594868353542629161737961141702125160055820077326\
 3799735442414277195131908670821550558867195838691576491893276938825722\
@@ -6326,7 +6326,7 @@ TEST(Multiplication, Mersenne) {
     }
     result -= 1;
 
-    big_int    expected;
+    big_int expected;
     const auto [p, ec] = from_chars(control_val.data(), control_val.data() + control_val.size(), expected, 10);
     ASSERT_EQ(ec, std::errc{});
     ASSERT_EQ(p, control_val.data() + control_val.size());
