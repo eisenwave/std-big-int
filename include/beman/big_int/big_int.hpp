@@ -2239,7 +2239,6 @@ constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int&
                 return *this;
             }
         }
-        
         multiply_into(temp.representation(), temp.is_negative(), rhs.representation(), rhs.is_negative());
     } else {
         const basic_big_int temp = std::move(*this);
