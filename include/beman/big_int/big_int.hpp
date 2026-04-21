@@ -2230,14 +2230,11 @@ constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int&
         // then multiply into a new *this.
         const basic_big_int temp = std::move(*this);
         *this                    = basic_big_int{};
-
         // `rhs` may alias `*this` (e.g. `y *= y`).
         // After the move, `rhs` still references the moved-from destination, so read both operands from `temp`.
-        if constexpr (std::is_same_v<std::remove_cvref_t<T>, basic_big_int>) {
-            if (std::addressof(rhs) == this) {
-                multiply_into(temp.representation(), temp.is_negative(), temp.representation(), temp.is_negative());
-                return *this;
-            }
+        if (std::addressof(rhs) == this) {
+            multiply_into(temp.representation(), temp.is_negative(), temp.representation(), temp.is_negative());
+            return *this;
         }
         multiply_into(temp.representation(), temp.is_negative(), rhs.representation(), rhs.is_negative());
     } else {
