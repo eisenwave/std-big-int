@@ -205,6 +205,28 @@ TEST(Multiplication, CompoundAssignmentZero) {
     EXPECT_FALSE(a < 0);
 }
 
+TEST(Multiplication, CompoundAssignmentSelf) {
+    // `y *= y` must not be confused by the fact that rhs aliases *this.
+    big_int a{1000};
+    a *= a;
+    EXPECT_EQ(a, 1000000);
+
+    // Multi-limb self-squaring.
+    big_int b = big_int{1} << 80; // 2^80
+    b *= b;                       // 2^160
+    EXPECT_EQ(b, big_int{1} << 160);
+
+    // Negative self-square stays positive.
+    big_int c{-12345};
+    c *= c;
+    EXPECT_EQ(c, 12345 * 12345);
+
+    // Zero self-square.
+    big_int d{0};
+    d *= d;
+    EXPECT_EQ(d, 0);
+}
+
 TEST(Multiplication, CompoundAssignmentMultiLimb) {
     big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
     a *= big_int{2};
