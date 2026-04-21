@@ -43,7 +43,8 @@ constexpr auto pow(const IntegralType& b, unsigned p) -> IntegralType {
 }
 
 auto run_one_mersenne(const unsigned p2) -> void {
-    using cpp_int_type = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
+    using cpp_int_type =
+        boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
     using big_int_type = beman::big_int::big_int;
 
     // Mersenne prime (2^1398269 - 1) approx. 8.147175644125731*10^420920
