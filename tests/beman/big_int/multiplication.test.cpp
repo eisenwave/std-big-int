@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <bit>
 #include <cstdint>
 #include <limits>
+#include <string>
+#include <system_error>
 
 #include <gtest/gtest.h>
 
@@ -12,6 +15,7 @@ namespace {
 
 using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
+using beman::big_int::from_chars;
 using beman::big_int::uint_multiprecision_t;
 
 // ----- compile-time sanity -----
@@ -205,6 +209,28 @@ TEST(Multiplication, CompoundAssignmentZero) {
     EXPECT_FALSE(a < 0);
 }
 
+TEST(Multiplication, CompoundAssignmentSelf) {
+    // `y *= y` must not be confused by the fact that rhs aliases *this.
+    big_int a{1000};
+    a *= a;
+    EXPECT_EQ(a, 1000000);
+
+    // Multi-limb self-squaring.
+    big_int b = big_int{1} << 80; // 2^80
+    b *= b;                       // 2^160
+    EXPECT_EQ(b, big_int{1} << 160);
+
+    // Negative self-square stays positive.
+    big_int c{-12345};
+    c *= c;
+    EXPECT_EQ(c, 12345 * 12345);
+
+    // Zero self-square.
+    big_int d{0};
+    d *= d;
+    EXPECT_EQ(d, 0);
+}
+
 TEST(Multiplication, CompoundAssignmentMultiLimb) {
     big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
     a *= big_int{2};
@@ -269,6 +295,35 @@ TEST(Multiplication, MultiLimbSquaring) {
     const big_int r        = a * a;
     const big_int expected = (big_int{1} << 256) + (-(big_int{1} << 129)) + big_int{1};
     EXPECT_EQ(r, expected);
+}
+
+TEST(Multiplication, Mersenne) {
+    // 2^1398269 - 1
+    std::string control_val(349'568, 'f');
+    control_val.front() = '1';
+
+    // Compute 2^1398269 - 1 via square-and-multiply ladder.
+    constexpr std::uint32_t exponent = 1398269;
+    big_int                 result{1};
+    for (int i = std::bit_width(exponent) - 1; i >= 0; --i) {
+        result *= result;
+        if ((exponent >> i) & 1u) {
+            result *= 2;
+        }
+    }
+    result -= 1;
+
+    big_int expected;
+    const auto [p, ec] = from_chars(control_val.data(), control_val.data() + control_val.size(), expected, 16);
+    ASSERT_EQ(ec, std::errc{});
+    ASSERT_EQ(p, control_val.data() + control_val.size());
+    EXPECT_EQ(result, expected);
+
+    // Test also via shifting
+    big_int expected_shift{1};
+    expected_shift <<= 1398269;
+    expected_shift -= 1;
+    EXPECT_EQ(result, expected_shift);
 }
 
 } // namespace
