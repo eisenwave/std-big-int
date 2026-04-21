@@ -10,7 +10,7 @@
 
 namespace local {
 
-template<typename IntegralType>
+template <class IntegralType>
 constexpr auto pow(const IntegralType& b, unsigned p) -> IntegralType {
     using local_integer_type = IntegralType;
 
@@ -21,7 +21,7 @@ constexpr auto pow(const IntegralType& b, unsigned p) -> IntegralType {
     local_integer_type y{b};
 
     while (p != 0U) {
-        if (static_cast<unsigned>(p & 1U) != 0U) {
+        if ((p & 1U) != 0U) {
             result *= y;
         }
 
@@ -75,13 +75,11 @@ auto run_one_mersenne(const unsigned p2) -> void {
     bool result_bytes_same_is_ok{false};
 
     if (result_is_ok) {
-        for (std::size_t i = 0; i < big_int_sig; ++i)
-        {
+        for (std::size_t i = 0; i < big_int_sig; ++i) {
             if (big_int_bytes[i] != cpp_int_bytes[i]) {
                 result_bytes_same_is_ok = false;
                 break;
-            }
-            else {
+            } else {
                 result_bytes_same_is_ok = true;
             }
         }
@@ -101,36 +99,36 @@ auto run_one_mersenne(const unsigned p2) -> void {
 // 2^1398269 - 1
 // IntegerString[%, 16]
 
-constexpr std::array<unsigned, std::size_t{7}>
-    my_mersenne_powers_of_two{1257787U, 1398269U, 2976221U, 3021377U, 6972593U, 13466917U, 20996011U};
+constexpr std::array<unsigned, std::size_t{7}> my_mersenne_powers_of_two{
+    1257787U, 1398269U, 2976221U, 3021377U, 6972593U, 13466917U, 20996011U};
 } // namespace local
 
 // See also https://oeis.org/A057429 sequencs of Mersenne primes.
 
 TEST(Multiplication, KaratsubaMersenne00) {
-  local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{0}]);
+    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{0}]);
 }
 
 TEST(Multiplication, KaratsubaMersenne01) {
-  local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{1}]);
+    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{1}]);
 }
 
 TEST(Multiplication, KaratsubaMersenne02) {
-  local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{2}]);
+    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{2}]);
 }
 
 TEST(Multiplication, KaratsubaMersenne03) {
-  local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{3}]);
+    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{3}]);
 }
 
 TEST(Multiplication, KaratsubaMersenne04) {
-  local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{4}]);
+    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{4}]);
 }
 
 TEST(Multiplication, KaratsubaMersenne05) {
-  local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{5}]);
+    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{5}]);
 }
 
 TEST(Multiplication, KaratsubaMersenne06) {
-  local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{6}]);
+    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{6}]);
 }
