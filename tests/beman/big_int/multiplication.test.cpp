@@ -298,7 +298,7 @@ TEST(Multiplication, MultiLimbSquaring) {
 }
 
 TEST(Multiplication, Mersenne) {
-
+#ifndef _MSC_VER
     // 2^1398269 - 1
     const std::string control_val{"8147175644125730751426772643891354260153137830850222710321145104846993\
 8030899616083409802399485862788639879215619853405154094496852134285342\
@@ -6331,6 +6331,9 @@ TEST(Multiplication, Mersenne) {
     ASSERT_EQ(ec, std::errc{});
     ASSERT_EQ(p, control_val.data() + control_val.size());
     EXPECT_EQ(result, expected);
+#else
+    GTEST_SKIP() << "MSVC can't handle the control val";
+#endif
 }
 
 } // namespace
