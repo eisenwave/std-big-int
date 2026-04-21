@@ -413,23 +413,32 @@ template <unsigned_integer T>
     const bool quotient_fits = x.high_bits < y;
     if BEMAN_BIG_INT_IS_CONSTEVAL {
         BEMAN_BIG_INT_ASSERT(quotient_fits);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(quotient_fits);
     }
 
 #if BEMAN_BIG_INT_LIMB_WIDTH == 64
     // For 64-bit, there potentially exists the optimization opportunity of using a `div` instruction.
     // This is only available on x86_64, and traps if the quotient does not fit into 64 bits.
+    //
+    // We also cannot use this during constant evaluation,
+    // and if the divisor is known to the optimizer,
+    // relying on full 128-bit division is better because it can be transformed into fixed-point multiplication.
+    // Inline assembly does not get optimized.
+    // See https://quick-bench.com/q/o-0RD_0_bnc5tQqJ4o21wdeeuco
     if constexpr (width_v<T> == 64) {
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            BEMAN_BIG_INT_DEBUG_ASSERT(quotient_fits);
+            if (!BEMAN_BIG_INT_IS_CONSTANT_PROPAGATED(y)) {
     #if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
-            T q, r;
-            __asm__("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
-            return {.quotient = q, .remainder = r};
+                T q, r;
+                __asm__("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
+                return {.quotient = q, .remainder = r};
     #elif defined(_WIN32)
-            T r;
-            T q = _udiv128(static_cast<T>(x.high_bits), static_cast<T>(x.low_bits), static_cast<T>(y), &r);
-            return {.quotient = static_cast<T>(q), .remainder = static_cast<T>(r)};
+                T r;
+                T q = _udiv128(static_cast<T>(x.high_bits), static_cast<T>(x.low_bits), static_cast<T>(y), &r);
+                return {.quotient = static_cast<T>(q), .remainder = static_cast<T>(r)};
     #endif
+            }
         }
     }
 #endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
