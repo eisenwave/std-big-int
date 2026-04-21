@@ -495,6 +495,14 @@ namespace beman::big_int {
     #define BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT
 #endif // BEMAN_BIG_INT_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT
 
+// Constant propagation detection ==============================================
+
+#if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_constant_p)
+    #define BEMAN_BIG_INT_IS_CONSTANT_PROPAGATED(...) __builtin_constant_p(__VA_ARGS__)
+#else
+    #define BEMAN_BIG_INT_IS_CONSTANT_PROPAGATED(...) (void(__VA_ARGS__), false)
+#endif
+
 // =============================================================================
 
 #endif // BEMAN_BIG_INT_CONFIG_HPP
