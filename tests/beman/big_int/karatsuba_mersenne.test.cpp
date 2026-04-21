@@ -103,7 +103,7 @@ constexpr std::array<unsigned, std::size_t{7}> my_mersenne_powers_of_two{
     1257787U, 1398269U, 2976221U, 3021377U, 6972593U, 13466917U, 20996011U};
 } // namespace local
 
-// See also https://oeis.org/A057429 sequencs of Mersenne primes.
+// See also https://oeis.org/A057429 sequences of Mersenne primes.
 
 TEST(Multiplication, KaratsubaMersenne00) {
     local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{0}]);
