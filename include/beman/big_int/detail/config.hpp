@@ -428,6 +428,8 @@ struct ieee_traits<long double> : ieee_traits<double> {};
 #include <cstdio>
 #include <source_location>
 
+// LCOV_EXCL_START
+// GCOVR_EXCL_START
 namespace beman::big_int {
 
 [[noreturn]] inline void assert_fail(const char* const          source,
@@ -449,6 +451,8 @@ namespace beman::big_int {
 } // namespace beman::big_int
 
 #define BEMAN_BIG_INT_ASSERT(...) (__VA_ARGS__ ? void() : assert_fail(#__VA_ARGS__))
+// GCOVR_EXCL_STOP
+// LCOV_EXCL_STOP
 
 #ifndef NDEBUG
     #define BEMAN_BIG_INT_DEBUG_ASSERT(...) BEMAN_BIG_INT_ASSERT(__VA_ARGS__)
