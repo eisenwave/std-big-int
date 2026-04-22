@@ -1727,7 +1727,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         const shift_type x_width_mag   = static_cast<shift_type>(x.width_mag());
 
         // Case 1: Everything is discarded except the sign
-        if (shift > x_width_mag) {
+        if (shift >= x_width_mag) {
             if (x.is_negative()) {
                 return Result{-1};
             }
@@ -1740,7 +1740,8 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         // Number of limbs the shifted result actually occupies. Smaller than
         // `src_count` exactly when at least one source limb (or the top
         // limb's surviving bits) shrinks away.
-        const shift_type new_count = (x_width_mag - shift) / Result::bits_per_limb + 1;
+        const auto new_count =
+            detail::div_to_pos_inf(x_width_mag - shift, static_cast<shift_type>(Result::bits_per_limb));
 
         // Case 2: Result is strictly smaller than the source
         if (new_count < src_count) {

@@ -94,7 +94,7 @@ TEST(BasicConstruction, NonDefaultInplaceBits) {
 
 TEST(BasicConstruction, IntegralConstruction) {
     beman::big_int::big_int x(42);
-    EXPECT_EQ(x.width_mag(), 5U);
+    EXPECT_EQ(x.width_mag(), 6U);
     EXPECT_EQ(x.representation()[0], 42U);
 }
 
@@ -106,7 +106,7 @@ TEST(BasicConstruction, IntegralConstructionNegative) {
 TEST(BasicConstruction, IntegralConstructionWithAllocator) {
     std::allocator<beman::big_int::uint_multiprecision_t> a;
     beman::big_int::big_int                               x(42, a);
-    EXPECT_EQ(x.width_mag(), 5U);
+    EXPECT_EQ(x.width_mag(), 6U);
     EXPECT_EQ(x.representation()[0], 42U);
 }
 
