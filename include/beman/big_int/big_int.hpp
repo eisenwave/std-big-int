@@ -2908,13 +2908,15 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
         if (width <= detail::width_v<uint_multiprecision_t>) {
             // The super happy case is that we can use the std::to_chars implementation for a single limb.
             return std::to_chars(current_begin, end, x.template to<uint_multiprecision_t, ignore_sign>(), base);
-        } else if (width <= detail::width_v<std::uintmax_t>) {
+        } else if constexpr (detail::width_v<uint_multiprecision_t> < detail::width_v<std::uintmax_t>) {
             // The slightly less happy case is that we need to use
             // the multiprecision implementation of `std::to_chars`.
             // While we could skip the previous "super happy" check, it may be cheaper to dispatch here
             // because `std::to_chars` would otherwise need to re-check
             // whether it can delegate to a single-limb implementation itself.
-            return std::to_chars(current_begin, end, x.template to<std::uintmax_t, ignore_sign>(), base);
+            if (width <= detail::width_v<std::uintmax_t>) {
+                return std::to_chars(current_begin, end, x.template to<std::uintmax_t, ignore_sign>(), base);
+            }
         }
     }
 
