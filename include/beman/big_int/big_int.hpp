@@ -247,10 +247,6 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{} {
         if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
-#ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
-            static_assert(!std::is_same_v<std::remove_cvref_t<T>, long double>,
-                          "long double is not supported on this platform");
-#endif
             assign_from_float(value);
         } else {
             if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
@@ -814,24 +810,11 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
     detail::no_alloc_constructible_from<inplace_bits, T>)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
     if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
-#ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
-        static_assert(!std::is_same_v<std::remove_cvref_t<T>, long double>,
-                      "long double is not supported on this platform");
-#endif
-        assign_from_float(static_cast<std::remove_cvref_t<T>>(value));
+        assign_from_float(value);
     } else {
         if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
-            set_sign(value < std::remove_cvref_t<T>{0});
-            using U = std::make_unsigned_t<std::remove_cvref_t<T>>;
-
-#ifdef BEMAN_BIG_INT_MSVC
-    #pragma warning(push)
-    #pragma warning(disable : 4146) // unary minus on unsigned is intentional
-#endif
-            assign_magnitude(is_negative() ? static_cast<U>(U{0} - static_cast<U>(value)) : static_cast<U>(value));
-#ifdef BEMAN_BIG_INT_MSVC
-    #pragma warning(pop)
-#endif
+            set_sign(value < 0);
+            assign_magnitude(detail::uabs(value));
         } else {
             assign_magnitude(value);
         }
@@ -2562,7 +2545,9 @@ constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
 template <std::size_t b, class A>
 template <detail::cv_unqualified_floating_point F>
 constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
-
+#ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
+    static_assert(!std::is_same_v<F, long double>, "long double is not supported on this platform");
+#endif
     BEMAN_BIG_INT_ASSERT(std::isfinite(value));
 
     using traits = detail::ieee_traits<F>;
