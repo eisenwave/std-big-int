@@ -172,10 +172,13 @@ struct access_bypass;
 template <std::size_t min_inplace_bits, class Allocator>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
-    using limb_type               = uint_multiprecision_t;
+    using limb_type        = uint_multiprecision_t;
+    using signed_limb_type = detail::int_multiprecision_t;
+
+#ifdef BEMAN_BIG_INT_HAS_WIDE_INT
     using double_limb_type        = detail::uint_wide_t;
-    using signed_limb_type        = detail::int_multiprecision_t;
     using signed_double_limb_type = detail::int_wide_t;
+#endif
 
   public:
     using allocator_type = Allocator;
