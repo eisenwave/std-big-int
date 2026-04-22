@@ -2927,6 +2927,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
     switch (base) {
     // TODO(eisenwave): Make extra cases for 2 and 16 because those have special properties.
     case 2:
+    case 4:
     case 8:
     case 16:
     case 32: {
@@ -2984,7 +2985,6 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
     }
 
     case 3:
-    case 4:
     case 5:
     case 6:
     case 7:
