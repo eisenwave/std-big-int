@@ -586,15 +586,34 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     // If `true`, `inplace_to_bit_uint` may be called.
     // Otherwise, the function is deleted.
-    static constexpr bool has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
-    [[nodiscard]] BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT auto
-    inplace_to_bit_uint() const noexcept
+    static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
+    [[nodiscard]] constexpr auto inplace_to_bit_uint() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
         requires has_inplace_to_bit_uint
     {
-        static_assert(std::has_unique_object_representations_v<decltype(m_storage.limbs)>,
-                      "Bit-casting doesn't work when there is padding.");
-        return std::bit_cast<unsigned _BitInt(inplace_bits)>(m_storage.limbs);
+        static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
+                      "_BitInt conversion doesn't work when there is padding.");
+        BEMAN_BIG_INT_DEBUG_ASSERT(is_representation_inplace());
+
+        using Result = unsigned _BitInt(inplace_bits);
+        if constexpr (inplace_bits == bits_per_limb) {
+            // If there is only a single inplace limb,
+            // static_cast and std::bit_cast are equivalent.
+            // This special case also makes the <<= below safe.
+            return static_cast<Result>(m_storage.limbs[0]);
+        } else if constexpr (std::endian::native == std::endian::little) {
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                return std::bit_cast<Result>(m_storage.limbs);
+            }
+        }
+        // Naive fallback implementation always works.
+        // This is needed for big endian and when neither static_cast nor bit_cast work.
+        Result result = 0;
+        for (const uint_multiprecision_t limb : m_storage.limbs) {
+            result <<= bits_per_limb;
+            result |= limb;
+        }
+        return result;
     }
 #else
         = delete;
@@ -602,12 +621,13 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     // If `true`, `inplace_to_wide_bit_uint` may be called.
     // Otherwise, the function is deleted.
-    static constexpr bool has_inplace_to_wide_bit_uint = inplace_bits * 2 <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
-    [[nodiscard]] BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT auto
-    inplace_to_wide_bit_uint() const noexcept
+    static constexpr bool        has_inplace_to_wide_bit_uint = inplace_bits * 2 <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
+    [[nodiscard]] constexpr auto inplace_to_wide_bit_uint() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
         requires has_inplace_to_wide_bit_uint
     {
+        static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
+                      "_BitInt conversion doesn't work when there is padding.");
         return static_cast<unsigned _BitInt(2 * inplace_bits)>(inplace_to_bit_uint());
     }
 #else
@@ -616,18 +636,16 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     // If `true`, `inplace_to_bit_sint` may be called.
     // Otherwise, the function is deleted.
-    static constexpr bool has_inplace_to_bit_sint = inplace_bits < BEMAN_BIG_INT_BITINT_MAXWIDTH;
-    [[nodiscard]] BEMAN_BIG_INT_CONSTEXPR_IF_HAS_CONSTEXPR_BIT_CAST_TO_BIT_INT auto
-    inplace_to_sbit_int() const noexcept
+    static constexpr bool        has_inplace_to_bit_sint = inplace_bits < BEMAN_BIG_INT_BITINT_MAXWIDTH;
+    [[nodiscard]] constexpr auto inplace_to_sbit_int() const noexcept
 #ifdef BEMAN_BIG_INT_HAS_BITINT
         requires has_inplace_to_bit_sint
     {
-        static_assert(std::has_unique_object_representations_v<decltype(m_storage.limbs)>,
-                      "Bit-casting doesn't work when there is padding.");
+        static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
+                      "_BitInt conversion doesn't work when there is padding.");
         // Use `inplace_bits + 1` to avoid signed overflow when negating a value
         // with the high bit set.
-        const auto mag =
-            static_cast<_BitInt(inplace_bits + 1)>(std::bit_cast<unsigned _BitInt(inplace_bits)>(m_storage.limbs));
+        const auto mag = static_cast<_BitInt(inplace_bits + 1)>(inplace_to_bit_uint());
         return is_negative() ? -mag : mag;
     }
 #else
@@ -1228,10 +1246,8 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
         return !is_zero();
     } else if constexpr (std::is_floating_point_v<T>) {
         if constexpr (has_inplace_to_bit_sint) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_representation_inplace()) {
-                    return static_cast<T>(inplace_to_sbit_int());
-                }
+            if (is_representation_inplace()) {
+                return static_cast<T>(inplace_to_sbit_int());
             }
         }
         // If the value exceeds the maximum finite value of T, return infinity.
@@ -1249,10 +1265,8 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
         return is_negative() ? -result : result;
     } else {
         if constexpr (has_inplace_to_bit_sint) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_representation_inplace()) {
-                    return static_cast<T>(inplace_to_sbit_int());
-                }
+            if (is_representation_inplace()) {
+                return static_cast<T>(inplace_to_sbit_int());
             }
         }
         using U = std::make_unsigned_t<T>;
@@ -1754,10 +1768,8 @@ constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexce
             return false;
         }
         if constexpr (has_inplace_to_bit_uint) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_representation_inplace()) {
-                    return inplace_to_bit_uint() == x;
-                }
+            if (is_representation_inplace()) {
+                return inplace_to_bit_uint() == x;
             }
         }
         return equals_limbs(detail::to_fixed_span(detail::to_limbs(x)), false);
@@ -1824,26 +1836,22 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
             return std::strong_ordering::less;
         }
         if constexpr (has_inplace_to_bit_uint) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_representation_inplace()) {
-                    return inplace_to_bit_uint() <=> x;
-                }
+            if (is_representation_inplace()) {
+                return inplace_to_bit_uint() <=> x;
             }
         }
         return compare_limbs(detail::to_fixed_span(detail::to_limbs(x)), false);
     } else {
         if constexpr (has_inplace_to_bit_uint) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_representation_inplace()) {
-                    const auto sign_compare = (x < 0) <=> is_negative();
-                    if (std::is_neq(sign_compare)) {
-                        return sign_compare;
-                    }
-                    // For two-negative operands, bigger magnitude means a smaller
-                    // value, so swap the operand order of the magnitude compare.
-                    return is_negative() ? detail::uabs(x) <=> inplace_to_bit_uint()
-                                         : inplace_to_bit_uint() <=> detail::uabs(x);
+            if (is_representation_inplace()) {
+                const auto sign_compare = (x < 0) <=> is_negative();
+                if (std::is_neq(sign_compare)) {
+                    return sign_compare;
                 }
+                // For two-negative operands, bigger magnitude means a smaller
+                // value, so swap the operand order of the magnitude compare.
+                return is_negative() ? detail::uabs(x) <=> inplace_to_bit_uint()
+                                     : inplace_to_bit_uint() <=> detail::uabs(x);
             }
         }
         const auto limbs = detail::to_limbs(detail::uabs(x));
@@ -2135,15 +2143,13 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         Result r;
         if constexpr (Result::has_inplace_to_wide_bit_uint) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (x.is_representation_inplace() && y.is_representation_inplace()) {
-                    const auto product = x.inplace_to_wide_bit_uint() * y.inplace_to_wide_bit_uint();
-                    r.assign_magnitude(product);
-                    if (product != 0 && x.is_negative() != y.is_negative()) {
-                        r.set_sign(true);
-                    }
-                    return r;
+            if (x.is_representation_inplace() && y.is_representation_inplace()) {
+                const auto product = x.inplace_to_wide_bit_uint() * y.inplace_to_wide_bit_uint();
+                r.assign_magnitude(product);
+                if (product != 0 && x.is_negative() != y.is_negative()) {
+                    r.set_sign(true);
                 }
+                return r;
             }
         }
         r.multiply_into(x.representation(), x.is_negative(), y.representation(), y.is_negative());
@@ -2152,15 +2158,13 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
         Result r;
         if constexpr (Result::has_inplace_to_wide_bit_uint) {
             if constexpr (detail::width_v<std::remove_cvref_t<R>> <= Result::inplace_bits) {
-                if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                    if (x.is_representation_inplace()) {
-                        const auto product = x.inplace_to_wide_bit_uint() * detail::uabs(y);
-                        r.assign_magnitude(product);
-                        if (product != 0 && x.is_negative() != detail::integer_signbit(y)) {
-                            r.set_sign(true);
-                        }
-                        return r;
+                if (x.is_representation_inplace()) {
+                    const auto product = x.inplace_to_wide_bit_uint() * detail::uabs(y);
+                    r.assign_magnitude(product);
+                    if (product != 0 && x.is_negative() != detail::integer_signbit(y)) {
+                        r.set_sign(true);
                     }
+                    return r;
                 }
             }
         }
