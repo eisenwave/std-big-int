@@ -220,7 +220,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     BEMAN_BIG_INT_NO_UNIQUE_ADDRESS allocator_type m_alloc;
 
     // Internal accessors for the packed representation
-    [[nodiscard]] constexpr bool             is_storage_static() const noexcept;
+    [[nodiscard]] constexpr bool             is_representation_inplace() const noexcept;
     [[nodiscard]] constexpr std::uint32_t    limb_count() const noexcept;
     [[nodiscard]] constexpr bool             is_negative() const noexcept;
     [[nodiscard]] constexpr bool             is_zero() const noexcept;
@@ -494,7 +494,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         constexpr bool    is_move   = !std::is_lvalue_reference_v<Src>;
         const std::size_t src_count = src.limb_count();
         const std::size_t needed    = src_count + extra_space;
-        const std::size_t eff_cap   = is_storage_static() ? inplace_capacity : m_capacity;
+        const std::size_t eff_cap   = is_representation_inplace() ? inplace_capacity : m_capacity;
 
         if (needed <= eff_cap) {
             // Fast path: current buffer is already big enough
@@ -510,7 +510,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             std::copy_n(src_limbs, src_count, dst_limbs);
             // Preserve the "limbs[limb_count..inplace_capacity) == 0" invariant that
             // `inplace_to_bit_uint` relies on. Only relevant for inline storage.
-            if (is_storage_static()) {
+            if (is_representation_inplace()) {
                 for (std::size_t i = src_count; i < old_count; ++i) {
                     dst_limbs[i] = limb_type{0};
                 }
@@ -528,7 +528,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             m_alloc = src.m_alloc;
         }
 
-        if (src.is_storage_static() && needed <= inplace_capacity) {
+        if (src.is_representation_inplace() && needed <= inplace_capacity) {
             // Both src and the requested headroom fit inline.
             m_capacity = 0;
             for (std::size_t i = 0; i < inplace_capacity; ++i) {
@@ -540,7 +540,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         if constexpr (is_move) {
             // For a heap `src`, adopt its pointer unconditionally and then grow
             // if the stolen capacity doesn't cover `needed`.
-            if (!src.is_storage_static()) {
+            if (!src.is_representation_inplace()) {
                 m_capacity             = src.m_capacity;
                 m_storage.data         = src.m_storage.data;
                 src.m_capacity         = 0;
@@ -677,7 +677,7 @@ struct access_bypass {
 // Internal accessors
 
 template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::is_storage_static() const noexcept {
+constexpr bool basic_big_int<b, A>::is_representation_inplace() const noexcept {
     return m_capacity == 0;
 }
 
@@ -736,12 +736,12 @@ constexpr void basic_big_int<b, A>::set_zero() noexcept {
 
 template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::limb_ptr() noexcept -> limb_type* {
-    return is_storage_static() ? m_storage.limbs : m_storage.data;
+    return is_representation_inplace() ? m_storage.limbs : m_storage.data;
 }
 
 template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::limb_ptr() const noexcept -> const limb_type* {
-    return is_storage_static() ? m_storage.limbs : m_storage.data;
+    return is_representation_inplace() ? m_storage.limbs : m_storage.data;
 }
 
 // [big.int.cons] — constructors
@@ -750,7 +750,7 @@ template <std::size_t b, class A>
 constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
     : m_capacity{0}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{x.m_alloc} {
     if (x.limb_count() <= inplace_capacity) {
-        if (x.is_storage_static()) {
+        if (x.is_representation_inplace()) {
             for (size_type i = 0; i < inplace_capacity; ++i) {
                 m_storage.limbs[i] = x.m_storage.limbs[i];
             }
@@ -775,7 +775,7 @@ constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
 template <std::size_t b, class A>
 constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
     : m_capacity{x.m_capacity}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{std::move(x.m_alloc)} {
-    if (x.is_storage_static()) {
+    if (x.is_representation_inplace()) {
         for (size_type i = 0; i < inplace_capacity; ++i) {
             m_storage.limbs[i] = x.m_storage.limbs[i];
         }
@@ -1049,7 +1049,7 @@ constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
-    if (is_storage_static()) {
+    if (is_representation_inplace()) {
         return inplace_capacity;
     } else {
         return limb_count();
@@ -1078,7 +1078,7 @@ template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::shrink_to_fit() {
     const auto count = limb_count();
 
-    if (is_storage_static() || m_capacity <= count) {
+    if (is_representation_inplace() || m_capacity <= count) {
         return;
     }
 
@@ -1229,7 +1229,7 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
     } else if constexpr (std::is_floating_point_v<T>) {
         if constexpr (has_inplace_to_bit_sint) {
             if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_storage_static()) {
+                if (is_representation_inplace()) {
                     return static_cast<T>(inplace_to_sbit_int());
                 }
             }
@@ -1250,7 +1250,7 @@ constexpr basic_big_int<b, A>::operator T() const noexcept {
     } else {
         if constexpr (has_inplace_to_bit_sint) {
             if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_storage_static()) {
+                if (is_representation_inplace()) {
                     return static_cast<T>(inplace_to_sbit_int());
                 }
             }
@@ -1456,11 +1456,11 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         // The move to heap storage is deferred to add_in_place if required
         Result r;
         if (x.limb_count() >= y.limb_count()) {
-            r.assign_value(x, !x.is_storage_static());
+            r.assign_value(x, !x.is_representation_inplace());
             r.add_in_place(y.representation(), y.is_negative());
             return r;
         }
-        r.assign_value(y, !y.is_storage_static());
+        r.assign_value(y, !y.is_representation_inplace());
         r.add_in_place(x.representation(), x.is_negative());
         return r;
     } else if constexpr (form == detail::binary_op_form::move_int) {
@@ -1475,13 +1475,13 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
         Result r;
-        r.assign_value(x, !x.is_storage_static());
+        r.assign_value(x, !x.is_representation_inplace());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
     } else if constexpr (form == detail::binary_op_form::int_copy) {
         Result r;
-        r.assign_value(y, !y.is_storage_static());
+        r.assign_value(y, !y.is_representation_inplace());
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
@@ -1524,11 +1524,11 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         // For inline sources no extra space is requested, so the copy stays inline.
         Result r;
         if (x.limb_count() >= y.limb_count()) {
-            r.assign_value(x, !x.is_storage_static());
+            r.assign_value(x, !x.is_representation_inplace());
             r.add_in_place(y.representation(), !y.is_negative());
             return r;
         }
-        r.assign_value(y, !y.is_storage_static());
+        r.assign_value(y, !y.is_representation_inplace());
         r.negate();
         r.add_in_place(x.representation(), x.is_negative());
         return r;
@@ -1545,13 +1545,13 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
         Result r;
-        r.assign_value(x, !x.is_storage_static());
+        r.assign_value(x, !x.is_representation_inplace());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
         return r;
     } else if constexpr (form == detail::binary_op_form::int_copy) {
         Result r;
-        r.assign_value(y, !y.is_storage_static());
+        r.assign_value(y, !y.is_representation_inplace());
         r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
@@ -1755,7 +1755,7 @@ constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexce
         }
         if constexpr (has_inplace_to_bit_uint) {
             if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_storage_static()) {
+                if (is_representation_inplace()) {
                     return inplace_to_bit_uint() == x;
                 }
             }
@@ -1825,7 +1825,7 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
         }
         if constexpr (has_inplace_to_bit_uint) {
             if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_storage_static()) {
+                if (is_representation_inplace()) {
                     return inplace_to_bit_uint() <=> x;
                 }
             }
@@ -1834,7 +1834,7 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
     } else {
         if constexpr (has_inplace_to_bit_uint) {
             if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (is_storage_static()) {
+                if (is_representation_inplace()) {
                     const auto sign_compare = (x < 0) <=> is_negative();
                     if (std::is_neq(sign_compare)) {
                         return sign_compare;
@@ -2136,7 +2136,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
         Result r;
         if constexpr (Result::has_inplace_to_wide_bit_uint) {
             if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                if (x.is_storage_static() && y.is_storage_static()) {
+                if (x.is_representation_inplace() && y.is_representation_inplace()) {
                     const auto product = x.inplace_to_wide_bit_uint() * y.inplace_to_wide_bit_uint();
                     r.assign_magnitude(product);
                     if (product != 0 && x.is_negative() != y.is_negative()) {
@@ -2153,7 +2153,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
         if constexpr (Result::has_inplace_to_wide_bit_uint) {
             if constexpr (detail::width_v<std::remove_cvref_t<R>> <= Result::inplace_bits) {
                 if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                    if (x.is_storage_static()) {
+                    if (x.is_representation_inplace()) {
                         const auto product = x.inplace_to_wide_bit_uint() * detail::uabs(y);
                         r.assign_magnitude(product);
                         if (product != 0 && x.is_negative() != detail::integer_signbit(y)) {
@@ -2701,14 +2701,14 @@ constexpr void basic_big_int<b, A>::free_limbs(pointer p, const size_type n) {
 
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::free_storage() {
-    if (!is_storage_static()) {
+    if (!is_representation_inplace()) {
         free_limbs(m_storage.data, m_capacity);
     }
 }
 
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::grow(const size_type limbs_needed) {
-    const size_type current_cap = is_storage_static() ? inplace_capacity : m_capacity;
+    const size_type current_cap = is_representation_inplace() ? inplace_capacity : m_capacity;
     if (limbs_needed <= current_cap) {
         return;
     }
@@ -2757,7 +2757,7 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const size_t
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::push_back_limb(limb_type limb) {
     const auto count = limb_count();
-    if (count >= (is_storage_static() ? inplace_capacity : m_capacity)) {
+    if (count >= (is_representation_inplace() ? inplace_capacity : m_capacity)) {
         grow(count + 1); // exponential growth
     }
     limb_ptr()[count] = limb;
