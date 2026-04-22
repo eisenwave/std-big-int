@@ -748,4 +748,37 @@ TEST(ToChars, EveryBase_12345678901234567890123456789012345678901122334455667788
 }
 // clang-format on
 
+TEST(ToChars, EmptyRangeValueTooLarge) {
+    const big_int values[]{
+        0,
+        1,
+        -1,
+        255,
+        -255,
+        1_n << 128,
+        -(1_n << 128),
+    };
+    char range;
+    for (const auto& value : values) {
+        for (int base = 2; base < 36; ++base) {
+            const auto [p, ec] = to_chars(&range, &range, value, base);
+            EXPECT_EQ(ec, std::errc::value_too_large);
+        }
+    }
+}
+
+TEST(ToChars, OnlyMinusValueTooLarge) {
+    const big_int values[]{
+        -1,
+        -(1_n << 128),
+    };
+    char range;
+    for (const auto& value : values) {
+        for (int base = 2; base < 36; ++base) {
+            const auto [p, ec] = to_chars(&range, &range + 1, value, base);
+            EXPECT_EQ(ec, std::errc::value_too_large);
+        }
+    }
+}
+
 } // namespace
