@@ -41,6 +41,12 @@ using beman::big_int::uint_multiprecision_t;
 template <std::size_t min_inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
 class basic_big_int;
 
+template <size_t b, class A>
+constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, A>&, int = 10);
+
+template <size_t b, class A>
+constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int = 10);
+
 namespace detail {
 
 template <class>
@@ -190,6 +196,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     template <std::size_t, class>
     friend class basic_big_int;
+
+    template <size_t b, class A>
+    friend constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, A>&, int);
+
+    template <size_t b, class A>
+    friend constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int);
 
   private:
     using alloc_traits = std::allocator_traits<Allocator>;
@@ -391,9 +403,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
 
     // [big.int.conv], conversions
-    template <class T>
-        requires detail::cv_unqualified_arithmetic<T>
-    constexpr explicit operator T() const noexcept;
+    template <detail::cv_unqualified_arithmetic T>
+    [[nodiscard]] constexpr explicit operator T() const noexcept {
+        return to<T>();
+    }
 
   private:
     template <detail::unsigned_integer T>
@@ -584,6 +597,19 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
     }
 
+    // Returns the bits at the specified bit offset.
+    // Bits from at most two limbs are fetched via funnel-shift.
+    [[nodiscard]] constexpr uint_multiprecision_t get_bits_at(const size_type offset) const {
+        const auto limb_offset = offset / bits_per_limb;
+        const auto bit_offset  = static_cast<unsigned int>(offset % bits_per_limb);
+        BEMAN_BIG_INT_ASSERT(limb_offset < limb_count());
+        const detail::wide<uint_multiprecision_t> bits{
+            .low_bits  = limb_ptr()[limb_offset],
+            .high_bits = limb_offset + 1 == limb_count() ? 0 : limb_ptr()[limb_offset + 1],
+        };
+        return detail::funnel_shr(bits, bit_offset);
+    }
+
     // If `true`, `inplace_to_bit_uint` may be called.
     // Otherwise, the function is deleted.
     static constexpr bool        has_inplace_to_bit_uint = inplace_bits <= BEMAN_BIG_INT_BITINT_MAXWIDTH;
@@ -652,6 +678,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         = delete;
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
+    template <detail::cv_unqualified_arithmetic T, bool ignore_sign = false>
+    [[nodiscard]] constexpr T to() const noexcept;
+
     template <detail::bitwise_op op, bool neg_left, bool neg_right, std::size_t extent_a, std::size_t extent_b>
     [[nodiscard]] static constexpr basic_big_int
     make_bitwise_of_limbs(std::span<const uint_multiprecision_t, extent_a> lhs,
@@ -683,6 +712,12 @@ struct access_bypass {
                                                            const uint_multiprecision_t             bits,
                                                            typename basic_big_int<b, A>::size_type offset) {
         x.unchecked_init_magnitude_bits_at(bits, offset);
+    }
+
+    template <size_t b, class A>
+    [[nodiscard]] static constexpr uint_multiprecision_t get_bits_at(const basic_big_int<b, A>&              x,
+                                                                     typename basic_big_int<b, A>::size_type offset) {
+        return x.get_bits_at(offset);
     }
 };
 
@@ -1051,8 +1086,7 @@ constexpr std::size_t basic_big_int<b, A>::width_mag() const noexcept {
     if (top == 0) {
         return 0;
     }
-
-    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)) - 1);
+    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)));
 }
 
 template <std::size_t b, class A>
@@ -1239,44 +1273,49 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
 }
 
 template <std::size_t b, class A>
-template <class T>
-    requires detail::cv_unqualified_arithmetic<T>
-constexpr basic_big_int<b, A>::operator T() const noexcept {
+template <detail::cv_unqualified_arithmetic T, bool ignore_sign>
+constexpr T basic_big_int<b, A>::to() const noexcept {
     if constexpr (std::is_same_v<T, bool>) {
         return !is_zero();
-    } else if constexpr (std::is_floating_point_v<T>) {
-        if constexpr (has_inplace_to_bit_sint) {
-            if (is_representation_inplace()) {
-                return static_cast<T>(inplace_to_sbit_int());
-            }
-        }
-        // If the value exceeds the maximum finite value of T, return infinity.
-        // See P3899R1.
-        if (width_mag() >= static_cast<std::size_t>(std::numeric_limits<T>::max_exponent)) {
-            return is_negative() ? -std::numeric_limits<T>::infinity() : std::numeric_limits<T>::infinity();
-        }
-        constexpr T       two64 = static_cast<T>(1ULL << 32) * static_cast<T>(1ULL << 32);
-        T                 result{0};
-        const auto* const limbs = limb_ptr();
-        for (std::size_t i = limb_count(); i != 0;) {
-            --i;
-            result = result * two64 + static_cast<T>(limbs[i]);
-        }
-        return is_negative() ? -result : result;
     } else {
-        if constexpr (has_inplace_to_bit_sint) {
+        if constexpr (ignore_sign && has_inplace_to_bit_uint) {
+            if (is_representation_inplace()) {
+                return static_cast<T>(inplace_to_bit_uint());
+            }
+        } else if constexpr (has_inplace_to_bit_sint) {
             if (is_representation_inplace()) {
                 return static_cast<T>(inplace_to_sbit_int());
             }
         }
-        using U = std::make_unsigned_t<T>;
-        U                 mag{0};
-        constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
-        const auto* const limbs = limb_ptr();
-        for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
-            mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
+        if constexpr (std::is_floating_point_v<T>) {
+            const bool negative = !ignore_sign && is_negative();
+            // If the value exceeds the maximum finite value of T, return infinity.
+            // See P3899R1.
+            if (width_mag() >= static_cast<std::size_t>(std::numeric_limits<T>::max_exponent)) {
+                return negative ? -std::numeric_limits<T>::infinity() : std::numeric_limits<T>::infinity();
+            }
+            constexpr T       two64 = static_cast<T>(1ULL << 32) * static_cast<T>(1ULL << 32);
+            T                 result{0};
+            const auto* const limbs = limb_ptr();
+            for (std::size_t i = limb_count(); i != 0;) {
+                --i;
+                result = result * two64 + static_cast<T>(limbs[i]);
+            }
+            return negative ? -result : result;
+        } else {
+            using U = std::make_unsigned_t<T>;
+            U                 mag{0};
+            constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
+            const auto* const limbs = limb_ptr();
+            for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
+                mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
+            }
+            if constexpr (ignore_sign) {
+                return mag;
+            } else {
+                return static_cast<T>(is_negative() ? ~mag + U{1} : mag);
+            }
         }
-        return static_cast<T>(is_negative() ? ~mag + U{1} : mag);
     }
 }
 
@@ -2859,6 +2898,180 @@ inline constexpr auto limb_max_power_table = []() consteval {
 
 } // namespace detail
 
+template <size_t b, class A>
+constexpr std::to_chars_result
+to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const int base) {
+    using size_type = typename basic_big_int<b, A>::size_type;
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(begin);
+    BEMAN_BIG_INT_DEBUG_ASSERT(end);
+    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2);
+    BEMAN_BIG_INT_DEBUG_ASSERT(base <= 36);
+
+    if (begin == end) {
+        return {end, std::errc::value_too_large};
+    }
+
+    const size_type width = x.width_mag();
+    if (width == 0) {
+        *begin = '0';
+        return {begin + 1, std::errc{}};
+    }
+
+    char* current_begin = begin;
+    if (x.is_negative()) {
+        *current_begin = '-';
+        ++current_begin;
+    }
+    if (current_begin == end) {
+        return {end, std::errc::value_too_large};
+    }
+
+    // For values that are small enough,
+    // the entire implementation (regardless of base) can be delegated to `std::to_chars`.
+    {
+        constexpr bool ignore_sign = true;
+        if (width <= detail::width_v<uint_multiprecision_t>) {
+            // The super happy case is that we can use the std::to_chars implementation for a single limb.
+            return std::to_chars(current_begin, end, x.template to<uint_multiprecision_t, ignore_sign>(), base);
+        } else if (width <= detail::width_v<std::uintmax_t>) {
+            // The slightly less happy case is that we need to use
+            // the multiprecision implementation of `std::to_chars`.
+            // While we could skip the previous "super happy" check, it may be cheaper to dispatch here
+            // because `std::to_chars` would otherwise need to re-check
+            // whether it can delegate to a single-limb implementation itself.
+            return std::to_chars(current_begin, end, x.template to<std::uintmax_t, ignore_sign>(), base);
+        }
+    }
+
+    const uint_multiprecision_t max_pow                  = detail::limb_max_power(base);
+    const auto                  max_digits_per_iteration = static_cast<size_type>(detail::limb_max_input_digits(base));
+    constexpr const char*       alphabet                 = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+    switch (base) {
+    // TODO(eisenwave): Make extra cases for 2 and 16 because those have special properties.
+    case 2:
+    case 8:
+    case 16:
+    case 32: {
+        const auto bits_per_digit     = static_cast<size_type>(std::countr_zero(static_cast<unsigned char>(base)));
+        const auto bits_per_iteration = static_cast<size_type>(std::countr_zero(max_pow));
+        BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration != 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration <= detail::width_v<uint_multiprecision_t>);
+        BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration % bits_per_digit == 0);
+
+        const size_type leading_bits       = width % bits_per_iteration;
+        size_type       current_bit_offset = width - leading_bits;
+
+        // First, we need to take care of the leading "head" bits.
+        // For example, for octal, we operate on 63 bits at a time,
+        // and 2 leading bits are left over.
+        if (leading_bits != 0) {
+            const uint_multiprecision_t head = x.get_bits_at(current_bit_offset);
+            if (head != 0) {
+                const std::to_chars_result head_result = std::to_chars(current_begin, end, head, base);
+                if (head_result.ec != std::errc{}) {
+                    return head_result;
+                }
+                current_begin = head_result.ptr;
+            }
+        }
+
+        // clang-format off
+        const auto chunk_mask = (bits_per_iteration == detail::width_v<uint_multiprecision_t>
+                              ? uint_multiprecision_t{}
+                              : (uint_multiprecision_t{1} << bits_per_iteration)) - 1;
+        const auto digit_mask = (uint_multiprecision_t{1} << bits_per_digit) - 1;
+        // clang-format on
+
+        // Once the head digits are printed out, every subsequent block of bits
+        // has exactly the same amount of digits.
+        // For example, when printing a 128-bit integer in octal, there are 126 bits left,
+        // handled exactly 63 bits at a time.
+        while (current_bit_offset >= bits_per_iteration) {
+            current_bit_offset -= bits_per_iteration;
+
+            const uint_multiprecision_t chunk = x.get_bits_at(current_bit_offset) & chunk_mask;
+
+            for (size_type i = max_digits_per_iteration; i-- > 0;) {
+                if (current_begin == end) {
+                    return {end, std::errc::value_too_large};
+                }
+                const uint_multiprecision_t digit_value = (chunk >> (i * bits_per_digit)) & digit_mask;
+                *current_begin                          = alphabet[digit_value];
+                ++current_begin;
+            }
+        }
+
+        BEMAN_BIG_INT_DEBUG_ASSERT(current_bit_offset == 0);
+        return {current_begin, std::errc{}};
+    }
+
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 17:
+    case 18:
+    case 19:
+    case 20:
+    case 21:
+    case 22:
+    case 23:
+    case 24:
+    case 25:
+    case 26:
+    case 27:
+    case 28:
+    case 29:
+    case 30:
+    case 31:
+    case 33:
+    case 34:
+    case 35:
+    case 36: {
+        // TODO(eisenwave): Optimize this; the current implementation is stupidly naive.
+        //                  Base 10 is probably the only one that should receive special treatment
+        //                  in such a way that avoid integer division at the cost of code size.
+        //                  The rest is exotic and can use a runtime base.
+        const auto ubase     = static_cast<unsigned char>(base);
+        auto       remainder = x;
+        remainder.set_sign(false);
+        // Zero should have been handled above already.
+        BEMAN_BIG_INT_DEBUG_ASSERT(!remainder.is_zero());
+        do {
+            if (current_begin == end) {
+                return {current_begin, std::errc::value_too_large};
+            }
+            auto q         = remainder / ubase;
+            auto r         = remainder % ubase;
+            *current_begin = alphabet[static_cast<unsigned char>(r)];
+            ++current_begin;
+            remainder = std::move(q);
+        } while (!remainder.is_zero());
+
+        // We wrote all the digits in reverse order.
+        // Everything except the leading minus sign (if any) needs to be reversed.
+        std::ranges::reverse(begin + (x.is_negative() ? 1 : 0), current_begin);
+        return {current_begin, std::errc{}};
+    }
+
+    default:
+        break;
+    }
+
+    // Invalid base; earlier checks should have caught this already, but let's make sure.
+    BEMAN_BIG_INT_ASSERT(false);
+}
+
 template <std::size_t b, class A>
 [[nodiscard]] constexpr std::from_chars_result
 from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& out, const int base) {
@@ -2920,7 +3133,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             // so use of `std::from_chars` should be infallible.
             BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_result.ec == std::errc{});
 
-            detail::access_bypass::unchecked_init_magnitude_bits_at(out, bits, bit_offset);
+            out.unchecked_init_magnitude_bits_at(bits, bit_offset);
             bit_offset += bits_per_iteration;
 
             if (digit_block_begin == current_begin) {
@@ -2930,7 +3143,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             BEMAN_BIG_INT_DEBUG_ASSERT(current_end >= digit_block_begin);
         }
         if (*begin == '-') {
-            detail::access_bypass::negate(out);
+            out.negate();
         }
         return {returned_end, std::errc{}};
     }

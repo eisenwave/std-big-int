@@ -35,14 +35,14 @@ static_assert(test_move_construction());
 
 consteval bool test_integral_construction() {
     beman::big_int::big_int x{42U};
-    return x.width_mag() == 5 && x.representation()[0] == 42U;
+    return x.width_mag() == 6 && x.representation()[0] == 42U;
 }
 static_assert(test_integral_construction());
 
 consteval bool test_integral_construction_with_allocator() {
     std::allocator<beman::big_int::uint_multiprecision_t> a;
     beman::big_int::big_int                               x(42, a);
-    return x.width_mag() == 5 && x.representation()[0] == 42U;
+    return x.width_mag() == 6 && x.representation()[0] == 42U;
 }
 static_assert(test_integral_construction_with_allocator());
 
