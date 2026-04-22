@@ -781,4 +781,13 @@ TEST(ToChars, OnlyMinusValueTooLarge) {
     }
 }
 
+TEST(ToChars, HugeValueTooLarge) {
+    const big_int value = 1_n << 128;
+    char          range[8];
+    for (int base = 2; base < 36; ++base) {
+        const auto [p, ec] = to_chars(range, std::end(range), value, base);
+        EXPECT_EQ(ec, std::errc::value_too_large);
+    }
+}
+
 } // namespace
