@@ -227,6 +227,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr void                           set_limb_count(std::uint32_t n) noexcept;
     constexpr void                           set_sign(bool s) noexcept;
     constexpr void                           negate() noexcept;
+    constexpr void                           set_zero() noexcept;
     [[nodiscard]] constexpr limb_type*       limb_ptr() noexcept;
     [[nodiscard]] constexpr const limb_type* limb_ptr() const noexcept;
 
@@ -714,12 +715,13 @@ constexpr bool basic_big_int<b, A>::is_zero() const noexcept {
 }
 
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::set_limb_count(std::uint32_t n) noexcept {
+constexpr void basic_big_int<b, A>::set_limb_count(const std::uint32_t n) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(n != 0);
     m_size_and_sign = (m_size_and_sign & 0x8000'0000U) | n;
 }
 
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::set_sign(bool s) noexcept {
+constexpr void basic_big_int<b, A>::set_sign(const bool s) noexcept {
     m_size_and_sign = (m_size_and_sign & 0x7FFF'FFFFU) | (static_cast<std::uint32_t>(s) << 31);
 }
 
@@ -731,12 +733,18 @@ constexpr void basic_big_int<b, A>::negate() noexcept {
 }
 
 template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::set_zero() noexcept {
+    limb_ptr()[0]   = 0;
+    m_size_and_sign = 1;
+}
+
+template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::limb_ptr() noexcept -> limb_type* {
     return is_storage_static() ? m_storage.limbs : m_storage.data;
 }
 
 template <std::size_t b, class A>
-constexpr const typename basic_big_int<b, A>::limb_type* basic_big_int<b, A>::limb_ptr() const noexcept {
+constexpr auto basic_big_int<b, A>::limb_ptr() const noexcept -> const limb_type* {
     return is_storage_static() ? m_storage.limbs : m_storage.data;
 }
 
@@ -2009,9 +2017,7 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
 
     // Zero * anything = positive 0
     if (detail::is_span_zero(a_trimmed) || detail::is_span_zero(b_trimmed)) {
-        limb_ptr()[0] = 0;
-        set_limb_count(1);
-        set_sign(false);
+        set_zero();
         return;
     }
 
@@ -2214,7 +2220,11 @@ constexpr auto basic_big_int<b, A>::operator-=(const T& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
-        add_in_place(rhs.representation(), !rhs.is_negative());
+        if (std::addressof(rhs) == this) {
+            set_zero();
+        } else {
+            add_in_place(rhs.representation(), !rhs.is_negative());
+        }
     } else {
         const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
         add_in_place(detail::to_fixed_span(rhs_limbs), !detail::integer_signbit(rhs));
@@ -2329,9 +2339,7 @@ constexpr void basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     const bool result_neg    = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
 
     if (detail::is_span_zero(dividend_trim)) {
-        limb_ptr()[0] = 0;
-        set_limb_count(1);
-        set_sign(false);
+        set_zero();
         return;
     }
 
@@ -2339,9 +2347,7 @@ constexpr void basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     if (mag_cmp == std::strong_ordering::less) {
         // |dividend| < |divisor|: quotient is 0, remainder is dividend.
         if (want_quotient) {
-            limb_ptr()[0] = 0;
-            set_limb_count(1);
-            set_sign(false);
+            set_zero();
         } else {
             grow(dividend_trim.size());
             std::copy(dividend_trim.begin(), dividend_trim.end(), limb_ptr());

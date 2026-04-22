@@ -348,6 +348,13 @@ consteval bool ce_minus_equal_cancel_to_zero() {
 }
 static_assert(ce_minus_equal_cancel_to_zero());
 
+consteval bool ce_minus_equal_self_cancel() {
+    big_int a{7};
+    a -= a;
+    return a == big_int{0};
+}
+static_assert(ce_minus_equal_self_cancel());
+
 consteval bool ce_minus_equal_negative_result() {
     big_int a{3};
     a -= big_int{5};
@@ -423,6 +430,24 @@ TEST(CompoundSubtraction, ZeroIdentity) {
     big_int c{0};
     c -= big_int{-42};
     EXPECT_EQ(c, 42);
+}
+
+TEST(CompoundSubtraction, Self) {
+    big_int a{5};
+    a -= a;
+    EXPECT_EQ(a, 0);
+
+    big_int ma{-5};
+    ma -= ma;
+    EXPECT_EQ(ma, 0);
+
+    big_int b{0x1p128};
+    b -= b;
+    EXPECT_EQ(b, 0);
+
+    big_int mb{-0x1p128};
+    mb -= mb;
+    EXPECT_EQ(mb, 0);
 }
 
 TEST(CompoundSubtraction, BorrowAcrossLimbPromotesToHeap) {
