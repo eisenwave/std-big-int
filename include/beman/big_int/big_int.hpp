@@ -170,8 +170,6 @@ template <bitwise_op op, cv_unqualified_integral T>
     }
 }
 
-struct access_bypass;
-
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -695,33 +693,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     template <detail::bitwise_op op, class L, class R>
     [[nodiscard]] static constexpr detail::common_big_int_type<L, R> bitwise_impl(L&& x, R&& y);
-
-    friend detail::access_bypass;
 };
-
-namespace detail {
-
-struct access_bypass {
-    template <size_t b, class A>
-    static constexpr void negate(basic_big_int<b, A>& x) {
-        x.negate();
-    }
-
-    template <size_t b, class A>
-    static constexpr void unchecked_init_magnitude_bits_at(basic_big_int<b, A>&                    x,
-                                                           const uint_multiprecision_t             bits,
-                                                           typename basic_big_int<b, A>::size_type offset) {
-        x.unchecked_init_magnitude_bits_at(bits, offset);
-    }
-
-    template <size_t b, class A>
-    [[nodiscard]] static constexpr uint_multiprecision_t get_bits_at(const basic_big_int<b, A>&              x,
-                                                                     typename basic_big_int<b, A>::size_type offset) {
-        return x.get_bits_at(offset);
-    }
-};
-
-} // namespace detail
 
 // =============================================================================
 // Out-of-class definitions
@@ -3203,7 +3175,7 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     }
 
     if (*begin == '-') {
-        detail::access_bypass::negate(out);
+        out.negate();
     }
     if BEMAN_BIG_INT_IS_CONSTEVAL {
         out.shrink_to_fit();
