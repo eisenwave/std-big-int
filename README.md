@@ -5,7 +5,11 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 -->
 
 <!-- markdownlint-disable-next-line line-length -->
-![Library Status](https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg) ![Continuous Integration Tests](https://github.com/bemanproject/big_int/actions/workflows/ci_tests.yml/badge.svg) ![Lint Check (pre-commit)](https://github.com/bemanproject/big_int/actions/workflows/pre-commit-check.yml/badge.svg) [![Coverage](https://coveralls.io/repos/github/bemanproject/big_int/badge.svg?branch=main)](https://coveralls.io/github/bemanproject/big_int?branch=main) ![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
+![Library Status](https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg)
+![Continuous Integration Tests](https://github.com/eisenwave/std-big-int/actions/workflows/ci_tests.yml/badge.svg)
+![Lint Check (pre-commit)](https://github.com/eisenwave/std-big-int/actions/workflows/pre-commit-check.yml/badge.svg)
+[![Coverage](https://coveralls.io/repos/github/eisenwave/std-big-int/badge.svg?branch=main)](https://coveralls.io/github/eisenwave/std-big-int?branch=main)
+![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
 
 `beman.big_int` is a minimal C++ library conforming to [The Beman Standard](https://github.com/bemanproject/beman/blob/main/docs/beman_standard.md).
 This can be used as a template for those intending to write Beman libraries.
