@@ -1,5 +1,4 @@
 #include <string_view>
-#include <string>
 
 #include <gtest/gtest.h>
 
@@ -19,25 +18,6 @@ using namespace beman::big_int;
     if (p != str.data() + str.size()) {
         throw std::runtime_error("from_chars parsed only part of the string.");
     }
-    return result;
-}
-
-[[nodiscard]] constexpr std::string to_string(const big_int& x, const int base) {
-    BEMAN_BIG_INT_ASSERT(base >= 2 && base <= 36);
-    const std::size_t required_digits = x.width_mag() + 1;
-#ifdef __cpp_lib_string_resize_and_overwrite
-    std::string result;
-    result.resize_and_overwrite(required_digits, [&](char* const data, const std::size_t n) {
-        const auto [p, ec] = to_chars(data, data + n, x, base);
-        BEMAN_BIG_INT_ASSERT(ec == std::errc{});
-        return static_cast<std::size_t>(p - data);
-    });
-#else
-    std::string result(x.width_mag() + 1, char{});
-    const auto [p, ec] = to_chars(result.data(), result.data() + result.size(), x, base);
-    BEMAN_BIG_INT_ASSERT(ec == std::errc{});
-    result.resize(static_cast<std::size_t>(p - result.data()));
-#endif
     return result;
 }
 
