@@ -139,6 +139,9 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         std::ranges::fill(remainder.subspan(dividend.size()), uint_multiprecision_t{0});
     }
 
+#ifndef BEMAN_BIG_INT_HAS_WIDE_INT
+    #error Sorry, division currently requires uint_wide_t.
+#endif
     // Fast path: 2 limb / 2 limb. Do the whole thing in uint_wide_t.
     if (r_order == 1) {
         // r_order == 1 && divisor.size() >= 2 && divisor.size() <= dividend.size()
