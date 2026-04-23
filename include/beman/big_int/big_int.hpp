@@ -643,19 +643,21 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // static_cast and std::bit_cast are equivalent.
             // This special case also makes the <<= below safe.
             return static_cast<Result>(m_storage.limbs[0]);
-        } else if constexpr (std::endian::native == std::endian::little) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                return std::bit_cast<Result>(m_storage.limbs);
+        } else {
+            if constexpr (std::endian::native == std::endian::little) {
+                if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                    return std::bit_cast<Result>(m_storage.limbs);
+                }
             }
+            // Naive fallback implementation always works.
+            // This is needed for big endian and when neither static_cast nor bit_cast work.
+            Result result = 0;
+            for (const uint_multiprecision_t limb : m_storage.limbs) {
+                result <<= bits_per_limb;
+                result |= limb;
+            }
+            return result;
         }
-        // Naive fallback implementation always works.
-        // This is needed for big endian and when neither static_cast nor bit_cast work.
-        Result result = 0;
-        for (const uint_multiprecision_t limb : m_storage.limbs) {
-            result <<= bits_per_limb;
-            result |= limb;
-        }
-        return result;
     }
 #else
         = delete;
