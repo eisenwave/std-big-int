@@ -465,7 +465,7 @@ template <unsigned_integer T>
     return {.value = static_cast<T>(result), .borrow = (result >> width_v<T>) != 0};
 }
 
-template <class T>
+template <signed_or_unsigned T>
 struct wide_div_result {
     T       quotient;
     wide<T> remainder;
