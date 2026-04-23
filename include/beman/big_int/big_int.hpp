@@ -3077,23 +3077,54 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
     case 34:
     case 35:
     case 36: {
-        // TODO(eisenwave): Optimize this; the current implementation is stupidly naive.
-        //                  Base 10 is probably the only one that should receive special treatment
-        //                  in such a way that avoid integer division at the cost of code size.
-        //                  The rest is exotic and can use a runtime base.
         auto remainder = x;
         remainder.unchecked_set_sign(false);
         // Zero should have been handled above already.
         BEMAN_BIG_INT_DEBUG_ASSERT(!remainder.is_zero());
-        do {
-            if (current_begin == end) {
-                return {current_begin, std::errc::value_too_large};
+
+        // Process max_digits_per_iteration digits at a time by dividing by max_pow.
+        // std::to_chars writes each remainder's digits most-significant-first;
+        // we reverse each chunk immediately after writing (undoing the most-significant-first order),
+        // then pad to exactly max_digits_per_iteration characters.
+        // The final big reverse at the end converts the accumulated least-significant-first chunks
+        // back into the correct most-significant-first output.
+        while (remainder.limb_count() > 1) {
+            if (end - current_begin < static_cast<std::ptrdiff_t>(max_digits_per_iteration)) {
+                return {end, std::errc::value_too_large};
             }
-            auto [q, r]    = div_rem_to_zero(remainder, static_cast<unsigned char>(base));
-            *current_begin = alphabet[static_cast<unsigned char>(r)];
-            ++current_begin;
+            // The fact that we std::move here should ensure that only one allocation is used.
+            // `div_rem_to_zero` should repurpose the allocation of `remainder`,
+            // which is then moved back into `remainder` at the end of the loop.
+            auto [q, r] = div_rem_to_zero(std::move(remainder), max_pow);
+
+            // Very evil and unsafe (but direct and fast) access to the single limb
+            // that the remainder of the division should hold.
+            BEMAN_BIG_INT_DEBUG_ASSERT(r.is_representation_inplace());
+            BEMAN_BIG_INT_DEBUG_ASSERT(r.limb_count() == 1);
+            const uint_multiprecision_t r_limb = r.m_storage.limbs[0];
+
+            const std::to_chars_result chunk_result =
+                std::to_chars(current_begin, current_begin + max_digits_per_iteration, r_limb, base);
+            BEMAN_BIG_INT_DEBUG_ASSERT(chunk_result.ec == std::errc{});
+
+            const auto written = static_cast<size_type>(chunk_result.ptr - current_begin);
+            std::reverse(current_begin, chunk_result.ptr);
+            std::fill_n(chunk_result.ptr, max_digits_per_iteration - written, '0');
+
+            current_begin += max_digits_per_iteration;
             remainder = std::move(q);
-        } while (!remainder.is_zero());
+        }
+
+        // The remainder now fits in a single limb; write it as the most-significant chunk.
+        const std::to_chars_result final_result =
+            std::to_chars(current_begin, end, remainder.template to<uint_multiprecision_t, true>(), base);
+        if (final_result.ec != std::errc{}) {
+            return final_result;
+        }
+        std::reverse(current_begin, final_result.ptr);
+        // No zero-pad is needed for the final chunk because that would put leading zeros
+        // in front of the entire result.
+        current_begin = final_result.ptr;
 
         // We wrote all the digits in reverse order.
         // Everything except the leading minus sign (if any) needs to be reversed.
