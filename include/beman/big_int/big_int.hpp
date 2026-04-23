@@ -3115,9 +3115,8 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
             remainder = std::move(q);
         }
 
-        // The remainder now fits in a single limb; write it as the most-significant chunk.
-        const std::to_chars_result final_result =
-            std::to_chars(current_begin, end, remainder.template to<uint_multiprecision_t, true>(), base);
+        BEMAN_BIG_INT_DEBUG_ASSERT(remainder.limb_count() == 1);
+        const std::to_chars_result final_result = std::to_chars(current_begin, end, remainder.limb_ptr()[0], base);
         if (final_result.ec != std::errc{}) {
             return final_result;
         }
