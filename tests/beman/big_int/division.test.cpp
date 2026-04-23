@@ -3,45 +3,73 @@
 
 #include <cstdint>
 #include <limits>
+#include <ostream>
 
 #include <gtest/gtest.h>
 
 #include <beman/big_int/big_int.hpp>
 
+// TODO(eisenwave): This is for better debug printing in GTest.
+//                  It should be a separate testing utility included in all tests.
+namespace beman::big_int {
+
+std::ostream& operator<<(std::ostream& out, const big_int& x) { return out << to_string(x); }
+
+std::ostream& operator<<(std::ostream& out, const div_result<big_int>& x) {
+    return out << "{.quotient = " << x.quotient << ", .remainder = " << x.remainder << '}';
+}
+
+} // namespace beman::big_int
+
 namespace {
 
 using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
+using beman::big_int::div_rem_to_zero;
+using beman::big_int::div_result;
 using beman::big_int::uint_multiprecision_t;
 
 // ----- compile-time sanity -----
 
-consteval bool ce_zero_by_one() { return (big_int{0} / big_int{1}) == big_int{0}; }
-static_assert(ce_zero_by_one());
+[[nodiscard]] consteval bool check_div_rem(const big_int x, const big_int y) {
+    return div_rem_to_zero(x, y) == div_result{x / y, x % y};
+}
 
-consteval bool ce_small_positive() { return (big_int{21} / big_int{7}) == big_int{3}; }
-static_assert(ce_small_positive());
+static_assert((big_int{0} / big_int{1}) == 0);
+static_assert((big_int{0} % big_int{1}) == 0);
+static_assert(check_div_rem(0, 1));
 
-consteval bool ce_exact_multiple() { return (big_int{42} / big_int{6}) == big_int{7}; }
-static_assert(ce_exact_multiple());
+static_assert((big_int{21} / big_int{7}) == 3);
+static_assert((big_int{21} % big_int{7}) == 0);
+static_assert(check_div_rem(21, 7));
 
-consteval bool ce_truncation_positive() { return (big_int{7} / big_int{3}) == big_int{2}; }
-static_assert(ce_truncation_positive());
+static_assert((big_int{42} / big_int{6}) == 7);
+static_assert((big_int{42} % big_int{6}) == 0);
+static_assert(check_div_rem(42, 6));
 
-consteval bool ce_truncation_negative_dividend() { return (big_int{-7} / big_int{3}) == big_int{-2}; }
-static_assert(ce_truncation_negative_dividend());
+static_assert((big_int{7} / big_int{3}) == 2);
+static_assert((big_int{7} % big_int{3}) == 1);
+static_assert(check_div_rem(7, 3));
 
-consteval bool ce_truncation_negative_divisor() { return (big_int{7} / big_int{-3}) == big_int{-2}; }
-static_assert(ce_truncation_negative_divisor());
+static_assert((big_int{-7} / big_int{3}) == -2);
+static_assert((big_int{-7} % big_int{3}) == -1);
+static_assert(check_div_rem(-7, 3));
 
-consteval bool ce_truncation_both_negative() { return (big_int{-7} / big_int{-3}) == big_int{2}; }
-static_assert(ce_truncation_both_negative());
+static_assert((big_int{7} / big_int{-3}) == -2);
+static_assert((big_int{7} % big_int{-3}) == 1);
+static_assert(check_div_rem(7, -3));
 
-consteval bool ce_dividend_less_than_divisor() { return (big_int{3} / big_int{7}) == big_int{0}; }
-static_assert(ce_dividend_less_than_divisor());
+static_assert((big_int{-7} / big_int{-3}) == 2);
+static_assert((big_int{-7} % big_int{-3}) == -1);
+static_assert(check_div_rem(-7, -3));
 
-consteval bool ce_self_division() { return (big_int{42} / big_int{42}) == big_int{1}; }
-static_assert(ce_self_division());
+static_assert((big_int{3} / big_int{7}) == 0);
+static_assert((big_int{3} % big_int{7}) == 3);
+static_assert(check_div_rem(3, 7));
+
+static_assert((big_int{42} / big_int{42}) == 1);
+static_assert((big_int{42} % big_int{42}) == 0);
+static_assert(check_div_rem(42, 42));
 
 // ----- runtime tests -----
 
@@ -126,6 +154,70 @@ TEST(Division, DivideMultiLimbExact) {
     EXPECT_EQ(product / a, b);
 }
 
+TEST(Division, DivSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int y = -10; y <= 10; ++y) {
+            if (y == 0) {
+                continue;
+            }
+            const big_int bx{x};
+            const big_int by{y};
+
+            /* move_move */ EXPECT_EQ(big_int{x} / big_int{y}, x / y);
+            /* move_copy */ EXPECT_EQ(big_int{x} / by, x / y);
+            /* copy_move */ EXPECT_EQ(bx / big_int{y}, x / y);
+            /* copy_copy */ EXPECT_EQ(bx / by, x / y);
+            /* move_int  */ EXPECT_EQ(big_int{x} / y, x / y);
+            /* int_move  */ EXPECT_EQ(x / big_int{y}, x / y);
+            /* copy_int  */ EXPECT_EQ(bx / y, x / y);
+            /* int_copy  */ EXPECT_EQ(x / by, x / y);
+        }
+    }
+}
+
+TEST(Division, RemSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int y = -10; y <= 10; ++y) {
+            if (y == 0) {
+                continue;
+            }
+            const big_int bx{x};
+            const big_int by{y};
+
+            /* move_move */ EXPECT_EQ(big_int{x} % big_int{y}, x % y);
+            /* move_copy */ EXPECT_EQ(big_int{x} % by, x % y);
+            /* copy_move */ EXPECT_EQ(bx % big_int{y}, x % y);
+            /* copy_copy */ EXPECT_EQ(bx % by, x % y);
+            /* move_int  */ EXPECT_EQ(big_int{x} % y, x % y);
+            /* int_move  */ EXPECT_EQ(x % big_int{y}, x % y);
+            /* copy_int  */ EXPECT_EQ(bx % y, x % y);
+            /* int_copy  */ EXPECT_EQ(x % by, x % y);
+        }
+    }
+}
+
+TEST(Division, DivRemToZeroSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int y = -10; y <= 10; ++y) {
+            if (y == 0) {
+                continue;
+            }
+            const big_int bx{x};
+            const big_int by{y};
+
+            const div_result<big_int> expected{x / y, x % y};
+            /* move_move */ EXPECT_EQ(div_rem_to_zero(big_int{x}, big_int{y}), expected);
+            /* move_copy */ EXPECT_EQ(div_rem_to_zero(big_int{x}, by), expected);
+            /* copy_move */ EXPECT_EQ(div_rem_to_zero(bx, big_int{y}), expected);
+            /* copy_copy */ EXPECT_EQ(div_rem_to_zero(bx, by), expected);
+            /* move_int  */ EXPECT_EQ(div_rem_to_zero(big_int{x}, y), expected);
+            /* int_move  */ EXPECT_EQ(div_rem_to_zero(x, big_int{y}), expected);
+            /* copy_int  */ EXPECT_EQ(div_rem_to_zero(bx, y), expected);
+            /* int_copy  */ EXPECT_EQ(div_rem_to_zero(x, by), expected);
+        }
+    }
+}
+
 TEST(Division, MultiplyAndDivideRoundTrip) {
     // (x * y) / y == x for a sequence of pairs.
     for (int i = 1; i < 50; ++i) {
@@ -199,6 +291,37 @@ TEST(Division, PrimitiveLhs) {
     EXPECT_EQ(42 / big_int{7}, 6);
     EXPECT_EQ(-42 / big_int{7}, -6);
     EXPECT_EQ(42 / big_int{-7}, -6);
+}
+
+TEST(Division, DivRemMultiLimbMixedSigns) {
+    // Multi-limb divisor + div_rem + mixed signs: remainder should follow dividend's sign.
+    const big_int dividend = (big_int{1} << 200) + big_int{12345};
+    const big_int divisor  = (big_int{1} << 100) + big_int{7};
+
+    {
+        const auto dr = div_rem_to_zero(dividend, divisor);
+        EXPECT_EQ(dr.quotient, dividend / divisor);
+        EXPECT_EQ(dr.remainder, dividend % divisor);
+        EXPECT_TRUE(dr.remainder >= big_int{0});
+    }
+    {
+        const auto dr = div_rem_to_zero(-dividend, divisor);
+        EXPECT_EQ(dr.quotient, -dividend / divisor);
+        EXPECT_EQ(dr.remainder, -dividend % divisor);
+        EXPECT_TRUE(dr.remainder <= big_int{0});
+    }
+    {
+        const auto dr = div_rem_to_zero(dividend, -divisor);
+        EXPECT_EQ(dr.quotient, dividend / -divisor);
+        EXPECT_EQ(dr.remainder, dividend % -divisor);
+        EXPECT_TRUE(dr.remainder >= big_int{0});
+    }
+    {
+        const auto dr = div_rem_to_zero(-dividend, -divisor);
+        EXPECT_EQ(dr.quotient, -dividend / -divisor);
+        EXPECT_EQ(dr.remainder, -dividend % -divisor);
+        EXPECT_TRUE(dr.remainder <= big_int{0});
+    }
 }
 
 TEST(Division, HeapPromotionBoundary) {

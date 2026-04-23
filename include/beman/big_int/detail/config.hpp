@@ -505,6 +505,20 @@ namespace beman::big_int {
     #define BEMAN_BIG_INT_IS_CONSTANT_PROPAGATED(...) (void(__VA_ARGS__), false)
 #endif
 
+// Division result =============================================================
+
+namespace beman::big_int {
+
+template <class T>
+struct div_result {
+    T quotient;
+    T remainder;
+
+    friend auto operator<=>(const div_result&, const div_result&) = default;
+};
+
+} // namespace beman::big_int
+
 // =============================================================================
 
 #endif // BEMAN_BIG_INT_CONFIG_HPP

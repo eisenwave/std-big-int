@@ -231,12 +231,20 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     BEMAN_BIG_INT_NO_UNIQUE_ADDRESS allocator_type m_alloc;
 
     // Internal accessors for the packed representation
-    [[nodiscard]] constexpr bool             is_representation_inplace() const noexcept;
-    [[nodiscard]] constexpr std::uint32_t    limb_count() const noexcept;
-    [[nodiscard]] constexpr bool             is_negative() const noexcept;
-    [[nodiscard]] constexpr bool             is_zero() const noexcept;
-    constexpr void                           set_limb_count(std::uint32_t n) noexcept;
-    constexpr void                           set_sign(bool s) noexcept;
+    [[nodiscard]] constexpr bool          is_representation_inplace() const noexcept;
+    [[nodiscard]] constexpr std::uint32_t limb_count() const noexcept;
+    // Returns `true` if the integer value is less than zero, otherwise `false`.
+    [[nodiscard]] constexpr bool is_negative() const noexcept;
+    // Returns `true` if the integer value is zero, otherwise `false`.
+    [[nodiscard]] constexpr bool is_zero() const noexcept;
+    // Like `is_zero`, but bypasses any access to the sign bit.
+    // This function is safe to call even if the object is in a corrupt negative zero state.
+    [[nodiscard]] constexpr bool unchecked_is_magnitude_zero() const noexcept;
+    constexpr void               set_limb_count(std::uint32_t n) noexcept;
+    // Sets the value of the sign bit to `s`,
+    // meaning that the integer value becomes negative if `s` is `true`.
+    // This can possibly result in a corrupt negative zero state.
+    constexpr void                           unchecked_set_sign(bool s) noexcept;
     constexpr void                           negate() noexcept;
     constexpr void                           set_zero() noexcept;
     [[nodiscard]] constexpr limb_type*       limb_ptr() noexcept;
@@ -261,7 +269,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             assign_from_float(value);
         } else {
             if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
-                set_sign(value < std::remove_cvref_t<T>{0});
+                unchecked_set_sign(value < std::remove_cvref_t<T>{0});
                 assign_magnitude(detail::uabs(value));
             } else {
                 assign_magnitude(value);
@@ -303,7 +311,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                 dst[i] = 0;
             }
             set_limb_count(count);
-            set_sign(x.is_negative());
+            unchecked_set_sign(x.is_negative());
         } else {
             using U                 = std::make_unsigned_t<std::remove_cvref_t<T>>;
             const bool          neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
@@ -316,7 +324,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             for (size_type i = limb_count(); i < old_count; ++i) {
                 dst[i] = 0;
             }
-            set_sign(neg);
+            unchecked_set_sign(neg);
         }
         return *this;
     }
@@ -407,6 +415,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         return to<T>();
     }
 
+    // [big.int.div], division
+    template <class L, class R>
+    friend constexpr div_result<detail::common_big_int_type<L, R>> div_rem_to_zero(L&&, R&&);
+
   private:
     template <detail::unsigned_integer T>
     constexpr void assign_magnitude(T value) noexcept;
@@ -469,23 +481,28 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                                  std::span<const uint_multiprecision_t, extent_b> b,
                                  bool                                             b_neg);
 
-    // Computes floor(a / b) (if `op == detail::division_op::div`) or a % b (otherwise) with
-    // C++ truncated-division sign semantics, and stores the result in `*this`.
+    // Computes the quotient, remainder, or both, of an integer division, depending on `op`.
+    // If `op` is `div` or `rem`, this object is set to the desired result,
+    // and the returned value is unspecified.
+    // If `op` is `div_rem`, this object is set to the quotient, and the remainder is returned.
+    //
+    // In any case, the division is rounded towards zero (i.e. it is truncating),
+    // same as the division between fundamental types.
     template <std::size_t extent_a, std::size_t extent_b>
-    constexpr void divmod_into(std::span<const uint_multiprecision_t, extent_a> dividend,
-                               bool                                             dividend_neg,
-                               std::span<const uint_multiprecision_t, extent_b> divisor,
-                               bool                                             divisor_neg,
-                               detail::division_op                              op);
+    constexpr basic_big_int divmod_into(std::span<const uint_multiprecision_t, extent_a> dividend,
+                                        bool                                             dividend_neg,
+                                        std::span<const uint_multiprecision_t, extent_b> divisor,
+                                        bool                                             divisor_neg,
+                                        detail::division_op                              op);
 
-    // Single-limb divisor fast path. Avoids limb-vector promotion and
-    // allocation of a scratch remainder buffer.
+    // Single-limb divisor fast path.
+    // Avoids limb-vector promotion and allocation of a scratch remainder buffer.
     template <std::size_t extent_a>
-    constexpr void divmod_into_short(std::span<const uint_multiprecision_t, extent_a> dividend,
-                                     bool                                             dividend_neg,
-                                     uint_multiprecision_t                            divisor,
-                                     bool                                             divisor_neg,
-                                     detail::division_op                              op);
+    constexpr uint_multiprecision_t divmod_into_short(std::span<const uint_multiprecision_t, extent_a> dividend,
+                                                      bool                                             dividend_neg,
+                                                      uint_multiprecision_t                            divisor,
+                                                      bool                                             divisor_neg,
+                                                      detail::division_op                              op);
 
     // Shared implementation behind copy-assign, move-assign, and the lvalue
     // branches of `operator+` / `operator-`.
@@ -626,19 +643,21 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // static_cast and std::bit_cast are equivalent.
             // This special case also makes the <<= below safe.
             return static_cast<Result>(m_storage.limbs[0]);
-        } else if constexpr (std::endian::native == std::endian::little) {
-            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
-                return std::bit_cast<Result>(m_storage.limbs);
+        } else {
+            if constexpr (std::endian::native == std::endian::little) {
+                if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT {
+                    return std::bit_cast<Result>(m_storage.limbs);
+                }
             }
+            // Naive fallback implementation always works.
+            // This is needed for big endian and when neither static_cast nor bit_cast work.
+            Result result = 0;
+            for (const uint_multiprecision_t limb : m_storage.limbs) {
+                result <<= bits_per_limb;
+                result |= limb;
+            }
+            return result;
         }
-        // Naive fallback implementation always works.
-        // This is needed for big endian and when neither static_cast nor bit_cast work.
-        Result result = 0;
-        for (const uint_multiprecision_t limb : m_storage.limbs) {
-            result <<= bits_per_limb;
-            result |= limb;
-        }
-        return result;
     }
 #else
         = delete;
@@ -725,11 +744,15 @@ template <std::size_t b, class A>
 constexpr bool basic_big_int<b, A>::is_zero() const noexcept {
     // We have the invariant that the sign bit is never set for zero magnitude,
     // so negative numbers short-circuit here.
-    if (is_negative()) {
-        return false;
-    }
-    for (const uint_multiprecision_t limb : representation()) {
-        if (limb != 0) {
+    return !is_negative() && unchecked_is_magnitude_zero();
+}
+
+template <std::size_t b, class A>
+constexpr bool basic_big_int<b, A>::unchecked_is_magnitude_zero() const noexcept {
+    const std::uint32_t unchecked_limb_count = m_size_and_sign & 0x7FFF'FFFFU;
+    const limb_type*    limbs                = limb_ptr();
+    for (std::uint32_t i = 0; i < unchecked_limb_count; ++i) {
+        if (limbs[i] != 0) {
             return false;
         }
     }
@@ -743,7 +766,7 @@ constexpr void basic_big_int<b, A>::set_limb_count(const std::uint32_t n) noexce
 }
 
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::set_sign(const bool s) noexcept {
+constexpr void basic_big_int<b, A>::unchecked_set_sign(const bool s) noexcept {
     m_size_and_sign = (m_size_and_sign & 0x7FFF'FFFFU) | (static_cast<std::uint32_t>(s) << 31);
 }
 
@@ -839,7 +862,7 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
         assign_from_float(value);
     } else {
         if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
-            set_sign(value < 0);
+            unchecked_set_sign(value < 0);
             assign_magnitude(detail::uabs(value));
         } else {
             assign_magnitude(value);
@@ -1182,7 +1205,7 @@ constexpr auto basic_big_int<b, A>::operator++() & -> basic_big_int& {
     if (is_negative()) {
         unchecked_decrement_magnitude();
         if (limb_count() == 1 && limb_ptr()[0] == 0) {
-            set_sign(false);
+            unchecked_set_sign(false);
         }
     } else {
         unchecked_increment_magnitude();
@@ -1203,7 +1226,7 @@ constexpr auto basic_big_int<b, A>::operator--() & -> basic_big_int& {
         unchecked_increment_magnitude();
     } else {
         if (unchecked_decrement_magnitude()) {
-            set_sign(true);
+            unchecked_set_sign(true);
         }
     }
     return *this;
@@ -1757,7 +1780,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
                     }
                 }
 
-                r.set_sign(true);
+                r.unchecked_set_sign(true);
                 if (discarded_nonzero) {
                     r.unchecked_increment_magnitude();
                 }
@@ -1935,9 +1958,9 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
 
         // Preserve the "no negative zero" invariant. Clear the sign first so that
         // `is_zero()` reflects the magnitude regardless of what our sign was on entry.
-        set_sign(false);
+        unchecked_set_sign(false);
         if (!is_zero()) {
-            set_sign(this_neg);
+            unchecked_set_sign(this_neg);
         }
         return;
     }
@@ -1967,9 +1990,9 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
             set_limb_count(limb_count() - 1);
         }
 
-        set_sign(false);
+        unchecked_set_sign(false);
         if (!is_zero()) {
-            set_sign(this_neg);
+            unchecked_set_sign(this_neg);
         }
         return;
     }
@@ -2003,9 +2026,9 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
 
     // `|other| > |*this|` strictly, so the magnitude is guaranteed nonzero; the
     // `set_sign(false)` + `is_zero()` dance is defensive belt-and-braces.
-    set_sign(false);
+    unchecked_set_sign(false);
     if (!is_zero()) {
-        set_sign(other_neg);
+        unchecked_set_sign(other_neg);
     }
 }
 
@@ -2035,9 +2058,9 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
 
     // Negative iff exactly one operand is negative.
     // Avoids negative zero
-    set_sign(false);
+    unchecked_set_sign(false);
     if (!is_zero()) {
-        set_sign(a_neg != b_neg);
+        unchecked_set_sign(a_neg != b_neg);
     }
 }
 
@@ -2115,9 +2138,9 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
         result.set_limb_count(result.limb_count() - 1);
     }
 
-    result.set_sign(false);
+    result.unchecked_set_sign(false);
     if (!result.is_zero()) {
-        result.set_sign(res_neg);
+        result.unchecked_set_sign(res_neg);
     }
     return result;
 }
@@ -2160,7 +2183,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
                 const auto product = x.inplace_to_wide_bit_uint() * y.inplace_to_wide_bit_uint();
                 r.assign_magnitude(product);
                 if (product != 0 && x.is_negative() != y.is_negative()) {
-                    r.set_sign(true);
+                    r.unchecked_set_sign(true);
                 }
                 return r;
             }
@@ -2175,7 +2198,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
                     const auto product = x.inplace_to_wide_bit_uint() * detail::uabs(y);
                     r.assign_magnitude(product);
                     if (product != 0 && x.is_negative() != detail::integer_signbit(y)) {
-                        r.set_sign(true);
+                        r.unchecked_set_sign(true);
                     }
                     return r;
                 }
@@ -2265,22 +2288,23 @@ constexpr auto basic_big_int<b, A>::operator*=(T&& rhs) -> basic_big_int&
 // limbs and carry a single remainder limb between iterations.
 template <std::size_t b, class A>
 template <std::size_t extent_a>
-constexpr void basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision_t, extent_a> dividend,
-                                                      const bool                  dividend_neg,
-                                                      const uint_multiprecision_t divisor,
-                                                      const bool                  divisor_neg,
-                                                      const detail::division_op   op) {
+constexpr uint_multiprecision_t
+basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision_t, extent_a> dividend,
+                                       const bool                                             dividend_neg,
+                                       const uint_multiprecision_t                            divisor,
+                                       const bool                                             divisor_neg,
+                                       const detail::division_op                              op) {
     BEMAN_BIG_INT_ASSERT(divisor != 0);
 
-    const bool want_quotient = op == detail::division_op::div;
+    const bool want_quotient = op != detail::division_op::rem;
     const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
     const bool result_neg    = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
 
     if (detail::is_span_zero(dividend_trim)) {
         limb_ptr()[0] = 0;
         set_limb_count(1);
-        set_sign(false);
-        return;
+        unchecked_set_sign(false);
+        return {};
     }
 
     // Single-limb dividend: native divide/modulo.
@@ -2288,11 +2312,8 @@ constexpr void basic_big_int<b, A>::divmod_into_short(const std::span<const uint
         const uint_multiprecision_t d = dividend_trim[0];
         limb_ptr()[0]                 = want_quotient ? (d / divisor) : (d % divisor);
         set_limb_count(1);
-        set_sign(false);
-        if (!is_zero()) {
-            set_sign(result_neg);
-        }
-        return;
+        unchecked_set_sign(!unchecked_is_magnitude_zero() && result_neg);
+        return op != detail::division_op::div ? d % divisor : 0;
     }
 
     // Stream the quotient through *this's limb buffer,
@@ -2310,10 +2331,8 @@ constexpr void basic_big_int<b, A>::divmod_into_short(const std::span<const uint
         set_limb_count(1);
     }
 
-    set_sign(false);
-    if (!is_zero()) {
-        set_sign(result_neg);
-    }
+    unchecked_set_sign(!unchecked_is_magnitude_zero() && result_neg);
+    return remainder;
 }
 
 // Generic divide/modulus dispatcher.
@@ -2325,45 +2344,56 @@ constexpr void basic_big_int<b, A>::divmod_into_short(const std::span<const uint
 // before falling through to `detail::divide_unsigned`.
 template <std::size_t b, class A>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr void basic_big_int<b, A>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
+constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
                                                 const bool                                             dividend_neg,
                                                 const std::span<const uint_multiprecision_t, extent_b> divisor,
                                                 const bool                                             divisor_neg,
-                                                const detail::division_op                              op) {
+                                                const detail::division_op op) -> basic_big_int {
     const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
     const auto divisor_trim  = divisor.first(detail::trimmed_size(divisor));
 
     BEMAN_BIG_INT_ASSERT(!detail::is_span_zero(divisor_trim));
 
-    const bool want_quotient = op == detail::division_op::div;
-    const bool result_neg    = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
+    const bool want_quotient          = op != detail::division_op::rem;
+    const bool unrounded_quotient_neg = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
 
     if (detail::is_span_zero(dividend_trim)) {
         set_zero();
-        return;
+        return {};
     }
 
     const std::strong_ordering mag_cmp = detail::compare_unsigned_spans(dividend_trim, divisor_trim);
     if (mag_cmp == std::strong_ordering::less) {
         // |dividend| < |divisor|: quotient is 0, remainder is dividend.
-        if (want_quotient) {
+        if (op == detail::division_op::div) {
             set_zero();
-        } else {
-            grow(dividend_trim.size());
-            std::copy(dividend_trim.begin(), dividend_trim.end(), limb_ptr());
-            set_limb_count(static_cast<std::uint32_t>(dividend_trim.size()));
-            set_sign(false);
-            if (!is_zero()) {
-                set_sign(result_neg);
-            }
+            return {};
         }
-        return;
+
+        grow(dividend_trim.size());
+        std::copy(dividend_trim.begin(), dividend_trim.end(), limb_ptr());
+        set_limb_count(static_cast<std::uint32_t>(dividend_trim.size()));
+        unchecked_set_sign(dividend_neg && !unchecked_is_magnitude_zero());
+        if (op == detail::division_op::rem) {
+            return {};
+        }
+
+        BEMAN_BIG_INT_DEBUG_ASSERT(op == detail::division_op::div_rem);
+        basic_big_int result = std::move(*this);
+        set_zero();
+        return result;
     }
 
     // Single-limb divisor fast path.
     if (divisor_trim.size() == 1) {
-        divmod_into_short(dividend_trim, dividend_neg, divisor_trim[0], divisor_neg, op);
-        return;
+        const uint_multiprecision_t rem_limb =
+            divmod_into_short(dividend_trim, dividend_neg, divisor_trim[0], divisor_neg, op);
+        if (rem_limb == 0) {
+            return {};
+        }
+        basic_big_int remainder = rem_limb;
+        remainder.unchecked_set_sign(dividend_neg);
+        return remainder;
     }
 
     // Multi-limb long division.
@@ -2387,26 +2417,59 @@ constexpr void basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
 
         const std::size_t qsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
         set_limb_count(static_cast<std::uint32_t>(qsize));
-    } else {
-        // *this will hold the remainder.
-        // Quotient and `t` go in scratch.
-        grow(r_cap);
-        std::fill_n(limb_ptr(), r_cap, limb_type{0});
 
-        detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
-        const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
+        unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
+        if (op == detail::division_op::div) {
+            return {};
+        }
 
-        detail::divide_unsigned(
-            quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
-
-        const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
-        set_limb_count(static_cast<std::uint32_t>(rsize));
+        BEMAN_BIG_INT_DEBUG_ASSERT(op == detail::division_op::div_rem);
+        basic_big_int rem(rem_span.data(), rem_span.data() + rem_span.size());
+        rem.unchecked_set_sign(dividend_neg && !rem.unchecked_is_magnitude_zero());
+        return rem;
     }
 
-    set_sign(false);
-    if (!is_zero()) {
-        set_sign(result_neg);
+    // *this will hold the remainder.
+    // Quotient and `t` go in scratch.
+    grow(r_cap);
+    std::fill_n(limb_ptr(), r_cap, limb_type{0});
+
+    detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
+    const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
+
+    detail::divide_unsigned(
+        quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
+
+    const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
+    set_limb_count(static_cast<std::uint32_t>(rsize));
+
+    unchecked_set_sign(dividend_neg && !unchecked_is_magnitude_zero());
+    return {};
+}
+
+// Simultaneously computes the quotient and remainder of a division,
+// rounded towards zero.
+template <class L, class R>
+[[nodiscard]] constexpr div_result<detail::common_big_int_type<L, R>> div_rem_to_zero(L&& x, R&& y) {
+    using Result        = detail::common_big_int_type<L, R>;
+    constexpr auto form = detail::classify_form_v<L, R>;
+    constexpr auto op   = detail::division_op::div_rem;
+
+    Result quo;
+    Result rem;
+    if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
+                  form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
+        rem = quo.divmod_into(x.representation(), x.is_negative(), y.representation(), y.is_negative(), op);
+    } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
+        const auto y_limbs = detail::to_limbs(detail::uabs(y));
+        rem                = quo.divmod_into(
+            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y), op);
+    } else if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+        const auto x_limbs = detail::to_limbs(detail::uabs(x));
+        rem                = quo.divmod_into(
+            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative(), op);
     }
+    return {std::move(quo), std::move(rem)};
 }
 
 template <class L, class R>
@@ -2584,19 +2647,19 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
             return;
         }
         __builtin_memcpy(&bits, &value, sizeof(bits));
-        set_sign(static_cast<bool>(bits.sign));
+        unchecked_set_sign(static_cast<bool>(bits.sign));
         ieee_exp      = static_cast<std::uint32_t>(bits.exponent);
         ieee_mantissa = bits.mantissa;
     } else {
         bits = std::bit_cast<bits_t>(value);
-        set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
+        unchecked_set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
         ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
         ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
     }
 #else
     {
         bits = std::bit_cast<bits_t>(value);
-        set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
+        unchecked_set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
         ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
         ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
     }
@@ -3020,7 +3083,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
         //                  The rest is exotic and can use a runtime base.
         const auto ubase     = static_cast<unsigned char>(base);
         auto       remainder = x;
-        remainder.set_sign(false);
+        remainder.unchecked_set_sign(false);
         // Zero should have been handled above already.
         BEMAN_BIG_INT_DEBUG_ASSERT(!remainder.is_zero());
         do {

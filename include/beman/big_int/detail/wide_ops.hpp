@@ -399,12 +399,6 @@ template <unsigned_integer T>
     return {.value = static_cast<T>(result), .borrow = (result >> width_v<T>) != 0};
 }
 
-template <signed_or_unsigned T>
-struct div_result {
-    T quotient;
-    T remainder;
-};
-
 // Returns the quotient and remainder of the division `x / y`.
 // The behavior is undefined if the quotient is not representable as `T`,
 // which is the case if and only if `x.high_bits < y`.
