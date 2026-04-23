@@ -3081,8 +3081,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
         //                  Base 10 is probably the only one that should receive special treatment
         //                  in such a way that avoid integer division at the cost of code size.
         //                  The rest is exotic and can use a runtime base.
-        const auto ubase     = static_cast<unsigned char>(base);
-        auto       remainder = x;
+        auto remainder = x;
         remainder.unchecked_set_sign(false);
         // Zero should have been handled above already.
         BEMAN_BIG_INT_DEBUG_ASSERT(!remainder.is_zero());
@@ -3090,8 +3089,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
             if (current_begin == end) {
                 return {current_begin, std::errc::value_too_large};
             }
-            auto q         = remainder / ubase;
-            auto r         = remainder % ubase;
+            auto [q, r]    = div_rem_to_zero(remainder, static_cast<unsigned char>(base));
             *current_begin = alphabet[static_cast<unsigned char>(r)];
             ++current_begin;
             remainder = std::move(q);
