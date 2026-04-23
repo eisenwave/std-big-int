@@ -12,36 +12,51 @@ namespace {
 
 using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
+using beman::big_int::div_rem_to_zero;
+using beman::big_int::div_result;
 using beman::big_int::uint_multiprecision_t;
 
 // ----- compile-time sanity -----
 
-consteval bool ce_zero_by_one() { return (big_int{0} / big_int{1}) == big_int{0}; }
-static_assert(ce_zero_by_one());
+[[nodiscard]] consteval bool check_div_rem(const big_int x, const big_int y) {
+    return div_rem_to_zero(x, y) == div_result{x / y, x % y};
+}
 
-consteval bool ce_small_positive() { return (big_int{21} / big_int{7}) == big_int{3}; }
-static_assert(ce_small_positive());
+static_assert((big_int{0} / big_int{1}) == 0);
+static_assert((big_int{0} % big_int{1}) == 0);
+static_assert(check_div_rem(0, 1));
 
-consteval bool ce_exact_multiple() { return (big_int{42} / big_int{6}) == big_int{7}; }
-static_assert(ce_exact_multiple());
+static_assert((big_int{21} / big_int{7}) == 3);
+static_assert((big_int{21} % big_int{7}) == 0);
+static_assert(check_div_rem(21, 7));
 
-consteval bool ce_truncation_positive() { return (big_int{7} / big_int{3}) == big_int{2}; }
-static_assert(ce_truncation_positive());
+static_assert((big_int{42} / big_int{6}) == 7);
+static_assert((big_int{42} % big_int{6}) == 0);
+static_assert(check_div_rem(42, 6));
 
-consteval bool ce_truncation_negative_dividend() { return (big_int{-7} / big_int{3}) == big_int{-2}; }
-static_assert(ce_truncation_negative_dividend());
+static_assert((big_int{7} / big_int{3}) == 2);
+static_assert((big_int{7} % big_int{3}) == 1);
+static_assert(check_div_rem(7, 3));
 
-consteval bool ce_truncation_negative_divisor() { return (big_int{7} / big_int{-3}) == big_int{-2}; }
-static_assert(ce_truncation_negative_divisor());
+static_assert((big_int{-7} / big_int{3}) == -2);
+static_assert((big_int{-7} % big_int{3}) == -1);
+static_assert(check_div_rem(-7, 3));
 
-consteval bool ce_truncation_both_negative() { return (big_int{-7} / big_int{-3}) == big_int{2}; }
-static_assert(ce_truncation_both_negative());
+static_assert((big_int{7} / big_int{-3}) == -2);
+static_assert((big_int{7} % big_int{-3}) == 1);
+static_assert(check_div_rem(7, -3));
 
-consteval bool ce_dividend_less_than_divisor() { return (big_int{3} / big_int{7}) == big_int{0}; }
-static_assert(ce_dividend_less_than_divisor());
+static_assert((big_int{-7} / big_int{-3}) == 2);
+static_assert((big_int{-7} % big_int{-3}) == -1);
+static_assert(check_div_rem(-7, -3));
 
-consteval bool ce_self_division() { return (big_int{42} / big_int{42}) == big_int{1}; }
-static_assert(ce_self_division());
+static_assert((big_int{3} / big_int{7}) == 0);
+static_assert((big_int{3} % big_int{7}) == 3);
+static_assert(check_div_rem(3, 7));
+
+static_assert((big_int{42} / big_int{42}) == 1);
+static_assert((big_int{42} % big_int{42}) == 0);
+static_assert(check_div_rem(42, 42));
 
 // ----- runtime tests -----
 
