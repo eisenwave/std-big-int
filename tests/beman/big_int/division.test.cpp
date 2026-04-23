@@ -3,10 +3,23 @@
 
 #include <cstdint>
 #include <limits>
+#include <ostream>
 
 #include <gtest/gtest.h>
 
 #include <beman/big_int/big_int.hpp>
+
+// TODO(eisenwave): This is for better debug printing in GTest.
+//                  It should be a separate testing utility included in all tests.
+namespace beman::big_int {
+
+std::ostream& operator<<(std::ostream& out, const big_int& x) { return out << to_string(x); }
+
+std::ostream& operator<<(std::ostream& out, const div_result<big_int>& x) {
+    return out << "{.quotient = " << x.quotient << ", .remainder = " << x.remainder << '}';
+}
+
+} // namespace beman::big_int
 
 namespace {
 
@@ -139,6 +152,70 @@ TEST(Division, DivideMultiLimbExact) {
     const big_int product = a * b;
     EXPECT_EQ(product / b, a);
     EXPECT_EQ(product / a, b);
+}
+
+TEST(Division, DivSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int y = -10; y <= 10; ++y) {
+            if (y == 0) {
+                continue;
+            }
+            const big_int bx{x};
+            const big_int by{y};
+
+            /* move_move */ EXPECT_EQ(big_int{x} / big_int{y}, x / y);
+            /* move_copy */ EXPECT_EQ(big_int{x} / by, x / y);
+            /* copy_move */ EXPECT_EQ(bx / big_int{y}, x / y);
+            /* copy_copy */ EXPECT_EQ(bx / by, x / y);
+            /* move_int  */ EXPECT_EQ(big_int{x} / y, x / y);
+            /* int_move  */ EXPECT_EQ(x / big_int{y}, x / y);
+            /* copy_int  */ EXPECT_EQ(bx / y, x / y);
+            /* int_copy  */ EXPECT_EQ(x / by, x / y);
+        }
+    }
+}
+
+TEST(Division, RemSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int y = -10; y <= 10; ++y) {
+            if (y == 0) {
+                continue;
+            }
+            const big_int bx{x};
+            const big_int by{y};
+
+            /* move_move */ EXPECT_EQ(big_int{x} % big_int{y}, x % y);
+            /* move_copy */ EXPECT_EQ(big_int{x} % by, x % y);
+            /* copy_move */ EXPECT_EQ(bx % big_int{y}, x % y);
+            /* copy_copy */ EXPECT_EQ(bx % by, x % y);
+            /* move_int  */ EXPECT_EQ(big_int{x} % y, x % y);
+            /* int_move  */ EXPECT_EQ(x % big_int{y}, x % y);
+            /* copy_int  */ EXPECT_EQ(bx % y, x % y);
+            /* int_copy  */ EXPECT_EQ(x % by, x % y);
+        }
+    }
+}
+
+TEST(Division, DivRemToZeroSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int y = -10; y <= 10; ++y) {
+            if (y == 0) {
+                continue;
+            }
+            const big_int bx{x};
+            const big_int by{y};
+
+            const div_result<big_int> expected{x / y, x % y};
+            /* move_move */ EXPECT_EQ(div_rem_to_zero(big_int{x}, big_int{y}), expected);
+            /* move_copy */ EXPECT_EQ(div_rem_to_zero(big_int{x}, by), expected);
+            /* copy_move */ EXPECT_EQ(div_rem_to_zero(bx, big_int{y}), expected);
+            /* copy_copy */ EXPECT_EQ(div_rem_to_zero(bx, by), expected);
+            /* move_int  */ EXPECT_EQ(div_rem_to_zero(big_int{x}, y), expected);
+            /* int_move  */ EXPECT_EQ(div_rem_to_zero(x, big_int{y}), expected);
+            /* copy_int  */ EXPECT_EQ(div_rem_to_zero(bx, y), expected);
+            /* int_copy  */ EXPECT_EQ(div_rem_to_zero(x, by), expected);
+        }
+    }
 }
 
 TEST(Division, MultiplyAndDivideRoundTrip) {
