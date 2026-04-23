@@ -2347,8 +2347,8 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
 
     BEMAN_BIG_INT_ASSERT(!detail::is_span_zero(divisor_trim));
 
-    const bool want_quotient = op == detail::division_op::div;
-    const bool result_neg    = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
+    const bool want_quotient          = op != detail::division_op::rem;
+    const bool unrounded_quotient_neg = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
 
     if (detail::is_span_zero(dividend_trim)) {
         set_zero();
@@ -2366,10 +2366,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         grow(dividend_trim.size());
         std::copy(dividend_trim.begin(), dividend_trim.end(), limb_ptr());
         set_limb_count(static_cast<std::uint32_t>(dividend_trim.size()));
-        set_sign(false);
-        if (!is_zero()) {
-            set_sign(result_neg);
-        }
+        set_sign(!is_zero() && unrounded_quotient_neg);
         if (op == detail::division_op::rem) {
             return {};
         }
@@ -2406,26 +2403,28 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
 
         const std::size_t qsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
         set_limb_count(static_cast<std::uint32_t>(qsize));
-    } else {
-        // *this will hold the remainder.
-        // Quotient and `t` go in scratch.
-        grow(r_cap);
-        std::fill_n(limb_ptr(), r_cap, limb_type{0});
 
-        detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
-        const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
-
-        detail::divide_unsigned(
-            quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
-
-        const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
-        set_limb_count(static_cast<std::uint32_t>(rsize));
+        set_sign(!is_zero() && unrounded_quotient_neg);
+        // FIXME: return remainder
+        return {};
     }
 
-    set_sign(false);
-    if (!is_zero()) {
-        set_sign(result_neg);
-    }
+    // *this will hold the remainder.
+    // Quotient and `t` go in scratch.
+    grow(r_cap);
+    std::fill_n(limb_ptr(), r_cap, limb_type{0});
+
+    detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
+    const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
+
+    detail::divide_unsigned(
+        quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
+
+    const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
+    set_limb_count(static_cast<std::uint32_t>(rsize));
+
+    set_sign(!is_zero() && dividend_neg);
+    return {};
 }
 
 // Simultaneously computes the quotient and remainder of a division,
