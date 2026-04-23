@@ -148,8 +148,8 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         // so the quotient fits in a single limb.
         const wide<uint_multiprecision_t> a{.low_bits = remainder[0], .high_bits = remainder[1]};
         const wide<uint_multiprecision_t> b{.low_bits = divisor[0], .high_bits = divisor[1]};
-        const auto [q, r]                 = divide_wide_by_wide(a, b);
-        quotient[0]                       = q;
+        const auto [q, r] = divide_wide_by_wide(a, b);
+        quotient[0]       = q;
         if (quotient.size() > 1) {
             quotient[1] = 0;
         }
@@ -195,9 +195,9 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
             // to compute a tighter q̂.
             const wide<uint_multiprecision_t> num_wide{.low_bits  = remainder[r_order - 1],
                                                        .high_bits = remainder[r_order]};
-            const wide<uint_multiprecision_t> den_wide{
-                .low_bits  = (y_order > 0) ? divisor[y_order - 1] : uint_multiprecision_t{0},
-                .high_bits = divisor[y_order]};
+            const wide<uint_multiprecision_t> den_wide{.low_bits  = (y_order > 0) ? divisor[y_order - 1]
+                                                                                  : uint_multiprecision_t{0},
+                                                       .high_bits = divisor[y_order]};
             BEMAN_BIG_INT_DEBUG_ASSERT(den_wide.high_bits != 0);
             guess = divide_wide_by_wide(num_wide, den_wide).quotient;
         }

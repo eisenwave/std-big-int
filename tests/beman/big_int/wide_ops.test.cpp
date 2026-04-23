@@ -460,8 +460,8 @@ TEST(WideOps, DivideWideByWideFast) {
 
     // Maximum dividend divided by the smallest valid 2-limb divisor.
     constexpr auto max_limb = std::numeric_limits<uint_multiprecision_t>::max();
-    const auto     r4       = divide_wide_by_wide(wide<uint_multiprecision_t>{.low_bits = max_limb, .high_bits = max_limb},
-                                                  wide<uint_multiprecision_t>{.low_bits = 0ull, .high_bits = 1ull});
+    const auto     r4 = divide_wide_by_wide(wide<uint_multiprecision_t>{.low_bits = max_limb, .high_bits = max_limb},
+                                            wide<uint_multiprecision_t>{.low_bits = 0ull, .high_bits = 1ull});
     EXPECT_EQ(r4.quotient, max_limb);
     EXPECT_EQ(r4.remainder.low_bits, max_limb);
     EXPECT_EQ(r4.remainder.high_bits, 0ull);
@@ -476,24 +476,23 @@ TEST(WideOps, DivideWideByWidePortable) {
     using T = std::uint16_t;
 
     auto check = [](T a_lo, T a_hi, T b_lo, T b_hi) {
-        const auto          r = divide_wide_by_wide(wide<T>{.low_bits = a_lo, .high_bits = a_hi},
-                                                    wide<T>{.low_bits = b_lo, .high_bits = b_hi});
-        const std::uint32_t a = (static_cast<std::uint32_t>(a_hi) << 16) | a_lo;
-        const std::uint32_t b = (static_cast<std::uint32_t>(b_hi) << 16) | b_lo;
-        const std::uint32_t got_r =
-            (static_cast<std::uint32_t>(r.remainder.high_bits) << 16) | r.remainder.low_bits;
+        const auto          r     = divide_wide_by_wide(wide<T>{.low_bits = a_lo, .high_bits = a_hi},
+                                                        wide<T>{.low_bits = b_lo, .high_bits = b_hi});
+        const std::uint32_t a     = (static_cast<std::uint32_t>(a_hi) << 16) | a_lo;
+        const std::uint32_t b     = (static_cast<std::uint32_t>(b_hi) << 16) | b_lo;
+        const std::uint32_t got_r = (static_cast<std::uint32_t>(r.remainder.high_bits) << 16) | r.remainder.low_bits;
         EXPECT_EQ(static_cast<std::uint32_t>(r.quotient), a / b);
         EXPECT_EQ(got_r, a % b);
     };
 
     // Boundary cases.
-    check(0x0000, 0x0000, 0x0000, 0x0001);         // a = 0.
-    check(0x0001, 0x0001, 0x0001, 0x0001);         // a == b.
-    check(0xFFFF, 0x7FFF, 0x0001, 0x8000);         // a < b.
-    check(0xFFFF, 0xFFFF, 0x0000, 0x0001);         // max / minimum 2-limb divisor.
-    check(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF);         // max / max.
-    check(0x0000, 0x8000, 0x0000, 0x8000);         // normalized divisor, exact quotient.
-    check(0xDEAD, 0xBEEF, 0xCAFE, 0x1234);         // arbitrary pattern.
+    check(0x0000, 0x0000, 0x0000, 0x0001); // a = 0.
+    check(0x0001, 0x0001, 0x0001, 0x0001); // a == b.
+    check(0xFFFF, 0x7FFF, 0x0001, 0x8000); // a < b.
+    check(0xFFFF, 0xFFFF, 0x0000, 0x0001); // max / minimum 2-limb divisor.
+    check(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF); // max / max.
+    check(0x0000, 0x8000, 0x0000, 0x8000); // normalized divisor, exact quotient.
+    check(0xDEAD, 0xBEEF, 0xCAFE, 0x1234); // arbitrary pattern.
 
     // Q correction path: dividend top equals divisor top so the Knuth-D-style
     // trial quotient would saturate; the algorithm must still converge.

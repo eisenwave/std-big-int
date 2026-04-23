@@ -558,8 +558,7 @@ template <unsigned_integer T>
             q             = static_cast<T>(q << 1);
 
             // If the virtual 3-limb remainder (r_top, r_hi, r_lo) is >= b, subtract.
-            const bool r_ge_b =
-                (r_top != 0) || (r_hi > b.high_bits) || (r_hi == b.high_bits && r_lo >= b.low_bits);
+            const bool r_ge_b = (r_top != 0) || (r_hi > b.high_bits) || (r_hi == b.high_bits && r_lo >= b.low_bits);
             if (r_ge_b) {
                 const bool borrow_lo = r_lo < b.low_bits;
                 r_lo                 = static_cast<T>(r_lo - b.low_bits);
