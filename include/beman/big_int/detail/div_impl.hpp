@@ -15,9 +15,13 @@
 namespace beman::big_int::detail {
 
 // Selects whether a division routine should yield the quotient or the remainder.
-enum class division_op : bool {
-    div, // compute quotient
-    rem, // compute remainder
+enum class division_op : unsigned char {
+    // Compute only the quotient.
+    div,
+    // Compute only the remainder.
+    rem,
+    // Compute quotient and remainder simultaneously.
+    div_rem,
 };
 
 // ---------------------------------------------------------------------------
