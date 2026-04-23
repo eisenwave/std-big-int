@@ -2373,7 +2373,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         grow(dividend_trim.size());
         std::copy(dividend_trim.begin(), dividend_trim.end(), limb_ptr());
         set_limb_count(static_cast<std::uint32_t>(dividend_trim.size()));
-        unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
+        unchecked_set_sign(dividend_neg && !unchecked_is_magnitude_zero());
         if (op == detail::division_op::rem) {
             return {};
         }
