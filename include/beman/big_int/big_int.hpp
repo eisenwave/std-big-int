@@ -329,19 +329,19 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& operator<<=(S s);
 
     template <class T>
-    constexpr basic_big_int& operator+=(const T& rhs)
+    constexpr basic_big_int& operator+=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
     template <class T>
-    constexpr basic_big_int& operator-=(const T& rhs)
+    constexpr basic_big_int& operator-=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
     template <class T>
-    constexpr basic_big_int& operator*=(const T& rhs)
+    constexpr basic_big_int& operator*=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
     template <class T>
-    constexpr basic_big_int& operator/=(const T& rhs)
+    constexpr basic_big_int& operator/=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
     template <class T>
-    constexpr basic_big_int& operator%=(const T& rhs)
+    constexpr basic_big_int& operator%=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
 
     // [big.int.ops]
@@ -2202,7 +2202,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
 // `add_in_place`.
 template <std::size_t b, class A>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator+=(const T& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A>::operator+=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -2216,7 +2216,7 @@ constexpr auto basic_big_int<b, A>::operator+=(const T& rhs) -> basic_big_int&
 
 template <std::size_t b, class A>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator-=(const T& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A>::operator-=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -2235,7 +2235,7 @@ constexpr auto basic_big_int<b, A>::operator-=(const T& rhs) -> basic_big_int&
 // Compound multiplication assignment.
 template <std::size_t b, class A>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator*=(const T& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A>::operator*=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -2468,7 +2468,7 @@ constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
 // Compound division and modulus assignments.
 template <std::size_t b, class A>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator/=(const T& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A>::operator/=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -2502,7 +2502,7 @@ constexpr auto basic_big_int<b, A>::operator/=(const T& rhs) -> basic_big_int&
 
 template <std::size_t b, class A>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator%=(const T& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A>::operator%=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
