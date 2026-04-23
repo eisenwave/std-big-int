@@ -238,7 +238,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // Returns `true` if the integer value is zero, otherwise `false`.
     [[nodiscard]] constexpr bool is_zero() const noexcept;
     // Like `is_zero`, but bypasses any access to the sign bit.
-    // This function is safe to call even if the object is in a corrrupt negative zero state.
+    // This function is safe to call even if the object is in a corrupt negative zero state.
     [[nodiscard]] constexpr bool unchecked_is_magnitude_zero() const noexcept;
     constexpr void               set_limb_count(std::uint32_t n) noexcept;
     // Sets the value of the sign bit to `s`,
