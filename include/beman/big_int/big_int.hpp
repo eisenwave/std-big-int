@@ -2657,7 +2657,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
 #else
     {
         bits = std::bit_cast<bits_t>(value);
-        set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
+        unchecked_set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
         ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
         ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
     }
