@@ -3127,7 +3127,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
 
         // We wrote all the digits in reverse order.
         // Everything except the leading minus sign (if any) needs to be reversed.
-        std::ranges::reverse(begin + (x.is_negative() ? 1 : 0), current_begin);
+        std::reverse(begin + (x.is_negative() ? 1 : 0), current_begin);
         return {current_begin, std::errc{}};
     }
 
