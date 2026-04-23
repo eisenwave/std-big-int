@@ -216,6 +216,37 @@ TEST(Division, PrimitiveLhs) {
     EXPECT_EQ(42 / big_int{-7}, -6);
 }
 
+TEST(Division, DivRemMultiLimbMixedSigns) {
+    // Multi-limb divisor + div_rem + mixed signs: remainder should follow dividend's sign.
+    const big_int dividend = (big_int{1} << 200) + big_int{12345};
+    const big_int divisor  = (big_int{1} << 100) + big_int{7};
+
+    {
+        const auto dr = div_rem_to_zero(dividend, divisor);
+        EXPECT_EQ(dr.quotient, dividend / divisor);
+        EXPECT_EQ(dr.remainder, dividend % divisor);
+        EXPECT_TRUE(dr.remainder >= big_int{0});
+    }
+    {
+        const auto dr = div_rem_to_zero(-dividend, divisor);
+        EXPECT_EQ(dr.quotient, -dividend / divisor);
+        EXPECT_EQ(dr.remainder, -dividend % divisor);
+        EXPECT_TRUE(dr.remainder <= big_int{0});
+    }
+    {
+        const auto dr = div_rem_to_zero(dividend, -divisor);
+        EXPECT_EQ(dr.quotient, dividend / -divisor);
+        EXPECT_EQ(dr.remainder, dividend % -divisor);
+        EXPECT_TRUE(dr.remainder >= big_int{0});
+    }
+    {
+        const auto dr = div_rem_to_zero(-dividend, -divisor);
+        EXPECT_EQ(dr.quotient, -dividend / -divisor);
+        EXPECT_EQ(dr.remainder, -dividend % -divisor);
+        EXPECT_TRUE(dr.remainder <= big_int{0});
+    }
+}
+
 TEST(Division, HeapPromotionBoundary) {
     // Value well above default inplace_capacity (64 bits * 4 limbs).
     // Using ~320 bits of dividend to guarantee heap storage.

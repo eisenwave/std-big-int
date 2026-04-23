@@ -2425,7 +2425,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
 
         BEMAN_BIG_INT_DEBUG_ASSERT(op == detail::division_op::div_rem);
         basic_big_int rem(rem_span.data(), rem_span.data() + rem_span.size());
-        rem.unchecked_set_sign(divisor_neg && !rem.unchecked_is_magnitude_zero());
+        rem.unchecked_set_sign(dividend_neg && !rem.unchecked_is_magnitude_zero());
         return rem;
     }
 
