@@ -328,6 +328,24 @@ TEST(Addition, InlineInlineNoCarryStaysInline) {
     EXPECT_EQ(r2.capacity(), 0u); // still inline
 }
 
+TEST(Addition, SmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int y = -10; y <= 10; ++y) {
+            const big_int bx{x};
+            const big_int by{y};
+
+            /* move_move */ EXPECT_EQ(big_int{x} + big_int{y}, x + y);
+            /* move_copy */ EXPECT_EQ(big_int{x} + by, x + y);
+            /* copy_move */ EXPECT_EQ(bx + big_int{y}, x + y);
+            /* copy_copy */ EXPECT_EQ(bx + by, x + y);
+            /* move_int  */ EXPECT_EQ(big_int{x} + y, x + y);
+            /* int_move  */ EXPECT_EQ(x + big_int{y}, x + y);
+            /* copy_int  */ EXPECT_EQ(bx + y, x + y);
+            /* int_copy  */ EXPECT_EQ(x + by, x + y);
+        }
+    }
+}
+
 // ----- compound assignment (operator+=) tests -----
 
 consteval bool ce_plus_equal_small() {
