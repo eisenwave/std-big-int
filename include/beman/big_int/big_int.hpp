@@ -2856,19 +2856,22 @@ inline constexpr auto digit_value_table = []() consteval {
 
 [[nodiscard]] consteval unsigned char limb_max_input_digits_naive(const int base) {
     BEMAN_BIG_INT_ASSERT(base >= 2);
+    const auto ubase = static_cast<uint_multiprecision_t>(base);
+    if (std::has_single_bit(ubase)) {
+        return detail::width_v<uint_multiprecision_t> / static_cast<unsigned char>(std::countr_zero(ubase));
+    }
 
     uint_multiprecision_t x      = 1;
     int                   result = 0;
     while (true) {
-        const auto [product, overflow] = overflowing_mul(x, static_cast<uint_multiprecision_t>(base));
+        const auto [product, overflow] = overflowing_mul(x, ubase);
         if (overflow) {
-            break;
+            return static_cast<unsigned char>(product == 0 ? result + 1 : result);
         }
         x = product;
         ++result;
         BEMAN_BIG_INT_ASSERT(product != 0);
     }
-    return static_cast<unsigned char>(result - 1);
 }
 
 inline constexpr auto limb_max_input_digits_table = []() consteval {
