@@ -7,6 +7,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 using beman::big_int::big_int;
 using namespace beman::big_int::literals;
 

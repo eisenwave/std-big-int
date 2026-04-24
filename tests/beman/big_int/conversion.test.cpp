@@ -6,6 +6,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 // [big.int.conv] compile-time tests
 
 static_assert(!static_cast<bool>(beman::big_int::big_int{}));

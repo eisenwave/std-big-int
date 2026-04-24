@@ -6,6 +6,8 @@
 
 #include <gtest/gtest.h>
 
+#include "testing.hpp"
+
 namespace bmp = ::beman::big_int::boost_mp_testing;
 
 namespace local {

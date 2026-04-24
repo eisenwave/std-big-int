@@ -3,23 +3,12 @@
 
 #include <cstdint>
 #include <limits>
-#include <ostream>
 
 #include <gtest/gtest.h>
 
 #include <beman/big_int/big_int.hpp>
 
-// TODO(eisenwave): This is for better debug printing in GTest.
-//                  It should be a separate testing utility included in all tests.
-namespace beman::big_int {
-
-std::ostream& operator<<(std::ostream& out, const big_int& x) { return out << to_string(x); }
-
-std::ostream& operator<<(std::ostream& out, const div_result<big_int>& x) {
-    return out << "{.quotient = " << x.quotient << ", .remainder = " << x.remainder << '}';
-}
-
-} // namespace beman::big_int
+#include "testing.hpp"
 
 namespace {
 
@@ -31,7 +20,7 @@ using beman::big_int::uint_multiprecision_t;
 
 // ----- compile-time sanity -----
 
-[[nodiscard]] consteval bool check_div_rem(const big_int x, const big_int y) {
+[[nodiscard]] consteval bool check_div_rem(const big_int& x, const big_int& y) {
     return div_rem_to_zero(x, y) == div_result{x / y, x % y};
 }
 

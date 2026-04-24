@@ -4,6 +4,8 @@
 #include <beman/big_int/big_int.hpp>
 #include <gtest/gtest.h>
 
+#include "testing.hpp"
+
 TEST(IntegerAssignment, AssignPositive) {
     beman::big_int::big_int x;
     x = 42;

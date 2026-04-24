@@ -11,6 +11,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 namespace {
 
 using beman::big_int::basic_big_int;
@@ -111,31 +113,21 @@ TEST(Multiplication, SingleLimbOverflow) {
     const big_int a{max_val};
     const big_int b{2};
     const big_int r = a * b;
-    // max_val * 2 = 2^65 - 2 = [0xFFFFFFFFFFFFFFFE, 1]
-    ASSERT_EQ(r.representation().size(), 2u);
-    EXPECT_EQ(r.representation()[0], max_val - 1);
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+    EXPECT_EQ(r, (big_int{1} << 65) + big_int{-2});
 }
 
 TEST(Multiplication, SingleLimbTimesMultiLimb) {
     // (2^64) * 3 = 3 * 2^64
     const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int r      = two_64 * big_int{3};
-    // 3 * 2^64 = [0, 3]
-    ASSERT_EQ(r.representation().size(), 2u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{3});
+    EXPECT_EQ(r, big_int{3} << 64);
 }
 
 TEST(Multiplication, MultiLimbTimesMultiLimb) {
     // (2^64) * (2^64) = 2^128
     const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int r      = two_64 * two_64;
-    // 2^128 = [0, 0, 1] in 64-bit limbs
-    ASSERT_EQ(r.representation().size(), 3u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{0});
-    EXPECT_EQ(r.representation()[2], uint_multiprecision_t{1});
+    EXPECT_EQ(r, big_int{1} << 128);
 }
 
 TEST(Multiplication, SelfMultiplication) {
@@ -234,10 +226,7 @@ TEST(Multiplication, CompoundAssignmentSelf) {
 TEST(Multiplication, CompoundAssignmentMultiLimb) {
     big_int a = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
     a *= big_int{2};
-    // 2^65 = [0, 2]
-    ASSERT_EQ(a.representation().size(), 2u);
-    EXPECT_EQ(a.representation()[0], uint_multiprecision_t{0});
-    EXPECT_EQ(a.representation()[1], uint_multiprecision_t{2});
+    EXPECT_EQ(a, big_int{1} << 65);
 }
 
 TEST(Multiplication, LargeMultiLimbLongMul) {

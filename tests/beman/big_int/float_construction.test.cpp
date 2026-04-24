@@ -5,6 +5,8 @@
 #include <beman/big_int/big_int.hpp>
 #include <gtest/gtest.h>
 
+#include "testing.hpp"
+
 TEST(FloatConstruction, DoubleZero) {
     beman::big_int::big_int x(0.0);
     EXPECT_EQ(x.width_mag(), 0U);

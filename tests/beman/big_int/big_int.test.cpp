@@ -3,6 +3,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 namespace beman::big_int {
 
 template class basic_big_int<big_int::inplace_bits, big_int::allocator_type>;

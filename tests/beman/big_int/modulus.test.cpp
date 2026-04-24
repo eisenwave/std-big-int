@@ -8,6 +8,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 namespace {
 
 using beman::big_int::basic_big_int;

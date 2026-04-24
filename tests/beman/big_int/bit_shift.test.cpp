@@ -7,6 +7,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 namespace {
 
 using beman::big_int::basic_big_int;
@@ -27,12 +29,10 @@ TEST(BitShift, LeftShiftBasic) {
     w <<= 1;
     q <<= 1;
 
-    EXPECT_EQ(x == 0, true);
-    EXPECT_EQ(y == 1, true);
-    EXPECT_EQ(z.representation().size(), 1U);
-    EXPECT_EQ(z.representation()[0], 2ULL);
-    EXPECT_EQ(z == 2, true);
-    EXPECT_EQ(w == -2, true);
+    EXPECT_EQ(x, 0);
+    EXPECT_EQ(y, 1);
+    EXPECT_EQ(z, 2);
+    EXPECT_EQ(w, -2);
     EXPECT_EQ(q.representation().size(), 2U);
     EXPECT_EQ(q.representation()[0], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
     EXPECT_EQ(q.representation()[1], 1ULL);
@@ -52,7 +52,7 @@ TEST(BitShift, LeftShiftAcrossLimbs) {
     EXPECT_EQ(x.representation().size(), 2U);
     EXPECT_EQ(x.representation()[0], 0ULL);
     EXPECT_EQ(x.representation()[1], 1ULL);
-    EXPECT_EQ(x == expected, true);
+    EXPECT_EQ(x, expected);
 
     EXPECT_EQ(y.representation().size(), 2U);
     EXPECT_EQ(y.representation()[0], 0ULL);
@@ -74,7 +74,7 @@ TEST(BitShift, LeftShiftAllocatedValue) {
     EXPECT_EQ(x.representation()[0], 0ULL);
     EXPECT_EQ(x.representation()[1], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
     EXPECT_EQ(x.representation()[2], 1ULL);
-    EXPECT_EQ(x.capacity() > 0U, true);
+    EXPECT_GT(x.capacity(), 0U);
 }
 
 TEST(BitShift, RightShiftBasic) {
@@ -90,11 +90,11 @@ TEST(BitShift, RightShiftBasic) {
     w >>= 1;
     q >>= 1;
 
-    EXPECT_EQ(x == 0, true);
-    EXPECT_EQ(y == 1, true);
-    EXPECT_EQ(z == 1, true);
-    EXPECT_EQ(w == -1, true);
-    EXPECT_EQ(q == -1, true);
+    EXPECT_EQ(x, 0);
+    EXPECT_EQ(y, 1);
+    EXPECT_EQ(z, 1);
+    EXPECT_EQ(w, -1);
+    EXPECT_EQ(q, -1);
 }
 
 TEST(BitShift, RightShiftAcrossLimbs) {
@@ -110,9 +110,9 @@ TEST(BitShift, RightShiftAcrossLimbs) {
     y >>= 64;
     z >>= 128;
 
-    EXPECT_EQ(x == 1, true);
-    EXPECT_EQ(y == 2, true);
-    EXPECT_EQ(z == 1, true);
+    EXPECT_EQ(x, 1);
+    EXPECT_EQ(y, 2);
+    EXPECT_EQ(z, 1);
 }
 
 TEST(BitShift, RightShiftNegativeRounding) {
@@ -125,9 +125,9 @@ TEST(BitShift, RightShiftNegativeRounding) {
     y >>= 1;
     z >>= 64;
 
-    EXPECT_EQ(x == -2, true);
-    EXPECT_EQ(y == -2, true);
-    EXPECT_EQ(z == -1, true);
+    EXPECT_EQ(x, -2);
+    EXPECT_EQ(y, -2);
+    EXPECT_EQ(z, -1);
 }
 
 TEST(BitShift, LeftShiftZeroRemainsZero) {
@@ -137,10 +137,8 @@ TEST(BitShift, LeftShiftZeroRemainsZero) {
     x <<= 64;
     x <<= 129;
 
-    EXPECT_EQ(x == 0, true);
-    EXPECT_EQ(x.representation()[0], 0ULL);
-    EXPECT_EQ(x.representation().size() >= 1U, true);
-    EXPECT_EQ(x.representation()[x.representation().size() - 1], 0ULL);
+    EXPECT_EQ(x, 0);
+    EXPECT_GE(x.representation().size(), 1U);
 }
 
 TEST(BitShift, LeftShiftWholeLimbPreservesMagnitudeDigits) {
@@ -175,15 +173,11 @@ TEST(BitShift, RightShiftLargePositiveBecomesZero) {
     big_int x{1};
 
     x >>= 64;
-    EXPECT_EQ(x == 0, true);
-    EXPECT_EQ(x.representation().size(), 1U);
-    EXPECT_EQ(x.representation()[0], 0ULL);
+    EXPECT_EQ(x, 0);
 
     x = 1;
     x >>= 257;
-    EXPECT_EQ(x == 0, true);
-    EXPECT_EQ(x.representation().size(), 1U);
-    EXPECT_EQ(x.representation()[0], 0ULL);
+    EXPECT_EQ(x, 0);
 }
 
 TEST(BitShift, RightShiftLargeNegativeBecomesMinusOne) {
@@ -193,12 +187,12 @@ TEST(BitShift, RightShiftLargeNegativeBecomesMinusOne) {
     x >>= 64;
     y >>= 64;
 
-    EXPECT_EQ(x == -1, true);
-    EXPECT_EQ(y == -1, true);
+    EXPECT_EQ(x, -1);
+    EXPECT_EQ(y, -1);
 
     y = -2;
     y >>= 257;
-    EXPECT_EQ(y == -1, true);
+    EXPECT_EQ(y, -1);
 }
 
 TEST(BitShift, LeftThenRightRoundTripForPositive) {
@@ -206,15 +200,15 @@ TEST(BitShift, LeftThenRightRoundTripForPositive) {
 
     x <<= 17;
     x >>= 17;
-    EXPECT_EQ(x == 123'456'789, true);
+    EXPECT_EQ(x, 123'456'789);
 
     x <<= 64;
     x >>= 64;
-    EXPECT_EQ(x == 123'456'789, true);
+    EXPECT_EQ(x, 123'456'789);
 
     x <<= 130;
     x >>= 130;
-    EXPECT_EQ(x == 123'456'789, true);
+    EXPECT_EQ(x, 123'456'789);
 }
 
 // ----- operator<< (non-mutating left shift) -----

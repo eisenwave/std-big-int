@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <functional>
 
+#include "testing.hpp"
+
 namespace {
 
 namespace bmp = ::beman::big_int::boost_mp_testing;
