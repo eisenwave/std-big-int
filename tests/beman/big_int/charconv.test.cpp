@@ -374,6 +374,47 @@ TEST(FromChars, EveryBase_0x1p200) {
     EXPECT_EQ(parse("bnklg118comha6gqury14067gur54n8won6guf4", 36), expected);
 }
 
+TEST(FromChars, EveryBaseLeadingZeros_0x1p200) {
+    const big_int expected = 1_n << 200;
+    // While the amount of leading zeroes here may seem excessive,
+    // the point is to have one or several whole limbs worth of zeros.
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", 2), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001020010020011122222010012002211022002220100012201102121001102021011020010001110010111202101022110112000001121101020022221002011", 3), expected);
+    EXPECT_EQ(parse("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", 4), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111020132102420112021343001342032333120043341314112104422342034202402044234211314121001", 5), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000153532332401011220403425141024425043540104001011245043050435125240351024502304", 6), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000141246066533632643213232344050606053061443446006544361632102630555343054", 7), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000000", 8), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001203204588105084262810181377042234203043114671273460047336287064", 9), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001606938044258990275541962092341162602522202993782792835301376", 10), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000702a695236a26a175662a9a2048793aa12225aa884798921aa43640211", 11), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000711a44b68618019a2aa233ab1b3a354234329741725b37749147a994", 12), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000118c655a2aa24b3c3c25c8249269882811a1367a2b7c5b60b930499", 13), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000409840b05276d868d7a284750dd66851c40284971c8d464973c64", 14), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a306ea66c3a28ae9e2acb154bda45d3d33bcc419cb2a50c1d51", 15), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000", 16), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000dg16f38eebf846a55ce10e44gf26g5fb8eg148ad8b5g84f11", 17), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000g2ceg0g4b8aa15g1hh662aacbhbd5hab7287a54c7b3d8dc4", 18), expected);
+    EXPECT_EQ(parse("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000015359dfh0ccef9hgch451hg8fdb3c1e569cce46a98c2efi4", 19), expected);
+    EXPECT_EQ(parse("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025d8f83ed4e8idac0b962jghhebge99jd0f5bc06i10cd8g", 20), expected);
+    EXPECT_EQ(parse("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000051fdh8f51670kddg476b2ih0ai1j9a55j48dk27be7c0i4", 21), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000dh5ih81f0403j656bd7i9ch363icjeb78gi7f4cki2h0c", 22), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001lj985917fa09i739cl96kl9gc1978d7kbelg1dkcfde4", 23), expected);
+    EXPECT_EQ(parse("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000074f57n8nnacman4gga8nb9dbemn4ifbe2bcfcjh0bkag", 24), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001621h5ea6abjf1jahiga4ilgl75ocjajae24mjb89751", 25), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005pg9dj501bcj73ompgoo20j8215ldjpmf56eo95mkhm", 26), expected);
+    EXPECT_EQ(parse("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000016364hq352m82o95jbg1b74631c3dka8ce01ga68p24", 27), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007clja95f6j5hiaikcg50ib2433rrikejonpi0896h4", 28), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001m8gen8rkhnnhs0a3qf5fajn361kf4ae06pmrf91pg", 29), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d6fm5miet05hlefp0n0d9chmptojk99cf225jf72g", 30), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003hboprqof3jja07q3c5qmnja0tuc0chm0fffbg691", 31), expected);
+    EXPECT_EQ(parse("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000", 32), expected);
+    EXPECT_EQ(parse("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009l10o238v9in0ega68m2g7rv989opaac2s0bajq1", 33), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000309k9mmbxji2j3ufnp7tpu8gi73a8tj2u823nxhi", 34), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000xysp95s4kpn5qxodmbh36dg7i7pnpt8lg7ur2jb", 35), expected);
+    EXPECT_EQ(parse("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bnklg118comha6gqury14067gur54n8won6guf4", 36), expected);
+}
+
 TEST(FromChars, EveryBase_1234567890123456789012345678901234567890112233445566778899) {
     const big_int expected = 1234567890123456789012345678901234567890112233445566778899_n;
     EXPECT_EQ(parse("1100100101100101111101011111010010101011010111010110000000010101011010001111000011110010000101101011001110110000010011101110011110001010001000010010010011111010010110111101010000111000010011", 2), expected);
@@ -411,6 +452,214 @@ TEST(FromChars, EveryBase_123456789012345678901234567890123456789011223344556677
     EXPECT_EQ(parse("2msi9cfaccqunvoom5m362coqrxcmttlqr3jf1", 34), expected);
     EXPECT_EQ(parse("vyrcqwj3tp1erk7nkx7xw4xme63wchx6ojh99", 35), expected);
     EXPECT_EQ(parse("blrdpawjeweaxb93a5h07u19ogcvpgt5tf66r", 36), expected);
+}
+
+TEST(FromChars, EveryBaseEmptyString) {
+    static constexpr std::string_view empty = "";
+    static constexpr std::from_chars_result expected{empty.data(), std::errc::invalid_argument};
+
+    big_int result;
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 2), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 3), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 4), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 5), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 6), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 7), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 8), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 9), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 10), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 11), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 12), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 13), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 14), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 15), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 16), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 17), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 18), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 19), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 20), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 21), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 22), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 23), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 24), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 25), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 26), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 27), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 28), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 29), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 30), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 31), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 32), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 33), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 34), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 35), expected);
+    EXPECT_EQ(from_chars(empty.data(), empty.data(), result, 36), expected);
+}
+
+TEST(FromChars, EveryBaseInvalidCharacter) {
+    static constexpr std::string_view invalid = "@";
+    static constexpr std::from_chars_result expected{invalid.data() + invalid.size(), std::errc::invalid_argument};
+
+    big_int result;
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 2), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 3), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 4), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 5), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 6), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 7), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 8), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 9), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 10), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 11), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 12), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 13), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 14), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 15), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 16), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 17), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 18), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 19), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 20), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 21), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 22), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 23), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 24), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 25), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 26), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 27), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 28), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 29), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 30), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 31), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 32), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 33), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 34), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 35), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 36), expected);
+}
+
+TEST(FromChars, EveryBaseInvalidCharacterAfterNegation) {
+    static constexpr std::string_view invalid = "-@";
+    static constexpr std::from_chars_result expected{invalid.data() + invalid.size(), std::errc::invalid_argument};
+
+    big_int result;
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 2), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 3), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 4), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 5), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 6), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 7), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 8), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 9), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 10), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 11), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 12), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 13), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 14), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 15), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 16), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 17), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 18), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 19), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 20), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 21), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 22), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 23), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 24), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 25), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 26), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 27), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 28), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 29), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 30), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 31), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 32), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 33), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 34), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 35), expected);
+    EXPECT_EQ(from_chars(invalid.data(), invalid.data() + invalid.size(), result, 36), expected);
+}
+
+TEST(FromChars, EveryBaseDigitTooLargeForBase) {
+    static constexpr auto from_string = [](const std::string_view digit, int base) {
+        big_int result;
+        return from_chars(digit.data(), digit.data() + digit.size(), result, base);
+    };
+    EXPECT_EQ(from_string("2", 2).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("3", 3).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("4", 4).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("5", 5).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("6", 6).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("7", 7).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("8", 8).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("9", 9).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("a", 10).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("b", 11).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("c", 12).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("d", 13).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("e", 14).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("f", 15).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("g", 16).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("h", 17).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("i", 18).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("j", 19).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("k", 20).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("l", 21).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("m", 22).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("n", 23).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("o", 24).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("p", 25).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("q", 26).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("r", 27).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("s", 28).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("t", 29).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("u", 30).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("v", 31).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("w", 32).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("x", 33).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("y", 34).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("z", 35).ec, std::errc::invalid_argument);
+}
+
+TEST(FromChars, EveryBaseDigitTooLargeAfterNegation) {
+    static constexpr auto from_string = [](const std::string_view digit, int base) {
+        big_int result;
+        return from_chars(digit.data(), digit.data() + digit.size(), result, base);
+    };
+    EXPECT_EQ(from_string("-2", 2).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-3", 3).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-4", 4).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-5", 5).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-6", 6).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-7", 7).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-8", 8).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-9", 9).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-a", 10).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-b", 11).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-c", 12).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-d", 13).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-e", 14).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-f", 15).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-g", 16).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-h", 17).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-i", 18).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-j", 19).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-k", 20).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-l", 21).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-m", 22).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-n", 23).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-o", 24).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-p", 25).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-q", 26).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-r", 27).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-s", 28).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-t", 29).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-u", 30).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-v", 31).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-w", 32).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-x", 33).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-y", 34).ec, std::errc::invalid_argument);
+    EXPECT_EQ(from_string("-z", 35).ec, std::errc::invalid_argument);
 }
 
 TEST(ToChars, WidthMag) {
