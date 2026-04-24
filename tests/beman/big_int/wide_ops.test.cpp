@@ -6,6 +6,8 @@
 
 #include <limits>
 
+#include "testing.hpp"
+
 namespace {
 
 using beman::big_int::uint_multiprecision_t;
@@ -77,18 +79,18 @@ TEST(WideOps, WideEquality) {
     constexpr wide<uint_multiprecision_t> c{.low_bits = 2ull, .high_bits = 2ull};
     constexpr wide<uint_multiprecision_t> d{.low_bits = 1ull, .high_bits = 3ull};
 
-    EXPECT_EQ(a == b, true);
-    EXPECT_EQ(b == a, true);
-    EXPECT_EQ(a == c, false);
-    EXPECT_EQ(c == a, false);
-    EXPECT_EQ(a == d, false);
-    EXPECT_EQ(d == a, false);
-    EXPECT_EQ(b == c, false);
-    EXPECT_EQ(c == b, false);
-    EXPECT_EQ(b == d, false);
-    EXPECT_EQ(d == b, false);
-    EXPECT_EQ(c == d, false);
-    EXPECT_EQ(d == c, false);
+    EXPECT_EQ(a, b);
+    EXPECT_EQ(b, a);
+    EXPECT_NE(a, c);
+    EXPECT_NE(c, a);
+    EXPECT_NE(a, d);
+    EXPECT_NE(d, a);
+    EXPECT_NE(b, c);
+    EXPECT_NE(c, b);
+    EXPECT_NE(b, d);
+    EXPECT_NE(d, b);
+    EXPECT_NE(c, d);
+    EXPECT_NE(d, c);
 }
 
 TEST(WideOps, WideningMulInt) {
@@ -243,17 +245,17 @@ TEST(WideOps, OverflowingAddInt) {
     const auto r6 = overflowing_add<int_multiprecision_t>(std::numeric_limits<int_multiprecision_t>::max(), -1);
 
     EXPECT_EQ(r1.value, static_cast<int_multiprecision_t>(0));
-    EXPECT_EQ(r1.overflow, false);
+    EXPECT_FALSE(r1.overflow);
     EXPECT_EQ(r2.value, static_cast<int_multiprecision_t>(12));
-    EXPECT_EQ(r2.overflow, false);
+    EXPECT_FALSE(r2.overflow);
     EXPECT_EQ(r3.value, static_cast<int_multiprecision_t>(-12));
-    EXPECT_EQ(r3.overflow, false);
+    EXPECT_FALSE(r3.overflow);
     EXPECT_EQ(r4.value, std::numeric_limits<int_multiprecision_t>::min());
-    EXPECT_EQ(r4.overflow, true);
+    EXPECT_TRUE(r4.overflow);
     EXPECT_EQ(r5.value, std::numeric_limits<int_multiprecision_t>::max());
-    EXPECT_EQ(r5.overflow, true);
+    EXPECT_TRUE(r5.overflow);
     EXPECT_EQ(r6.value, std::numeric_limits<int_multiprecision_t>::max() - 1);
-    EXPECT_EQ(r6.overflow, false);
+    EXPECT_FALSE(r6.overflow);
 }
 
 TEST(WideOps, OverflowingAddUint) {
@@ -268,17 +270,17 @@ TEST(WideOps, OverflowingAddUint) {
         overflowing_add<uint_multiprecision_t>(std::numeric_limits<uint_multiprecision_t>::max() - 1ull, 1ull);
 
     EXPECT_EQ(r1.value, 0ull);
-    EXPECT_EQ(r1.overflow, false);
+    EXPECT_FALSE(r1.overflow);
     EXPECT_EQ(r2.value, 3ull);
-    EXPECT_EQ(r2.overflow, false);
+    EXPECT_FALSE(r2.overflow);
     EXPECT_EQ(r3.value, 12ull);
-    EXPECT_EQ(r3.overflow, false);
+    EXPECT_FALSE(r3.overflow);
     EXPECT_EQ(r4.value, 0ull);
-    EXPECT_EQ(r4.overflow, true);
+    EXPECT_TRUE(r4.overflow);
     EXPECT_EQ(r5.value, std::numeric_limits<uint_multiprecision_t>::max());
-    EXPECT_EQ(r5.overflow, false);
+    EXPECT_FALSE(r5.overflow);
     EXPECT_EQ(r6.value, std::numeric_limits<uint_multiprecision_t>::max());
-    EXPECT_EQ(r6.overflow, false);
+    EXPECT_FALSE(r6.overflow);
 }
 
 TEST(WideOps, OverflowingSubInt) {
@@ -292,17 +294,17 @@ TEST(WideOps, OverflowingSubInt) {
     const auto r6 = overflowing_sub<int_multiprecision_t>(std::numeric_limits<int_multiprecision_t>::min(), -1);
 
     EXPECT_EQ(r1.value, static_cast<int_multiprecision_t>(0));
-    EXPECT_EQ(r1.overflow, false);
+    EXPECT_FALSE(r1.overflow);
     EXPECT_EQ(r2.value, static_cast<int_multiprecision_t>(2));
-    EXPECT_EQ(r2.overflow, false);
+    EXPECT_FALSE(r2.overflow);
     EXPECT_EQ(r3.value, static_cast<int_multiprecision_t>(-2));
-    EXPECT_EQ(r3.overflow, false);
+    EXPECT_FALSE(r3.overflow);
     EXPECT_EQ(r4.value, std::numeric_limits<int_multiprecision_t>::max());
-    EXPECT_EQ(r4.overflow, true);
+    EXPECT_TRUE(r4.overflow);
     EXPECT_EQ(r5.value, std::numeric_limits<int_multiprecision_t>::min());
-    EXPECT_EQ(r5.overflow, true);
+    EXPECT_TRUE(r5.overflow);
     EXPECT_EQ(r6.value, std::numeric_limits<int_multiprecision_t>::min() + 1);
-    EXPECT_EQ(r6.overflow, false);
+    EXPECT_FALSE(r6.overflow);
 }
 
 TEST(WideOps, OverflowingSubUint) {
@@ -317,17 +319,17 @@ TEST(WideOps, OverflowingSubUint) {
                                                            std::numeric_limits<uint_multiprecision_t>::max());
 
     EXPECT_EQ(r1.value, 0ull);
-    EXPECT_EQ(r1.overflow, false);
+    EXPECT_FALSE(r1.overflow);
     EXPECT_EQ(r2.value, 2ull);
-    EXPECT_EQ(r2.overflow, false);
+    EXPECT_FALSE(r2.overflow);
     EXPECT_EQ(r3.value, std::numeric_limits<uint_multiprecision_t>::max());
-    EXPECT_EQ(r3.overflow, true);
+    EXPECT_TRUE(r3.overflow);
     EXPECT_EQ(r4.value, 1ull);
-    EXPECT_EQ(r4.overflow, false);
+    EXPECT_FALSE(r4.overflow);
     EXPECT_EQ(r5.value, 0ull);
-    EXPECT_EQ(r5.overflow, false);
+    EXPECT_FALSE(r5.overflow);
     EXPECT_EQ(r6.value, 0ull);
-    EXPECT_EQ(r6.overflow, false);
+    EXPECT_FALSE(r6.overflow);
 }
 
 TEST(WideOps, OverflowingMulUint) {
@@ -342,17 +344,17 @@ TEST(WideOps, OverflowingMulUint) {
                                                            std::numeric_limits<uint_multiprecision_t>::max());
 
     EXPECT_EQ(r1.value, 0ull);
-    EXPECT_EQ(r1.overflow, false);
+    EXPECT_FALSE(r1.overflow);
     EXPECT_EQ(r2.value, 1ull);
-    EXPECT_EQ(r2.overflow, false);
+    EXPECT_FALSE(r2.overflow);
     EXPECT_EQ(r3.value, 35ull);
-    EXPECT_EQ(r3.overflow, false);
+    EXPECT_FALSE(r3.overflow);
     EXPECT_EQ(r4.value, 0ull);
-    EXPECT_EQ(r4.overflow, true);
+    EXPECT_TRUE(r4.overflow);
     EXPECT_EQ(r5.value, std::numeric_limits<uint_multiprecision_t>::max() - 1ull);
-    EXPECT_EQ(r5.overflow, true);
+    EXPECT_TRUE(r5.overflow);
     EXPECT_EQ(r6.value, 1ull);
-    EXPECT_EQ(r6.overflow, true);
+    EXPECT_TRUE(r6.overflow);
 }
 
 TEST(WideOps, CarryingAddUint) {
@@ -368,17 +370,17 @@ TEST(WideOps, CarryingAddUint) {
     const auto r6 = carrying_add<uint_multiprecision_t>(42ull, 58ull, false);
 
     EXPECT_EQ(r1.value, 0ull);
-    EXPECT_EQ(r1.carry, false);
+    EXPECT_FALSE(r1.carry);
     EXPECT_EQ(r2.value, 3ull);
-    EXPECT_EQ(r2.carry, false);
+    EXPECT_FALSE(r2.carry);
     EXPECT_EQ(r3.value, 0ull);
-    EXPECT_EQ(r3.carry, true);
+    EXPECT_TRUE(r3.carry);
     EXPECT_EQ(r4.value, std::numeric_limits<uint_multiprecision_t>::max() - 1ull);
-    EXPECT_EQ(r4.carry, true);
+    EXPECT_TRUE(r4.carry);
     EXPECT_EQ(r5.value, std::numeric_limits<uint_multiprecision_t>::max());
-    EXPECT_EQ(r5.carry, true);
+    EXPECT_TRUE(r5.carry);
     EXPECT_EQ(r6.value, 100ull);
-    EXPECT_EQ(r6.carry, false);
+    EXPECT_FALSE(r6.carry);
 }
 
 TEST(WideOps, BorrowingSubUint) {
@@ -392,17 +394,17 @@ TEST(WideOps, BorrowingSubUint) {
     const auto r6 = borrowing_sub<uint_multiprecision_t>(100ull, 58ull, false);
 
     EXPECT_EQ(r1.value, 0ull);
-    EXPECT_EQ(r1.borrow, false);
+    EXPECT_FALSE(r1.borrow);
     EXPECT_EQ(r2.value, 2ull);
-    EXPECT_EQ(r2.borrow, false);
+    EXPECT_FALSE(r2.borrow);
     EXPECT_EQ(r3.value, std::numeric_limits<uint_multiprecision_t>::max());
-    EXPECT_EQ(r3.borrow, true);
+    EXPECT_TRUE(r3.borrow);
     EXPECT_EQ(r4.value, std::numeric_limits<uint_multiprecision_t>::max());
-    EXPECT_EQ(r4.borrow, true);
+    EXPECT_TRUE(r4.borrow);
     EXPECT_EQ(r5.value, 0ull);
-    EXPECT_EQ(r5.borrow, false);
+    EXPECT_FALSE(r5.borrow);
     EXPECT_EQ(r6.value, 42ull);
-    EXPECT_EQ(r6.borrow, false);
+    EXPECT_FALSE(r6.borrow);
 }
 
 TEST(WideOps, NarrowingDivUint) {

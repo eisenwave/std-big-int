@@ -8,6 +8,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 namespace {
 
 using beman::big_int::basic_big_int;
@@ -86,9 +88,7 @@ TEST(Subtraction, BorrowAcrossLimbPromotesToHeap) {
     const big_int b{-1};
     // a - b = a + 1 = 2^64 → two-limb result, must promote to heap.
     const big_int r = a - b;
-    ASSERT_EQ(r.representation().size(), 2u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+    EXPECT_EQ(r, big_int{1} << 64);
     EXPECT_GT(r.capacity(), 0u);
 }
 
@@ -96,26 +96,22 @@ TEST(Subtraction, NoAllocationWhenInlineFits) {
     using big_int_256 = basic_big_int<256>;
     const big_int_256 a{std::numeric_limits<std::uint64_t>::max()};
     const big_int_256 b{-1};
-    const big_int_256 r = a - b; // 2^64 — still fits inline in a 256-bit inline buffer.
+    const big_int_256 r        = a - b; // 2^64 — still fits inline in a 256-bit inline buffer.
+    const big_int_256 expected = big_int_256{1} << 64;
     EXPECT_EQ(r.capacity(), 0u);
-    ASSERT_EQ(r.representation().size(), 2u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+    EXPECT_EQ(r, expected);
 }
 
 TEST(Subtraction, MultiLimbSameSignTrimsLeadingZeros) {
     // 2^64 - 1 = UINT64_MAX → must trim back to one limb.
     const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int r      = two_64 - big_int{1};
-    ASSERT_EQ(r.representation().size(), 1u);
-    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_EQ(r, std::numeric_limits<std::uint64_t>::max());
 }
 
 TEST(Subtraction, MultiLimbCancelsToZero) {
     const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int r      = two_64 - two_64;
-    ASSERT_EQ(r.representation().size(), 1u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
     EXPECT_EQ(r, 0);
     EXPECT_FALSE(r < 0);
 }
@@ -125,9 +121,7 @@ TEST(Subtraction, MultiLimbSameSignCrossesLimbBoundary) {
     const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int two_65 = two_64 + two_64;
     const big_int r      = two_65 - two_64;
-    ASSERT_EQ(r.representation().size(), 2u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+    EXPECT_EQ(r, big_int{1} << 64);
 }
 
 TEST(Subtraction, BigIntMinusPrimitiveUnsigned) {
@@ -163,9 +157,7 @@ TEST(Subtraction, PrimitiveSignedMinusBigInt) {
 TEST(Subtraction, PrimitiveBorrowAcrossLimb) {
     // big_int{UINT64_MAX} - (-1) = 2^64 via primitive rhs.
     const big_int r = big_int{std::numeric_limits<std::uint64_t>::max()} - -1;
-    ASSERT_EQ(r.representation().size(), 2u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{0});
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+    EXPECT_EQ(r, big_int{1} << 64);
 }
 
 TEST(Subtraction, UnequalLengthMultiLimb) {
@@ -173,15 +165,11 @@ TEST(Subtraction, UnequalLengthMultiLimb) {
     const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const big_int a      = two_64 + big_int{10};
     const big_int r      = a - big_int{3};
-    ASSERT_EQ(r.representation().size(), 2u);
-    EXPECT_EQ(r.representation()[0], uint_multiprecision_t{7});
-    EXPECT_EQ(r.representation()[1], uint_multiprecision_t{1});
+    EXPECT_EQ(r, (big_int{1} << 64) + big_int{7});
 
     // (2^64 + 10) - (-3) = 2^64 + 13: long minus negative short, same-sign add path.
     const big_int r2 = a - big_int{-3};
-    ASSERT_EQ(r2.representation().size(), 2u);
-    EXPECT_EQ(r2.representation()[0], uint_multiprecision_t{13});
-    EXPECT_EQ(r2.representation()[1], uint_multiprecision_t{1});
+    EXPECT_EQ(r2, (big_int{1} << 64) + big_int{13});
 }
 
 TEST(Subtraction, AgreesWithAdditionOfNegated) {
@@ -212,8 +200,7 @@ TEST(Subtraction, RvalueLhsReusesStorage) {
     ASSERT_GT(a.capacity(), 0u);
     const big_int r = std::move(a) - big_int{1}; // 2^64 - 1 trims to one limb
     EXPECT_EQ(r.representation().data(), a_data);
-    ASSERT_EQ(r.representation().size(), 1u);
-    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_EQ(r, std::numeric_limits<std::uint64_t>::max());
 }
 
 TEST(Subtraction, RvalueRhsReusesStorage) {
@@ -223,8 +210,7 @@ TEST(Subtraction, RvalueRhsReusesStorage) {
     ASSERT_GT(b.capacity(), 0u);
     const big_int r = small - std::move(b); // 1 - 2^64 = -(2^64 - 1)
     EXPECT_EQ(r.representation().data(), b_data);
-    ASSERT_EQ(r.representation().size(), 1u);
-    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_EQ(r, -big_int{std::numeric_limits<std::uint64_t>::max()});
     EXPECT_TRUE(r < 0);
 }
 
@@ -292,16 +278,14 @@ TEST(Subtraction, RvaluePrimitiveMix) {
     const auto*   a_data = a.representation().data();
     const big_int r      = std::move(a) - 1U;
     EXPECT_EQ(r.representation().data(), a_data);
-    ASSERT_EQ(r.representation().size(), 1u);
-    EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_EQ(r, std::numeric_limits<std::uint64_t>::max());
 
     // primitive minus rvalue big_int: should reuse rhs (via negate + add).
     big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const auto*   b_data = b.representation().data();
     const big_int r2     = 1 - std::move(b); // 1 - 2^64 = -(2^64 - 1)
     EXPECT_EQ(r2.representation().data(), b_data);
-    ASSERT_EQ(r2.representation().size(), 1u);
-    EXPECT_EQ(r2.representation()[0], std::numeric_limits<std::uint64_t>::max());
+    EXPECT_EQ(r2, -big_int{std::numeric_limits<std::uint64_t>::max()});
     EXPECT_TRUE(r2 < 0);
 }
 

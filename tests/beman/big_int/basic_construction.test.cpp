@@ -4,6 +4,8 @@
 #include <beman/big_int/big_int.hpp>
 #include <gtest/gtest.h>
 
+#include "testing.hpp"
+
 // ----- compile-time tests -----
 
 consteval bool test_default_construction() {

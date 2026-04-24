@@ -7,6 +7,8 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include "testing.hpp"
+
 namespace {
 
 using beman::big_int::big_int;
@@ -17,43 +19,43 @@ TEST(Comparison, EqualitySmallIntegers) {
     const big_int one{1};
     const big_int neg_one{-1};
 
-    EXPECT_EQ(zero == zero, true);
-    EXPECT_EQ(zero == 0U, true);
-    EXPECT_EQ(0U == zero, true);
-    EXPECT_EQ(zero == 0, true);
-    EXPECT_EQ(0 == zero, true);
+    EXPECT_EQ(zero, zero);
+    EXPECT_EQ(zero, 0U);
+    EXPECT_EQ(0U, zero);
+    EXPECT_EQ(zero, 0);
+    EXPECT_EQ(0, zero);
 
-    EXPECT_EQ(zero == one, false);
-    EXPECT_EQ(zero == 1U, false);
-    EXPECT_EQ(0U == one, false);
-    EXPECT_EQ(zero == 1, false);
-    EXPECT_EQ(0 == one, false);
+    EXPECT_NE(zero, one);
+    EXPECT_NE(zero, 1U);
+    EXPECT_NE(0U, one);
+    EXPECT_NE(zero, 1);
+    EXPECT_NE(0, one);
 
-    EXPECT_EQ(one == zero, false);
-    EXPECT_EQ(one == 0U, false);
-    EXPECT_EQ(1U == zero, false);
-    EXPECT_EQ(one == 0, false);
-    EXPECT_EQ(1 == zero, false);
+    EXPECT_NE(one, zero);
+    EXPECT_NE(one, 0U);
+    EXPECT_NE(1U, zero);
+    EXPECT_NE(one, 0);
+    EXPECT_NE(1, zero);
 
-    EXPECT_EQ(one == one, true);
-    EXPECT_EQ(one == 1U, true);
-    EXPECT_EQ(1U == one, true);
-    EXPECT_EQ(one == 1, true);
-    EXPECT_EQ(1 == one, true);
+    EXPECT_EQ(one, one);
+    EXPECT_EQ(one, 1U);
+    EXPECT_EQ(1U, one);
+    EXPECT_EQ(one, 1);
+    EXPECT_EQ(1, one);
 
-    EXPECT_EQ(one == neg_one, false);
-    EXPECT_EQ(one == -1, false);
-    EXPECT_EQ(1U == neg_one, false);
-    EXPECT_EQ(1 == neg_one, false);
+    EXPECT_NE(one, neg_one);
+    EXPECT_NE(one, -1);
+    EXPECT_NE(1U, neg_one);
+    EXPECT_NE(1, neg_one);
 
-    EXPECT_EQ(neg_one == one, false);
-    EXPECT_EQ(neg_one == 1U, false);
-    EXPECT_EQ(neg_one == 1, false);
-    EXPECT_EQ((-1) == one, false);
+    EXPECT_NE(neg_one, one);
+    EXPECT_NE(neg_one, 1U);
+    EXPECT_NE(neg_one, 1);
+    EXPECT_NE(-1, one);
 
-    EXPECT_EQ(neg_one == neg_one, true);
-    EXPECT_EQ(neg_one == -1, true);
-    EXPECT_EQ((-1) == neg_one, true);
+    EXPECT_EQ(neg_one, neg_one);
+    EXPECT_EQ(neg_one, -1);
+    EXPECT_EQ(-1, neg_one);
 }
 
 TEST(Comparison, EqualityWideIntegers) {
@@ -61,20 +63,20 @@ TEST(Comparison, EqualityWideIntegers) {
     const big_int wide_two{2.0e20};
     const big_int wide_neg = -wide_one;
 
-    EXPECT_EQ(wide_one == wide_one, true);
-    EXPECT_EQ(wide_two == wide_two, true);
-    EXPECT_EQ(wide_one == wide_two, false);
-    EXPECT_EQ(wide_two == wide_one, false);
-    EXPECT_EQ(wide_one == 1U, false);
-    EXPECT_EQ(wide_one == big_int{1U}, false);
-    EXPECT_EQ(1U == wide_one, false);
-    EXPECT_EQ(big_int{1U} == wide_one, false);
-    EXPECT_EQ(1 == wide_one, false);
-    EXPECT_EQ(big_int{1} == wide_one, false);
-    EXPECT_EQ(wide_one == wide_neg, false);
-    EXPECT_EQ(wide_neg == wide_one, false);
-    EXPECT_EQ(wide_neg == -wide_one, true);
-    EXPECT_EQ((-wide_one) == wide_neg, true);
+    EXPECT_EQ(wide_one, wide_one);
+    EXPECT_EQ(wide_two, wide_two);
+    EXPECT_NE(wide_one, wide_two);
+    EXPECT_NE(wide_two, wide_one);
+    EXPECT_NE(wide_one, 1U);
+    EXPECT_NE(wide_one, big_int{1U});
+    EXPECT_NE(1U, wide_one);
+    EXPECT_NE(big_int{1U}, wide_one);
+    EXPECT_NE(1, wide_one);
+    EXPECT_NE(big_int{1}, wide_one);
+    EXPECT_NE(wide_one, wide_neg);
+    EXPECT_NE(wide_neg, wide_one);
+    EXPECT_EQ(wide_neg, -wide_one);
+    EXPECT_EQ(-wide_one, wide_neg);
 }
 
 TEST(Comparison, OrderingSmallIntegers) {
@@ -172,13 +174,13 @@ TEST(Comparison, EqualityNegativeMagnitudes) {
     const big_int neg_five{-5};
     const big_int neg_three_copy{-3};
 
-    EXPECT_EQ(neg_three == neg_three_copy, true);
-    EXPECT_EQ(neg_three == neg_five, false);
-    EXPECT_EQ(neg_five == neg_three, false);
-    EXPECT_EQ(neg_three == -3, true);
-    EXPECT_EQ(neg_three == -5, false);
-    EXPECT_EQ(-3 == neg_three, true);
-    EXPECT_EQ(-5 == neg_three, false);
+    EXPECT_EQ(neg_three, neg_three_copy);
+    EXPECT_NE(neg_three, neg_five);
+    EXPECT_NE(neg_five, neg_three);
+    EXPECT_EQ(neg_three, -3);
+    EXPECT_NE(neg_three, -5);
+    EXPECT_EQ(-3, neg_three);
+    EXPECT_NE(-5, neg_three);
 }
 
 TEST(Comparison, OrderingNegativeMagnitudes) {

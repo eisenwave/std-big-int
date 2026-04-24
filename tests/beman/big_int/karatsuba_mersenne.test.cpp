@@ -8,6 +8,8 @@
 #include <array>
 #include <span>
 
+#include "testing.hpp"
+
 namespace local {
 
 template <class IntegralType>
@@ -70,7 +72,7 @@ auto run_one_mersenne(const unsigned p2) -> void {
 
     const bool result_length_is_ok{big_int_sig == cpp_int_sig};
 
-    EXPECT_EQ(result_length_is_ok, true);
+    EXPECT_TRUE(result_length_is_ok);
 
     bool result_is_ok{result_length_is_ok};
 
@@ -87,11 +89,11 @@ auto run_one_mersenne(const unsigned p2) -> void {
         }
     }
 
-    EXPECT_EQ(result_bytes_same_is_ok, true);
+    EXPECT_TRUE(result_bytes_same_is_ok);
 
     result_is_ok = (result_bytes_same_is_ok && result_is_ok);
 
-    EXPECT_EQ(result_is_ok, true);
+    EXPECT_TRUE(result_is_ok);
 }
 
 // Note: We test millons of decimal digits, since

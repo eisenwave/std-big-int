@@ -10,6 +10,8 @@
     #include <string>
 #endif
 
+#include "testing.hpp"
+
 TEST(Multiplication, KaratsubaEdge01) {
     using beman::big_int::big_int;
 #if !defined(BEMAN_BIG_INT_MSVC)
