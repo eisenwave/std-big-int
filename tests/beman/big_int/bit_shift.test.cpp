@@ -33,7 +33,9 @@ TEST(BitShift, LeftShiftBasic) {
     EXPECT_EQ(y, 1);
     EXPECT_EQ(z, 2);
     EXPECT_EQ(w, -2);
-    EXPECT_EQ(q, (big_int{1} << 65) + big_int{-2});
+    EXPECT_EQ(q.representation().size(), 2U);
+    EXPECT_EQ(q.representation()[0], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
+    EXPECT_EQ(q.representation()[1], 1ULL);
 }
 
 TEST(BitShift, LeftShiftAcrossLimbs) {
@@ -47,11 +49,19 @@ TEST(BitShift, LeftShiftAcrossLimbs) {
     z <<= 128;
     expected <<= 64;
 
+    EXPECT_EQ(x.representation().size(), 2U);
+    EXPECT_EQ(x.representation()[0], 0ULL);
+    EXPECT_EQ(x.representation()[1], 1ULL);
     EXPECT_EQ(x, expected);
 
-    EXPECT_EQ(y, big_int{1} << 65);
+    EXPECT_EQ(y.representation().size(), 2U);
+    EXPECT_EQ(y.representation()[0], 0ULL);
+    EXPECT_EQ(y.representation()[1], 2ULL);
 
-    EXPECT_EQ(z, big_int{1} << 128);
+    EXPECT_EQ(z.representation().size(), 3U);
+    EXPECT_EQ(z.representation()[0], 0ULL);
+    EXPECT_EQ(z.representation()[1], 0ULL);
+    EXPECT_EQ(z.representation()[2], 1ULL);
 }
 
 TEST(BitShift, LeftShiftAllocatedValue) {
@@ -60,7 +70,10 @@ TEST(BitShift, LeftShiftAllocatedValue) {
     x <<= 1;
     x <<= 64;
 
-    EXPECT_EQ(x, (big_int{1} << 129) - (big_int{1} << 65));
+    EXPECT_EQ(x.representation().size(), 3U);
+    EXPECT_EQ(x.representation()[0], 0ULL);
+    EXPECT_EQ(x.representation()[1], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
+    EXPECT_EQ(x.representation()[2], 1ULL);
     EXPECT_GT(x.capacity(), 0U);
 }
 
@@ -252,7 +265,9 @@ TEST(BitShift, OperatorLeftShiftRvalue) {
     EXPECT_EQ(r, 1024);
 
     big_int s = big_int{std::numeric_limits<uint_multiprecision_t>::max()} << 1;
-    EXPECT_EQ(s, (big_int{1} << 65) + big_int{-2});
+    EXPECT_EQ(s.representation().size(), 2U);
+    EXPECT_EQ(s.representation()[0], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
+    EXPECT_EQ(s.representation()[1], 1ULL);
 }
 
 TEST(BitShift, OperatorLeftShiftInplaceToHeap) {
@@ -263,7 +278,9 @@ TEST(BitShift, OperatorLeftShiftInplaceToHeap) {
     EXPECT_EQ(x.capacity(), 0U); // inline
 
     const big_int r = x << 1;
-    EXPECT_EQ(r, big_int{1} << 64);
+    EXPECT_EQ(r.representation().size(), 2U);
+    EXPECT_EQ(r.representation()[0], 0ULL);
+    EXPECT_EQ(r.representation()[1], 1ULL);
 }
 
 TEST(BitShift, OperatorLeftShiftInplaceStaysInlineCLZ) {
@@ -274,7 +291,8 @@ TEST(BitShift, OperatorLeftShiftInplaceStaysInlineCLZ) {
 
     const big_int r = x << 63;
     EXPECT_EQ(r.capacity(), 0U); // still inline
-    EXPECT_EQ(r, big_int{1} << 63);
+    EXPECT_EQ(r.representation().size(), 1U);
+    EXPECT_EQ(r.representation()[0], 1ULL << 63);
 }
 
 TEST(BitShift, OperatorLeftShiftWiderInplaceStaysInline) {
@@ -286,7 +304,13 @@ TEST(BitShift, OperatorLeftShiftWiderInplaceStaysInline) {
 
     const big_int_256 r = x << 255;
     EXPECT_EQ(r.capacity(), 0U); // still inline
-    EXPECT_EQ(r, big_int_256{1} << 255);
+
+    // Top limb should be 1 << (255 % 64) = 1 << 63
+    EXPECT_EQ(r.representation().size(), 4U);
+    EXPECT_EQ(r.representation()[3], 1ULL << 63);
+    EXPECT_EQ(r.representation()[2], 0ULL);
+    EXPECT_EQ(r.representation()[1], 0ULL);
+    EXPECT_EQ(r.representation()[0], 0ULL);
 }
 
 TEST(BitShift, OperatorLeftShiftWiderInplaceToHeap) {
@@ -296,8 +320,12 @@ TEST(BitShift, OperatorLeftShiftWiderInplaceToHeap) {
     const big_int_256 x{1};
 
     const big_int_256 r = x << 256;
+    EXPECT_EQ(r.representation().size(), 5U);
     EXPECT_NE(r.capacity(), 0U); // heap
-    EXPECT_EQ(r, big_int_256{1} << 256);
+    EXPECT_EQ(r.representation()[4], 1ULL);
+    for (int i = 0; i < 4; ++i) {
+        EXPECT_EQ(r.representation()[static_cast<std::size_t>(i)], 0ULL);
+    }
 }
 
 TEST(BitShift, OperatorLeftShiftAcrossLimbs) {
@@ -307,11 +335,18 @@ TEST(BitShift, OperatorLeftShiftAcrossLimbs) {
     const big_int r65  = x << 65;
     const big_int r128 = x << 128;
 
-    EXPECT_EQ(r64, big_int{1} << 64);
+    EXPECT_EQ(r64.representation().size(), 2U);
+    EXPECT_EQ(r64.representation()[0], 0ULL);
+    EXPECT_EQ(r64.representation()[1], 1ULL);
 
-    EXPECT_EQ(r65, big_int{1} << 65);
+    EXPECT_EQ(r65.representation().size(), 2U);
+    EXPECT_EQ(r65.representation()[0], 0ULL);
+    EXPECT_EQ(r65.representation()[1], 2ULL);
 
-    EXPECT_EQ(r128, big_int{1} << 128);
+    EXPECT_EQ(r128.representation().size(), 3U);
+    EXPECT_EQ(r128.representation()[0], 0ULL);
+    EXPECT_EQ(r128.representation()[1], 0ULL);
+    EXPECT_EQ(r128.representation()[2], 1ULL);
 }
 
 TEST(BitShift, OperatorLeftShiftHuge) {
@@ -319,7 +354,11 @@ TEST(BitShift, OperatorLeftShiftHuge) {
     const big_int x{1};
     const big_int r = x << 10000;
 
-    EXPECT_EQ(r, big_int{1} << 10000);
+    // 10000 / 64 = 156 whole limbs, 10000 % 64 = 16-bit shift
+    EXPECT_EQ(r.representation().size(), 157U);
+    EXPECT_EQ(r.representation()[156], 1ULL << 16);
+    EXPECT_EQ(r.representation()[155], 0ULL);
+    EXPECT_EQ(r.representation()[0], 0ULL);
 
     // Verify via round-trip with >>=
     big_int rt = r;
@@ -335,7 +374,10 @@ TEST(BitShift, OperatorLeftShiftHeapSource) {
     EXPECT_NE(x.capacity(), 0U);
 
     const big_int r = x << 64;
-    EXPECT_EQ(r, (big_int{1} << 129) - (big_int{1} << 65));
+    EXPECT_EQ(r.representation().size(), 3U);
+    EXPECT_EQ(r.representation()[0], 0ULL);
+    EXPECT_EQ(r.representation()[1], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
+    EXPECT_EQ(r.representation()[2], 1ULL);
 }
 
 TEST(BitShift, OperatorLeftShiftSignedShiftAmount) {
