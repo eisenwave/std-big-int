@@ -631,4 +631,26 @@ TEST(BitShift, LValueBitShiftDropsTopLimbNegative) {
     EXPECT_EQ(r.capacity(), 0U);
 }
 
+TEST(BitShift, LeftShiftSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int s = 0; s <= 10; ++s) {
+            const big_int bx{x};
+
+            EXPECT_EQ(big_int{x} << s, x << s);
+            EXPECT_EQ(bx << s, x << s);
+        }
+    }
+}
+
+TEST(BitShift, RightShiftSmallConsistencyWithInt) {
+    for (int x = -10; x <= 10; ++x) {
+        for (int s = 0; s <= 10; ++s) {
+            const big_int bx{x};
+
+            EXPECT_EQ(big_int{x} >> s, x >> s);
+            EXPECT_EQ(bx >> s, x >> s);
+        }
+    }
+}
+
 } // namespace
