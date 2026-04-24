@@ -10,9 +10,7 @@ namespace {
 
 using namespace beman::big_int;
 
-constexpr std::size_t bits_per_limb = detail::width_v<uint_multiprecision_t>;
-
-static_assert(std::has_single_bit(bits_per_limb),
+static_assert(std::has_single_bit(detail::width_v<uint_multiprecision_t>),
               "The to_chars and from_chars implementations assume "
               "that the limb width is a power of two.");
 
@@ -36,7 +34,7 @@ static_assert(1234567890123456789012345678901234567890112233445566778899_n == pa
 static_assert(1234567890123456789012345678901234567890112233445566778899_n == parse("2443030312003032423221132100412422141210014133224140342114014311130233010043411044", 5));
 
 TEST(Charconv, LimbMaxInputDigits) {
-    if constexpr (bits_per_limb == 64) {
+    if constexpr (detail::width_v<uint_multiprecision_t> == 64) {
         EXPECT_EQ(detail::limb_max_input_digits(2), 64);
         EXPECT_EQ(detail::limb_max_input_digits(3), 40);
         EXPECT_EQ(detail::limb_max_input_digits(4), 32);
@@ -76,7 +74,7 @@ TEST(Charconv, LimbMaxInputDigits) {
 }
 
 TEST(Charconv, LimbMaxPower) {
-    if constexpr (bits_per_limb == 64) {
+    if constexpr (detail::width_v<uint_multiprecision_t> == 64) {
         EXPECT_EQ(detail::limb_max_power(2), 0ull);
         EXPECT_EQ(detail::limb_max_power(3), 12157665459056928801ull);
         EXPECT_EQ(detail::limb_max_power(4), 0ull);
