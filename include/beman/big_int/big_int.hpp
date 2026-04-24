@@ -3122,6 +3122,8 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
 template <std::size_t b, class A>
 [[nodiscard]] constexpr std::from_chars_result
 from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& out, const int base) {
+    using size_type = typename basic_big_int<b, A>::size_type;
+
     if (begin == nullptr || begin == end || base < 2 || base > 36) {
         return {end, std::errc::invalid_argument};
     }
@@ -3136,37 +3138,78 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     const bool                  is_pow_2                 = (base & (base - 1)) == 0;
     BEMAN_BIG_INT_DEBUG_ASSERT(max_pow != 0 || is_pow_2);
 
+    const char* current_end = current_begin;
+    for (; current_end != end; ++current_end) {
+        const int value = detail::digit_value(*current_end);
+        if (value < 0 || value >= base) {
+            break;
+        }
+    }
+    // This indicates that we have parsed either nothing or only the minus sign:
+    if (current_end == current_begin) {
+        return {end, std::errc::invalid_argument};
+    }
+    const char* const returned_end   = current_end;
+    const auto        digit_count    = static_cast<size_type>(current_end - current_begin);
+    const auto        bits_per_digit = static_cast<size_type>(std::countr_zero(static_cast<unsigned char>(base)));
+
+    if (max_pow == 0) {
+        // Special powers of two (2, 4, 16): one digit block maps exactly to one limb.
+        BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_digit != 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(detail::width_v<uint_multiprecision_t> % bits_per_digit == 0);
+
+        const auto digits_per_limb = detail::width_v<uint_multiprecision_t> / bits_per_digit;
+        const auto limbs_needed    = detail::div_to_pos_inf(digit_count, digits_per_limb);
+
+        out.set_zero();
+        out.grow(limbs_needed);
+
+        auto* const     out_limbs      = out.limb_ptr();
+        std::uint32_t   out_limb_index = 0;
+        const size_type block_len      = static_cast<size_type>(digits_per_limb);
+
+        while (true) {
+            const auto digit_block_length =
+                std::min(current_end - current_begin, static_cast<std::ptrdiff_t>(block_len));
+            const char* const digit_block_begin = current_end - digit_block_length;
+            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
+
+            const std::from_chars_result digit_block_result =
+                std::from_chars(digit_block_begin, current_end, out_limbs[out_limb_index], base);
+            // We already validated the digit run and bounded each block to one limb.
+            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_result.ec == std::errc{});
+            ++out_limb_index;
+
+            if (digit_block_begin == current_begin) {
+                break;
+            }
+            current_end = digit_block_begin;
+        }
+
+        out.unchecked_set_limb_count(out_limb_index);
+        // This trim may be necessary if we have parsed leading zeros in the string.
+        out.unchecked_trim_magnitude();
+        if (*begin == '-') {
+            out.negate();
+        }
+        return {returned_end, std::errc{}};
+    }
+
     if (is_pow_2) {
         // When the base is a power of two, parsing is significantly different.
         // Namely, it takes place FROM LAST TO FIRST, i.e. starting with the least significant digit.
         // This is done so that the parsed blocks of digits can simply be appended to the representation.
         // Parsing in this way essentially involves no multiprecision operations,
         // not even a multiprecision shift.
-
-        // TODO(eisenwave): There are two special powers of two: 2 and 16;
-        //                  for these, number of bits per digit is also a power of two,
-        //                  meaning that we can perform parsing by repeatedly parsing a whole limb
-        //                  and appending it to the representation.
-        //                  These two should be special-cased by doing such a `push_back`
-        //                  instead of the more complex `unchecked_init_magnitude_bits_at`.
+        BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_digit != 0);
+        const auto limbs_needed =
+            detail::div_to_pos_inf(digit_count * bits_per_digit, detail::width_v<uint_multiprecision_t>);
         const auto         bits_per_iteration = static_cast<big_int::size_type>(std::countr_zero(max_pow));
         big_int::size_type bit_offset         = 0;
 
-        const char* current_end = current_begin;
-        for (; current_end != end; ++current_end) {
-            const int value = detail::digit_value(*current_end);
-            if (value < 0 || value >= base) {
-                break;
-            }
-        }
-        // This indicates that we have parsed either nothing or only the minus sign:
-        if (current_end == current_begin) {
-            return {end, std::errc::invalid_argument};
-        }
-        const char* const returned_end = current_end;
-
         // In any other case, we have the guarantee that at least one digit can be parsed.
-        out = {};
+        out.set_zero();
+        out.grow(limbs_needed);
         while (true) {
             const auto        digit_block_length = std::min(current_end - current_begin, max_digits_per_iteration);
             const char* const digit_block_begin  = current_end - digit_block_length;
@@ -3189,6 +3232,8 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             current_end -= digit_block_length;
             BEMAN_BIG_INT_DEBUG_ASSERT(current_end >= digit_block_begin);
         }
+        // This trim may be necessary if we have parsed leading zeros in the string.
+        out.unchecked_trim_magnitude();
         if (*begin == '-') {
             out.negate();
         }
@@ -3206,18 +3251,6 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     //
     // For example, if `base` is `10`, instead of doing parsing base 10,
     // we do it base `1'000'000'000` assuming `uint_multiprecision_t` is 32-bit.
-
-    const char* current_end = current_begin;
-    for (; current_end != end; ++current_end) {
-        const int digit = detail::digit_value(*current_end);
-        if (digit < 0 || digit >= base) {
-            break;
-        }
-    }
-    if (current_end == current_begin) {
-        return {end, std::errc::invalid_argument};
-    }
-    const char* const returned_end = current_end;
 
     // Parse the valid digit run in blocks that fit into `uint_multiprecision_t`.
     // The first block may be shorter so that all following blocks have the same width,
