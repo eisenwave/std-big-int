@@ -2856,19 +2856,22 @@ inline constexpr auto digit_value_table = []() consteval {
 
 [[nodiscard]] consteval unsigned char limb_max_input_digits_naive(const int base) {
     BEMAN_BIG_INT_ASSERT(base >= 2);
+    const auto ubase = static_cast<uint_multiprecision_t>(base);
+    if (std::has_single_bit(ubase)) {
+        return detail::width_v<uint_multiprecision_t> / static_cast<unsigned char>(std::countr_zero(ubase));
+    }
 
     uint_multiprecision_t x      = 1;
     int                   result = 0;
     while (true) {
-        const auto [product, overflow] = overflowing_mul(x, static_cast<uint_multiprecision_t>(base));
+        const auto [product, overflow] = overflowing_mul(x, ubase);
         if (overflow) {
-            break;
+            return static_cast<unsigned char>(product == 0 ? result + 1 : result);
         }
         x = product;
         ++result;
         BEMAN_BIG_INT_ASSERT(product != 0);
     }
-    return static_cast<unsigned char>(result - 1);
 }
 
 inline constexpr auto limb_max_input_digits_table = []() consteval {
@@ -2918,7 +2921,8 @@ inline constexpr auto limb_max_power_table = []() consteval {
 template <size_t b, class A>
 constexpr std::to_chars_result
 to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const int base) {
-    using size_type = typename basic_big_int<b, A>::size_type;
+    using size_type                   = typename basic_big_int<b, A>::size_type;
+    constexpr size_type bits_per_limb = basic_big_int<b, A>::bits_per_limb;
 
     BEMAN_BIG_INT_DEBUG_ASSERT(begin);
     BEMAN_BIG_INT_DEBUG_ASSERT(end);
@@ -2948,10 +2952,10 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
     // the entire implementation (regardless of base) can be delegated to `std::to_chars`.
     {
         constexpr bool ignore_sign = true;
-        if (width <= detail::width_v<uint_multiprecision_t>) {
+        if (width <= bits_per_limb) {
             // The super happy case is that we can use the std::to_chars implementation for a single limb.
             return std::to_chars(current_begin, end, x.template to<uint_multiprecision_t, ignore_sign>(), base);
-        } else if constexpr (detail::width_v<uint_multiprecision_t> < detail::width_v<std::uintmax_t>) {
+        } else if constexpr (bits_per_limb < detail::width_v<std::uintmax_t>) {
             // The slightly less happy case is that we need to use
             // the multiprecision implementation of `std::to_chars`.
             // While we could skip the previous "super happy" check, it may be cheaper to dispatch here
@@ -2977,7 +2981,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
         const auto bits_per_digit     = static_cast<size_type>(std::countr_zero(static_cast<unsigned char>(base)));
         const auto bits_per_iteration = static_cast<size_type>(std::countr_zero(max_pow));
         BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration != 0);
-        BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration <= detail::width_v<uint_multiprecision_t>);
+        BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration <= bits_per_limb);
         BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration % bits_per_digit == 0);
 
         const size_type leading_bits       = width % bits_per_iteration;
@@ -2997,33 +3001,55 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
             }
         }
 
-        // clang-format off
-        const auto chunk_mask = (bits_per_iteration == detail::width_v<uint_multiprecision_t>
-                              ? uint_multiprecision_t{}
-                              : (uint_multiprecision_t{1} << bits_per_iteration)) - 1;
         const auto digit_mask = (uint_multiprecision_t{1} << bits_per_digit) - 1;
-        // clang-format on
 
         // Once the head digits are printed out, every subsequent block of bits
         // has exactly the same amount of digits.
         // For example, when printing a 128-bit integer in octal, there are 126 bits left,
         // handled exactly 63 bits at a time.
-        while (current_bit_offset >= bits_per_iteration) {
-            current_bit_offset -= bits_per_iteration;
 
-            const uint_multiprecision_t chunk = x.get_bits_at(current_bit_offset) & chunk_mask;
+        if (max_pow == 0) {
+            // Special case for bases 2, 4, and 16 where we process one limb per iteration.
+            BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration == bits_per_limb);
+            BEMAN_BIG_INT_DEBUG_ASSERT(current_bit_offset % bits_per_limb == 0);
+            BEMAN_BIG_INT_DEBUG_ASSERT(current_bit_offset % bits_per_iteration == 0);
 
-            for (size_type i = max_digits_per_iteration; i-- > 0;) {
-                if (current_begin == end) {
-                    return {end, std::errc::value_too_large};
+            const auto* const limbs       = x.limb_ptr();
+            const size_type   whole_limbs = current_bit_offset / bits_per_limb;
+            for (size_type limb_index = whole_limbs; limb_index-- > 0;) {
+                const uint_multiprecision_t limb = limbs[limb_index];
+
+                for (size_type i = max_digits_per_iteration; i-- > 0;) {
+                    if (current_begin == end) {
+                        return {end, std::errc::value_too_large};
+                    }
+                    const uint_multiprecision_t digit_value = (limb >> (i * bits_per_digit)) & digit_mask;
+                    *current_begin                          = alphabet[digit_value];
+                    ++current_begin;
                 }
-                const uint_multiprecision_t digit_value = (chunk >> (i * bits_per_digit)) & digit_mask;
-                *current_begin                          = alphabet[digit_value];
-                ++current_begin;
             }
+        } else {
+            // General case for other powers of two.
+            BEMAN_BIG_INT_DEBUG_ASSERT(bits_per_iteration < bits_per_limb);
+            const auto chunk_mask = (uint_multiprecision_t{1} << bits_per_iteration) - 1;
+
+            while (current_bit_offset >= bits_per_iteration) {
+                current_bit_offset -= bits_per_iteration;
+
+                const uint_multiprecision_t chunk = x.get_bits_at(current_bit_offset) & chunk_mask;
+
+                for (size_type i = max_digits_per_iteration; i-- > 0;) {
+                    if (current_begin == end) {
+                        return {end, std::errc::value_too_large};
+                    }
+                    const uint_multiprecision_t digit_value = (chunk >> (i * bits_per_digit)) & digit_mask;
+                    *current_begin                          = alphabet[digit_value];
+                    ++current_begin;
+                }
+            }
+            BEMAN_BIG_INT_DEBUG_ASSERT(current_bit_offset == 0);
         }
 
-        BEMAN_BIG_INT_DEBUG_ASSERT(current_bit_offset == 0);
         return {current_begin, std::errc{}};
     }
 

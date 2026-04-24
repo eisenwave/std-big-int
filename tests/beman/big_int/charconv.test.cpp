@@ -10,6 +10,10 @@ namespace {
 
 using namespace beman::big_int;
 
+static_assert(std::has_single_bit(detail::width_v<uint_multiprecision_t>),
+              "The to_chars and from_chars implementations assume "
+              "that the limb width is a power of two.");
+
 [[nodiscard]] constexpr big_int parse(const std::string_view str, const int base) {
     BEMAN_BIG_INT_ASSERT(base >= 2 && base <= 36);
     big_int result;
@@ -28,6 +32,86 @@ static_assert(1234567890123456789012345678901234567890112233445566778899_n == pa
               "The tests in this file are meaningless because parsing of literals is broken.");
 // Powers of two are handled differently, so a second check makes sense.
 static_assert(1234567890123456789012345678901234567890112233445566778899_n == parse("2443030312003032423221132100412422141210014133224140342114014311130233010043411044", 5));
+
+TEST(Charconv, LimbMaxInputDigits) {
+    if constexpr (detail::width_v<uint_multiprecision_t> == 64) {
+        EXPECT_EQ(detail::limb_max_input_digits(2), 64);
+        EXPECT_EQ(detail::limb_max_input_digits(3), 40);
+        EXPECT_EQ(detail::limb_max_input_digits(4), 32);
+        EXPECT_EQ(detail::limb_max_input_digits(5), 27);
+        EXPECT_EQ(detail::limb_max_input_digits(6), 24);
+        EXPECT_EQ(detail::limb_max_input_digits(7), 22);
+        EXPECT_EQ(detail::limb_max_input_digits(8), 21);
+        EXPECT_EQ(detail::limb_max_input_digits(9), 20);
+        EXPECT_EQ(detail::limb_max_input_digits(10), 19);
+        EXPECT_EQ(detail::limb_max_input_digits(11), 18);
+        EXPECT_EQ(detail::limb_max_input_digits(12), 17);
+        EXPECT_EQ(detail::limb_max_input_digits(13), 17);
+        EXPECT_EQ(detail::limb_max_input_digits(14), 16);
+        EXPECT_EQ(detail::limb_max_input_digits(15), 16);
+        EXPECT_EQ(detail::limb_max_input_digits(16), 16);
+        EXPECT_EQ(detail::limb_max_input_digits(17), 15);
+        EXPECT_EQ(detail::limb_max_input_digits(18), 15);
+        EXPECT_EQ(detail::limb_max_input_digits(19), 15);
+        EXPECT_EQ(detail::limb_max_input_digits(20), 14);
+        EXPECT_EQ(detail::limb_max_input_digits(21), 14);
+        EXPECT_EQ(detail::limb_max_input_digits(22), 14);
+        EXPECT_EQ(detail::limb_max_input_digits(23), 14);
+        EXPECT_EQ(detail::limb_max_input_digits(24), 13);
+        EXPECT_EQ(detail::limb_max_input_digits(25), 13);
+        EXPECT_EQ(detail::limb_max_input_digits(26), 13);
+        EXPECT_EQ(detail::limb_max_input_digits(27), 13);
+        EXPECT_EQ(detail::limb_max_input_digits(28), 13);
+        EXPECT_EQ(detail::limb_max_input_digits(29), 13);
+        EXPECT_EQ(detail::limb_max_input_digits(30), 13);
+        EXPECT_EQ(detail::limb_max_input_digits(31), 12);
+        EXPECT_EQ(detail::limb_max_input_digits(32), 12);
+        EXPECT_EQ(detail::limb_max_input_digits(33), 12);
+        EXPECT_EQ(detail::limb_max_input_digits(34), 12);
+        EXPECT_EQ(detail::limb_max_input_digits(35), 12);
+        EXPECT_EQ(detail::limb_max_input_digits(36), 12);
+    }
+}
+
+TEST(Charconv, LimbMaxPower) {
+    if constexpr (detail::width_v<uint_multiprecision_t> == 64) {
+        EXPECT_EQ(detail::limb_max_power(2), 0ull);
+        EXPECT_EQ(detail::limb_max_power(3), 12157665459056928801ull);
+        EXPECT_EQ(detail::limb_max_power(4), 0ull);
+        EXPECT_EQ(detail::limb_max_power(5), 7450580596923828125ull);
+        EXPECT_EQ(detail::limb_max_power(6), 4738381338321616896ull);
+        EXPECT_EQ(detail::limb_max_power(7), 3909821048582988049ull);
+        EXPECT_EQ(detail::limb_max_power(8), 9223372036854775808ull);
+        EXPECT_EQ(detail::limb_max_power(9), 12157665459056928801ull);
+        EXPECT_EQ(detail::limb_max_power(10), 10000000000000000000ull);
+        EXPECT_EQ(detail::limb_max_power(11), 5559917313492231481ull);
+        EXPECT_EQ(detail::limb_max_power(12), 2218611106740436992ull);
+        EXPECT_EQ(detail::limb_max_power(13), 8650415919381337933ull);
+        EXPECT_EQ(detail::limb_max_power(14), 2177953337809371136ull);
+        EXPECT_EQ(detail::limb_max_power(15), 6568408355712890625ull);
+        EXPECT_EQ(detail::limb_max_power(16), 0ull);
+        EXPECT_EQ(detail::limb_max_power(17), 2862423051509815793ull);
+        EXPECT_EQ(detail::limb_max_power(18), 6746640616477458432ull);
+        EXPECT_EQ(detail::limb_max_power(19), 15181127029874798299ull);
+        EXPECT_EQ(detail::limb_max_power(20), 1638400000000000000ull);
+        EXPECT_EQ(detail::limb_max_power(21), 3243919932521508681ull);
+        EXPECT_EQ(detail::limb_max_power(22), 6221821273427820544ull);
+        EXPECT_EQ(detail::limb_max_power(23), 11592836324538749809ull);
+        EXPECT_EQ(detail::limb_max_power(24), 876488338465357824ull);
+        EXPECT_EQ(detail::limb_max_power(25), 1490116119384765625ull);
+        EXPECT_EQ(detail::limb_max_power(26), 2481152873203736576ull);
+        EXPECT_EQ(detail::limb_max_power(27), 4052555153018976267ull);
+        EXPECT_EQ(detail::limb_max_power(28), 6502111422497947648ull);
+        EXPECT_EQ(detail::limb_max_power(29), 10260628712958602189ull);
+        EXPECT_EQ(detail::limb_max_power(30), 15943230000000000000ull);
+        EXPECT_EQ(detail::limb_max_power(31), 787662783788549761ull);
+        EXPECT_EQ(detail::limb_max_power(32), 1152921504606846976ull);
+        EXPECT_EQ(detail::limb_max_power(33), 1667889514952984961ull);
+        EXPECT_EQ(detail::limb_max_power(34), 2386420683693101056ull);
+        EXPECT_EQ(detail::limb_max_power(35), 3379220508056640625ull);
+        EXPECT_EQ(detail::limb_max_power(36), 4738381338321616896ull);
+    }
+}
 
 TEST(FromChars, DigitValue) {
     EXPECT_EQ(detail::digit_value('0'), 0);
