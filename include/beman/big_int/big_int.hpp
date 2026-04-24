@@ -2916,6 +2916,27 @@ inline constexpr auto limb_max_power_table = []() consteval {
     return limb_max_power_table[std::size_t(base)];
 }
 
+// Fixed-point ceil(log2(base)) coefficients in Q7.4 format.
+// Each entry stores ceil(log2(base) * 16), i.e. ceil(log2(base)) represented with 4 fractional bits.
+inline constexpr std::array<unsigned short, 37> approximate_ceil_mul_log2_q7_4_table{
+    0x00, 0x00, 0x10, 0x1A, 0x20, 0x26, 0x2A, 0x2D, 0x30, 0x33, 0x36, 0x38, 0x3A, 0x3C, 0x3D, 0x3F, 0x40, 0x42, 0x43,
+    0x44, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4D, 0x4E, 0x4F, 0x50, 0x50, 0x51, 0x52, 0x53, 0x53,
+};
+
+// Computes a fast approximation of the amount of bits
+// required to represent an integer in base `base` with `digit_count` digits.
+// Mathematically, this is `ceil(digit_count * log2(base))`.
+// For powers of two, the exact result is returned.
+[[nodiscard]] constexpr std::size_t approximate_ceil_mul_log2(const std::size_t digit_count, const int base) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
+    constexpr std::size_t fractional_bits = 4;
+    constexpr std::size_t fractional_mask = (std::size_t{1} << fractional_bits) - 1;
+
+    const auto        coeff = static_cast<std::size_t>(approximate_ceil_mul_log2_q7_4_table[std::size_t(base)]);
+    const std::size_t scaled_result = digit_count * coeff;
+    return (scaled_result >> fractional_bits) + static_cast<std::size_t>((scaled_result & fractional_mask) != 0);
+}
+
 } // namespace detail
 
 template <size_t b, class A>
@@ -3281,6 +3302,13 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     // Parse the valid digit run in blocks that fit into `uint_multiprecision_t`.
     // The first block may be shorter so that all following blocks have the same width,
     // then the accumulated result is built left-to-right by multiplying by `max_pow` before adding each next block.
+    {
+        const std::size_t bits_needed_upper_bound = detail::approximate_ceil_mul_log2(digit_count, base);
+        const std::size_t limbs_needed_upper_bound =
+            detail::div_to_pos_inf(bits_needed_upper_bound, detail::width_v<uint_multiprecision_t>);
+        out.grow(limbs_needed_upper_bound);
+    }
+
     // clang-format off
     const std::ptrdiff_t first_block_length = (current_end - current_begin) % max_digits_per_iteration == 0
                                             ? max_digits_per_iteration

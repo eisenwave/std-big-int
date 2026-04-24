@@ -1,4 +1,5 @@
 #include <string_view>
+#include <cmath>
 
 #include <gtest/gtest.h>
 
@@ -111,6 +112,33 @@ TEST(Charconv, LimbMaxPower) {
         EXPECT_EQ(detail::limb_max_power(35), 3379220508056640625ull);
         EXPECT_EQ(detail::limb_max_power(36), 4738381338321616896ull);
     }
+}
+
+TEST(Charconv, ApproximateCeilMulLog2PowersOfTwoAreExact) {
+    for (std::size_t digit_count = 0; digit_count <= 100; ++digit_count) {
+        EXPECT_EQ(detail::approximate_ceil_mul_log2(digit_count, 2), digit_count);
+        EXPECT_EQ(detail::approximate_ceil_mul_log2(digit_count, 4), digit_count * 2);
+        EXPECT_EQ(detail::approximate_ceil_mul_log2(digit_count, 8), digit_count * 3);
+        EXPECT_EQ(detail::approximate_ceil_mul_log2(digit_count, 16), digit_count * 4);
+        EXPECT_EQ(detail::approximate_ceil_mul_log2(digit_count, 32), digit_count * 5);
+    }
+}
+
+TEST(Charconv, ApproximateCeilMulLog2UpperBoundForAllBases) {
+    std::size_t worst_error = 0;
+
+    for (int base = 2; base <= 36; ++base) {
+        for (std::size_t digit_count = 0; digit_count <= 100; ++digit_count) {
+            const auto approx = detail::approximate_ceil_mul_log2(digit_count, base);
+            const auto exact  = static_cast<std::size_t>(std::ceil(static_cast<double>(digit_count)
+                                                                  * std::log2(static_cast<double>(base))));
+            EXPECT_GE(approx, exact);
+            worst_error = std::max(worst_error, approx - exact);
+        }
+    }
+
+    // With a 4-bit fixed-point log2 approximation (Q7.4), this range stays within +6 bits.
+    EXPECT_LE(worst_error, 6u);
 }
 
 TEST(FromChars, DigitValue) {
