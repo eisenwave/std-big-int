@@ -240,11 +240,19 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // Like `is_zero`, but bypasses any access to the sign bit.
     // This function is safe to call even if the object is in a corrupt negative zero state.
     [[nodiscard]] constexpr bool unchecked_is_magnitude_zero() const noexcept;
-    constexpr void               set_limb_count(std::uint32_t n) noexcept;
+    // Sets the limb count to a nonzero number `n`.
+    // This can possibly create a non-canonical representation containing trailing zeros.
+    // No check or trim is performed to prevent trailing zeros.
+    constexpr void unchecked_set_limb_count(std::uint32_t n) noexcept;
     // Sets the value of the sign bit to `s`,
     // meaning that the integer value becomes negative if `s` is `true`.
     // This can possibly result in a corrupt negative zero state.
-    constexpr void                           unchecked_set_sign(bool s) noexcept;
+    constexpr void unchecked_set_sign(bool s) noexcept;
+    // Canonicalizes the magnitude by trimming any most significant zeroes.
+    // This does not modify the contents of the representation,
+    // only the `limb_count()` is equal to `1` after calling this function if the integer value is zero.
+    // This function is safe to call on negative zero; the sign bit is not affected.
+    constexpr void                           unchecked_trim_magnitude() noexcept;
     constexpr void                           negate() noexcept;
     constexpr void                           set_zero() noexcept;
     [[nodiscard]] constexpr limb_type*       limb_ptr() noexcept;
@@ -310,7 +318,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             for (size_type i = count; i < limb_count(); ++i) {
                 dst[i] = 0;
             }
-            set_limb_count(count);
+            unchecked_set_limb_count(count);
             unchecked_set_sign(x.is_negative());
         } else {
             using U                 = std::make_unsigned_t<std::remove_cvref_t<T>>;
@@ -600,7 +608,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             BEMAN_BIG_INT_DEBUG_ASSERT(limb_ptr()[limb_offset] == 0);
             limb_ptr()[limb_offset] = bits;
             if (limb_count() < limb_offset + 1) {
-                set_limb_count(static_cast<std::uint32_t>(limb_offset + 1));
+                unchecked_set_limb_count(static_cast<std::uint32_t>(limb_offset + 1));
             }
         } else {
             grow(limb_offset + 2);
@@ -608,7 +616,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             limb_ptr()[limb_offset + 1] |= bits >> (bits_per_limb - bit_offset);
             const size_type hi_limb = (bits >> (bits_per_limb - bit_offset)) != 0 ? limb_offset + 2 : limb_offset + 1;
             if (limb_count() < hi_limb) {
-                set_limb_count(static_cast<std::uint32_t>(hi_limb));
+                unchecked_set_limb_count(static_cast<std::uint32_t>(hi_limb));
             }
         }
     }
@@ -760,7 +768,7 @@ constexpr bool basic_big_int<b, A>::unchecked_is_magnitude_zero() const noexcept
 }
 
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::set_limb_count(const std::uint32_t n) noexcept {
+constexpr void basic_big_int<b, A>::unchecked_set_limb_count(const std::uint32_t n) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(n != 0);
     m_size_and_sign = (m_size_and_sign & 0x8000'0000U) | n;
 }
@@ -781,6 +789,20 @@ template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::set_zero() noexcept {
     limb_ptr()[0]   = 0;
     m_size_and_sign = 1;
+}
+
+template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::unchecked_trim_magnitude() noexcept {
+    const limb_type* const limbs = limb_ptr();
+    std::uint32_t          size  = m_size_and_sign & 0x7FFF'FFFFU;
+    if (size > 1 && limbs[size - 1] == 0) {
+        do {
+            if (limbs[size - 1] != 0) {
+                break;
+            }
+        } while (--size > 1);
+        m_size_and_sign = (m_size_and_sign & 0x8000'0000U) | size;
+    }
 }
 
 template <std::size_t b, class A>
@@ -884,18 +906,18 @@ constexpr basic_big_int<b, A>::basic_big_int(I begin, S end, const allocator_typ
             using U = std::make_unsigned_t<std::iter_value_t<I>>;
             std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(*begin)));
         }
-        set_limb_count(static_cast<std::uint32_t>(i == 0 ? 1 : i));
-        while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
-            set_limb_count(limb_count() - 1);
+        if (i == 0) {
+            unchecked_set_limb_count(1);
+        } else {
+            unchecked_set_limb_count(static_cast<std::uint32_t>(i));
+            unchecked_trim_magnitude();
         }
     } else {
         for (; begin != end; ++begin) {
             using U = std::make_unsigned_t<std::iter_value_t<I>>;
             push_back_limb(static_cast<limb_type>(static_cast<U>(*begin)));
         }
-        while (limb_count() > 1 && limb_ptr()[limb_count() - 1] == 0) {
-            set_limb_count(limb_count() - 1);
-        }
+        unchecked_trim_magnitude();
     }
 }
 
@@ -946,7 +968,7 @@ constexpr bool basic_big_int<b, A>::unchecked_increment_magnitude() {
     if (carry_in) {
         reserve(limb_count() + 1);
         limb_ptr()[limb_count()] = limb_type{1};
-        set_limb_count(limb_count() + 1);
+        unchecked_set_limb_count(limb_count() + 1);
     }
     return carry_in;
 }
@@ -966,7 +988,7 @@ constexpr bool basic_big_int<b, A>::unchecked_decrement_magnitude() {
         // meaning that we produce `-1` with this operation.
         BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
         limbs[0] = 1;
-        set_limb_count(1);
+        unchecked_set_limb_count(1);
     }
     return borrow_in;
 }
@@ -992,7 +1014,7 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
         const auto current_count = limb_count();
         std::copy_backward(limbs, limbs + current_count, limbs + current_count + shifted_limbs);
         std::fill_n(limbs, static_cast<std::ptrdiff_t>(shifted_limbs), limb_type{0});
-        set_limb_count(static_cast<std::uint32_t>(current_count + shifted_limbs));
+        unchecked_set_limb_count(static_cast<std::uint32_t>(current_count + shifted_limbs));
     }
     if (shifted_bits != 0) {
         const auto      current_count = limb_count();
@@ -1009,7 +1031,7 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
 
         if (overflow != 0) {
             limbs[current_count] = overflow;
-            set_limb_count(static_cast<std::uint32_t>(current_count + 1));
+            unchecked_set_limb_count(static_cast<std::uint32_t>(current_count + 1));
         }
     }
 }
@@ -1047,10 +1069,10 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
         const auto current_count = limb_count();
         if (shifted_limbs >= current_count) {
             limbs[0] = 0;
-            set_limb_count(1);
+            unchecked_set_limb_count(1);
         } else {
             std::shift_left(limbs, limbs + current_count, static_cast<std::ptrdiff_t>(shifted_limbs));
-            set_limb_count(static_cast<std::uint32_t>(current_count - shifted_limbs));
+            unchecked_set_limb_count(static_cast<std::uint32_t>(current_count - shifted_limbs));
         }
     }
     if (shifted_bits != 0) {
@@ -1061,9 +1083,7 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
         BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
         limbs[limb_count() - 1] >>= shifted_bits;
     }
-    while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
-        set_limb_count(limb_count() - 1);
-    }
+    unchecked_trim_magnitude();
     if (needs_decrement) {
         // See above for rounding considerations.
         // Also note that we may be holding a negative zero right now,
@@ -1760,7 +1780,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
                     dst[i] = detail::funnel_shr(all_bits, static_cast<unsigned int>(shifted_bits));
                 }
             }
-            r.set_limb_count(static_cast<std::uint32_t>(new_count));
+            r.unchecked_set_limb_count(static_cast<std::uint32_t>(new_count));
 
             if (x.is_negative()) {
                 // Mirror `shift_right`'s rounding-toward-negative-infinity
@@ -1947,21 +1967,16 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
             limbs[i]                      = r_value;
             carry                         = r_carry;
         }
-        set_limb_count(static_cast<std::uint32_t>(big));
+        unchecked_set_limb_count(static_cast<std::uint32_t>(big));
 
         // Only allocate for the extra top limb if the ripple carry has actually escaped.
         if (carry) {
             grow(big + 1);
             limb_ptr()[big] = limb_type{1};
-            set_limb_count(static_cast<std::uint32_t>(big + 1));
+            unchecked_set_limb_count(static_cast<std::uint32_t>(big + 1));
         }
 
-        // Preserve the "no negative zero" invariant. Clear the sign first so that
-        // `is_zero()` reflects the magnitude regardless of what our sign was on entry.
-        unchecked_set_sign(false);
-        if (!is_zero()) {
-            unchecked_set_sign(this_neg);
-        }
+        unchecked_set_sign(this_neg && !unchecked_is_magnitude_zero());
         return;
     }
 
@@ -1985,15 +2000,8 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
         // Having picked `*this` as the larger operand, the final borrow must be zero.
         BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
 
-        // Trim leading zero limbs to maintain the "top limb non-zero unless value is zero" invariant.
-        while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
-            set_limb_count(limb_count() - 1);
-        }
-
-        unchecked_set_sign(false);
-        if (!is_zero()) {
-            unchecked_set_sign(this_neg);
-        }
+        unchecked_trim_magnitude();
+        unchecked_set_sign(this_neg && !unchecked_is_magnitude_zero());
         return;
     }
 
@@ -2017,19 +2025,11 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
     }
     // Having picked `other` as the larger operand, the final borrow must be zero.
     BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
-    set_limb_count(static_cast<std::uint32_t>(n));
+    unchecked_set_limb_count(static_cast<std::uint32_t>(n));
+    unchecked_trim_magnitude();
 
-    // Trim leading zero limbs.
-    while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
-        set_limb_count(limb_count() - 1);
-    }
-
-    // `|other| > |*this|` strictly, so the magnitude is guaranteed nonzero; the
-    // `set_sign(false)` + `is_zero()` dance is defensive belt-and-braces.
-    unchecked_set_sign(false);
-    if (!is_zero()) {
-        unchecked_set_sign(other_neg);
-    }
+    // `|other| > |*this|` strictly, so the magnitude is guaranteed nonzero.
+    unchecked_set_sign(other_neg && !unchecked_is_magnitude_zero());
 }
 
 // Computes `a * b` and stores the result into `*this`.
@@ -2054,14 +2054,8 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
 
     std::span<uint_multiprecision_t> result_span{limb_ptr(), result_size};
     const std::size_t                sig = detail::multiply_dispatch(result_span, a_trimmed, b_trimmed, m_alloc);
-    set_limb_count(static_cast<std::uint32_t>(sig));
-
-    // Negative iff exactly one operand is negative.
-    // Avoids negative zero
-    unchecked_set_sign(false);
-    if (!is_zero()) {
-        unchecked_set_sign(a_neg != b_neg);
-    }
+    unchecked_set_limb_count(static_cast<std::uint32_t>(sig));
+    unchecked_set_sign(a_neg != b_neg && !unchecked_is_magnitude_zero());
 }
 
 template <std::size_t b, class A>
@@ -2124,24 +2118,16 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
     if constexpr (res_neg) {
         if (carry_o) {
             dst[n] = limb_type{1};
-            result.set_limb_count(static_cast<std::uint32_t>(n + 1));
+            result.unchecked_set_limb_count(static_cast<std::uint32_t>(n + 1));
         } else {
-            result.set_limb_count(static_cast<std::uint32_t>(n));
+            result.unchecked_set_limb_count(static_cast<std::uint32_t>(n));
         }
     } else {
-        result.set_limb_count(static_cast<std::uint32_t>(n));
+        result.unchecked_set_limb_count(static_cast<std::uint32_t>(n));
     }
 
-    // Trim leading zero limbs.
-    limb_type* limbs = result.limb_ptr();
-    while (result.limb_count() > 1 && limbs[result.limb_count() - 1] == 0) {
-        result.set_limb_count(result.limb_count() - 1);
-    }
-
-    result.unchecked_set_sign(false);
-    if (!result.is_zero()) {
-        result.unchecked_set_sign(res_neg);
-    }
+    result.unchecked_trim_magnitude();
+    result.unchecked_set_sign(res_neg && !result.unchecked_is_magnitude_zero());
     return result;
 }
 
@@ -2302,7 +2288,7 @@ basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision
 
     if (detail::is_span_zero(dividend_trim)) {
         limb_ptr()[0] = 0;
-        set_limb_count(1);
+        unchecked_set_limb_count(1);
         unchecked_set_sign(false);
         return {};
     }
@@ -2311,8 +2297,8 @@ basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision
     if (dividend_trim.size() == 1) {
         const uint_multiprecision_t d = dividend_trim[0];
         limb_ptr()[0]                 = want_quotient ? (d / divisor) : (d % divisor);
-        set_limb_count(1);
-        unchecked_set_sign(!unchecked_is_magnitude_zero() && result_neg);
+        unchecked_set_limb_count(1);
+        unchecked_set_sign(result_neg && !unchecked_is_magnitude_zero());
         return op != detail::division_op::div ? d % divisor : 0;
     }
 
@@ -2325,13 +2311,13 @@ basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision
     if (want_quotient) {
         const std::size_t qsize =
             detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), dividend_trim.size()});
-        set_limb_count(static_cast<std::uint32_t>(qsize));
+        unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
     } else {
         limb_ptr()[0] = remainder;
-        set_limb_count(1);
+        unchecked_set_limb_count(1);
     }
 
-    unchecked_set_sign(!unchecked_is_magnitude_zero() && result_neg);
+    unchecked_set_sign(result_neg && !unchecked_is_magnitude_zero());
     return remainder;
 }
 
@@ -2372,7 +2358,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
 
         grow(dividend_trim.size());
         std::copy(dividend_trim.begin(), dividend_trim.end(), limb_ptr());
-        set_limb_count(static_cast<std::uint32_t>(dividend_trim.size()));
+        unchecked_set_limb_count(static_cast<std::uint32_t>(dividend_trim.size()));
         unchecked_set_sign(dividend_neg && !unchecked_is_magnitude_zero());
         if (op == detail::division_op::rem) {
             return {};
@@ -2416,8 +2402,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
             std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, rem_span, dividend_trim, divisor_trim, scratch);
 
         const std::size_t qsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
-        set_limb_count(static_cast<std::uint32_t>(qsize));
-
+        unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
         unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
         if (op == detail::division_op::div) {
             return {};
@@ -2441,8 +2426,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
 
     const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
-    set_limb_count(static_cast<std::uint32_t>(rsize));
-
+    unchecked_set_limb_count(static_cast<std::uint32_t>(rsize));
     unchecked_set_sign(dividend_neg && !unchecked_is_magnitude_zero());
     return {};
 }
@@ -2605,7 +2589,7 @@ constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
     constexpr size_type value_limbs = detail::div_to_pos_inf(detail::width_v<T>, bits_per_limb);
     if constexpr (value_limbs == 1) {
         limb_ptr()[0] = static_cast<limb_type>(value);
-        set_limb_count(1);
+        unchecked_set_limb_count(1);
     } else {
         if constexpr (value_limbs > inplace_capacity) {
             grow(value_limbs);
@@ -2615,10 +2599,8 @@ constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
             dst[i] = static_cast<limb_type>(value);
             value >>= bits_per_limb;
         }
-        set_limb_count(static_cast<std::uint32_t>(value_limbs));
-        while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
-            set_limb_count(limb_count() - 1);
-        }
+        unchecked_set_limb_count(static_cast<std::uint32_t>(value_limbs));
+        unchecked_trim_magnitude();
     }
 }
 
@@ -2703,10 +2685,8 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
         if (bit_off > 0 && dst[limb_idx + 1] != 0) {
             count = static_cast<std::uint32_t>(limb_idx + 2);
         }
-        set_limb_count(count);
-        while (limb_count() > 1 && dst[limb_count() - 1] == 0) {
-            set_limb_count(limb_count() - 1);
-        }
+        unchecked_set_limb_count(count);
+        unchecked_trim_magnitude();
     };
 
 #ifdef BEMAN_BIG_INT_HAS_INT128
@@ -2737,7 +2717,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
     #endif
         limb_ptr()[0] = lo;
         limb_ptr()[1] = hi;
-        set_limb_count(hi != 0 ? 2u : 1u);
+        unchecked_set_limb_count(hi != 0 ? 2u : 1u);
     };
 
     if constexpr (is_float32) {
@@ -2841,7 +2821,7 @@ constexpr void basic_big_int<b, A>::push_back_limb(limb_type limb) {
         grow(count + 1); // exponential growth
     }
     limb_ptr()[count] = limb;
-    set_limb_count(static_cast<std::uint32_t>(count + 1));
+    unchecked_set_limb_count(static_cast<std::uint32_t>(count + 1));
 }
 
 // Standard public alias for defaulted type
