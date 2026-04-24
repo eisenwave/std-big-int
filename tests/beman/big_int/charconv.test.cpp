@@ -141,6 +141,23 @@ TEST(Charconv, ApproximateCeilMulLog2UpperBoundForAllBases) {
     EXPECT_LE(worst_error, 6u);
 }
 
+TEST(Charconv, ApproximateCeilDivLog2UpperBoundForAllBases) {
+    std::size_t worst_error = 0;
+
+    for (int base = 2; base <= 36; ++base) {
+        for (std::size_t bit_count = 0; bit_count <= 200; ++bit_count) {
+            const auto approx = detail::approximate_ceil_div_log2(bit_count, base);
+            const auto exact  = static_cast<std::size_t>(std::ceil(static_cast<double>(bit_count)
+                                                                  / std::log2(static_cast<double>(base))));
+            EXPECT_GE(approx, exact);
+            worst_error = std::max(worst_error, approx - exact);
+        }
+    }
+
+    // With an 8-bit fixed-point reciprocal approximation (Q0.8), this range stays within +1 digit.
+    EXPECT_LE(worst_error, 1u);
+}
+
 TEST(FromChars, DigitValue) {
     EXPECT_EQ(detail::digit_value('0'), 0);
     EXPECT_EQ(detail::digit_value('1'), 1);

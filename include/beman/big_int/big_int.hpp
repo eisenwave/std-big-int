@@ -2937,6 +2937,29 @@ inline constexpr std::array<unsigned short, 37> approximate_ceil_mul_log2_q7_4_t
     return (scaled_result >> fractional_bits) + static_cast<std::size_t>((scaled_result & fractional_mask) != 0);
 }
 
+// Fixed-point ceil(1/log2(base)) coefficients in Q0.8 format.
+// Each entry stores ceil(256 / log2(base)) as an unsigned char.
+// Indices 0, 1, and 2 are unused; base 2 is handled separately in approximate_ceil_div_log2.
+inline constexpr std::array<unsigned char, 37> approximate_ceil_div_log2_q0_8_table{
+    0x00, 0x00, 0x00, 0xA2, 0x80, 0x6F, 0x64, 0x5C, 0x56, 0x51, 0x4E, 0x4B, 0x48, 0x46, 0x44, 0x42, 0x40, 0x3F, 0x3E,
+    0x3D, 0x3C, 0x3B, 0x3A, 0x39, 0x38, 0x38, 0x37, 0x36, 0x36, 0x35, 0x35, 0x34, 0x34, 0x33, 0x33, 0x32, 0x32,
+};
+
+// Computes a fast approximation of `ceil(x / log2(base))`.
+// For base 2, the exact result is returned.
+[[nodiscard]] constexpr std::size_t approximate_ceil_div_log2(const std::size_t x, const int base) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
+    constexpr std::size_t fractional_bits = 8;
+    constexpr std::size_t fractional_mask = (std::size_t{1} << fractional_bits) - 1;
+
+    if (base == 2) {
+        return x;
+    }
+    const auto coeff = static_cast<std::size_t>(approximate_ceil_div_log2_q0_8_table[static_cast<std::size_t>(base)]);
+    const std::size_t scaled_result = x * coeff;
+    return (scaled_result >> fractional_bits) + static_cast<std::size_t>((scaled_result & fractional_mask) != 0);
+}
+
 } // namespace detail
 
 template <size_t b, class A>
@@ -3348,7 +3371,16 @@ namespace detail {
 template <class C, std::size_t b, class A>
 [[nodiscard]] constexpr std::basic_string<C> to_basic_string(const basic_big_int<b, A>& x, const int base) {
     BEMAN_BIG_INT_ASSERT(base >= 2 && base <= 36);
-    const auto required_digits = x.width_mag() + 1;
+    constexpr std::size_t minus_sign_size = 1;
+
+    // For up to 1 bit, we need at most one digit in any base.
+    // Otherwise, the digit width in any base is generally `log_base(x) + 1`.
+    // To convert from the width (which is `log2(x) + 1`), we need to decrement,
+    // convert the binary logarithm to a logarithm base `base`, and increment.
+    const auto        width = x.width_mag();
+    const std::size_t required_digits =
+        width <= 1 ? std::size_t{1} : detail::approximate_ceil_div_log2(width - 1, base) + 1 + minus_sign_size;
+
 #ifdef __cpp_lib_string_resize_and_overwrite
     std::basic_string<C> result;
     result.resize_and_overwrite(required_digits, [&](char* const data, const std::size_t n) {
@@ -3357,11 +3389,12 @@ template <class C, std::size_t b, class A>
         return static_cast<std::size_t>(p - data);
     });
 #else
-    std::basic_string<C> result(x.width_mag() + 1, char{});
+    std::basic_string<C> result(required_digits, char{});
     const auto [p, ec] = to_chars(result.data(), result.data() + result.size(), x, base);
     BEMAN_BIG_INT_ASSERT(ec == std::errc{});
     result.resize(static_cast<std::size_t>(p - result.data()));
 #endif
+
     return result;
 }
 
