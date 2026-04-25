@@ -24,6 +24,7 @@
 #include <type_traits>
 
 #include <beman/big_int/detail/config.hpp>
+#include <beman/big_int/detail/floats.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
 #include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
@@ -2607,134 +2608,41 @@ constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
 template <std::size_t b, class A>
 template <detail::cv_unqualified_floating_point F>
 constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
+    using traits = detail::ieee_traits<F>;
 #ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
     static_assert(!std::is_same_v<F, long double>, "long double is not supported on this platform");
 #endif
     BEMAN_BIG_INT_ASSERT(std::isfinite(value));
 
-    using traits = detail::ieee_traits<F>;
-    using bits_t = typename traits::bits_type;
-
-    constexpr int mb   = traits::mantissa_bits;
-    constexpr int bias = traits::bias;
-
-    bits_t        bits;
-    std::uint32_t ieee_exp;
-    std::uint64_t ieee_mantissa;
-
-#if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
-    if constexpr (std::is_same_v<bits_t, detail::long_double_bits>) {
-        // UB on x86 due to 6 padding bytes.
-        if BEMAN_BIG_INT_IS_CONSTEVAL {
-            return;
-        }
-        __builtin_memcpy(&bits, &value, sizeof(bits));
-        unchecked_set_sign(static_cast<bool>(bits.sign));
-        ieee_exp      = static_cast<std::uint32_t>(bits.exponent);
-        ieee_mantissa = bits.mantissa;
-    } else {
-        bits = std::bit_cast<bits_t>(value);
-        unchecked_set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
-        ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
-        ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
-    }
-#else
-    {
-        bits = std::bit_cast<bits_t>(value);
-        unchecked_set_sign(static_cast<bool>((bits >> (mb + traits::exponent_bits)) & 1));
-        ieee_exp      = static_cast<std::uint32_t>((bits >> mb) & ((bits_t{1} << traits::exponent_bits) - 1));
-        ieee_mantissa = static_cast<std::uint64_t>(bits & ((bits_t{1} << mb) - 1));
-    }
-#endif
-
-    std::int32_t  e2;
-    std::uint64_t m2;
-
-    if (ieee_exp == 0) {
-        e2 = 1 - bias - mb;
-        m2 = ieee_mantissa;
-    } else {
-        e2 = static_cast<std::int32_t>(ieee_exp) - bias - mb;
-        if constexpr (traits::explicit_int_bit) {
-            m2 = ieee_mantissa;
-        } else {
-            m2 = ieee_mantissa | (std::uint64_t{1} << mb);
-        }
-    }
-
-    if (e2 < -mb) {
-        return;
-    }
-
-    if (e2 < 0) {
-        assign_magnitude(m2 >> static_cast<unsigned>(-e2));
-        return;
-    }
-
-    const auto assign_general = [&]() {
-        const auto limb_idx     = static_cast<unsigned>(e2) / bits_per_limb;
-        const auto bit_off      = static_cast<int>(static_cast<unsigned>(e2) % bits_per_limb);
-        const auto limbs_needed = limb_idx + 1 + (bit_off > 0 ? 1 : 0);
-        grow(limbs_needed);
-        auto* const dst = limb_ptr();
-        dst[limb_idx] |= m2 << bit_off;
-        if (bit_off > 0) {
-            dst[limb_idx + 1] |= m2 >> (static_cast<int>(bits_per_limb) - bit_off);
-        }
-        auto count = static_cast<std::uint32_t>(limb_idx + 1);
-        if (bit_off > 0 && dst[limb_idx + 1] != 0) {
-            count = static_cast<std::uint32_t>(limb_idx + 2);
-        }
-        unchecked_set_limb_count(count);
-        unchecked_trim_magnitude();
-    };
-
+    // In the happiest case, we can use the intrinsic conversion from binary32 to uint128_t.
+    // Compilers have optimized routines for this,
+    // and this approach is very fast during constant evaluation.
 #ifdef BEMAN_BIG_INT_HAS_INT128
-    constexpr bool is_float32 = std::is_same_v<F, float>
-    #ifdef __STDCPP_FLOAT32_T__
-                                || std::is_same_v<F, std::float32_t>
-    #endif
-        ;
-    constexpr bool is_float64 = std::is_same_v<F, double>
-    #ifdef __STDCPP_FLOAT64_T__
-                                || std::is_same_v<F, std::float64_t>
-    #endif
-        ;
-
-    const auto assign_via_uint128 = [&](auto v) {
-        grow(2);
-        const auto abs_v = v < decltype(v){0} ? -v : v;
-    #ifdef BEMAN_BIG_INT_MSVC
-        // note: MSVC's _Unsigned128 has no conversion constructor from FP.
-        // So we need to use div/mod to extract high and low 64-bit halves by 2^64.
-        constexpr auto two_64 = static_cast<decltype(abs_v)>(1ULL << 32) * static_cast<decltype(abs_v)>(1ULL << 32);
-        const auto     hi     = static_cast<limb_type>(abs_v / two_64);
-        const auto     lo     = static_cast<limb_type>(abs_v - static_cast<decltype(abs_v)>(hi) * two_64);
-    #else
-        const auto mag = static_cast<detail::uint128_t>(abs_v);
-        const auto hi  = static_cast<limb_type>(mag >> bits_per_limb);
-        const auto lo  = static_cast<limb_type>(mag);
-    #endif
-        limb_ptr()[0] = lo;
-        limb_ptr()[1] = hi;
-        unchecked_set_limb_count(hi != 0 ? 2u : 1u);
-    };
-
-    if constexpr (is_float32) {
-        assign_via_uint128(value);
-        return;
-    } else if constexpr (is_float64) {
-        if (e2 < static_cast<int>(bits_per_limb)) {
-            assign_via_uint128(value);
-        } else {
-            assign_general();
-        }
-    } else {
-        assign_general();
+    if constexpr (traits::width == 32 && std::is_convertible_v<F, detail::uint128_t>) {
+        assign_magnitude(static_cast<detail::uint128_t>(detail::constexpr_fabs(value)));
+        unchecked_set_sign(value < 0);
     }
-#else
-    assign_general();
 #endif
+
+    // In all other cases, some decomposition is necessary.
+    const auto [sign, exponent, mantissa] = detail::decompose_float(value);
+
+    // There are only fractional bits, and since we truncate, the value is zero.
+    if (exponent < -traits::mantissa_bits) {
+        set_zero();
+        return;
+    }
+
+    // The exponent is slightly negative, which can be emulated using a right shift.
+    if (exponent < 0) {
+        assign_magnitude(mantissa >> -exponent);
+        unchecked_set_sign(sign);
+        return;
+    }
+
+    assign_magnitude(mantissa);
+    shift_left(static_cast<shift_type>(exponent));
+    unchecked_set_sign(sign);
 }
 
 template <std::size_t b, class A>
