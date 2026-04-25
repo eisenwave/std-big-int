@@ -14,12 +14,78 @@
 
 namespace beman::big_int::detail {
 
+template <class T>
+struct wider;
+
+#ifdef BEMAN_BIG_INT_HAS_WIDE_INT
+template <>
+struct wider<int_multiprecision_t> {
+    using type = int_wide_t;
+};
+template <>
+struct wider<uint_multiprecision_t> {
+    using type = uint_wide_t;
+};
+#endif
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+template <std::size_t N>
+struct wider<_BitInt(N)> {
+    using type = _BitInt(2 * N);
+};
+template <std::size_t N>
+struct wider<unsigned _BitInt(N)> {
+    using type = unsigned _BitInt(2 * N);
+};
+#endif
+
+template <signed_integer T>
+struct wider<T> {
+    [[nodiscard]] static consteval auto select() {
+        if constexpr (width_v<T> == 8) {
+            return std::int16_t{};
+        } else if constexpr (width_v<T> == 16) {
+            return std::int32_t{};
+        } else if constexpr (width_v<T> == 32) {
+            return std::int64_t{};
+        }
+#ifdef BEMAN_BIG_INT_HAS_INT128
+        else if constexpr (width_v<T> == 64) {
+            return int128_t{};
+        }
+#endif
+        else {
+            BEMAN_BIG_INT_STATIC_ASSERT_FALSE("No wider signed integer type available.");
+        }
+    }
+    using type = decltype(select());
+};
+template <unsigned_integer T>
+struct wider<T> {
+    [[nodiscard]] static consteval auto select() {
+        if constexpr (width_v<T> == 8) {
+            return std::uint16_t{};
+        } else if constexpr (width_v<T> == 16) {
+            return std::uint32_t{};
+        } else if constexpr (width_v<T> == 32) {
+            return std::uint64_t{};
+        }
+#ifdef BEMAN_BIG_INT_HAS_INT128
+        else if constexpr (width_v<T> == 64) {
+            return uint128_t{};
+        }
+#endif
+        else {
+            BEMAN_BIG_INT_STATIC_ASSERT_FALSE("No wider unsigned integer type available.");
+        }
+    }
+    using type = decltype(select());
+};
+
 // Denotes the integer type with twice the width of `T`
 // and with the same signedness.
-// For now, only integers with the same width as `uint_multiprecision_t` are supported.
 template <signed_or_unsigned T>
-    requires(width_v<T> == width_v<uint_multiprecision_t>)
-using wider_t = std::conditional_t<std::is_signed_v<T>, int_wide_t, uint_wide_t>;
+using wider_t = typename wider<T>::type;
 
 template <signed_or_unsigned T>
 struct wide {
