@@ -7,46 +7,49 @@
 
 #include "testing.hpp"
 
+namespace {
+
+using namespace beman::big_int::big_int_literals;
+
 TEST(FloatConstruction, DoubleZero) {
     beman::big_int::big_int x(0.0);
-    EXPECT_EQ(x.width_mag(), 0U);
-    EXPECT_EQ(x.representation()[0], 0U);
+    EXPECT_EQ(x, 0);
 }
 
 TEST(FloatConstruction, DoublePositive) {
     beman::big_int::big_int x(42.9);
-    EXPECT_EQ(x.representation()[0], 42U);
+    EXPECT_EQ(x, 42);
 }
 
 TEST(FloatConstruction, DoubleNegative) {
     beman::big_int::big_int x(-42.9);
-    EXPECT_EQ(x.representation()[0], 42U);
+    EXPECT_EQ(x, -42);
 }
 
 TEST(FloatConstruction, DoubleFractionalLessThanOne) {
     beman::big_int::big_int x(0.9999);
-    EXPECT_EQ(x.representation()[0], 0U);
+    EXPECT_EQ(x, 0);
 }
 
 TEST(FloatConstruction, DoubleExact) {
     beman::big_int::big_int x(1e15);
-    EXPECT_EQ(x.representation()[0], 1000000000000000ULL);
+    EXPECT_EQ(x, 1000000000000000);
 }
 
 TEST(FloatConstruction, DoubleWithAllocator) {
     std::allocator<beman::big_int::uint_multiprecision_t> a;
     beman::big_int::big_int                               x(42.7, a);
-    EXPECT_EQ(x.representation()[0], 42U);
+    EXPECT_EQ(x, 42);
 }
 
 TEST(FloatConstruction, FloatPositive) {
     beman::big_int::big_int x(123.9f);
-    EXPECT_EQ(x.representation()[0], 123U);
+    EXPECT_EQ(x, 123);
 }
 
 TEST(FloatConstruction, FloatFractionalLessThanOne) {
     beman::big_int::big_int x(0.5f);
-    EXPECT_EQ(x.representation()[0], 0U);
+    EXPECT_EQ(x, 0);
 }
 
 TEST(FloatConstruction, LongDoublePositive) {
@@ -54,33 +57,38 @@ TEST(FloatConstruction, LongDoublePositive) {
     GTEST_SKIP() << "long double not supported on this platform";
 #else
     beman::big_int::big_int x(42.9L);
-    EXPECT_EQ(x.representation()[0], 42U);
+    EXPECT_EQ(x, 42);
 #endif
 }
 
-TEST(FloatConstruction, DoubleLargeMultiLimb) {
-    beman::big_int::big_int x(static_cast<double>(1ULL << 63) * 4.0);
-    EXPECT_EQ(x.representation().size(), 2U);
-}
-
 TEST(FloatConstruction, DoubleBoundaryFastPath) {
-    beman::big_int::big_int x(static_cast<double>(1ULL << 62));
-    EXPECT_EQ(x.representation()[0], 1ULL << 62);
-    EXPECT_EQ(x.representation().size(), 1U);
+    beman::big_int::big_int x(0x1p62);
+    EXPECT_EQ(x, 1ULL << 62);
 }
 
 TEST(FloatConstruction, DoubleBoundaryGeneralPath) {
-    beman::big_int::big_int x(static_cast<double>(1ULL << 63) * 2.0);
-    EXPECT_EQ(x.representation().size(), 2U);
+    beman::big_int::big_int x(0x1p64);
+    EXPECT_EQ(x, 0x1'0000'0000'0000'0000_n);
 }
 
-TEST(FloatConstruction, FloatLarge) {
+TEST(FloatConstruction, DoubleLargeMultiLimb) {
+    beman::big_int::big_int x(0x1p65);
+    EXPECT_EQ(x, 0x2'0000'0000'0000'0000_n);
+}
+
+TEST(FloatConstruction, FloatMax) {
     beman::big_int::big_int x(std::numeric_limits<float>::max());
-    EXPECT_EQ(x.representation().size(), 2U);
+    EXPECT_EQ(x, 340282346638528859811704183484516925440_n);
+}
+
+TEST(FloatConstruction, FloatMinusMax) {
+    beman::big_int::big_int x(-std::numeric_limits<float>::max());
+    EXPECT_EQ(x, -340282346638528859811704183484516925440_n);
 }
 
 TEST(FloatConstruction, DoubleSubnormal) {
     beman::big_int::big_int x(5e-324);
-    EXPECT_EQ(x.representation()[0], 0U);
-    EXPECT_EQ(x.representation().size(), 1U);
+    EXPECT_EQ(x, 0);
 }
+
+} // namespace
