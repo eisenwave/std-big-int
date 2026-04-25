@@ -2586,7 +2586,7 @@ constexpr auto basic_big_int<b, A>::operator%=(T&& rhs) -> basic_big_int&
 
 template <std::size_t b, class A>
 template <detail::unsigned_integer T>
-constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
+constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
     constexpr size_type value_limbs = detail::div_to_pos_inf(detail::width_v<T>, bits_per_limb);
     if constexpr (value_limbs == 1) {
         limb_ptr()[0] = static_cast<limb_type>(value);
@@ -2596,7 +2596,7 @@ constexpr void basic_big_int<b, A>::assign_magnitude(const T value) noexcept {
             grow(value_limbs);
         }
         auto* const dst = limb_ptr();
-        for (std::size_t i = 0; i < value_limbs; ++i) {
+        for (size_type i = 0; i < value_limbs; ++i) {
             dst[i] = static_cast<limb_type>(value);
             value >>= bits_per_limb;
         }
