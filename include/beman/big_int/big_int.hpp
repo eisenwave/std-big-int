@@ -2612,7 +2612,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
 #ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
     static_assert(!std::is_same_v<F, long double>, "long double is not supported on this platform");
 #endif
-    BEMAN_BIG_INT_ASSERT(std::isfinite(value));
+    BEMAN_BIG_INT_ASSERT(detail::constexpr_isfinite(value));
 
     // In the happiest case, we can use the intrinsic conversion from binary32 to uint128_t.
     // Compilers have optimized routines for this,

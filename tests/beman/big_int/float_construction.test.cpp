@@ -11,6 +11,34 @@ namespace {
 
 using namespace beman::big_int::big_int_literals;
 
+// ----- compile-time sanity -----
+
+consteval bool ce_decompose_double_zero() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(0.0);
+    return !sign && mantissa == 0;
+}
+static_assert(ce_decompose_double_zero());
+
+consteval bool ce_decompose_double_minus_zero() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-0.0);
+    return sign && mantissa == 0;
+}
+static_assert(ce_decompose_double_minus_zero());
+
+consteval bool ce_decompose_double_one() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(1.0);
+    return !sign && (mantissa >> -exponent) == 1;
+}
+static_assert(ce_decompose_double_one());
+
+consteval bool ce_decompose_double_minus_one() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-1.0);
+    return sign && (mantissa >> -exponent) == 1;
+}
+static_assert(ce_decompose_double_minus_one());
+
+// ----- runtime tests -----
+
 TEST(FloatConstruction, DoubleZero) {
     beman::big_int::big_int x(0.0);
     EXPECT_EQ(x, 0);
