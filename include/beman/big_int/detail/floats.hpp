@@ -210,21 +210,24 @@ template <cv_unqualified_floating_point F>
 // A triple that represents a finite floating-point number.
 // The represented value is `(sign ? -1 : 1) * mantissa * pow(b, exponent)`,
 // where `b` is the radix (usually two) of the floating-point number.
-template <class T>
+template <class F>
 struct float_representation {
+    using exponent_type = int;
+    using mantissa_type = typename ieee_traits<F>::mantissa_type;
+
     // The sign bit, where `true` indicates a negative number.
     bool sign;
     // The unbiased exponent.
-    int exponent;
+    exponent_type exponent;
     // The significand or "mantissa" of the floating-point number.
-    T mantissa;
+    mantissa_type mantissa;
 
     friend bool operator==(const float_representation&, const float_representation&) = default;
 };
 
 // Decomposes a finite floating-point value into a `float_representation` object.
 template <cv_unqualified_floating_point F>
-[[nodiscard]] constexpr float_representation<typename ieee_traits<F>::mantissa_type> decompose_float(const F value) {
+[[nodiscard]] constexpr float_representation<F> decompose_float(const F value) {
     static_assert(std::numeric_limits<F>::radix == 2, "Only binary floating-point is supported.");
     using traits     = detail::ieee_traits<F>;
     using bits_t     = typename traits::bits_type;
@@ -271,6 +274,14 @@ template <cv_unqualified_floating_point F>
         .exponent = static_cast<int>(ieee_exp) - bias - mb,
         .mantissa = ieee_mantissa,
     };
+}
+
+template <cv_unqualified_floating_point F>
+[[nodiscard]] F compose_float(const float_representation<F> representation) {
+    static_assert(std::numeric_limits<F>::radix == 2, "Only binary floating-point is supported.");
+
+    const F magnitude = std::ldexp(static_cast<F>(representation.mantissa), representation.exponent);
+    return std::copysign(magnitude, representation.sign ? F{-1} : F{1});
 }
 
 } // namespace beman::big_int::detail
