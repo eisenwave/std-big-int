@@ -143,8 +143,9 @@ template <cv_unqualified_floating_point F>
     return static_cast<bool>(__builtin_signbit(x));
 #else
     if BEMAN_BIG_INT_IS_CONSTEVAL {
-        // Sorry, not implemented yet.
-        BEMAN_BIG_INT_ASSERT(false);
+        // This implementation assumes that the sign bit is always the most significant bit.
+        const auto bits = std::bit_cast<typename ieee_traits<F>::bits_type>(x);
+        return ((bits >> (ieee_traits<F>::width - 1)) & 1) != 0;
     } else {
         return std::signbit(x);
     }
