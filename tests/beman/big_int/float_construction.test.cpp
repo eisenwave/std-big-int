@@ -131,26 +131,44 @@ TEST(DecomposeFloat, RoundTripLongDouble) {
     using beman::big_int::detail::wide;
 
     // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp)
-    std::mt19937_64 rng{42};
-    static_assert(sizeof(long double) == 16);
+    [[maybe_unused]] std::mt19937_64 rng{42};
 
-    for (std::size_t i = 0; i < 20'000; ++i) {
-        const wide<std::uint64_t> bits{.low_bits = rng(), .high_bits = rng()};
-        const auto                x = std::bit_cast<long double>(bits);
-        if (!std::isfinite(x)) {
-            continue;
+    // IILE is necessary to get a dependent type and prevent errors despite if constexpr.
+    [&]<class LongDouble = long double>() {
+        if constexpr (sizeof(LongDouble) == 2 * sizeof(std::uint64_t)) {
+            for (std::size_t i = 0; i < 20'000; ++i) {
+                const wide<std::uint64_t> bits{.low_bits = rng(), .high_bits = rng()};
+                const auto                x = std::bit_cast<LongDouble>(bits);
+                if (!std::isfinite(x)) {
+                    continue;
+                }
+
+                const auto rep = beman::big_int::detail::decompose_float(x);
+                const auto y   = beman::big_int::detail::compose_float(rep);
+
+                // We cannot do a bitwise comparison because some of the bits are padding,
+                // but we can do an equality comparison with the generated long double.
+                BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+                BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
+                ASSERT_EQ(x, y);
+                BEMAN_BIG_INT_DIAGNOSTIC_POP()
+            }
+        } else if constexpr (sizeof(LongDouble) == sizeof(double)) {
+            static_assert(false);
+            for (std::size_t i = 0; i < 20'000; ++i) {
+                const auto bits = rng();
+                const auto x    = std::bit_cast<LongDouble>(bits);
+                if (!std::isfinite(x)) {
+                    continue;
+                }
+
+                const auto rep = beman::big_int::detail::decompose_float(x);
+                const auto y   = beman::big_int::detail::compose_float(rep);
+
+                ASSERT_EQ(std::bit_cast<std::uint64_t>(y), bits);
+            }
         }
-
-        const auto rep = beman::big_int::detail::decompose_float(x);
-        const auto y   = beman::big_int::detail::compose_float(rep);
-
-        // We cannot do a bitwise comparison because some of the bits are padding,
-        // but we can do an equality comparison with the generated long double.
-        BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
-        ASSERT_EQ(x, y);
-        BEMAN_BIG_INT_DIAGNOSTIC_POP()
-    }
+    }();
 }
 
 TEST(FloatConstruction, DoubleZero) {
