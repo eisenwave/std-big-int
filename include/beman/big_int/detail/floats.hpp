@@ -159,11 +159,10 @@ template <cv_unqualified_floating_point F>
     return static_cast<bool>(__builtin_isfinite(x));
 #else
     if BEMAN_BIG_INT_IS_CONSTEVAL {
-        if (x != x) {
-            return false; // NaN
-        }
-        // Sorry, constexpr infinity detection not implemented yet.
-        BEMAN_BIG_INT_ASSERT(false);
+        BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
+        return x == x && x != std::numeric_limits<F>::infinity() && x != -std::numeric_limits<F>::infinity();
+        BEMAN_BIG_INT_DIAGNOSTIC_POP()
     } else {
         return std::isfinite(x);
     }
