@@ -7,6 +7,7 @@
 #include <bit>
 #include <type_traits>
 #include <cmath>
+#include <cfloat>
 #include <limits>
 #include <cstdint>
 
@@ -100,13 +101,15 @@ struct ieee_traits<std::float128_t> {
 #endif
 
 struct x87_extended_float_bits {
-    std::uint64_t mantissa : 64;
-    std::uint16_t exponent : 15;
-    std::uint16_t sign : 1;
+    std::uint64_t mantissa;
+    std::uint16_t sign_and_exponent;
 };
 
-#if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
+#if !defined(LDBL_MANT_DIG) || !defined(LDBL_MAX_EXP)
+    #error Cannot define ieee_traits<long double> without LDBL_MANT_DIG and LDBL_MAX_EXP.
+#endif
 
+#if LDBL_MANT_DIG == 64 && LDBL_MAX_EXP == 16384
 template <>
 struct ieee_traits<long double> {
     using bits_type                        = x87_extended_float_bits;
@@ -117,7 +120,7 @@ struct ieee_traits<long double> {
     static constexpr int  bias             = 16383;
     static constexpr bool explicit_int_bit = true;
 };
-#elif __LDBL_MANT_DIG__ == 113 && __LDBL_MAX_EXP__ == 16384
+#elif LDBL_MANT_DIG == 113 && LDBL_MAX_EXP == 16384
 template <>
 struct ieee_traits<long double> {
     using bits_type                        = uint128_t;
@@ -128,7 +131,7 @@ struct ieee_traits<long double> {
     static constexpr int  bias             = 16383;
     static constexpr bool explicit_int_bit = false;
 };
-#elif __LDBL_MANT_DIG__ == 53 && __LDBL_MAX_EXP__ == 1024
+#elif LDBL_MANT_DIG == 53 && LDBL_MAX_EXP == 1024
 template <>
 struct ieee_traits<long double> : ieee_traits<double> {};
 #else
@@ -238,13 +241,10 @@ template <cv_unqualified_floating_point F>
     mantissa_t    ieee_mantissa;
 
     if constexpr (std::is_same_v<bits_t, detail::x87_extended_float_bits>) {
-        // UB on x86 due to 6 padding bytes.
-        if BEMAN_BIG_INT_IS_CONSTEVAL {
-            BEMAN_BIG_INT_ASSERT(false);
-        }
-        __builtin_memcpy(&bits, &value, sizeof(bits));
-        sign          = bits.sign;
-        ieee_exp      = static_cast<std::uint32_t>(bits.exponent);
+        constexpr std::uint16_t exponent_mask = ((std::uint16_t{1} << traits::exponent_bits) - 1);
+        bits                                  = std::bit_cast<bits_t>(value);
+        sign          = static_cast<bool>((bits.sign_and_exponent >> traits::exponent_bits) & 1);
+        ieee_exp      = static_cast<std::uint32_t>(bits.sign_and_exponent & exponent_mask);
         ieee_mantissa = bits.mantissa;
     } else {
         constexpr mantissa_t mantissa_mask = (mantissa_t{1} << mb) - 1;
