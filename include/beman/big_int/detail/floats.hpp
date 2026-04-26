@@ -139,7 +139,7 @@ template <cv_unqualified_floating_point F>
 [[nodiscard]] constexpr bool constexpr_signbit(const F x) noexcept {
 #if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
     return std::signbit(x);
-#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_signbit)
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_signbit)
     return static_cast<bool>(__builtin_signbit(x));
 #else
     if BEMAN_BIG_INT_IS_CONSTEVAL {
@@ -156,7 +156,7 @@ template <cv_unqualified_floating_point F>
 [[nodiscard]] constexpr bool constexpr_isfinite(const F x) noexcept {
 #if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
     return std::isfinite(x);
-#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_isfinite)
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_isfinite)
     return static_cast<bool>(__builtin_isfinite(x));
 #else
     if BEMAN_BIG_INT_IS_CONSTEVAL {
@@ -174,7 +174,7 @@ template <cv_unqualified_floating_point F>
 [[nodiscard]] constexpr F constexpr_fabs(const F x) noexcept {
 #if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
     return std::fabs(x);
-#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_fabs)
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_fabs)
     if constexpr (std::is_same_v<decltype(__builtin_fabs(x)), F>) {
         // The builtin is either generic or F is double.
         return __builtin_fabs(x);

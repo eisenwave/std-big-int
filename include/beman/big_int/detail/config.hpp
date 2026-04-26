@@ -30,10 +30,17 @@
     #define BEMAN_BIG_INT_HAS_BUILTIN(...) 0
 #endif // __has_builtin
 
+// In addition to BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN, which is an exact test,
+// `BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN` falls back onto `BEMAN_BIG_INT_HAS_BUILTIN`
+// if constexpr builtin testing is not available.
+// This is useful for GCC, which supports __has_builtin but not __has_constexpr_builtin,
+// and many GCC intrinsics are usable during constant evaluation.
 #ifdef __has_constexpr_builtin
     #define BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(...) __has_constexpr_builtin(__VA_ARGS__)
+    #define BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(...) __has_constexpr_builtin(__VA_ARGS__)
 #else
     #define BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(...) 0
+    #define BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(...) BEMAN_BIG_INT_HAS_BUILTIN(__VA_ARGS__)
 #endif // __has_constexpr_builtin
 
 // Undefine min()/max() for MSVC ===============================================
