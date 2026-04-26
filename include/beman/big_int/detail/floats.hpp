@@ -135,6 +135,75 @@ struct ieee_traits<long double> : ieee_traits<double> {};
     #define BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
 #endif
 
+template <cv_unqualified_floating_point F>
+[[nodiscard]] constexpr bool constexpr_signbit(const F x) noexcept {
+#if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
+    return std::signbit(x);
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_signbit)
+    return static_cast<bool>(__builtin_signbit(x));
+#else
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        // Sorry, not implemented yet.
+        BEMAN_BIG_INT_ASSERT(false);
+    } else {
+        return std::signbit(x);
+    }
+#endif
+}
+
+template <cv_unqualified_floating_point F>
+[[nodiscard]] constexpr bool constexpr_isfinite(const F x) noexcept {
+#if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
+    return std::isfinite(x);
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_isfinite)
+    return static_cast<bool>(__builtin_isfinite(x));
+#else
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        if (x != x) {
+            return false; // NaN
+        }
+        // Sorry, constexpr infinity detection not implemented yet.
+        BEMAN_BIG_INT_ASSERT(false);
+    } else {
+        return std::isfinite(x);
+    }
+#endif
+}
+
+template <cv_unqualified_floating_point F>
+[[nodiscard]] constexpr F constexpr_fabs(const F x) noexcept {
+#if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
+    return std::fabs(x);
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_fabs)
+    if constexpr (std::is_same_v<decltype(__builtin_fabs(x)), F>) {
+        // The builtin is either generic or F is double.
+        return __builtin_fabs(x);
+    } else {
+        if BEMAN_BIG_INT_IS_CONSTEVAL {
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_fabsf)
+            if constexpr (std::is_same_v<F, float>) {
+                return __builtin_fabsf(x);
+            }
+    #endif
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_fabsl)
+            if constexpr (std::is_same_v<F, long double>) {
+                return __builtin_fabsl(x);
+            }
+    #endif
+            return constexpr_signbit(x) ? -x : x;
+        } else {
+            return std::fabs(x);
+        }
+    }
+#else
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        return constexpr_signbit(x) ? -x : x;
+    } else {
+        return std::fabs(x);
+    }
+#endif
+}
+
 // A triple that represents a finite floating-point number.
 // The represented value is `(sign ? -1 : 1) * mantissa * pow(b, exponent)`,
 // where `b` is the radix (usually two) of the floating-point number.
@@ -146,6 +215,8 @@ struct float_representation {
     int exponent;
     // The significand or "mantissa" of the floating-point number.
     T mantissa;
+
+    friend bool operator==(const float_representation&, const float_representation&) = default;
 };
 
 // Decomposes a finite floating-point value into a `float_representation` object.
@@ -156,7 +227,7 @@ template <cv_unqualified_floating_point F>
     using bits_t     = typename traits::bits_type;
     using mantissa_t = typename traits::mantissa_type;
 
-    BEMAN_BIG_INT_DEBUG_ASSERT(std::isfinite(value));
+    BEMAN_BIG_INT_DEBUG_ASSERT(constexpr_isfinite(value));
 
     constexpr int mb   = traits::mantissa_bits;
     constexpr int bias = traits::bias;
@@ -200,19 +271,6 @@ template <cv_unqualified_floating_point F>
         .exponent = static_cast<int>(ieee_exp) - bias - mb,
         .mantissa = ieee_mantissa,
     };
-}
-
-template <cv_unqualified_floating_point F>
-[[nodiscard]] constexpr F constexpr_fabs(const F x) {
-#if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202306L
-    return std::fabs(x);
-#else
-    if BEMAN_BIG_INT_IS_CONSTEVAL {
-        return x < 0 ? -x : x;
-    } else {
-        return std::fabs(x);
-    }
-#endif
 }
 
 } // namespace beman::big_int::detail

@@ -20,10 +20,21 @@
     // Separate case for any GNU-C-compliant compilers,
     // which is both GCC and Clang.
     #define BEMAN_BIG_INT_GNUC __GNUC__
+#endif // __GNUC__
+
+// Builtin detection ===========================================================
+
+#ifdef __has_builtin
     #define BEMAN_BIG_INT_HAS_BUILTIN(...) __has_builtin(__VA_ARGS__)
 #else
     #define BEMAN_BIG_INT_HAS_BUILTIN(...) 0
-#endif // __GNUC__
+#endif // __has_builtin
+
+#ifdef __has_constexpr_builtin
+    #define BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(...) __has_constexpr_builtin(__VA_ARGS__)
+#else
+    #define BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(...) 0
+#endif // __has_constexpr_builtin
 
 // Undefine min()/max() for MSVC ===============================================
 #ifdef min
