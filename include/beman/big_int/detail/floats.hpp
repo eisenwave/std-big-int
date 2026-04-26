@@ -100,9 +100,8 @@ struct ieee_traits<std::float128_t> {
 #endif
 
 struct x87_extended_float_bits {
-    std::uint64_t mantissa : 64;
-    std::uint16_t exponent : 15;
-    std::uint16_t sign : 1;
+    std::uint64_t mantissa;
+    std::uint16_t sign_and_exponent;
 };
 
 #if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
@@ -238,13 +237,10 @@ template <cv_unqualified_floating_point F>
     mantissa_t    ieee_mantissa;
 
     if constexpr (std::is_same_v<bits_t, detail::x87_extended_float_bits>) {
-        // UB on x86 due to 6 padding bytes.
-        if BEMAN_BIG_INT_IS_CONSTEVAL {
-            BEMAN_BIG_INT_ASSERT(false);
-        }
-        __builtin_memcpy(&bits, &value, sizeof(bits));
-        sign          = bits.sign;
-        ieee_exp      = static_cast<std::uint32_t>(bits.exponent);
+        constexpr std::uint16_t exponent_mask = ((std::uint16_t{1} << traits::exponent_bits) - 1);
+        bits                                  = std::bit_cast<bits_t>(value);
+        sign          = static_cast<bool>((bits.sign_and_exponent >> traits::exponent_bits) & 1);
+        ieee_exp      = static_cast<std::uint32_t>(bits.sign_and_exponent & exponent_mask);
         ieee_mantissa = bits.mantissa;
     } else {
         constexpr mantissa_t mantissa_mask = (mantissa_t{1} << mb) - 1;

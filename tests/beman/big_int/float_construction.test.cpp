@@ -13,11 +13,29 @@ using namespace beman::big_int::big_int_literals;
 
 // ----- compile-time sanity -----
 
+consteval bool ce_decompose_float_zero() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(0.0f);
+    return !sign && mantissa == 0;
+}
+static_assert(ce_decompose_float_zero());
+
 consteval bool ce_decompose_double_zero() {
     const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(0.0);
     return !sign && mantissa == 0;
 }
 static_assert(ce_decompose_double_zero());
+
+consteval bool ce_decompose_long_double_zero() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(0.0l);
+    return !sign && mantissa == 0;
+}
+static_assert(ce_decompose_long_double_zero());
+
+consteval bool ce_decompose_float_minus_zero() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-0.0f);
+    return sign && mantissa == 0;
+}
+static_assert(ce_decompose_float_minus_zero());
 
 consteval bool ce_decompose_double_minus_zero() {
     const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-0.0);
@@ -25,17 +43,47 @@ consteval bool ce_decompose_double_minus_zero() {
 }
 static_assert(ce_decompose_double_minus_zero());
 
+consteval bool ce_decompose_long_double_minus_zero() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-0.0l);
+    return sign && mantissa == 0;
+}
+static_assert(ce_decompose_long_double_minus_zero());
+
+consteval bool ce_decompose_float_one() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(1.0f);
+    return !sign && (mantissa >> -exponent) == 1;
+}
+static_assert(ce_decompose_float_one());
+
 consteval bool ce_decompose_double_one() {
     const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(1.0);
     return !sign && (mantissa >> -exponent) == 1;
 }
 static_assert(ce_decompose_double_one());
 
+consteval bool ce_decompose_long_double_one() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(1.0l);
+    return !sign && (mantissa >> -exponent) == 1;
+}
+static_assert(ce_decompose_long_double_one());
+
+consteval bool ce_decompose_float_minus_one() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-1.0f);
+    return sign && (mantissa >> -exponent) == 1;
+}
+static_assert(ce_decompose_float_minus_one());
+
 consteval bool ce_decompose_double_minus_one() {
     const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-1.0);
     return sign && (mantissa >> -exponent) == 1;
 }
 static_assert(ce_decompose_double_minus_one());
+
+consteval bool ce_decompose_long_double_minus_one() {
+    const auto [sign, exponent, mantissa] = beman::big_int::detail::decompose_float(-1.0l);
+    return sign && (mantissa >> -exponent) == 1;
+}
+static_assert(ce_decompose_long_double_minus_one());
 
 // ----- runtime tests -----
 
