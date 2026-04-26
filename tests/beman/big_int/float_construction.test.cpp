@@ -154,7 +154,6 @@ TEST(DecomposeFloat, RoundTripLongDouble) {
                 BEMAN_BIG_INT_DIAGNOSTIC_POP()
             }
         } else if constexpr (sizeof(LongDouble) == sizeof(double)) {
-            static_assert(false);
             for (std::size_t i = 0; i < 20'000; ++i) {
                 const auto bits = rng();
                 const auto x    = std::bit_cast<LongDouble>(bits);
