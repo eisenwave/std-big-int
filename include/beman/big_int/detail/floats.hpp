@@ -7,6 +7,7 @@
 #include <bit>
 #include <type_traits>
 #include <cmath>
+#include <cfloat>
 #include <limits>
 #include <cstdint>
 
@@ -104,8 +105,11 @@ struct x87_extended_float_bits {
     std::uint16_t sign_and_exponent;
 };
 
-#if __LDBL_MANT_DIG__ == 64 && __LDBL_MAX_EXP__ == 16384
+#if !defined(LDBL_MANT_DIG) || !defined(LDBL_MAX_EXP)
+    #error Cannot define ieee_traits<long double> without LDBL_MANT_DIG and LDBL_MAX_EXP.
+#endif
 
+#if LDBL_MANT_DIG == 64 && LDBL_MAX_EXP == 16384
 template <>
 struct ieee_traits<long double> {
     using bits_type                        = x87_extended_float_bits;
@@ -116,7 +120,7 @@ struct ieee_traits<long double> {
     static constexpr int  bias             = 16383;
     static constexpr bool explicit_int_bit = true;
 };
-#elif __LDBL_MANT_DIG__ == 113 && __LDBL_MAX_EXP__ == 16384
+#elif LDBL_MANT_DIG == 113 && LDBL_MAX_EXP == 16384
 template <>
 struct ieee_traits<long double> {
     using bits_type                        = uint128_t;
@@ -127,7 +131,7 @@ struct ieee_traits<long double> {
     static constexpr int  bias             = 16383;
     static constexpr bool explicit_int_bit = false;
 };
-#elif __LDBL_MANT_DIG__ == 53 && __LDBL_MAX_EXP__ == 1024
+#elif LDBL_MANT_DIG == 53 && LDBL_MAX_EXP == 1024
 template <>
 struct ieee_traits<long double> : ieee_traits<double> {};
 #else
