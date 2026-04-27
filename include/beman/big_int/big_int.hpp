@@ -110,14 +110,6 @@ struct allocation_result {
 };
 #endif // __cpp_lib_allocate_at_least
 
-// Returns the quotient of the division `x / y`,
-// rounded towards positive infinity.
-template <unsigned_integer T>
-[[nodiscard]] constexpr T div_to_pos_inf(const T x, const T y) {
-    BEMAN_BIG_INT_DEBUG_ASSERT(y != 0);
-    return (x / y) + T(x % y != 0);
-}
-
 // Returns the mathematically correct `abs(x)` for a given signed integer `x`,
 // where the result is an unsigned integer.
 // Unlike `std::abs`, this function has no undefined behavior in e.g. `uabs(INT_MIN)`.

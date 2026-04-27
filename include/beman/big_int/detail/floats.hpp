@@ -389,6 +389,8 @@ template <cv_unqualified_floating_point F>
     constexpr std::size_t limb_width     = width_v<uint_multiprecision_t>;
     constexpr std::size_t precision_bits = traits::mantissa_bits + 1;
     constexpr std::size_t mantissa_width = width_v<mantissa_t>;
+    constexpr mantissa_t  mantissa_mask =
+        precision_bits < mantissa_width ? (mantissa_t{1} << precision_bits) - 1 : static_cast<mantissa_t>(-1);
 
     const F sign_value = sign ? F{-1} : F{1};
 
@@ -409,85 +411,92 @@ template <cv_unqualified_floating_point F>
         return constexpr_copysign(std::numeric_limits<F>::infinity(), sign_value);
     }
 
-    const auto limb_at = [&](const std::size_t i) -> uint_multiprecision_t { //
-        return i < limb_count ? limbs[i] : 0;
-    };
-
-    mantissa_t mantissa         = 0;
-    int        exponent         = 0;
-    bool       round_bit        = false;
-    bool       found_sticky_bit = false;
-
+    mantissa_t mantissa = 0;
     if (total_bits <= precision_bits) {
-        // The whole integer fits inside the mantissa; concat limbs into `mantissa`.
+        // Happy case: the whole integer fits inside the mantissa; concat limbs into `mantissa`.
+        // No rounding logic is necessary.
         for (std::size_t i = 0; i < limb_count; ++i) {
             mantissa |= static_cast<mantissa_t>(limbs[i]) << (i * limb_width);
         }
-    } else {
-        // We need to extract bits `[shift, shift + precision_bits)` of the integer as the
-        // mantissa, with bit `shift - 1` as the round bit and a sticky-OR over all lower bits.
-        const auto shift = total_bits - precision_bits;
-        {
-            const auto limb_shift = shift / limb_width;
-            const auto bit_shift  = static_cast<unsigned>(shift % limb_width);
-
-            // Extract `precision_bits` bits via funnel-shifts across pairs of limbs.
-            constexpr int mantissa_limbs = (precision_bits + limb_width - 1) / limb_width;
-            for (std::size_t j = 0; j < mantissa_limbs; ++j) {
-                const std::size_t           li = limb_shift + static_cast<std::size_t>(j);
-                const uint_multiprecision_t piece =
-                    funnel_shr(wide{.low_bits = limb_at(li), .high_bits = limb_at(li + 1)}, bit_shift);
-                mantissa |= static_cast<mantissa_t>(piece) << (j * limb_width);
-            }
-        }
-        // Trim any bits we pulled in beyond the mantissa width (only needed when
-        // `precision_bits` is not a multiple of `limb_bits`).
-        if constexpr (precision_bits < mantissa_width) {
-            mantissa &= (mantissa_t{1} << precision_bits) - 1;
-        }
-
-        // Round bit lives at bit index `shift - 1`.
-        const std::size_t rb_index       = shift - 1;
-        const auto        rb_limb_index  = rb_index / limb_width;
-        const unsigned    rb_limb_offset = static_cast<unsigned>(rb_index % limb_width);
-        round_bit                        = ((limbs[rb_limb_index] >> rb_limb_offset) & uint_multiprecision_t{1}) != 0;
-
-        // Sticky bit: OR over everything strictly below the round bit.
-        for (std::size_t i = 0; i < rb_limb_index && !found_sticky_bit; ++i) {
-            found_sticky_bit = limbs[i] != 0;
-        }
-        if (!found_sticky_bit && rb_limb_offset > 0) {
-            const uint_multiprecision_t low_mask = (uint_multiprecision_t{1} << rb_limb_offset) - 1;
-            found_sticky_bit                     = (limbs[rb_limb_index] & low_mask) != 0;
-        }
-
-        exponent = static_cast<int>(shift);
+        return compose_float(float_representation<F>{
+            .sign     = sign,
+            .exponent = 0,
+            .mantissa = mantissa,
+        });
     }
 
-    if (round_bit && (found_sticky_bit || ((mantissa & mantissa_t{1}) != 0))) {
-        // The pre-rounding mantissa has its high bit at position `precision_bits - 1`.
-        // A carry-out past that position requires shifting back by one and bumping the
-        // exponent. When `mantissa_t` has headroom above the mantissa, that carry shows
-        // up as a bit at position `precision_bits`; otherwise, it shows up as the
-        // type-level carry from `carrying_add`.
-        if constexpr (precision_bits < mantissa_width) {
-            mantissa += 1;
-            if ((mantissa >> precision_bits) != 0) {
-                mantissa >>= 1;
-                ++exponent;
+    // For integers with more precision,
+    // we need to correctly round the mantissa before composing the result.
+    // We do this using roundTiesToEven,
+    // where we have to decide whether to retain or increment the mantissa
+    // after extracting as many bits as fit into the mantissa.
+    const auto extra_precision_bits = total_bits - precision_bits;
+    {
+        const auto limb_shift = extra_precision_bits / limb_width;
+        const auto bit_shift  = static_cast<unsigned>(extra_precision_bits % limb_width);
+        const auto limb_at    = [&](const std::size_t i) -> uint_multiprecision_t { //
+            return i < limb_count ? limbs[i] : 0;
+        };
+
+        // Extract `precision_bits` bits via funnel-shifts across pairs of limbs.
+        constexpr int mantissa_limbs = detail::div_to_pos_inf(precision_bits, limb_width);
+        for (std::size_t j = 0; j < mantissa_limbs; ++j) {
+            const std::size_t           li = limb_shift + static_cast<std::size_t>(j);
+            const uint_multiprecision_t piece =
+                funnel_shr(wide{.low_bits = limb_at(li), .high_bits = limb_at(li + 1)}, bit_shift);
+            mantissa |= static_cast<mantissa_t>(piece) << (j * limb_width);
+        }
+    }
+    mantissa &= mantissa_mask;
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(extra_precision_bits > 0);
+    const std::size_t guard_index       = extra_precision_bits - 1;
+    const auto        guard_limb_index  = guard_index / limb_width;
+    const unsigned    guard_limb_offset = static_cast<unsigned>(guard_index % limb_width);
+    // Most significant discarded bit, immediately below the LSB of the retained mantissa.
+    const bool guard_bit = ((limbs[guard_limb_index] >> guard_limb_offset) & uint_multiprecision_t{1}) != 0;
+
+    int exponent = static_cast<int>(extra_precision_bits);
+    if (guard_bit) {
+        // The least significant bit that still fits in the mantissa.
+        const bool least_bit = (mantissa & mantissa_t{1}) != 0;
+        // Bitwise OR over everything strictly below the guard bit,
+        // i.e. "round bit" OR "sticky bit".
+        const auto compute_round_or_sticky_bit = [&] {
+            bool result = false;
+            for (std::size_t i = 0; i < guard_limb_index && !result; ++i) {
+                result = limbs[i] != 0;
             }
-        } else {
-            const auto [sum, carry] = overflowing_add(mantissa, mantissa_t{1});
-            mantissa                = sum;
-            if (carry) {
-                mantissa = mantissa_t{1} << (precision_bits - 1);
-                ++exponent;
+            const uint_multiprecision_t low_mask = (uint_multiprecision_t{1} << guard_limb_offset) - 1;
+            result |= (limbs[guard_limb_index] & low_mask) != 0;
+            return result;
+        };
+
+        if (least_bit || compute_round_or_sticky_bit()) {
+            // The pre-rounding mantissa has its high bit at position `precision_bits - 1`.
+            // A carry-out past that position requires shifting back by one and bumping the exponent.
+            // When `mantissa_t` has headroom above the mantissa,
+            // that carry shows up as a bit at position `precision_bits`;
+            // otherwise, it shows up as the type-level carry from `carrying_add`.
+            if constexpr (precision_bits < mantissa_width) {
+                mantissa += 1;
+                if ((mantissa >> precision_bits) != 0) {
+                    mantissa >>= 1;
+                    ++exponent;
+                }
+            } else {
+                const auto [sum, carry] = overflowing_add(mantissa, mantissa_t{1});
+                mantissa                = sum;
+                if (carry) {
+                    mantissa = mantissa_t{1} << (precision_bits - 1);
+                    ++exponent;
+                }
             }
         }
     }
 
-    // Post-rounding overflow check: rounding can bump `exponent` by one, which may push
-    // a value that was just below `pow(2, max_exponent)` over the edge to infinity.
+    // TODO(eisenwave): This seems like something that the other overload should handle anyway.
+    //                  We probably don't need this infinity detection.
     if (exponent + static_cast<int>(precision_bits) > std::numeric_limits<F>::max_exponent) {
         return constexpr_copysign(std::numeric_limits<F>::infinity(), sign_value);
     }
