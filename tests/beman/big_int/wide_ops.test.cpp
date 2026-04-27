@@ -468,16 +468,15 @@ TEST(WideOps, DivideWideByWideFast) {
 }
 
 TEST(WideOps, DivideWideByWidePortable) {
-    using beman::big_int::detail::divide_wide_by_wide;
+    using beman::big_int::detail::divide_wide_by_wide_portable;
     using beman::big_int::detail::wide;
 
-    // std::uint16_t never matches uint_multiprecision_t's,
-    // so wider_t<std::uint16_t> is not defined
+    // Call the portable long-division directly.
     using T = std::uint16_t;
 
     auto check = [](T a_lo, T a_hi, T b_lo, T b_hi) {
-        const auto          r     = divide_wide_by_wide(wide<T>{.low_bits = a_lo, .high_bits = a_hi},
-                                                        wide<T>{.low_bits = b_lo, .high_bits = b_hi});
+        const auto          r     = divide_wide_by_wide_portable(wide<T>{.low_bits = a_lo, .high_bits = a_hi},
+                                                                 wide<T>{.low_bits = b_lo, .high_bits = b_hi});
         const std::uint32_t a     = (static_cast<std::uint32_t>(a_hi) << 16) | a_lo;
         const std::uint32_t b     = (static_cast<std::uint32_t>(b_hi) << 16) | b_lo;
         const std::uint32_t got_r = (static_cast<std::uint32_t>(r.remainder.high_bits) << 16) | r.remainder.low_bits;

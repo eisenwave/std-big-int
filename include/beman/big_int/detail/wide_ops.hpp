@@ -525,12 +525,44 @@ template <unsigned_integer T>
     };
 }
 
+// Portable bit-by-bit restoring long division of the 2-limb unsigned value `a`
+// by the 2-limb unsigned value `b`.
+template <unsigned_integer T>
+[[nodiscard]] constexpr wide_div_result<T> divide_wide_by_wide_portable(const wide<T> a, const wide<T> b) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(b.high_bits != 0);
+
+    constexpr std::size_t limb_bits = width_v<T>;
+    
+    T                     q         = 0;
+    T                     r_lo      = 0;
+    T                     r_hi      = 0;
+
+    for (std::size_t i = 2 * limb_bits; i-- > 0;) {
+        const T r_top = static_cast<T>(r_hi >> (limb_bits - 1));
+        r_hi          = static_cast<T>((r_hi << 1) | (r_lo >> (limb_bits - 1)));
+        const T bit   = (i >= limb_bits) ? static_cast<T>((a.high_bits >> (i - limb_bits)) & T{1})
+                                         : static_cast<T>((a.low_bits >> i) & T{1});
+        r_lo          = static_cast<T>((r_lo << 1) | bit);
+        q             = static_cast<T>(q << 1);
+
+        // If the virtual 3-limb remainder (r_top, r_hi, r_lo) is >= b, subtract.
+        const bool r_ge_b = (r_top != 0) || (r_hi > b.high_bits) || (r_hi == b.high_bits && r_lo >= b.low_bits);
+        if (r_ge_b) {
+            const bool borrow_lo = r_lo < b.low_bits;
+            r_lo                 = static_cast<T>(r_lo - b.low_bits);
+            r_hi                 = static_cast<T>(r_hi - b.high_bits - (borrow_lo ? T{1} : T{0}));
+            q |= T{1};
+        }
+    }
+    return {
+        .quotient  = q,
+        .remainder = {.low_bits = r_lo, .high_bits = r_hi},
+    };
+}
+
 // Returns the quotient and remainder of dividing the 2-limb unsigned value `a`
 // by the 2-limb unsigned value `b`.
 // Precondition: `b.high_bits != 0`, which guarantees the quotient fits in a single limb of `T`.
-//
-// When a wider integer type is available, this reduces to a single division.
-// Otherwise, it uses a portable long-division
 template <unsigned_integer T>
 [[nodiscard]] constexpr wide_div_result<T> divide_wide_by_wide(const wide<T> a, const wide<T> b) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(b.high_bits != 0);
@@ -543,33 +575,7 @@ template <unsigned_integer T>
             .remainder = wide<T>::from_int(a_int % b_int),
         };
     } else {
-        // Bit-by-bit restoring long division.
-        // We know that the quotient is guaranteed to fit in a single limb
-        constexpr std::size_t limb_bits = width_v<T>;
-        T                     q         = 0;
-        T                     r_lo      = 0;
-        T                     r_hi      = 0;
-        for (std::size_t i = 2 * limb_bits; i-- > 0;) {
-            const T r_top = static_cast<T>(r_hi >> (limb_bits - 1));
-            r_hi          = static_cast<T>((r_hi << 1) | (r_lo >> (limb_bits - 1)));
-            const T bit   = (i >= limb_bits) ? static_cast<T>((a.high_bits >> (i - limb_bits)) & T{1})
-                                             : static_cast<T>((a.low_bits >> i) & T{1});
-            r_lo          = static_cast<T>((r_lo << 1) | bit);
-            q             = static_cast<T>(q << 1);
-
-            // If the virtual 3-limb remainder (r_top, r_hi, r_lo) is >= b, subtract.
-            const bool r_ge_b = (r_top != 0) || (r_hi > b.high_bits) || (r_hi == b.high_bits && r_lo >= b.low_bits);
-            if (r_ge_b) {
-                const bool borrow_lo = r_lo < b.low_bits;
-                r_lo                 = static_cast<T>(r_lo - b.low_bits);
-                r_hi                 = static_cast<T>(r_hi - b.high_bits - (borrow_lo ? T{1} : T{0}));
-                q |= T{1};
-            }
-        }
-        return {
-            .quotient  = q,
-            .remainder = {.low_bits = r_lo, .high_bits = r_hi},
-        };
+        return divide_wide_by_wide_portable(a, b);
     }
 }
 
