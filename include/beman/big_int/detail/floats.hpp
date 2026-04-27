@@ -398,8 +398,31 @@ template <cv_unqualified_floating_point F>
     while (limb_count > 0 && limbs[limb_count - 1] == 0) {
         --limb_count;
     }
-    if (limb_count == 0) {
+
+    switch (limb_count) {
+    case 0:
+        // Value is zero: return correctly signed zero.
         return constexpr_copysign(F{0}, sign_value);
+    case 1:
+        // Single limb can be converted via static_cast directly.
+        return constexpr_copysign(static_cast<F>(limbs[0]), sign_value);
+#if BEMAN_BIG_INT_HAS_WIDE_INT
+    #define BEMAN_BIG_INT_COMPOSE_FLOAT_HAPPY_BITS_COVERED_IN_SWITCH \
+        (std::is_convertible_v<uint_wide_t, F> ? width_v<uint_wide_t> : width_v<uint_multiprecision_t>)
+    case 2:
+        // Two limbs can be joined to an integer,
+        // unless `uint_wide_t` is a class type without floating-point conversions.
+        if constexpr (std::is_convertible_v<uint_wide_t, F>) {
+            const auto wide_value = uint_wide_t{limbs[1]} << width_v<uint_multiprecision_t> | limbs[0];
+            return constexpr_copysign(static_cast<F>(wide_value), sign_value);
+        } else {
+            break;
+        }
+#else
+    #define BEMAN_BIG_INT_COMPOSE_FLOAT_HAPPY_BITS_COVERED_IN_SWITCH width_v<uint_multiprecision_t>
+#endif // BEMAN_BIG_INT_HAS_WIDE_INT
+    default:
+        break;
     }
 
     const std::size_t top_limb_bits = limb_width - static_cast<std::size_t>(std::countl_zero(limbs[limb_count - 1]));
@@ -412,17 +435,26 @@ template <cv_unqualified_floating_point F>
     }
 
     mantissa_t mantissa = 0;
-    if (total_bits <= precision_bits) {
-        // Happy case: the whole integer fits inside the mantissa; concat limbs into `mantissa`.
-        // No rounding logic is necessary.
-        for (std::size_t i = 0; i < limb_count; ++i) {
-            mantissa |= static_cast<mantissa_t>(limbs[i]) << (i * limb_width);
+
+    if constexpr (BEMAN_BIG_INT_COMPOSE_FLOAT_HAPPY_BITS_COVERED_IN_SWITCH < precision_bits) {
+        // We only attempt handling this special case if it wasn't already covered by the switch,
+        // which is quite likely.
+        // On 32-bit, it can happen if we convert three limbs (96 bits) to `float128_t`,
+        // which has 112 mantissa bits.
+        // No known real-world example on 64-bit exists because one limb is always covered by the switch,
+        // and two limbs (128 bits) exceed any non-academic format.
+        if (total_bits <= precision_bits) {
+            // Happy case: the whole integer fits inside the mantissa; concat limbs into `mantissa`.
+            // No rounding logic is necessary.
+            for (std::size_t i = 0; i < limb_count; ++i) {
+                mantissa |= static_cast<mantissa_t>(limbs[i]) << (i * limb_width);
+            }
+            return compose_float(float_representation<F>{
+                .sign     = sign,
+                .exponent = 0,
+                .mantissa = mantissa,
+            });
         }
-        return compose_float(float_representation<F>{
-            .sign     = sign,
-            .exponent = 0,
-            .mantissa = mantissa,
-        });
     }
 
     // For integers with more precision,
@@ -493,12 +525,6 @@ template <cv_unqualified_floating_point F>
                 }
             }
         }
-    }
-
-    // TODO(eisenwave): This seems like something that the other overload should handle anyway.
-    //                  We probably don't need this infinity detection.
-    if (exponent + static_cast<int>(precision_bits) > std::numeric_limits<F>::max_exponent) {
-        return constexpr_copysign(std::numeric_limits<F>::infinity(), sign_value);
     }
 
     return compose_float(float_representation<F>{

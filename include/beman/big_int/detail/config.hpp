@@ -137,14 +137,17 @@ namespace beman::big_int::detail {
 
 #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
     #define BEMAN_BIG_INT_HAS_INT128 1
+    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
 using int128_t  = _BitInt(128);
 using uint128_t = unsigned _BitInt(128);
 #elif defined(__SIZEOF_INT128__)
     #define BEMAN_BIG_INT_HAS_INT128 1
+    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
 using int128_t  = __int128;
 using uint128_t = unsigned __int128;
 #elif defined(BEMAN_BIG_INT_MSVC)
     #define BEMAN_BIG_INT_HAS_INT128 1
+    #define BEMAN_BIG_INT_HAS_INT128_CLASS 1
 using int128_t  = std::_Signed128;
 using uint128_t = std::_Unsigned128;
 #endif
@@ -294,28 +297,41 @@ template <class T>
     return static_cast<make_signed_or_unsigned_t<T>>(x);
 }
 
-template <integral T>
-struct width : std::integral_constant<std::size_t,
-                                      static_cast<std::size_t>(std::numeric_limits<std::make_unsigned_t<T>>::digits)> {
-};
+// A type trait with a `static constexpr std::size_t value` member storing the width of the type `T`.
+// That is, the number of bits in the value representation.
+// The trait is complete only if `T` is an integral type or (if supported)
+// an integer class type such as MSVC `std::_Signed128`.
+template <class T>
+struct width;
 
-#ifdef BEMAN_BIG_INT_HAS_BITINT
-template <std::size_t N>
-struct width<_BitInt(N)> : std::integral_constant<std::size_t, N> {};
-template <std::size_t N>
-struct width<unsigned _BitInt(N)> : std::integral_constant<std::size_t, N> {};
 template <class T>
 struct width<const T> : width<T> {};
 template <class T>
 struct width<volatile T> : width<T> {};
 template <class T>
 struct width<const volatile T> : width<T> {};
-template <integral T>
-inline constexpr std::size_t width_v = width<T>::value;
-#else
-template <integral T>
-inline constexpr std::size_t width_v = std::numeric_limits<std::make_unsigned_t<T>>::digits;
+
+template <cv_unqualified_integral T>
+struct width<T>
+    : std::integral_constant<std::size_t,
+                             static_cast<std::size_t>(std::numeric_limits<std::make_unsigned_t<T>>::digits)> {};
+
+#ifdef BEMAN_BIG_INT_HAS_INT128_CLASS
+template <>
+struct width<int128_t> : std::integral_constant<std::size_t, 128> {};
+template <>
+struct width<uint128_t> : std::integral_constant<std::size_t, 128> {};
+#endif // BEMAN_BIG_INT_HAS_INT128_CLASS
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+template <std::size_t N>
+struct width<_BitInt(N)> : std::integral_constant<std::size_t, N> {};
+template <std::size_t N>
+struct width<unsigned _BitInt(N)> : std::integral_constant<std::size_t, N> {};
 #endif // BEMAN_BIG_INT_HAS_BITINT
+
+template <class T>
+inline constexpr std::size_t width_v = width<T>::value;
 
 } // namespace beman::big_int::detail
 
