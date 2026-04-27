@@ -154,5 +154,9 @@ bool run_benchmarks()
 }
 
 TEST(Addition, AdditionBench) {
+    #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     EXPECT_TRUE(run_benchmarks());
+    #else
+    GTEST_SKIP() << "Benchmarks not run" << std::endl;
+    #endif
 }
