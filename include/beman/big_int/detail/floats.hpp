@@ -404,14 +404,14 @@ template <cv_unqualified_floating_point F>
         // Value is zero: return correctly signed zero.
         return constexpr_copysign(F{0}, sign_value);
     case 1:
-        // Single limb can be coverted via static_cast directly.
+        // Single limb can be converted via static_cast directly.
         return constexpr_copysign(static_cast<F>(limbs[0]), sign_value);
 #if BEMAN_BIG_INT_HAS_WIDE_INT
     #define BEMAN_BIG_INT_COMPOSE_FLOAT_HAPPY_BITS_COVERED_IN_SWITCH \
         (std::is_convertible_v<uint_wide_t, F> ? width_v<uint_wide_t> : width_v<uint_multiprecision_t>)
     case 2:
         // Two limbs can be joined to an integer,
-        // unless `uint_wide_t` is a class type without floating-point converions.
+        // unless `uint_wide_t` is a class type without floating-point conversions.
         if constexpr (std::is_convertible_v<uint_wide_t, F>) {
             const auto wide_value = uint_wide_t{limbs[1]} << width_v<uint_multiprecision_t> | limbs[0];
             return constexpr_copysign(static_cast<F>(wide_value), sign_value);
