@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# SPDX-License-Identifier: BSL-1.0
+
+name: Fuzz Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    # 03:00 Central European Time -> 02:00 UTC. GitHub cron runs in UTC and does
+    # not observe DST, so during CEST (summer) this fires at 04:00 local time.
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: "Seconds to run each fuzzer for"
+        required: false
+        default: "60"
+
+env:
+  FUZZ_SECONDS: ${{ github.event.inputs.fuzz_seconds || (github.event_name == 'schedule' && '300') || '60' }}
+
+jobs:
+  fuzz:
+    name: LibFuzzer parity vs boost::cpp_int
+    runs-on: ubuntu-latest
+    container: ghcr.io/bemanproject/infra-containers-clang:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # TODO(mborland) : add div once it works...
+        op: [add, sub, mul]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/fuzz -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DBEMAN_BIG_INT_BUILD_TESTS=ON \
+            -DBEMAN_BIG_INT_FUZZ=ON
+
+      - name: Build fuzz_${{ matrix.op }}
+        run: cmake --build build/fuzz --target beman.big_int.fuzz.${{ matrix.op }}
+
+      - name: Run fuzz_${{ matrix.op }}
+        run: |
+          mkdir -p build/fuzz/corpus/${{ matrix.op }}
+          mkdir -p build/fuzz/artifacts/${{ matrix.op }}
+          ./build/fuzz/tests/beman/big_int/fuzzing/beman.big_int.fuzz.${{ matrix.op }} \
+            -max_total_time="${FUZZ_SECONDS}" \
+            -print_final_stats=1 \
+            -artifact_prefix="build/fuzz/artifacts/${{ matrix.op }}/" \
+            build/fuzz/corpus/${{ matrix.op }}
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.op }}-failure
+          path: |
+            build/fuzz/artifacts/${{ matrix.op }}/**
+            build/fuzz/corpus/${{ matrix.op }}/**
+          if-no-files-found: ignore

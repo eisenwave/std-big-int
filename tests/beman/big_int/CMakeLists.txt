@@ -4,6 +4,12 @@
 include(GoogleTest)
 include(FetchContent)
 
+option(
+    BEMAN_BIG_INT_FUZZ
+    "Build LibFuzzer-based parity fuzzers for beman::big_int (requires Clang). Default: OFF."
+    OFF
+)
+
 file(GLOB TEST_SOURCES "*.test.cpp")
 
 # Pull in Boost.Multiprecision for parity tests that cross-check beman::big_int
@@ -70,3 +76,7 @@ foreach(test_source ${TEST_SOURCES})
     endif()
     gtest_discover_tests(${test_target})
 endforeach()
+
+if(BEMAN_BIG_INT_FUZZ)
+    add_subdirectory(fuzzing)
+endif()
