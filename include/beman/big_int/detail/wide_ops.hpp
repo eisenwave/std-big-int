@@ -532,10 +532,10 @@ template <unsigned_integer T>
     BEMAN_BIG_INT_DEBUG_ASSERT(b.high_bits != 0);
 
     constexpr std::size_t limb_bits = width_v<T>;
-    
-    T                     q         = 0;
-    T                     r_lo      = 0;
-    T                     r_hi      = 0;
+
+    T q    = 0;
+    T r_lo = 0;
+    T r_hi = 0;
 
     for (std::size_t i = 2 * limb_bits; i-- > 0;) {
         const T r_top = static_cast<T>(r_hi >> (limb_bits - 1));
