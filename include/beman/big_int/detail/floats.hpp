@@ -439,7 +439,7 @@ template <cv_unqualified_floating_point F>
         };
 
         // Extract `precision_bits` bits via funnel-shifts across pairs of limbs.
-        constexpr int mantissa_limbs = detail::div_to_pos_inf(precision_bits, limb_width);
+        constexpr auto mantissa_limbs = detail::div_to_pos_inf(precision_bits, limb_width);
         for (std::size_t j = 0; j < mantissa_limbs; ++j) {
             const std::size_t           li = limb_shift + static_cast<std::size_t>(j);
             const uint_multiprecision_t piece =
