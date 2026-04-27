@@ -2044,7 +2044,7 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
         const std::size_t common = b_span.size();
 
         // Unrolled addition loop
-        auto run_add = [&](auto store) {
+        const auto run_add = [&](auto store) {
             bool        carry = false;
             std::size_t i     = 0;
             for (; i + 4 <= common; i += 4) {
@@ -2124,7 +2124,7 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
     // Both subtraction branches mirror the same-sign allocation strategy
     const std::size_t eff_cap = is_representation_inplace() ? inplace_capacity : m_capacity;
 
-    auto finalize_trim_and_sign = [this](limb_type* const limbs, const std::size_t n, const bool target_neg) {
+    const auto finalize_trim_and_sign = [this](const limb_type* const limbs, const std::size_t n, const bool target_neg) {
         unchecked_set_limb_count(static_cast<std::uint32_t>(n));
         while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
             unchecked_set_limb_count(limb_count() - 1);
@@ -2136,7 +2136,7 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
     };
 
     // Unrolled subtract
-    auto run_sub = [&](auto larger, auto smaller, auto store, std::size_t total) {
+    const auto run_sub = [&](auto larger, auto smaller, auto store, const std::size_t total) {
         const std::size_t common = smaller.size();
         bool              borrow = false;
         std::size_t       i      = 0;
