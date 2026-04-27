@@ -2177,8 +2177,8 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
             const alloc_result allocation = alloc_limbs(n);
             limb_type* const   limbs      = allocation.ptr;
 
-            [[maybe_unused]] const bool borrow = run_sub(
-                a, b_span, [limbs](std::size_t idx, limb_type v) { std::construct_at(limbs + idx, v); }, n);
+            [[maybe_unused]] const bool borrow =
+                run_sub(a, b_span, [limbs](std::size_t idx, limb_type v) { std::construct_at(limbs + idx, v); }, n);
             BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
             for (std::size_t i = n; i < allocation.count; ++i) {
                 std::construct_at(limbs + i);
@@ -2189,9 +2189,9 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
             m_storage.data = allocation.ptr;
             finalize_trim_and_sign(limbs, n, a_neg);
         } else {
-            limb_type* const            limbs  = limb_ptr();
-            [[maybe_unused]] const bool borrow = run_sub(
-                a, b_span, [limbs](std::size_t idx, limb_type v) { limbs[idx] = v; }, n);
+            limb_type* const            limbs = limb_ptr();
+            [[maybe_unused]] const bool borrow =
+                run_sub(a, b_span, [limbs](std::size_t idx, limb_type v) { limbs[idx] = v; }, n);
             BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
             finalize_trim_and_sign(limbs, n, a_neg);
         }
@@ -2206,8 +2206,8 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
         const alloc_result allocation = alloc_limbs(n);
         limb_type* const   limbs      = allocation.ptr;
 
-        [[maybe_unused]] const bool borrow = run_sub(
-            b_span, a, [limbs](std::size_t idx, limb_type v) { std::construct_at(limbs + idx, v); }, n);
+        [[maybe_unused]] const bool borrow =
+            run_sub(b_span, a, [limbs](std::size_t idx, limb_type v) { std::construct_at(limbs + idx, v); }, n);
         BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
         for (std::size_t i = n; i < allocation.count; ++i) {
             std::construct_at(limbs + i);
@@ -2218,9 +2218,9 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
         m_storage.data = allocation.ptr;
         finalize_trim_and_sign(limbs, n, b_neg);
     } else {
-        limb_type* const            limbs  = limb_ptr();
-        [[maybe_unused]] const bool borrow = run_sub(
-            b_span, a, [limbs](std::size_t idx, limb_type v) { limbs[idx] = v; }, n);
+        limb_type* const            limbs = limb_ptr();
+        [[maybe_unused]] const bool borrow =
+            run_sub(b_span, a, [limbs](std::size_t idx, limb_type v) { limbs[idx] = v; }, n);
         BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
         finalize_trim_and_sign(limbs, n, b_neg);
     }

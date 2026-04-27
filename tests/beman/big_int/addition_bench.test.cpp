@@ -8,81 +8,62 @@
 
 namespace local {
 
-  namespace concurrency {
+namespace concurrency {
 
-  struct stopwatch
-  {
+struct stopwatch {
   public:
     using time_point_type = std::uintmax_t;
 
-    auto reset() -> void
-    {
-      m_start = now();
-    }
+    auto reset() -> void { m_start = now(); }
 
-    template<typename RepresentationRequestedTimeType>
-    static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType
-    {
-      using local_time_type = RepresentationRequestedTimeType;
+    template <typename RepresentationRequestedTimeType>
+    static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
+        using local_time_type = RepresentationRequestedTimeType;
 
-      return
-        local_time_type
-        {
-            static_cast<local_time_type>(my_stopwatch.elapsed())
-          / local_time_type { UINTMAX_C(1000000000) }
-        };
+        return local_time_type{static_cast<local_time_type>(my_stopwatch.elapsed()) /
+                               local_time_type{UINTMAX_C(1000000000)}};
     }
 
   private:
-    time_point_type m_start { now() }; // NOLINT(readability-identifier-naming)
+    time_point_type m_start{now()}; // NOLINT(readability-identifier-naming)
 
-    [[nodiscard]] static auto now() -> time_point_type
-    {
-      timespec ts { };
+    [[nodiscard]] static auto now() -> time_point_type {
+        timespec ts{};
 
-      const int ntsp { timespec_get(&ts, TIME_UTC) };
+        const int ntsp{timespec_get(&ts, TIME_UTC)};
 
-      static_cast<void>(ntsp);
+        static_cast<void>(ntsp);
 
-      return
-        static_cast<time_point_type>
-        (
-            static_cast<time_point_type>(static_cast<time_point_type>(ts.tv_sec) * UINTMAX_C(1000000000))
-          + static_cast<time_point_type>(ts.tv_nsec)
-        );
+        return static_cast<time_point_type>(
+            static_cast<time_point_type>(static_cast<time_point_type>(ts.tv_sec) * UINTMAX_C(1000000000)) +
+            static_cast<time_point_type>(ts.tv_nsec));
     }
 
-    [[nodiscard]] auto elapsed() const -> time_point_type
-    {
-      const time_point_type stop { now() };
+    [[nodiscard]] auto elapsed() const -> time_point_type {
+        const time_point_type stop{now()};
 
-      const time_point_type
-        elapsed_ns
-        {
-          static_cast<time_point_type>
-          (
-            stop - m_start
-          )
-        };
+        const time_point_type elapsed_ns{static_cast<time_point_type>(stop - m_start)};
 
-      return elapsed_ns;
+        return elapsed_ns;
     }
-  };
+};
 
-  } // namespace concurrency
+} // namespace concurrency
 
 template <typename BigIntType>
 BigIntType fibonacci(unsigned int n) {
-    if (n == 0) return BigIntType(0);
-    if (n == 1) return BigIntType(1);
+    if (n == 0)
+        return BigIntType(0);
+    if (n == 1)
+        return BigIntType(1);
 
     BigIntType a = 0;
     BigIntType b = 1;
 
     for (unsigned int i = 2; i <= n; ++i) {
         BigIntType next = a + b;
-        a = b;
-        b = next;
+        a               = b;
+        b               = next;
     }
 
     return b;
@@ -99,8 +80,7 @@ BigIntType fibonacci(unsigned int n) {
 
 } // namespace local
 
-bool run_benchmarks()
-{
+bool run_benchmarks() {
     using cpp_int_type =
         boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
     using big_int_type = beman::big_int::big_int;
@@ -154,9 +134,9 @@ bool run_benchmarks()
 }
 
 TEST(Addition, AdditionBench) {
-    #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     EXPECT_TRUE(run_benchmarks());
-    #else
+#else
     GTEST_SKIP() << "Benchmarks not run" << std::endl;
-    #endif
+#endif
 }
