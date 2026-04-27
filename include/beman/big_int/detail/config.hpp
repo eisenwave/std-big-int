@@ -433,6 +433,20 @@ struct div_result {
 
 } // namespace beman::big_int
 
+// Division with rounding toward positive infinity =============================
+
+namespace beman::big_int::detail {
+
+// Returns the quotient of the division `x / y`,
+// rounded towards positive infinity.
+template <unsigned_integer T>
+[[nodiscard]] constexpr T div_to_pos_inf(const T x, const T y) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(y != 0);
+    return (x / y) + T(x % y != 0);
+}
+
+} // namespace beman::big_int::detail
+
 // =============================================================================
 
 #endif // BEMAN_BIG_INT_CONFIG_HPP
