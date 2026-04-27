@@ -255,6 +255,12 @@ template <signed_or_unsigned T>
 #endif
 }
 
+
+// The cast is needed for less than 16-bit integers,
+// since they get implicitly promoted to int which sets off -Wimplicit-int-conversion
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED("-Wuseless-cast")
+
 // Design for funnel shifts is similar to P4010R0.
 
 // Returns `x.high_bits << s`,
@@ -268,9 +274,11 @@ template <signed_or_unsigned T>
     if (s == 0) {
         return x.high_bits;
     }
-    return (x.high_bits << s) | (x.low_bits >> (width_v<T> - s));
+    return static_cast<T>((x.high_bits << s) | (x.low_bits >> (width_v<T> - s)));
 #endif
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 // Returns `x.low_bits >> s`,
 // except that the high bits are filled with `x.high_bits` instead sign bits.
