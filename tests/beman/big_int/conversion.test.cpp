@@ -161,42 +161,42 @@ TEST(Conversion, ToFloatTieWithStickyBit) {
     // Analog of ToLongDoubleThreeLimbTieWithStickyBit, but for binary32 `float`.
     if constexpr (beman::big_int::detail::ieee_traits<float>::width != 32) {
         GTEST_SKIP() << "Requires binary32 float (32-bit IEEE 754).";
+    } else {
+        // Strictly above the tie via a sticky bit far below the round bit.
+        EXPECT_EQ(static_cast<float>(0x8000'0080'0000'0000'0000'0001_n), 0x1.000002p95f);
+        // Exact half-ULP tie with even mantissa LSB and no sticky: tie-to-even rounds DOWN.
+        EXPECT_EQ(static_cast<float>(0x8000'0080'0000'0000'0000'0000_n), 0x1p95f);
+        // Exact half-ULP tie with odd mantissa LSB and no sticky: tie-to-even rounds UP.
+        EXPECT_EQ(static_cast<float>(0x8000'0180'0000'0000'0000'0000_n), 0x1.000004p95f);
+        // Strictly below the tie (round bit = 0): truncate, regardless of any lower bits.
+        EXPECT_EQ(static_cast<float>(0x8000'007F'FFFF'FFFF'FFFF'FFFF_n), 0x1p95f);
+        // Rounding propagates a carry through the mantissa and bumps the exponent.
+        EXPECT_EQ(static_cast<float>(0xFFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p96f);
+        // Single-limb value that exactly fills the precision: must be representable exactly.
+        EXPECT_EQ(static_cast<float>(0xFFFFFF_n), 0x1.fffffep23f);
     }
-
-    // Strictly above the tie via a sticky bit far below the round bit.
-    EXPECT_EQ(static_cast<float>(0x8000'0080'0000'0000'0000'0001_n), 0x1.000002p95f);
-    // Exact half-ULP tie with even mantissa LSB and no sticky: tie-to-even rounds DOWN.
-    EXPECT_EQ(static_cast<float>(0x8000'0080'0000'0000'0000'0000_n), 0x1p95f);
-    // Exact half-ULP tie with odd mantissa LSB and no sticky: tie-to-even rounds UP.
-    EXPECT_EQ(static_cast<float>(0x8000'0180'0000'0000'0000'0000_n), 0x1.000004p95f);
-    // Strictly below the tie (round bit = 0): truncate, regardless of any lower bits.
-    EXPECT_EQ(static_cast<float>(0x8000'007F'FFFF'FFFF'FFFF'FFFF_n), 0x1p95f);
-    // Rounding propagates a carry through the mantissa and bumps the exponent.
-    EXPECT_EQ(static_cast<float>(0xFFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p96f);
-    // Single-limb value that exactly fills the precision: must be representable exactly.
-    EXPECT_EQ(static_cast<float>(0xFFFFFF_n), 0x1.fffffep23f);
 }
 
 TEST(Conversion, ToDoubleTieWithStickyBit) {
     // Analog of ToLongDoubleThreeLimbTieWithStickyBit, but for binary64 `double`.
     if constexpr (beman::big_int::detail::ieee_traits<double>::width != 64) {
         GTEST_SKIP() << "Requires binary64 double (64-bit IEEE 754).";
+    } else {
+        // Strictly above the tie via a sticky bit far below the round bit.
+        EXPECT_EQ(static_cast<double>(0x8000'0000'0000'0400'0000'0000'0000'0000'0000'0000'0000'0001_n),
+                  0x1.0000000000001p191);
+        // Exact half-ULP tie with even mantissa LSB and no sticky: tie-to-even rounds DOWN.
+        EXPECT_EQ(static_cast<double>(0x8000'0000'0000'0400'0000'0000'0000'0000'0000'0000'0000'0000_n), 0x1p191);
+        // Exact half-ULP tie with odd mantissa LSB and no sticky: tie-to-even rounds UP.
+        EXPECT_EQ(static_cast<double>(0x8000'0000'0000'0C00'0000'0000'0000'0000'0000'0000'0000'0000_n),
+                  0x1.0000000000002p191);
+        // Strictly below the tie (round bit = 0): truncate, regardless of any lower bits.
+        EXPECT_EQ(static_cast<double>(0x8000'0000'0000'03FF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p191);
+        // Rounding propagates a carry through the mantissa and bumps the exponent.
+        EXPECT_EQ(static_cast<double>(0xFFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p192);
+        // Single-limb value that exactly fills the precision: must be representable exactly.
+        EXPECT_EQ(static_cast<double>(0x1F'FFFF'FFFF'FFFF_n), 0x1.fffffffffffffp52);
     }
-
-    // Strictly above the tie via a sticky bit far below the round bit.
-    EXPECT_EQ(static_cast<double>(0x8000'0000'0000'0400'0000'0000'0000'0000'0000'0000'0000'0001_n),
-              0x1.0000000000001p191);
-    // Exact half-ULP tie with even mantissa LSB and no sticky: tie-to-even rounds DOWN.
-    EXPECT_EQ(static_cast<double>(0x8000'0000'0000'0400'0000'0000'0000'0000'0000'0000'0000'0000_n), 0x1p191);
-    // Exact half-ULP tie with odd mantissa LSB and no sticky: tie-to-even rounds UP.
-    EXPECT_EQ(static_cast<double>(0x8000'0000'0000'0C00'0000'0000'0000'0000'0000'0000'0000'0000_n),
-              0x1.0000000000002p191);
-    // Strictly below the tie (round bit = 0): truncate, regardless of any lower bits.
-    EXPECT_EQ(static_cast<double>(0x8000'0000'0000'03FF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p191);
-    // Rounding propagates a carry through the mantissa and bumps the exponent.
-    EXPECT_EQ(static_cast<double>(0xFFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p192);
-    // Single-limb value that exactly fills the precision: must be representable exactly.
-    EXPECT_EQ(static_cast<double>(0x1F'FFFF'FFFF'FFFF_n), 0x1.fffffffffffffp52);
 }
 
 TEST(Conversion, ToLongDoubleThreeLimbTieWithStickyBit) {
@@ -208,39 +208,40 @@ TEST(Conversion, ToLongDoubleThreeLimbTieWithStickyBit) {
     // before forming the floating-point value.
     if constexpr (beman::big_int::detail::ieee_traits<long double>::width != 80) {
         GTEST_SKIP() << "Requires x87 long double (80-bit storage, 64-bit precision).";
+    } else {
+
+        // pow(2, 191) + pow(2, 127) + 1
+        const long double actual =
+            static_cast<long double>(0x8000'0000'0000'0000'8000'0000'0000'0000'0000'0000'0000'0001_n);
+        // pow(2, 191) + pow(2, 128)
+        constexpr long double expected = 0x1.0000000000000002p191L;
+
+        EXPECT_EQ(actual, expected);
+
+        // Exact half-ULP tie with even mantissa LSB and no sticky: tie-to-even rounds DOWN.
+        // limbs: high = 2^63, mid = 2^63 (round bit only), low = 0
+        // mantissa = 0x8000'0000'0000'0000 (LSB = 0), round = 1, sticky = 0  ->  no round-up.
+        EXPECT_EQ(static_cast<long double>(0x8000'0000'0000'0000'8000'0000'0000'0000'0000'0000'0000'0000_n), 0x1p191L);
+
+        // Exact half-ULP tie with odd mantissa LSB and no sticky: tie-to-even rounds UP.
+        // limbs: high = 2^63 + 1, mid = 2^63, low = 0
+        // mantissa = 0x8000'0000'0000'0001 (LSB = 1), round = 1, sticky = 0  ->  round up by one ULP.
+        EXPECT_EQ(static_cast<long double>(0x8000'0000'0000'0001'8000'0000'0000'0000'0000'0000'0000'0000_n),
+                  0x1.0000000000000004p191L);
+
+        // Strictly below the tie (round bit = 0): truncate, regardless of any lower bits.
+        // limbs: high = 2^63, mid = 0x7FFF'FFFF'FFFF'FFFF, low = all-ones
+        // mantissa = 0x8000'0000'0000'0000, round = 0, sticky = 1  ->  no round-up.
+        EXPECT_EQ(static_cast<long double>(0x8000'0000'0000'0000'7FFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p191L);
+
+        // Rounding propagates a carry through the mantissa and bumps the exponent.
+        // value = 2^192 - 1 (all bits set across 192 bits): rounds up to 2^192.
+        EXPECT_EQ(static_cast<long double>(0xFFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p192L);
+
+        // Single-limb value that exactly fills the precision: must be representable exactly.
+        // 2^64 - 1 = 0x1.fffffffffffffffep63 in 64-bit precision long double.
+        EXPECT_EQ(static_cast<long double>(0xFFFF'FFFF'FFFF'FFFF_n), 0x1.fffffffffffffffep63L);
     }
-
-    // pow(2, 191) + pow(2, 127) + 1
-    const long double actual =
-        static_cast<long double>(0x8000'0000'0000'0000'8000'0000'0000'0000'0000'0000'0000'0001_n);
-    // pow(2, 191) + pow(2, 128)
-    constexpr long double expected = 0x1.0000000000000002p191L;
-
-    EXPECT_EQ(actual, expected);
-
-    // Exact half-ULP tie with even mantissa LSB and no sticky: tie-to-even rounds DOWN.
-    // limbs: high = 2^63, mid = 2^63 (round bit only), low = 0
-    // mantissa = 0x8000'0000'0000'0000 (LSB = 0), round = 1, sticky = 0  ->  no round-up.
-    EXPECT_EQ(static_cast<long double>(0x8000'0000'0000'0000'8000'0000'0000'0000'0000'0000'0000'0000_n), 0x1p191L);
-
-    // Exact half-ULP tie with odd mantissa LSB and no sticky: tie-to-even rounds UP.
-    // limbs: high = 2^63 + 1, mid = 2^63, low = 0
-    // mantissa = 0x8000'0000'0000'0001 (LSB = 1), round = 1, sticky = 0  ->  round up by one ULP.
-    EXPECT_EQ(static_cast<long double>(0x8000'0000'0000'0001'8000'0000'0000'0000'0000'0000'0000'0000_n),
-              0x1.0000000000000004p191L);
-
-    // Strictly below the tie (round bit = 0): truncate, regardless of any lower bits.
-    // limbs: high = 2^63, mid = 0x7FFF'FFFF'FFFF'FFFF, low = all-ones
-    // mantissa = 0x8000'0000'0000'0000, round = 0, sticky = 1  ->  no round-up.
-    EXPECT_EQ(static_cast<long double>(0x8000'0000'0000'0000'7FFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p191L);
-
-    // Rounding propagates a carry through the mantissa and bumps the exponent.
-    // value = 2^192 - 1 (all bits set across 192 bits): rounds up to 2^192.
-    EXPECT_EQ(static_cast<long double>(0xFFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF'FFFF_n), 0x1p192L);
-
-    // Single-limb value that exactly fills the precision: must be representable exactly.
-    // 2^64 - 1 = 0x1.fffffffffffffffep63 in 64-bit precision long double.
-    EXPECT_EQ(static_cast<long double>(0xFFFF'FFFF'FFFF'FFFF_n), 0x1.fffffffffffffffep63L);
 
     // This is just to verify that the test itself is valid,
     // assuming that _BitInt -> long double conversions are implemented correctly.
