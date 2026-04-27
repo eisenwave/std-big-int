@@ -255,11 +255,10 @@ template <signed_or_unsigned T>
 #endif
 }
 
-
 // The cast is needed for less than 16-bit integers,
 // since they get implicitly promoted to int which sets off -Wimplicit-int-conversion
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED("-Wuseless-cast")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
 
 // Design for funnel shifts is similar to P4010R0.
 
