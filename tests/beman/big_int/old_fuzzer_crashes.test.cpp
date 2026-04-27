@@ -14,7 +14,6 @@ TEST(OldFuzzerCrashes, Div1) {
 }
 
 TEST(OldFuzzerCrashes, Div2) {
-    EXPECT_TRUE(check_cpp_int_equal(std::divides<>{},
-                                    "0100000000002400000000000000000000",
-                                    "0000000000e7000000010000003100162400"));
+    EXPECT_TRUE(check_cpp_int_equal(
+        std::divides<>{}, "0100000000002400000000000000000000", "0000000000e7000000010000003100162400"));
 }
