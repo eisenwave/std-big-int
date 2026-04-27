@@ -398,6 +398,7 @@ template <cv_unqualified_floating_point F>
     while (limb_count > 0 && limbs[limb_count - 1] == 0) {
         --limb_count;
     }
+
     switch (limb_count) {
     case 0:
         // Value is zero: return correctly signed zero.
@@ -406,6 +407,8 @@ template <cv_unqualified_floating_point F>
         // Single limb can be coverted via static_cast directly.
         return constexpr_copysign(static_cast<F>(limbs[0]), sign_value);
 #if BEMAN_BIG_INT_HAS_WIDE_INT
+    #define BEMAN_BIG_INT_COMPOSE_FLOAT_HAPPY_BITS_COVERED_IN_SWITCH \
+        (std::is_convertible_v<uint_wide_t, F> ? width_v<uint_wide_t> : width_v<uint_multiprecision_t>)
     case 2:
         // Two limbs can be joined to an integer,
         // unless `uint_wide_t` is a class type without floating-point converions.
@@ -415,7 +418,9 @@ template <cv_unqualified_floating_point F>
         } else {
             break;
         }
-#endif
+#else
+    #define BEMAN_BIG_INT_COMPOSE_FLOAT_HAPPY_BITS_COVERED_IN_SWITCH width_v<uint_multiprecision_t>
+#endif // BEMAN_BIG_INT_HAS_WIDE_INT
     default:
         break;
     }
@@ -430,17 +435,26 @@ template <cv_unqualified_floating_point F>
     }
 
     mantissa_t mantissa = 0;
-    if (total_bits <= precision_bits) {
-        // Happy case: the whole integer fits inside the mantissa; concat limbs into `mantissa`.
-        // No rounding logic is necessary.
-        for (std::size_t i = 0; i < limb_count; ++i) {
-            mantissa |= static_cast<mantissa_t>(limbs[i]) << (i * limb_width);
+
+    if constexpr (BEMAN_BIG_INT_COMPOSE_FLOAT_HAPPY_BITS_COVERED_IN_SWITCH < precision_bits) {
+        // We only attempt handling this special case if it wasn't already covered by the switch,
+        // which is quite likely.
+        // On 32-bit, it can happen if we convert three limbs (96 bits) to `float128_t`,
+        // which has 112 mantissa bits.
+        // No known real-world example on 64-bit exists because one limb is always covered by the switch,
+        // and two limbs (128 bits) exceed any non-academic format.
+        if (total_bits <= precision_bits) {
+            // Happy case: the whole integer fits inside the mantissa; concat limbs into `mantissa`.
+            // No rounding logic is necessary.
+            for (std::size_t i = 0; i < limb_count; ++i) {
+                mantissa |= static_cast<mantissa_t>(limbs[i]) << (i * limb_width);
+            }
+            return compose_float(float_representation<F>{
+                .sign     = sign,
+                .exponent = 0,
+                .mantissa = mantissa,
+            });
         }
-        return compose_float(float_representation<F>{
-            .sign     = sign,
-            .exponent = 0,
-            .mantissa = mantissa,
-        });
     }
 
     // For integers with more precision,
