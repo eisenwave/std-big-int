@@ -30,8 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # TODO(mborland) : add div once it works...
-        op: [add, sub, mul]
+        op: [add, sub, mul, div]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
