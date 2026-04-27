@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+#include <boost/multiprecision/cpp_int.hpp>
+#include <beman/big_int/big_int.hpp>
+#include <gtest/gtest.h>
+#include <span>
+
+namespace local {
+
+namespace concurrency {
+
+struct stopwatch {
+  public:
+    using time_point_type = std::uintmax_t;
+
+    auto reset() -> void { m_start = now(); }
+
+    template <typename RepresentationRequestedTimeType>
+    static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
+        using local_time_type = RepresentationRequestedTimeType;
+
+        return local_time_type{static_cast<local_time_type>(my_stopwatch.elapsed()) /
+                               local_time_type{UINTMAX_C(1000000000)}};
+    }
+
+  private:
+    time_point_type m_start{now()}; // NOLINT(readability-identifier-naming)
+
+    [[nodiscard]] static auto now() -> time_point_type {
+        timespec ts{};
+
+        const int ntsp{timespec_get(&ts, TIME_UTC)};
+
+        static_cast<void>(ntsp);
+
+        return static_cast<time_point_type>(ts.tv_sec) * UINTMAX_C(1000000000) +
+               static_cast<time_point_type>(ts.tv_nsec);
+    }
+
+    [[nodiscard]] auto elapsed() const -> time_point_type {
+        const time_point_type stop{now()};
+
+        const time_point_type elapsed_ns{stop - m_start};
+
+        return elapsed_ns;
+    }
+};
+
+} // namespace concurrency
+
+template <typename BigIntType>
+BigIntType fibonacci(unsigned int n) {
+    if (n == 0)
+        return BigIntType(0);
+    if (n == 1)
+        return BigIntType(1);
+
+    BigIntType a = 0;
+    BigIntType b = 1;
+
+    for (unsigned int i = 2; i <= n; ++i) {
+        BigIntType next = a + b;
+        a               = b;
+        b               = next;
+    }
+
+    return b;
+}
+
+// Returns the number of bytes before the trailing run of zero bytes.
+[[nodiscard]] inline auto significant_byte_len(const std::span<const std::byte> bytes) noexcept -> std::size_t {
+    std::size_t n = bytes.size();
+    while (n > 0 && bytes[n - 1] == std::byte{0}) {
+        --n;
+    }
+    return n;
+}
+
+} // namespace local
+
+bool run_benchmarks() {
+    using cpp_int_type =
+        boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
+    using big_int_type = beman::big_int::big_int;
+
+    using local_stopwatch_type = local::concurrency::stopwatch;
+
+    local_stopwatch_type my_stopwatch{};
+
+    const big_int_type big_int_fibonacci{local::fibonacci<big_int_type>(1000000)};
+    std::cout << "stopwatch big_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
+
+    my_stopwatch.reset();
+
+    const cpp_int_type cpp_int_fibonacci{local::fibonacci<cpp_int_type>(1000000)};
+    std::cout << "stopwatch cpp_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
+
+    const std::span<const ::boost::multiprecision::limb_type> cpp_int_rep{cpp_int_fibonacci.backend().limbs(),
+                                                                          cpp_int_fibonacci.backend().size()};
+    const auto big_int_bytes = std::as_bytes(big_int_fibonacci.representation());
+    const auto cpp_int_bytes = std::as_bytes(cpp_int_rep);
+
+    const auto big_int_sig = local::significant_byte_len(big_int_bytes);
+    const auto cpp_int_sig = local::significant_byte_len(cpp_int_bytes);
+
+    const bool result_length_is_ok{big_int_sig == cpp_int_sig};
+
+    std::cout << "result_length_is_ok    : " << result_length_is_ok << std::endl;
+
+    bool result_is_ok{result_length_is_ok};
+
+    bool result_bytes_same_is_ok{false};
+
+    if (result_is_ok) {
+        for (std::size_t i = 0; i < big_int_sig; ++i) {
+            if (big_int_bytes[i] != cpp_int_bytes[i]) {
+                result_bytes_same_is_ok = false;
+                break;
+            } else {
+                result_bytes_same_is_ok = true;
+            }
+        }
+    }
+
+    std::cout << "result_bytes_same_is_ok: " << result_bytes_same_is_ok << std::endl;
+
+    result_is_ok = (result_bytes_same_is_ok && result_is_ok);
+
+    std::cout << "result_is_ok           : " << result_is_ok << std::endl;
+
+    return result_is_ok;
+}
+
+TEST(Addition, AdditionBench) {
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
+    EXPECT_TRUE(run_benchmarks());
+#else
+    GTEST_SKIP() << "Benchmarks not run" << std::endl;
+#endif
+}
