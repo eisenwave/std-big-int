@@ -2121,13 +2121,14 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
     // Both subtraction branches mirror the same-sign allocation strategy
     const std::size_t eff_cap = is_representation_inplace() ? inplace_capacity : m_capacity;
 
-    const auto finalize_trim_and_sign = [this](const limb_type* const limbs, const std::size_t n, const bool target_neg) {
-        unchecked_set_limb_count(static_cast<std::uint32_t>(n));
-        while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
-            unchecked_set_limb_count(limb_count() - 1);
-        }
-        unchecked_set_sign(target_neg && !unchecked_is_magnitude_zero());
-    };
+    const auto finalize_trim_and_sign =
+        [this](const limb_type* const limbs, const std::size_t n, const bool target_neg) {
+            unchecked_set_limb_count(static_cast<std::uint32_t>(n));
+            while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
+                unchecked_set_limb_count(limb_count() - 1);
+            }
+            unchecked_set_sign(target_neg && !unchecked_is_magnitude_zero());
+        };
 
     // Unrolled subtract
     const auto run_sub = [&](auto larger, auto smaller, auto store, const std::size_t total) {
