@@ -34,15 +34,14 @@ struct stopwatch {
 
         static_cast<void>(ntsp);
 
-        return static_cast<time_point_type>(
-            static_cast<time_point_type>(static_cast<time_point_type>(ts.tv_sec) * UINTMAX_C(1000000000)) +
-            static_cast<time_point_type>(ts.tv_nsec));
+        return static_cast<time_point_type>(ts.tv_sec) * UINTMAX_C(1000000000) +
+               static_cast<time_point_type>(ts.tv_nsec);
     }
 
     [[nodiscard]] auto elapsed() const -> time_point_type {
         const time_point_type stop{now()};
 
-        const time_point_type elapsed_ns{static_cast<time_point_type>(stop - m_start)};
+        const time_point_type elapsed_ns{stop - m_start};
 
         return elapsed_ns;
     }
