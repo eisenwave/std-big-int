@@ -128,8 +128,7 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
     BEMAN_BIG_INT_DEBUG_ASSERT(remainder.data() != divisor.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(quotient.data() != remainder.data());
 
-    constexpr std::size_t           limb_bits = width_v<uint_multiprecision_t>;
-    constexpr uint_multiprecision_t max_limb  = static_cast<uint_multiprecision_t>(0) - 1;
+    constexpr uint_multiprecision_t max_limb = static_cast<uint_multiprecision_t>(0) - 1;
 
     const std::size_t y_order = divisor.size() - 1;
     std::size_t       r_order = dividend.size() - 1;
@@ -143,23 +142,19 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         std::ranges::fill(remainder.subspan(dividend.size()), uint_multiprecision_t{0});
     }
 
-#ifndef BEMAN_BIG_INT_HAS_WIDE_INT
-    #error Sorry, division currently requires uint_wide_t.
-#endif
-    // Fast path: 2 limb / 2 limb. Do the whole thing in uint_wide_t.
+    // Fast path: 2 limb / 2 limb.
     if (r_order == 1) {
-        // r_order == 1 && divisor.size() >= 2 && divisor.size() <= dividend.size()
-        // ⇒ divisor.size() == 2.
-        const uint_wide_t a = (static_cast<uint_wide_t>(remainder[1]) << limb_bits) | remainder[0];
-        const uint_wide_t b = (static_cast<uint_wide_t>(divisor[1]) << limb_bits) | divisor[0];
-        const uint_wide_t q = a / b;
-        const uint_wide_t r = a % b;
-        quotient[0]         = static_cast<uint_multiprecision_t>(q);
+        // The precondition divisor.back() != 0 ensures divisor[1] != 0,
+        // so the quotient fits in a single limb.
+        const wide<uint_multiprecision_t> a{.low_bits = remainder[0], .high_bits = remainder[1]};
+        const wide<uint_multiprecision_t> b{.low_bits = divisor[0], .high_bits = divisor[1]};
+        const auto [q, r] = divide_wide_by_wide(a, b);
+        quotient[0]       = q;
         if (quotient.size() > 1) {
-            quotient[1] = static_cast<uint_multiprecision_t>(q >> limb_bits);
+            quotient[1] = 0;
         }
-        remainder[0] = static_cast<uint_multiprecision_t>(r);
-        remainder[1] = static_cast<uint_multiprecision_t>(r >> limb_bits);
+        remainder[0] = r.low_bits;
+        remainder[1] = r.high_bits;
         for (std::size_t i = 2; i < remainder.size(); ++i) {
             remainder[i] = 0;
         }
@@ -197,14 +192,14 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
             guess = remainder[0] / divisor[y_order];
         } else {
             // remainder[r_order] > divisor[y_order]. Use top-two-limbs of each
-            // in uint_wide_t to compute a tighter q̂.
-            const uint_wide_t num_wide =
-                (static_cast<uint_wide_t>(remainder[r_order]) << limb_bits) | remainder[r_order - 1];
-            const uint_wide_t den_wide =
-                (y_order > 0) ? ((static_cast<uint_wide_t>(divisor[y_order]) << limb_bits) | divisor[y_order - 1])
-                              : (static_cast<uint_wide_t>(divisor[y_order]) << limb_bits);
-            BEMAN_BIG_INT_DEBUG_ASSERT(den_wide != 0);
-            guess = static_cast<uint_multiprecision_t>(num_wide / den_wide);
+            // to compute a tighter q̂.
+            const wide<uint_multiprecision_t> num_wide{.low_bits  = remainder[r_order - 1],
+                                                       .high_bits = remainder[r_order]};
+            const wide<uint_multiprecision_t> den_wide{.low_bits  = (y_order > 0) ? divisor[y_order - 1]
+                                                                                  : uint_multiprecision_t{0},
+                                                       .high_bits = divisor[y_order]};
+            BEMAN_BIG_INT_DEBUG_ASSERT(den_wide.high_bits != 0);
+            guess = divide_wide_by_wide(num_wide, den_wide).quotient;
         }
         BEMAN_BIG_INT_DEBUG_ASSERT(guess != 0);
 

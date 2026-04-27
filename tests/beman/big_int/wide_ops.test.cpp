@@ -4,6 +4,7 @@
 #include <beman/big_int/detail/wide_ops.hpp>
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <limits>
 
 #include "testing.hpp"
@@ -430,6 +431,83 @@ TEST(WideOps, NarrowingDivUint) {
     EXPECT_EQ(r5.remainder, 4ull);
     EXPECT_EQ(r6.quotient, 3'689'348'814'741'910'326ull);
     EXPECT_EQ(r6.remainder, 0ull);
+}
+
+TEST(WideOps, DivideWideByWideFast) {
+    using beman::big_int::detail::divide_wide_by_wide;
+    using beman::big_int::detail::wide;
+
+    // Fast path: T == uint_multiprecision_t, wider_t<T> exists.
+    const auto r1 = divide_wide_by_wide(wide<uint_multiprecision_t>{.low_bits = 1ull, .high_bits = 2ull},
+                                        wide<uint_multiprecision_t>{.low_bits = 0ull, .high_bits = 1ull});
+    EXPECT_EQ(r1.quotient, 2ull);
+    EXPECT_EQ(r1.remainder.low_bits, 1ull);
+    EXPECT_EQ(r1.remainder.high_bits, 0ull);
+
+    // a == b.
+    const auto r2 = divide_wide_by_wide(wide<uint_multiprecision_t>{.low_bits = 42ull, .high_bits = 7ull},
+                                        wide<uint_multiprecision_t>{.low_bits = 42ull, .high_bits = 7ull});
+    EXPECT_EQ(r2.quotient, 1ull);
+    EXPECT_EQ(r2.remainder.low_bits, 0ull);
+    EXPECT_EQ(r2.remainder.high_bits, 0ull);
+
+    // a < b.
+    const auto r3 = divide_wide_by_wide(wide<uint_multiprecision_t>{.low_bits = 0ull, .high_bits = 1ull},
+                                        wide<uint_multiprecision_t>{.low_bits = 0ull, .high_bits = 2ull});
+    EXPECT_EQ(r3.quotient, 0ull);
+    EXPECT_EQ(r3.remainder.low_bits, 0ull);
+    EXPECT_EQ(r3.remainder.high_bits, 1ull);
+
+    // Maximum dividend divided by the smallest valid 2-limb divisor.
+    constexpr auto max_limb = std::numeric_limits<uint_multiprecision_t>::max();
+    const auto     r4 = divide_wide_by_wide(wide<uint_multiprecision_t>{.low_bits = max_limb, .high_bits = max_limb},
+                                            wide<uint_multiprecision_t>{.low_bits = 0ull, .high_bits = 1ull});
+    EXPECT_EQ(r4.quotient, max_limb);
+    EXPECT_EQ(r4.remainder.low_bits, max_limb);
+    EXPECT_EQ(r4.remainder.high_bits, 0ull);
+}
+
+TEST(WideOps, DivideWideByWidePortable) {
+    using beman::big_int::detail::divide_wide_by_wide_portable;
+    using beman::big_int::detail::wide;
+
+    // Call the portable long-division directly.
+    using T = std::uint16_t;
+
+    auto check = [](T a_lo, T a_hi, T b_lo, T b_hi) {
+        const auto          r     = divide_wide_by_wide_portable(wide<T>{.low_bits = a_lo, .high_bits = a_hi},
+                                                                 wide<T>{.low_bits = b_lo, .high_bits = b_hi});
+        const std::uint32_t a     = (static_cast<std::uint32_t>(a_hi) << 16) | a_lo;
+        const std::uint32_t b     = (static_cast<std::uint32_t>(b_hi) << 16) | b_lo;
+        const std::uint32_t got_r = (static_cast<std::uint32_t>(r.remainder.high_bits) << 16) | r.remainder.low_bits;
+        EXPECT_EQ(static_cast<std::uint32_t>(r.quotient), a / b);
+        EXPECT_EQ(got_r, a % b);
+    };
+
+    // Boundary cases.
+    check(0x0000, 0x0000, 0x0000, 0x0001); // a = 0.
+    check(0x0001, 0x0001, 0x0001, 0x0001); // a == b.
+    check(0xFFFF, 0x7FFF, 0x0001, 0x8000); // a < b.
+    check(0xFFFF, 0xFFFF, 0x0000, 0x0001); // max / minimum 2-limb divisor.
+    check(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF); // max / max.
+    check(0x0000, 0x8000, 0x0000, 0x8000); // normalized divisor, exact quotient.
+    check(0xDEAD, 0xBEEF, 0xCAFE, 0x1234); // arbitrary pattern.
+
+    // Q correction path: dividend top equals divisor top so the Knuth-D-style
+    // trial quotient would saturate; the algorithm must still converge.
+    check(0x0000, 0x8000, 0x0001, 0x8000);
+    check(0xFFFE, 0x8000, 0xFFFF, 0x8000);
+
+    // Sweep a grid of values to exercise the bit-by-bit loop thoroughly.
+    for (std::uint32_t a_hi : {0u, 1u, 2u, 0x7FFFu, 0x8000u, 0xABCDu, 0xFFFFu}) {
+        for (std::uint32_t b_hi : {1u, 2u, 0x7FFFu, 0x8000u, 0xABCDu, 0xFFFFu}) {
+            for (std::uint32_t a_lo : {0u, 1u, 0x00FFu, 0x5A5Au, 0xA5A5u, 0xFFFFu}) {
+                for (std::uint32_t b_lo : {0u, 1u, 0x00FFu, 0x5A5Au, 0xA5A5u, 0xFFFFu}) {
+                    check(static_cast<T>(a_lo), static_cast<T>(a_hi), static_cast<T>(b_lo), static_cast<T>(b_hi));
+                }
+            }
+        }
+    }
 }
 
 } // namespace
