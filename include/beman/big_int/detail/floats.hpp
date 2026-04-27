@@ -398,8 +398,26 @@ template <cv_unqualified_floating_point F>
     while (limb_count > 0 && limbs[limb_count - 1] == 0) {
         --limb_count;
     }
-    if (limb_count == 0) {
+    switch (limb_count) {
+    case 0:
+        // Value is zero: return correctly signed zero.
         return constexpr_copysign(F{0}, sign_value);
+    case 1:
+        // Single limb can be coverted via static_cast directly.
+        return constexpr_copysign(static_cast<F>(limbs[0]), sign_value);
+#if BEMAN_BIG_INT_HAS_WIDE_INT
+    case 2:
+        // Two limbs can be joined to an integer,
+        // unless `uint_wide_t` is a class type without floating-point converions.
+        if constexpr (std::is_convertible_v<uint_wide_t, F>) {
+            const auto wide_value = uint_wide_t{limbs[1]} << width_v<uint_multiprecision_t> | limbs[0];
+            return constexpr_copysign(static_cast<F>(wide_value), sign_value);
+        } else {
+            break;
+        }
+#endif
+    default:
+        break;
     }
 
     const std::size_t top_limb_bits = limb_width - static_cast<std::size_t>(std::countl_zero(limbs[limb_count - 1]));
@@ -493,12 +511,6 @@ template <cv_unqualified_floating_point F>
                 }
             }
         }
-    }
-
-    // TODO(eisenwave): This seems like something that the other overload should handle anyway.
-    //                  We probably don't need this infinity detection.
-    if (exponent + static_cast<int>(precision_bits) > std::numeric_limits<F>::max_exponent) {
-        return constexpr_copysign(std::numeric_limits<F>::infinity(), sign_value);
     }
 
     return compose_float(float_representation<F>{
