@@ -8,8 +8,7 @@ if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     )
 endif()
 
-# TODO(mborland) : Add div once div actually passes
-set(_fuzz_ops add sub mul)
+set(_fuzz_ops add sub mul div)
 
 foreach(op IN LISTS _fuzz_ops)
     set(fuzz_target beman.big_int.fuzz.${op})
