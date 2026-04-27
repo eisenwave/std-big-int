@@ -2111,10 +2111,7 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
             }
         }
 
-        unchecked_set_sign(false);
-        if (!is_zero()) {
-            unchecked_set_sign(a_neg);
-        }
+        unchecked_set_sign(a_neg && !unchecked_is_magnitude_zero());
         return;
     }
 
@@ -2129,10 +2126,7 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
         while (limb_count() > 1 && limbs[limb_count() - 1] == 0) {
             unchecked_set_limb_count(limb_count() - 1);
         }
-        unchecked_set_sign(false);
-        if (!is_zero()) {
-            unchecked_set_sign(target_neg);
-        }
+        unchecked_set_sign(target_neg && !unchecked_is_magnitude_zero());
     };
 
     // Unrolled subtract
