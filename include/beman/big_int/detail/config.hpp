@@ -330,7 +330,7 @@ template <std::size_t N>
 struct width<unsigned _BitInt(N)> : std::integral_constant<std::size_t, N> {};
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
-template <integral T>
+template <class T>
 inline constexpr std::size_t width_v = width<T>::value;
 
 } // namespace beman::big_int::detail
