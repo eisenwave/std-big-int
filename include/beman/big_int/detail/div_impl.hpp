@@ -171,6 +171,9 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
     std::size_t quot_size  = dividend.size() - divisor.size() + 1;
 
     do {
+        // Retain the original top for future sizing comparison
+        const std::size_t rem_top_orig = r_order;
+
         // ------------------------------------------------------------------
         // Estimate q̂.
         // ------------------------------------------------------------------
@@ -270,7 +273,7 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
         const std::span<const uint_multiprecision_t> t_view{t_full.data(), t_size};
 
         // Compare remainder against t_view and update remainder accordingly.
-        const std::size_t rem_logical_size = std::max(r_order + 1, t_size);
+        const std::size_t rem_logical_size = std::max(rem_top_orig + 1, t_size);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem_logical_size <= remainder.size());
         const std::span<const uint_multiprecision_t> rem_view{remainder.data(), rem_logical_size};
         const std::strong_ordering                   cmp = compare_unsigned_spans(rem_view, t_view);
