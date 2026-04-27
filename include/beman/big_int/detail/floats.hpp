@@ -10,8 +10,10 @@
 #include <cfloat>
 #include <limits>
 #include <cstdint>
+#include <span>
 
 #include <beman/big_int/detail/config.hpp>
+#include <beman/big_int/detail/wide_ops.hpp>
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
@@ -146,9 +148,14 @@ template <cv_unqualified_floating_point F>
     return static_cast<bool>(__builtin_signbit(x));
 #else
     if BEMAN_BIG_INT_IS_CONSTEVAL {
-        // This implementation assumes that the sign bit is always the most significant bit.
-        const auto bits = std::bit_cast<typename ieee_traits<F>::bits_type>(x);
-        return ((bits >> (ieee_traits<F>::width - 1)) & 1) != 0;
+        using bits_t      = typename ieee_traits<F>::bits_type;
+        const bits_t bits = std::bit_cast<bits_t>(x);
+        if constexpr (std::is_same_v<bits_t, detail::x87_extended_float_bits>) {
+            return ((bits.sign_and_exponent >> 15) & 1) != 0;
+        } else {
+            // This implementation assumes that the sign bit is always the most significant bit.
+            return ((bits >> (ieee_traits<F>::width - 1)) & 1) != 0;
+        }
     } else {
         return std::signbit(x);
     }
@@ -165,10 +172,96 @@ template <cv_unqualified_floating_point F>
     if BEMAN_BIG_INT_IS_CONSTEVAL {
         BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
         BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
+        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wfloat-equal")
         return x == x && x != std::numeric_limits<F>::infinity() && x != -std::numeric_limits<F>::infinity();
         BEMAN_BIG_INT_DIAGNOSTIC_POP()
     } else {
         return std::isfinite(x);
+    }
+#endif
+}
+
+template <cv_unqualified_floating_point F>
+[[nodiscard]] constexpr F constexpr_copysign(const F x, const F s) noexcept {
+#if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
+    return std::copysign(x, s);
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_copysign)
+    if constexpr (std::is_same_v<decltype(__builtin_copysign(x, s)), F>) {
+        // The builtin is either generic or F is double.
+        return __builtin_copysign(x, s);
+    } else {
+        if BEMAN_BIG_INT_IS_CONSTEVAL {
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_copysignf)
+            if constexpr (std::is_same_v<F, float>) {
+                return __builtin_copysignf(x, s);
+            }
+    #endif
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_copysignl)
+            if constexpr (std::is_same_v<F, long double>) {
+                return __builtin_copysignl(x, s);
+            }
+    #endif
+            return constexpr_signbit(x) == constexpr_signbit(s) ? x : -x;
+        } else {
+            return std::copysign(x, s);
+        }
+    }
+#else
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        return constexpr_signbit(x) == constexpr_signbit(s) ? x : -x;
+    } else {
+        return std::copysign(x, s);
+    }
+#endif
+}
+
+// Not actually marked consteval because this is problematic if `if consteval`
+// is not supported yet and calls from an immediate context are needed.
+template <cv_unqualified_floating_point F>
+[[nodiscard, maybe_unused]] constexpr F consteval_ldexp(F x, int exp) noexcept {
+    while (exp > 0) {
+        const int part = exp > 63 ? 63 : exp;
+        x *= static_cast<F>(1ull << part);
+        exp -= part;
+    }
+    while (exp < 0) {
+        const int part = exp < -63 ? -63 : exp;
+        x /= static_cast<F>(1ull << part);
+        exp += part;
+    }
+    return x;
+}
+
+template <cv_unqualified_floating_point F>
+[[nodiscard]] constexpr F constexpr_ldexp(const F x, const int exp) noexcept {
+#if defined(__cpp_lib_constexpr_cmath) && __cpp_lib_constexpr_cmath >= 202202L
+    return std::ldexp(x, exp);
+#elif BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_ldexp)
+    if constexpr (std::is_same_v<decltype(__builtin_ldexp(x, exp)), F>) {
+        // The builtin is either generic or F is double.
+        return __builtin_ldexp(x, exp);
+    } else {
+        if BEMAN_BIG_INT_IS_CONSTEVAL {
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_ldexpf)
+            if constexpr (std::is_same_v<F, float>) {
+                return __builtin_ldexpf(x, exp);
+            }
+    #endif
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_ldexpl)
+            if constexpr (std::is_same_v<F, long double>) {
+                return __builtin_ldexpl(x, exp);
+            }
+    #endif
+            return consteval_ldexp(x, exp);
+        } else {
+            return std::ldexp(x, exp);
+        }
+    }
+#else
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        return consteval_ldexp(x, exp);
+    } else {
+        return std::ldexp(x, exp);
     }
 #endif
 }
@@ -183,12 +276,12 @@ template <cv_unqualified_floating_point F>
         return __builtin_fabs(x);
     } else {
         if BEMAN_BIG_INT_IS_CONSTEVAL {
-    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_fabsf)
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_fabsf)
             if constexpr (std::is_same_v<F, float>) {
                 return __builtin_fabsf(x);
             }
     #endif
-    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN(__builtin_fabsl)
+    #if BEMAN_BIG_INT_HAS_CONSTEXPR_BUILTIN_OR_BUILTIN(__builtin_fabsl)
             if constexpr (std::is_same_v<F, long double>) {
                 return __builtin_fabsl(x);
             }
@@ -277,11 +370,133 @@ template <cv_unqualified_floating_point F>
 }
 
 template <cv_unqualified_floating_point F>
-[[nodiscard]] F compose_float(const float_representation<F> representation) {
+[[nodiscard]] constexpr F compose_float(const float_representation<F> representation) {
     static_assert(std::numeric_limits<F>::radix == 2, "Only binary floating-point is supported.");
 
-    const F magnitude = std::ldexp(static_cast<F>(representation.mantissa), representation.exponent);
-    return std::copysign(magnitude, representation.sign ? F{-1} : F{1});
+    const F magnitude = constexpr_ldexp(static_cast<F>(representation.mantissa), representation.exponent);
+    return constexpr_copysign(magnitude, representation.sign ? F{-1} : F{1});
+}
+
+template <cv_unqualified_floating_point F>
+[[nodiscard]] constexpr F compose_float(const std::span<const uint_multiprecision_t> limbs, const bool sign) {
+    static_assert(std::numeric_limits<F>::radix == 2, "Only binary floating-point is supported.");
+    static_assert(std::numeric_limits<F>::round_style == std::float_round_style::round_to_nearest,
+                  "Only round-to-nearest is currently supported.");
+
+    using traits     = ieee_traits<F>;
+    using mantissa_t = typename traits::mantissa_type;
+
+    constexpr std::size_t limb_width     = width_v<uint_multiprecision_t>;
+    constexpr std::size_t precision_bits = traits::mantissa_bits + 1;
+    constexpr std::size_t mantissa_width = width_v<mantissa_t>;
+
+    const F sign_value = sign ? F{-1} : F{1};
+
+    std::size_t limb_count = limbs.size();
+    while (limb_count > 0 && limbs[limb_count - 1] == 0) {
+        --limb_count;
+    }
+    if (limb_count == 0) {
+        return constexpr_copysign(F{0}, sign_value);
+    }
+
+    const std::size_t top_limb_bits = limb_width - static_cast<std::size_t>(std::countl_zero(limbs[limb_count - 1]));
+    const std::size_t total_bits    = (limb_count - 1) * limb_width + top_limb_bits;
+
+    // Up-front overflow check: any integer with more bits than `max_exponent` has
+    // magnitude `>= pow(2, max_exponent)` and therefore exceeds every finite value of `F`.
+    if (total_bits > static_cast<std::size_t>(std::numeric_limits<F>::max_exponent)) {
+        return constexpr_copysign(std::numeric_limits<F>::infinity(), sign_value);
+    }
+
+    const auto limb_at = [&](const std::size_t i) -> uint_multiprecision_t { //
+        return i < limb_count ? limbs[i] : 0;
+    };
+
+    mantissa_t mantissa         = 0;
+    int        exponent         = 0;
+    bool       round_bit        = false;
+    bool       found_sticky_bit = false;
+
+    if (total_bits <= precision_bits) {
+        // The whole integer fits inside the mantissa; concat limbs into `mantissa`.
+        for (std::size_t i = 0; i < limb_count; ++i) {
+            mantissa |= static_cast<mantissa_t>(limbs[i]) << (i * limb_width);
+        }
+    } else {
+        // We need to extract bits `[shift, shift + precision_bits)` of the integer as the
+        // mantissa, with bit `shift - 1` as the round bit and a sticky-OR over all lower bits.
+        const auto shift = total_bits - precision_bits;
+        {
+            const auto limb_shift = shift / limb_width;
+            const auto bit_shift  = static_cast<unsigned>(shift % limb_width);
+
+            // Extract `precision_bits` bits via funnel-shifts across pairs of limbs.
+            constexpr int mantissa_limbs = (precision_bits + limb_width - 1) / limb_width;
+            for (std::size_t j = 0; j < mantissa_limbs; ++j) {
+                const std::size_t           li = limb_shift + static_cast<std::size_t>(j);
+                const uint_multiprecision_t piece =
+                    funnel_shr(wide{.low_bits = limb_at(li), .high_bits = limb_at(li + 1)}, bit_shift);
+                mantissa |= static_cast<mantissa_t>(piece) << (j * limb_width);
+            }
+        }
+        // Trim any bits we pulled in beyond the mantissa width (only needed when
+        // `precision_bits` is not a multiple of `limb_bits`).
+        if constexpr (precision_bits < mantissa_width) {
+            mantissa &= (mantissa_t{1} << precision_bits) - 1;
+        }
+
+        // Round bit lives at bit index `shift - 1`.
+        const std::size_t rb_index       = shift - 1;
+        const auto        rb_limb_index  = rb_index / limb_width;
+        const unsigned    rb_limb_offset = static_cast<unsigned>(rb_index % limb_width);
+        round_bit                        = ((limbs[rb_limb_index] >> rb_limb_offset) & uint_multiprecision_t{1}) != 0;
+
+        // Sticky bit: OR over everything strictly below the round bit.
+        for (std::size_t i = 0; i < rb_limb_index && !found_sticky_bit; ++i) {
+            found_sticky_bit = limbs[i] != 0;
+        }
+        if (!found_sticky_bit && rb_limb_offset > 0) {
+            const uint_multiprecision_t low_mask = (uint_multiprecision_t{1} << rb_limb_offset) - 1;
+            found_sticky_bit                     = (limbs[rb_limb_index] & low_mask) != 0;
+        }
+
+        exponent = static_cast<int>(shift);
+    }
+
+    if (round_bit && (found_sticky_bit || ((mantissa & mantissa_t{1}) != 0))) {
+        // The pre-rounding mantissa has its high bit at position `precision_bits - 1`.
+        // A carry-out past that position requires shifting back by one and bumping the
+        // exponent. When `mantissa_t` has headroom above the mantissa, that carry shows
+        // up as a bit at position `precision_bits`; otherwise, it shows up as the
+        // type-level carry from `carrying_add`.
+        if constexpr (precision_bits < mantissa_width) {
+            mantissa += 1;
+            if ((mantissa >> precision_bits) != 0) {
+                mantissa >>= 1;
+                ++exponent;
+            }
+        } else {
+            const auto [sum, carry] = overflowing_add(mantissa, mantissa_t{1});
+            mantissa                = sum;
+            if (carry) {
+                mantissa = mantissa_t{1} << (precision_bits - 1);
+                ++exponent;
+            }
+        }
+    }
+
+    // Post-rounding overflow check: rounding can bump `exponent` by one, which may push
+    // a value that was just below `pow(2, max_exponent)` over the edge to infinity.
+    if (exponent + static_cast<int>(precision_bits) > std::numeric_limits<F>::max_exponent) {
+        return constexpr_copysign(std::numeric_limits<F>::infinity(), sign_value);
+    }
+
+    return compose_float(float_representation<F>{
+        .sign     = sign,
+        .exponent = exponent,
+        .mantissa = mantissa,
+    });
 }
 
 } // namespace beman::big_int::detail

@@ -1294,6 +1294,14 @@ template <detail::cv_unqualified_arithmetic T, bool ignore_sign>
 constexpr T basic_big_int<b, A>::to() const noexcept {
     if constexpr (std::is_same_v<T, bool>) {
         return !is_zero();
+    } else if constexpr (std::is_floating_point_v<T>) {
+        const bool negative = !ignore_sign && is_negative();
+        if constexpr (has_inplace_to_bit_uint) {
+            if (is_representation_inplace()) {
+                return detail::constexpr_copysign(static_cast<T>(inplace_to_bit_uint()), negative ? T{-1} : T{1});
+            }
+        }
+        return detail::compose_float<T>(representation(), negative);
     } else {
         if constexpr (ignore_sign && has_inplace_to_bit_uint) {
             if (is_representation_inplace()) {
@@ -1304,34 +1312,17 @@ constexpr T basic_big_int<b, A>::to() const noexcept {
                 return static_cast<T>(inplace_to_sbit_int());
             }
         }
-        if constexpr (std::is_floating_point_v<T>) {
-            const bool negative = !ignore_sign && is_negative();
-            // If the value exceeds the maximum finite value of T, return infinity.
-            // See P3899R1.
-            if (width_mag() >= static_cast<std::size_t>(std::numeric_limits<T>::max_exponent)) {
-                return negative ? -std::numeric_limits<T>::infinity() : std::numeric_limits<T>::infinity();
-            }
-            constexpr T       two64 = static_cast<T>(1ULL << 32) * static_cast<T>(1ULL << 32);
-            T                 result{0};
-            const auto* const limbs = limb_ptr();
-            for (std::size_t i = limb_count(); i != 0;) {
-                --i;
-                result = result * two64 + static_cast<T>(limbs[i]);
-            }
-            return negative ? -result : result;
+        using U = std::make_unsigned_t<T>;
+        U                 mag{0};
+        constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
+        const auto* const limbs = limb_ptr();
+        for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
+            mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
+        }
+        if constexpr (ignore_sign) {
+            return mag;
         } else {
-            using U = std::make_unsigned_t<T>;
-            U                 mag{0};
-            constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
-            const auto* const limbs = limb_ptr();
-            for (std::size_t i = 0; i < std::min(n, static_cast<std::size_t>(limb_count())); ++i) {
-                mag |= static_cast<U>(limbs[i]) << (i * bits_per_limb);
-            }
-            if constexpr (ignore_sign) {
-                return mag;
-            } else {
-                return static_cast<T>(is_negative() ? ~mag + U{1} : mag);
-            }
+            return static_cast<T>(is_negative() ? ~mag + U{1} : mag);
         }
     }
 }
