@@ -471,12 +471,6 @@ struct wide_div_result {
     wide<T> remainder;
 };
 
-template <signed_or_unsigned T>
-struct div_result {
-    T quotient;
-    T remainder;
-};
-
 // Returns the quotient and remainder of the division `x / y`.
 // The behavior is undefined if the quotient is not representable as `T`,
 // which is the case if and only if `x.high_bits < y`.
@@ -539,11 +533,11 @@ template <unsigned_integer T>
 
     for (std::size_t i = 2 * limb_bits; i-- > 0;) {
         const T r_top = static_cast<T>(r_hi >> (limb_bits - 1));
-        r_hi          = static_cast<T>((r_hi << 1) | (r_lo >> (limb_bits - 1)));
+        r_hi          = funnel_shl(wide<T>{.low_bits = r_lo, .high_bits = r_hi}, 1u);
         const T bit   = (i >= limb_bits) ? static_cast<T>((a.high_bits >> (i - limb_bits)) & T{1})
                                          : static_cast<T>((a.low_bits >> i) & T{1});
         r_lo          = static_cast<T>((r_lo << 1) | bit);
-        q             = static_cast<T>(q << 1);
+        q <<= 1;
 
         // If the virtual 3-limb remainder (r_top, r_hi, r_lo) is >= b, subtract.
         const bool r_ge_b = (r_top != 0) || (r_hi > b.high_bits) || (r_hi == b.high_bits && r_lo >= b.low_bits);
