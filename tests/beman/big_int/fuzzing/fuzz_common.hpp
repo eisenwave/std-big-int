@@ -61,11 +61,11 @@ namespace beman::big_int::fuzz {
 // libFuzzer treats a -1 return as "uninteresting; do not add to corpus".
 template <class BinOp>
 int run(BinOp&& op, const std::uint8_t* data, const std::size_t size, const bool skip_zero_rhs = false) {
-    const std::size_t       split    = size / 2;
-    const std::uint8_t*     lhs_data = data;
-    const std::size_t       lhs_size = split;
-    const std::uint8_t*     rhs_data = data + split;
-    const std::size_t       rhs_size = size - split;
+    const std::size_t   split    = size / 2;
+    const std::uint8_t* lhs_data = data;
+    const std::size_t   lhs_size = split;
+    const std::uint8_t* rhs_data = data + split;
+    const std::size_t   rhs_size = size - split;
 
     if (skip_zero_rhs && encodes_zero(rhs_data, rhs_size)) {
         return -1;
@@ -77,8 +77,11 @@ int run(BinOp&& op, const std::uint8_t* data, const std::size_t size, const bool
     const auto result = ::beman::big_int::boost_mp_testing::check_cpp_int_equal(
         std::forward<BinOp>(op), std::string_view{lhs}, std::string_view{rhs});
     if (!result) {
-        std::fprintf(stderr, "beman::big_int parity mismatch\n  lhs = %s\n  rhs = %s\n  %s\n",
-                     lhs.c_str(), rhs.c_str(), result.message());
+        std::fprintf(stderr,
+                     "beman::big_int parity mismatch\n  lhs = %s\n  rhs = %s\n  %s\n",
+                     lhs.c_str(),
+                     rhs.c_str(),
+                     result.message());
         std::abort();
     }
     return 0;

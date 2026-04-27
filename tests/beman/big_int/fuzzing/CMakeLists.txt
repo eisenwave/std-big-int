@@ -20,10 +20,7 @@ foreach(op IN LISTS _fuzz_ops)
     )
     target_compile_options(
         ${fuzz_target}
-        PRIVATE
-            -fsanitize=fuzzer,address,undefined
-            -fno-omit-frame-pointer
-            -g
+        PRIVATE -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer -g
     )
     target_link_options(
         ${fuzz_target}
