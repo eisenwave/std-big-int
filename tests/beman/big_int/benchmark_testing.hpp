@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <ctime>
 #include <span>
+
 #include <beman/big_int/detail/config.hpp>
 
 namespace beman::big_int::benchmark_testing {
