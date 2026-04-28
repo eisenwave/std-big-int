@@ -96,9 +96,9 @@ TEST(Multiplication, MultiplicationBench40) {
 }
 
 TEST(Multiplication, MultiplicationBench52) {
-    #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     EXPECT_TRUE(run_benchmarks(136279841U));
-    #else
+#else
     GTEST_SKIP() << "Benchmarks not run" << std::endl;
-    #endif
+#endif
 }
