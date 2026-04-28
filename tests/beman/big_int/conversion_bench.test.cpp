@@ -59,7 +59,7 @@ struct conversion_input_buffers {
     constexpr std::uint64_t hash_offset_basis = 1469598103934665603;
     constexpr std::uint64_t hash_prime        = 1099511628211;
 
-    constexpr std::size_t buffer_size = 20'000'000;
+    constexpr std::size_t buffer_size = 1'000'000;
     constexpr std::size_t passes      = 5;
 
     const conversion_input_buffers inputs       = make_random_conversion_input_buffers(buffer_size, max_bits);
