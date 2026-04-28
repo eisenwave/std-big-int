@@ -1,36 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
-#include <boost/multiprecision/cpp_int.hpp>
 #include <beman/big_int/big_int.hpp>
-#include <gtest/gtest.h>
-#include <span>
-
 #include "benchmark_testing.hpp"
+#include "boost_mp_testing.hpp"
 
 namespace local {
-template <typename BigIntType>
-BigIntType fibonacci(unsigned int n) {
-    if (n == 0)
-        return BigIntType(0);
-    if (n == 1)
-        return BigIntType(1);
 
-    BigIntType a = 0;
-    BigIntType b = 1;
+template <class IntegralType>
+[[nodiscard]] constexpr auto pow(const IntegralType& b, unsigned p) -> IntegralType {
+    using local_integer_type = IntegralType;
 
-    for (unsigned int i = 2; i <= n; ++i) {
-        BigIntType next = a + b;
-        a               = b;
-        b               = next;
+    // Calculate (b ^ p).
+
+    local_integer_type result{1};
+
+    local_integer_type y{b};
+
+    while (p != 0U) {
+        if ((p & 1U) != 0U) {
+            result *= y;
+        }
+
+        y *= y;
+
+        p >>= 1U;
     }
 
-    return b;
+    return result;
 }
 
 } // namespace local
 
-bool run_benchmarks() {
+bool run_benchmarks(const unsigned p2) {
     using cpp_int_type =
         boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
     using big_int_type = beman::big_int::big_int;
@@ -39,17 +41,19 @@ bool run_benchmarks() {
 
     local_stopwatch_type my_stopwatch{};
 
-    const big_int_type big_int_fibonacci{local::fibonacci<big_int_type>(1000000)};
+    const cpp_int_type cpp_int_two{2};
+    const cpp_int_type cpp_int_mersenne{cpp_int_type{local::pow(cpp_int_two, p2)} - 1};
     std::cout << "stopwatch big_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
 
     my_stopwatch.reset();
 
-    const cpp_int_type cpp_int_fibonacci{local::fibonacci<cpp_int_type>(1000000)};
+    const big_int_type big_int_two{2};
+    const big_int_type big_int_mersenne{big_int_type{local::pow(big_int_two, p2)} - 1};
     std::cout << "stopwatch cpp_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
 
-    const std::span<const ::boost::multiprecision::limb_type> cpp_int_rep{cpp_int_fibonacci.backend().limbs(),
-                                                                          cpp_int_fibonacci.backend().size()};
-    const auto big_int_bytes = std::as_bytes(big_int_fibonacci.representation());
+    const std::span<const ::boost::multiprecision::limb_type> cpp_int_rep{cpp_int_mersenne.backend().limbs(),
+                                                                          cpp_int_mersenne.backend().size()};
+    const auto big_int_bytes = std::as_bytes(big_int_mersenne.representation());
     const auto cpp_int_bytes = std::as_bytes(cpp_int_rep);
 
     const auto big_int_sig = beman::big_int::benchmark_testing::significant_byte_len(big_int_bytes);
@@ -83,9 +87,17 @@ bool run_benchmarks() {
     return result_is_ok;
 }
 
-TEST(Addition, AdditionBench) {
+TEST(Multiplication, MultiplicationBench40) {
 #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
-    EXPECT_TRUE(run_benchmarks());
+    EXPECT_TRUE(run_benchmarks(20996011U));
+#else
+    GTEST_SKIP() << "Benchmarks not run" << std::endl;
+#endif
+}
+
+TEST(Multiplication, MultiplicationBench52) {
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
+    EXPECT_TRUE(run_benchmarks(136279841U));
 #else
     GTEST_SKIP() << "Benchmarks not run" << std::endl;
 #endif
