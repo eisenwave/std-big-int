@@ -48,6 +48,7 @@ foreach(test_source ${TEST_SOURCES})
                 -Werror
                 -Wall
                 -Wextra
+                -Wpedantic
                 -Wsign-conversion
                 -Wconversion
                 -Wundef
