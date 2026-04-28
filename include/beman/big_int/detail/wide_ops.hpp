@@ -502,10 +502,10 @@ template <unsigned_integer T>
         }
     #endif // _M_AMD64
         else {
-            return carrying_add_portable(x, y, carry);
+            return borrowing_sub_portable(x, y, borrow);
         }
     } else {
-        return carrying_add_portable(x, y, carry);
+        return borrowing_sub_portable(x, y, borrow);
     }
 #else
     return borrowing_sub_portable(x, y, borrow);
