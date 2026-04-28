@@ -28,15 +28,6 @@ BigIntType fibonacci(unsigned int n) {
     return b;
 }
 
-// Returns the number of bytes before the trailing run of zero bytes.
-[[nodiscard]] inline auto significant_byte_len(const std::span<const std::byte> bytes) noexcept -> std::size_t {
-    std::size_t n = bytes.size();
-    while (n > 0 && bytes[n - 1] == std::byte{0}) {
-        --n;
-    }
-    return n;
-}
-
 } // namespace local
 
 bool run_benchmarks() {
@@ -61,8 +52,8 @@ bool run_benchmarks() {
     const auto big_int_bytes = std::as_bytes(big_int_fibonacci.representation());
     const auto cpp_int_bytes = std::as_bytes(cpp_int_rep);
 
-    const auto big_int_sig = local::significant_byte_len(big_int_bytes);
-    const auto cpp_int_sig = local::significant_byte_len(cpp_int_bytes);
+    const auto big_int_sig = beman::big_int::benchmark_testing::significant_byte_len(big_int_bytes);
+    const auto cpp_int_sig = beman::big_int::benchmark_testing::significant_byte_len(cpp_int_bytes);
 
     const bool result_length_is_ok{big_int_sig == cpp_int_sig};
 

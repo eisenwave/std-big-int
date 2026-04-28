@@ -6,7 +6,7 @@
 
 #include <cstdint>
 #include <ctime>
-
+#include <span>
 #include <beman/big_int/detail/config.hpp>
 
 namespace beman::big_int::benchmark_testing {
@@ -51,6 +51,15 @@ struct stopwatch {
         return elapsed_ns;
     }
 };
+
+// Returns the number of bytes before the trailing run of zero bytes.
+[[nodiscard]] inline auto significant_byte_len(const std::span<const std::byte> bytes) noexcept -> std::size_t {
+    std::size_t n = bytes.size();
+    while (n > 0 && bytes[n - 1] == std::byte{0}) {
+        --n;
+    }
+    return n;
+}
 
 } // namespace beman::big_int::benchmark_testing
 
