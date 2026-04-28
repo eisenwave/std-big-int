@@ -30,14 +30,14 @@ template <class IntegralType>
     return result;
 }
 
-bool run_benchmarks() {
+} // namespace local
+
+bool run_benchmarks(const unsigned p2) {
     using cpp_int_type =
         boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
     using big_int_type = beman::big_int::big_int;
 
     using local_stopwatch_type = beman::big_int::benchmark_testing::stopwatch;
-
-    constexpr unsigned p2{20996011U};
 
     local_stopwatch_type my_stopwatch{};
 
@@ -87,12 +87,18 @@ bool run_benchmarks() {
     return result_is_ok;
 }
 
-} // namespace local
-
-TEST(Multiplication, MultiplicationBench) {
+TEST(Multiplication, MultiplicationBench40) {
 #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
-    EXPECT_TRUE(run_benchmarks());
+    EXPECT_TRUE(run_benchmarks(20996011U));
 #else
     GTEST_SKIP() << "Benchmarks not run" << std::endl;
 #endif
+}
+
+TEST(Multiplication, MultiplicationBench52) {
+    #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
+    EXPECT_TRUE(run_benchmarks(136279841U));
+    #else
+    GTEST_SKIP() << "Benchmarks not run" << std::endl;
+    #endif
 }
