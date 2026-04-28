@@ -317,7 +317,7 @@ template <signed_or_unsigned T>
     return {.value = value, .overflow = overflow};
 #else
     if constexpr (std::is_unsigned_v<T>) {
-        return {.value = x + y, .overflow = x + y < x};
+        return {.value = static_cast<T>(x + y), .overflow = x + y < x};
     } else {
         const auto wide  = static_cast<wider_t<T>>(x) + static_cast<wider_t<T>>(y);
         const auto value = static_cast<T>(wide);
@@ -334,7 +334,7 @@ template <signed_or_unsigned T>
     return {.value = value, .overflow = overflow};
 #else
     if constexpr (std::is_unsigned_v<T>) {
-        return {.value = x - y, .overflow = x < y};
+        return {.value = static_cast<T>(x - y), .overflow = x < y};
     } else {
         const auto wide  = static_cast<wider_t<T>>(x) - static_cast<wider_t<T>>(y);
         const auto value = static_cast<T>(wide);
