@@ -4,12 +4,12 @@
 #ifndef BEMAN_BIG_INT_BIG_INT_HPP
 #define BEMAN_BIG_INT_BIG_INT_HPP
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <climits>
-#include <cmath>
 #include <charconv>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -24,10 +24,10 @@
 #include <type_traits>
 
 #include <beman/big_int/detail/config.hpp>
-#include <beman/big_int/detail/floats.hpp>
-#include <beman/big_int/detail/wide_ops.hpp>
-#include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
+#include <beman/big_int/detail/floats.hpp>
+#include <beman/big_int/detail/mul_impl.hpp>
+#include <beman/big_int/detail/wide_ops.hpp>
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.

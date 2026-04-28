@@ -138,8 +138,11 @@ namespace beman::big_int::detail {
 #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wbit-int-extension")
 using int128_t  = _BitInt(128);
 using uint128_t = unsigned _BitInt(128);
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 #elif defined(__SIZEOF_INT128__)
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
