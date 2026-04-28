@@ -6,49 +6,9 @@
 #include <gtest/gtest.h>
 #include <span>
 
+#include "benchmark_testing.hpp"
+
 namespace local {
-
-namespace concurrency {
-
-struct stopwatch {
-  public:
-    using time_point_type = std::uintmax_t;
-
-    auto reset() -> void { m_start = now(); }
-
-    template <typename RepresentationRequestedTimeType>
-    static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
-        using local_time_type = RepresentationRequestedTimeType;
-
-        return local_time_type{static_cast<local_time_type>(my_stopwatch.elapsed()) /
-                               local_time_type{UINTMAX_C(1000000000)}};
-    }
-
-  private:
-    time_point_type m_start{now()}; // NOLINT(readability-identifier-naming)
-
-    [[nodiscard]] static auto now() -> time_point_type {
-        timespec ts{};
-
-        const int ntsp{timespec_get(&ts, TIME_UTC)};
-
-        static_cast<void>(ntsp);
-
-        return static_cast<time_point_type>(ts.tv_sec) * UINTMAX_C(1000000000) +
-               static_cast<time_point_type>(ts.tv_nsec);
-    }
-
-    [[nodiscard]] auto elapsed() const -> time_point_type {
-        const time_point_type stop{now()};
-
-        const time_point_type elapsed_ns{stop - m_start};
-
-        return elapsed_ns;
-    }
-};
-
-} // namespace concurrency
-
 template <typename BigIntType>
 BigIntType fibonacci(unsigned int n) {
     if (n == 0)
@@ -84,7 +44,7 @@ bool run_benchmarks() {
         boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
     using big_int_type = beman::big_int::big_int;
 
-    using local_stopwatch_type = local::concurrency::stopwatch;
+    using local_stopwatch_type = beman::big_int::benchmark_testing::stopwatch;
 
     local_stopwatch_type my_stopwatch{};
 

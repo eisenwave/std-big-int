@@ -351,6 +351,16 @@ inline constexpr std::size_t width_v = width<T>::value;
     #define BEMAN_BIG_INT_NO_UNIQUE_ADDRESS [[no_unique_address]]
 #endif
 
+// Noinline ====================================================================
+
+#if defined(BEMAN_BIG_INT_GNUC)
+    #define BEMAN_BIG_INT_NOINLINE [[gnu::noinline]]
+#elif defined(BEMAN_BIG_INT_MSVC)
+    #define BEMAN_BIG_INT_NOINLINE __declspec(noinline)
+#else
+    #define BEMAN_BIG_INT_NOINLINE
+#endif
+
 // assert ======================================================================
 
 #include <cstdlib>
@@ -360,7 +370,7 @@ inline constexpr std::size_t width_v = width<T>::value;
 
 // LCOV_EXCL_START
 // GCOVR_EXCL_START
-namespace beman::big_int {
+namespace beman::big_int::detail {
 
 [[noreturn]] inline void assert_fail(const char* const          source,
                                      const std::source_location location = std::source_location::current()) {
@@ -378,9 +388,9 @@ namespace beman::big_int {
 #endif
 }
 
-} // namespace beman::big_int
+} // namespace beman::big_int::detail
 
-#define BEMAN_BIG_INT_ASSERT(...) (__VA_ARGS__ ? void() : assert_fail(#__VA_ARGS__))
+#define BEMAN_BIG_INT_ASSERT(...) (__VA_ARGS__ ? void() : ::beman::big_int::detail::assert_fail(#__VA_ARGS__))
 // GCOVR_EXCL_STOP
 // LCOV_EXCL_STOP
 
