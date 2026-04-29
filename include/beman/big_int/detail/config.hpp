@@ -299,12 +299,12 @@ struct make_unsigned<uint128_t> {
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct make_unsigned<_BitInt(N)> {
-    using type = unsigned _BitInt(N);
+struct make_unsigned<bit_int<N>> {
+    using type = bit_uint<N>;
 };
 template <std::size_t N>
-struct make_unsigned<unsigned _BitInt(N)> {
-    using type = unsigned _BitInt(N);
+struct make_unsigned<bit_uint<N>> {
+    using type = bit_uint<N>;
 };
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
@@ -341,12 +341,12 @@ struct make_signed<uint128_t> {
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct make_signed<_BitInt(N)> {
-    using type = _BitInt(N);
+struct make_signed<bit_int<N>> {
+    using type = bit_int<N>;
 };
 template <std::size_t N>
-struct make_signed<unsigned _BitInt(N)> {
-    using type = _BitInt(N);
+struct make_signed<bit_uint<N>> {
+    using type = bit_int<N>;
 };
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
