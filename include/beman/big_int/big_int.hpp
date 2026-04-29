@@ -2238,6 +2238,31 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
     }
 
     const std::size_t result_size = a_trimmed.size() + b_trimmed.size();
+
+    // Stack-buffer fast path: when both operand magnitudes fit in inplace storage,
+    // the product fits in `2 * inplace_capacity` limbs.
+    // Use a small stack buffer of limited size to try and keep things in inplace storage
+    // without blowing the stack
+    constexpr size_type stack_buf_limit = 64;
+    constexpr size_type stack_buf_size  = 2 * inplace_capacity;
+    if constexpr (stack_buf_size <= stack_buf_limit) {
+        if (a_trimmed.size() <= inplace_capacity && b_trimmed.size() <= inplace_capacity) {
+            limb_type                  stack_buf[stack_buf_size]{};
+            const std::span<limb_type> stack_span{stack_buf, result_size};
+            const std::size_t          sig = detail::multiply_dispatch(stack_span, a_trimmed, b_trimmed, m_alloc);
+            if (sig > inplace_capacity) {
+                grow(sig);
+            }
+            auto* const dst = limb_ptr();
+            for (std::size_t i = 0; i < sig; ++i) {
+                dst[i] = stack_buf[i];
+            }
+            unchecked_set_limb_count(static_cast<std::uint32_t>(sig));
+            unchecked_set_sign(a_neg != b_neg && !unchecked_is_magnitude_zero());
+            return;
+        }
+    }
+
     grow(result_size);
     std::fill_n(limb_ptr(), result_size, limb_type{0});
 
@@ -2781,6 +2806,17 @@ constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
         unchecked_set_limb_count(1);
     } else {
         if constexpr (value_limbs > inplace_capacity) {
+            // Check to see if we can fit inplace if the result is sufficiently small
+            if (is_representation_inplace() && (value >> inplace_bits) == 0) {
+                auto* const dst = limb_ptr();
+                for (size_type i = 0; i < inplace_capacity; ++i) {
+                    dst[i] = static_cast<limb_type>(value);
+                    value >>= bits_per_limb;
+                }
+                unchecked_set_limb_count(static_cast<std::uint32_t>(inplace_capacity));
+                unchecked_trim_magnitude();
+                return;
+            }
             grow(value_limbs);
         }
         auto* const dst = limb_ptr();
