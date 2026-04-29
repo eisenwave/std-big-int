@@ -136,7 +136,30 @@ using bit_uint = unsigned _BitInt(N);
 
 // 128-bit integer support =====================================================
 
-#include <beman/big_int/detail/config128.hpp>
+#ifdef BEMAN_BIG_INT_MSVC
+    #include <__msvc_int128.hpp>
+#endif // BEMAN_BIG_INT_MSVC
+
+namespace beman::big_int::detail {
+
+#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
+    #define BEMAN_BIG_INT_HAS_INT128 1
+    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
+using int128_t  = bit_int<128>;
+using uint128_t = bit_uint<128>;
+#elif defined(__SIZEOF_INT128__)
+    #define BEMAN_BIG_INT_HAS_INT128 1
+    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
+__extension__ using int128_t  = __int128;
+__extension__ using uint128_t = unsigned __int128;
+#elif defined(BEMAN_BIG_INT_MSVC)
+    #define BEMAN_BIG_INT_HAS_INT128 1
+    #define BEMAN_BIG_INT_HAS_INT128_CLASS 1
+using int128_t  = std::_Signed128;
+using uint128_t = std::_Unsigned128;
+#endif
+
+} // namespace beman::big_int::detail
 
 // Limb type selection =========================================================
 
