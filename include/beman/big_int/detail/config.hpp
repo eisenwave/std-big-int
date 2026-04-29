@@ -111,10 +111,10 @@
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH __BITINT_MAXWIDTH__
     #define BEMAN_BIG_INT_HAS_BITINT 1
 
-__extension__ template <const unsigned N>
+__extension__ template <const int N>
 using bit_int = _BitInt(N);
 
-__extension__ template <const unsigned N>
+__extension__ template <const int N>
 using bit_uint = unsigned _BitInt(N);
 
 #else
