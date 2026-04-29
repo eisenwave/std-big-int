@@ -18,7 +18,7 @@ using bitint128_t  = _BitInt(128);
 using ubitint128_t = unsigned _BitInt(128);
 template <const unsigned N>
 using bitint_n_t = _BitInt(N);
-template<const unsigned N>
+template <const unsigned N>
 using ubitint_n_t = unsigned _BitInt(N);
 
 #endif // BEMAN_BIG_INT_CONFIG_BITINT_HPP
