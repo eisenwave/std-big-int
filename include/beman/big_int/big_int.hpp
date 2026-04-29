@@ -245,11 +245,12 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // This does not modify the contents of the representation,
     // only the `limb_count()` is equal to `1` after calling this function if the integer value is zero.
     // This function is safe to call on negative zero; the sign bit is not affected.
-    constexpr void                           unchecked_trim_magnitude() noexcept;
-    constexpr void                           negate() noexcept;
-    constexpr void                           set_zero() noexcept;
-    [[nodiscard]] constexpr limb_type*       limb_ptr() noexcept;
-    [[nodiscard]] constexpr const limb_type* limb_ptr() const noexcept;
+    constexpr void                                           unchecked_trim_magnitude() noexcept;
+    constexpr void                                           negate() noexcept;
+    constexpr void                                           set_zero() noexcept;
+    [[nodiscard]] constexpr limb_type*                       limb_ptr() noexcept;
+    [[nodiscard]] constexpr const limb_type*                 limb_ptr() const noexcept;
+    [[nodiscard]] constexpr std::span<uint_multiprecision_t> limb_span() noexcept;
 
   public:
     // [big.int.cons], construct/copy/destroy
@@ -513,6 +514,13 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                                                       uint_multiprecision_t                            divisor,
                                                       bool                                             divisor_neg,
                                                       detail::division_op                              op);
+
+    // Single-limb divisor in-place fast path.
+    // Replaces `*this` with the quotient (for `div` / `div_rem`) or with the
+    // remainder (for `rem`), and returns the scalar remainder.
+    // Does not allocate.
+    constexpr uint_multiprecision_t
+    divmod_in_place_short(uint_multiprecision_t divisor, bool divisor_neg, detail::division_op op);
 
     // Shared implementation behind copy-assign, move-assign, and the lvalue
     // branches of `operator+` / `operator-`.
@@ -815,6 +823,11 @@ constexpr auto basic_big_int<b, A>::limb_ptr() noexcept -> limb_type* {
 template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::limb_ptr() const noexcept -> const limb_type* {
     return is_representation_inplace() ? m_storage.limbs : m_storage.data;
+}
+
+template <std::size_t b, class A>
+constexpr std::span<uint_multiprecision_t> basic_big_int<b, A>::limb_span() noexcept {
+    return {limb_ptr(), limb_count()};
 }
 
 // [big.int.cons] — constructors
@@ -2535,6 +2548,26 @@ basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision
     return remainder;
 }
 
+template <std::size_t b, class A>
+constexpr uint_multiprecision_t basic_big_int<b, A>::divmod_in_place_short(const uint_multiprecision_t divisor,
+                                                                           const bool                  divisor_neg,
+                                                                           const detail::division_op   op) {
+    BEMAN_BIG_INT_ASSERT(divisor != 0);
+
+    const bool                  want_quotient = op != detail::division_op::rem;
+    const bool                  result_neg    = want_quotient ? is_negative() != divisor_neg : is_negative();
+    const auto                  limbs         = limb_span();
+    const uint_multiprecision_t remainder     = detail::divide_unsigned_short(limbs, limbs, divisor);
+    if (want_quotient) {
+        unchecked_trim_magnitude();
+    } else {
+        limb_ptr()[0] = remainder;
+        unchecked_set_limb_count(1);
+    }
+    unchecked_set_sign(result_neg && !unchecked_is_magnitude_zero());
+    return remainder;
+}
+
 // Generic divide/modulus dispatcher.
 // Handles the four special cases:
 //   1) zero divisor,
@@ -2734,29 +2767,39 @@ constexpr auto basic_big_int<b, A>::operator/=(T&& rhs) -> basic_big_int&
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
         if constexpr (std::is_same_v<std::remove_cvref_t<T>, basic_big_int>) {
-            // Self-division: `std::move(*this)` below would zero `rhs` when &rhs == this.
+            // Self-division: the multi-limb slow path below would zero `rhs`'s
+            // storage when `&rhs == this`.
             if (&rhs == this) {
                 BEMAN_BIG_INT_ASSERT(!is_zero());
                 *this = basic_big_int{1};
                 return *this;
             }
         }
-        const basic_big_int temp = std::move(*this);
-        *this                    = basic_big_int{};
-        divmod_into(temp.representation(),
-                    temp.is_negative(),
-                    rhs.representation(),
-                    rhs.is_negative(),
-                    detail::division_op::div);
+        if (rhs.limb_count() == 1) {
+            static_cast<void>(divmod_in_place_short(rhs.limb_ptr()[0], rhs.is_negative(), detail::division_op::div));
+        } else {
+            const basic_big_int temp = std::move(*this);
+            *this                    = basic_big_int{};
+            divmod_into(temp.representation(),
+                        temp.is_negative(),
+                        rhs.representation(),
+                        rhs.is_negative(),
+                        detail::division_op::div);
+        }
     } else {
-        const basic_big_int temp = std::move(*this);
-        *this                    = basic_big_int{};
-        const auto rhs_limbs     = detail::to_limbs(detail::uabs(rhs));
-        divmod_into(temp.representation(),
-                    temp.is_negative(),
-                    detail::to_fixed_span(rhs_limbs),
-                    detail::integer_signbit(rhs),
-                    detail::division_op::div);
+        const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
+        if (detail::trimmed_size(rhs_limbs) == 1) {
+            static_cast<void>(
+                divmod_in_place_short(rhs_limbs[0], detail::integer_signbit(rhs), detail::division_op::div));
+        } else {
+            const basic_big_int temp = std::move(*this);
+            *this                    = basic_big_int{};
+            divmod_into(temp.representation(),
+                        temp.is_negative(),
+                        detail::to_fixed_span(rhs_limbs),
+                        detail::integer_signbit(rhs),
+                        detail::division_op::div);
+        }
     }
     return *this;
 }
@@ -2775,22 +2818,31 @@ constexpr auto basic_big_int<b, A>::operator%=(T&& rhs) -> basic_big_int&
                 return *this;
             }
         }
-        const basic_big_int temp = std::move(*this);
-        *this                    = basic_big_int{};
-        divmod_into(temp.representation(),
-                    temp.is_negative(),
-                    rhs.representation(),
-                    rhs.is_negative(),
-                    detail::division_op::rem);
+        if (rhs.limb_count() == 1) {
+            static_cast<void>(divmod_in_place_short(rhs.limb_ptr()[0], rhs.is_negative(), detail::division_op::rem));
+        } else {
+            const basic_big_int temp = std::move(*this);
+            *this                    = basic_big_int{};
+            divmod_into(temp.representation(),
+                        temp.is_negative(),
+                        rhs.representation(),
+                        rhs.is_negative(),
+                        detail::division_op::rem);
+        }
     } else {
-        const basic_big_int temp = std::move(*this);
-        *this                    = basic_big_int{};
-        const auto rhs_limbs     = detail::to_limbs(detail::uabs(rhs));
-        divmod_into(temp.representation(),
-                    temp.is_negative(),
-                    detail::to_fixed_span(rhs_limbs),
-                    detail::integer_signbit(rhs),
-                    detail::division_op::rem);
+        const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
+        if (detail::trimmed_size(rhs_limbs) == 1) {
+            static_cast<void>(
+                divmod_in_place_short(rhs_limbs[0], detail::integer_signbit(rhs), detail::division_op::rem));
+        } else {
+            const basic_big_int temp = std::move(*this);
+            *this                    = basic_big_int{};
+            divmod_into(temp.representation(),
+                        temp.is_negative(),
+                        detail::to_fixed_span(rhs_limbs),
+                        detail::integer_signbit(rhs),
+                        detail::division_op::rem);
+        }
     }
     return *this;
 }
