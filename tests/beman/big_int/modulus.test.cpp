@@ -225,7 +225,7 @@ TEST(Modulus, CompoundAssignmentMultiLimbDivisorBigInt) {
 }
 
 TEST(Modulus, CompoundAssignmentMultiLimbDivisorPrimitive) {
-#ifndef BEMAN_BIG_INT_HAS_INT128
+#ifndef BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
     GTEST_SKIP() << "Requires 128-bit integer support.";
 #else
     // uint128_t spans multiple limbs: exercises the integer-rhs slow path in
