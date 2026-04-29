@@ -111,7 +111,7 @@
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH __BITINT_MAXWIDTH__
     #define BEMAN_BIG_INT_HAS_BITINT 1
 
-#include <beman/big_int/detail/config_bitint.hpp>
+    #include <beman/big_int/detail/config_bitint.hpp>
 
 #else
     // Prevent warnings for use of undefined macros.
