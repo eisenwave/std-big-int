@@ -236,6 +236,69 @@ TEST(Division, CompoundAssignmentMultiLimb) {
     EXPECT_EQ(a, expected);
 }
 
+TEST(Division, CompoundAssignmentSingleLimbDivisorBigInt) {
+    // Multi-limb dividend, single-limb basic_big_int divisor: exercises the
+    // in-place divide_unsigned_short_inplace fast path in operator/=.
+    big_int       a        = (big_int{1} << 200) + big_int{12345};
+    const big_int expected = a / big_int{7};
+    a /= big_int{7};
+    EXPECT_EQ(a, expected);
+
+    // Negative dividend, positive divisor.
+    big_int    b    = -((big_int{1} << 200) + big_int{12345});
+    const auto bexp = b / big_int{7};
+    b /= big_int{7};
+    EXPECT_EQ(b, bexp);
+
+    // Positive dividend, negative divisor (sign flips).
+    big_int    c    = (big_int{1} << 200) + big_int{12345};
+    const auto cexp = c / big_int{-7};
+    c /= big_int{-7};
+    EXPECT_EQ(c, cexp);
+
+    // Both negative.
+    big_int    d    = -((big_int{1} << 200) + big_int{12345});
+    const auto dexp = d / big_int{-7};
+    d /= big_int{-7};
+    EXPECT_EQ(d, dexp);
+
+    // Result is exactly zero (dividend divides exactly into a smaller magnitude).
+    big_int e = big_int{42};
+    e /= big_int{100};
+    EXPECT_EQ(e, big_int{0});
+
+    // Single-limb dividend / single-limb divisor.
+    big_int f{123456789};
+    f /= big_int{1000};
+    EXPECT_EQ(f, big_int{123456});
+
+    // Result trims down from multi-limb to single-limb.
+    big_int g = (big_int{1} << 64);
+    g /= big_int{2};
+    EXPECT_EQ(g, big_int{1} << 63);
+}
+
+TEST(Division, CompoundAssignmentSingleLimbDivisorPrimitive) {
+    // Multi-limb dividend, primitive divisor that fits in a single limb.
+    big_int       a        = (big_int{1} << 200) + big_int{12345};
+    const big_int expected = a / 7U;
+    a /= 7U;
+    EXPECT_EQ(a, expected);
+
+    // Negative result via signed divisor.
+    big_int    b    = (big_int{1} << 200) + big_int{12345};
+    const auto bexp = b / -7;
+    b /= -7;
+    EXPECT_EQ(b, bexp);
+
+    // Wide unsigned divisor whose value still fits in one limb.
+    big_int             c          = (big_int{1} << 200) + big_int{99999};
+    const std::uint64_t d          = 1234567890123ULL;
+    const big_int       expected_c = c / d;
+    c /= d;
+    EXPECT_EQ(c, expected_c);
+}
+
 TEST(Division, SelfDivision) {
     // Exercises the move-into-temp aliasing guard in operator/=.
     big_int a{123456789};

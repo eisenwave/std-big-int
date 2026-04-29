@@ -73,7 +73,10 @@ compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
 // ---------------------------------------------------------------------------
 // Single-limb short division.
 // `quotient[i]` := floor(([remainder, dividend[i]] as two limbs) / divisor)
-// scanning from the top limb down. Returns the scalar remainder.
+// scanning from the top limb down.
+// Returns the scalar remainder.
+// `quotient` and `dividend` may be the same range (i.e. alias each other),
+// but `quotient` may not be a strict subrange of `dividend`.
 //
 // Preconditions:
 //   - divisor != 0
