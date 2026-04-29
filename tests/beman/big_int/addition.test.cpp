@@ -18,7 +18,7 @@ using beman::big_int::uint_multiprecision_t;
 
 // ----- compile-time sanity -----
 // Note: we compare big_int-to-big_int rather than big_int-to-primitive to avoid
-// the `bitint_n_t` bit_cast path that some toolchains don't yet support in constant
+// the `_BitInt` bit_cast path that some toolchains don't yet support in constant
 // evaluation. Sign / storage-promotion properties are covered by the runtime tests.
 
 consteval bool ce_zero_plus_zero() { return (big_int{0} + big_int{0}) == big_int{0}; }

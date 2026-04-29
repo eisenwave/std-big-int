@@ -19,8 +19,8 @@ namespace beman::big_int::detail {
 #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
-using int128_t  = bitint128_t;
-using uint128_t = ubitint128_t;
+using int128_t  = bit_int<128>;
+using uint128_t = bit_uint<128>;
 #elif defined(__SIZEOF_INT128__)
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1

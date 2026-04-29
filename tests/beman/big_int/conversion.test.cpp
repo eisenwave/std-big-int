@@ -244,12 +244,12 @@ TEST(Conversion, ToLongDoubleThreeLimbTieWithStickyBit) {
     }
 
     // This is just to verify that the test itself is valid,
-    // assuming that bitint_n_t -> long double conversions are implemented correctly.
+    // assuming that _BitInt -> long double conversions are implemented correctly.
 #if LDBL_MANT_DIG == 64 && BEMAN_BIG_INT_BITINT_MAXWIDTH >= 192
     BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
     BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
     BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wfloat-equal")
-    constexpr auto expected_int = (static_cast<ubitint_n_t<192>>(1) << 191) | (static_cast<ubitint_n_t<128>>(1));
+    constexpr auto expected_int = (static_cast<bit_uint<192>>(1) << 191) | (static_cast<bit_uint<128>>(1));
     static_assert(static_cast<long double>(expected_int) == expected_int);
     BEMAN_BIG_INT_DIAGNOSTIC_POP()
 #endif

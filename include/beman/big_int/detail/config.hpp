@@ -206,7 +206,7 @@ concept character_type =                                     //
 
 #if BEMAN_BIG_INT_HAS_BUILTIN(__is_integral)
     #ifdef BEMAN_BIG_INT_HAS_BITINT
-static_assert(__is_integral(bitint32_t) && __is_integral(ubitint32_t),
+static_assert(__is_integral(bit_int<32>) && __is_integral(bit_int<32>),
               "Bad compiler builtin __is_integral rejects bitint_t.");
     #endif
 static_assert(__is_integral(int) && __is_integral(const volatile unsigned int));
@@ -250,9 +250,9 @@ template <class T>
 concept signed_integer = signed_or_unsigned<T> && negative_representing<T>;
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
-static_assert(signed_or_unsigned<bitint32_t>);
-static_assert(unsigned_integer<ubitint32_t>);
-static_assert(signed_integer<bitint32_t>);
+static_assert(signed_or_unsigned<bit_int<32>>);
+static_assert(unsigned_integer<bit_uint<32>>);
+static_assert(signed_integer<bit_int<32>>);
 #endif
 
 // Alias template that maps a cv-unqualified integral type onto the underlying
@@ -267,8 +267,8 @@ template <class T>
 concept cv_unqualified_floating_point = cv_unqualified<T> && std::floating_point<T>;
 
 // Modeled if `T` is an arithmetic type - that is, a signed or unsigned integer type
-// including `bitint_t` or a floating-point type.
-// This extends `std::is_arithmetic_v to cover `bitint_t` types which are not standard integral.
+// including `_BitInt` or a floating-point type.
+// This extends `std::is_arithmetic_v to cover `_BitInt` types which are not standard integral.
 template <class T>
 concept cv_unqualified_arithmetic = cv_unqualified<T> && (integral<T> || std::floating_point<T>);
 
@@ -305,9 +305,9 @@ struct width<uint128_t> : std::integral_constant<std::size_t, 128> {};
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct width<bitint_n_t<N>> : std::integral_constant<std::size_t, N> {};
+struct width<bit_int<N>> : std::integral_constant<std::size_t, N> {};
 template <std::size_t N>
-struct width<ubitint_n_t<N>> : std::integral_constant<std::size_t, N> {};
+struct width<bit_uint<N>> : std::integral_constant<std::size_t, N> {};
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
 template <class T>
