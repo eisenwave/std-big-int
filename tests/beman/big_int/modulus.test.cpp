@@ -177,6 +177,48 @@ TEST(Modulus, CompoundAssignmentMultiLimb) {
     EXPECT_EQ(a, 4);
 }
 
+TEST(Modulus, CompoundAssignmentSingleLimbDivisorBigInt) {
+    // Multi-limb dividend, single-limb big_int divisor: hits divmod_in_place_short.
+    big_int    a          = (big_int{1} << 200) + big_int{12345};
+    const auto r_expected = a % big_int{7};
+    a %= big_int{7};
+    EXPECT_EQ(a, r_expected);
+    EXPECT_TRUE(a >= big_int{0});
+    EXPECT_TRUE(a < big_int{7});
+
+    // Negative dividend retains its sign per truncated modulus.
+    big_int b = -((big_int{1} << 200) + big_int{12345});
+    b %= big_int{7};
+    EXPECT_EQ(b, -r_expected);
+
+    // Negative single-limb divisor: remainder sign follows dividend.
+    big_int c = (big_int{1} << 200) + big_int{12345};
+    c %= big_int{-7};
+    EXPECT_EQ(c, r_expected);
+
+    // Result becomes zero — sign must not be left as negative zero.
+    big_int d = big_int{7} * ((big_int{1} << 128) + big_int{1});
+    d %= big_int{-7};
+    EXPECT_EQ(d, 0);
+    EXPECT_FALSE(d < big_int{0});
+}
+
+TEST(Modulus, CompoundAssignmentSingleLimbDivisorPrimitive) {
+    // Multi-limb dividend, primitive divisor: hits divmod_in_place_short.
+    big_int    a          = (big_int{1} << 200) + big_int{12345};
+    const auto r_expected = a % 7;
+    a %= 7;
+    EXPECT_EQ(a, r_expected);
+
+    big_int b = -((big_int{1} << 200) + big_int{12345});
+    b %= 7;
+    EXPECT_EQ(b, -r_expected);
+
+    big_int c = (big_int{1} << 200) + big_int{12345};
+    c %= -7;
+    EXPECT_EQ(c, r_expected);
+}
+
 TEST(Modulus, SelfMod) {
     // Exercises the move-into-temp aliasing guard in operator%=.
     big_int a{123456789};
