@@ -116,6 +116,33 @@ TEST(Multiplication, SingleLimbOverflow) {
     EXPECT_EQ(r, (big_int{1} << 65) + big_int{-2});
 }
 
+TEST(Multiplication, NoAllocationWhenInlineFits) {
+    // Default `big_int` has one inplace limb.
+    // A small product like 2 * 2 fits in that single limb and must not allocate
+    const big_int a{2};
+    const big_int b{2};
+    const big_int r = a * b;
+    EXPECT_EQ(r, 4);
+    EXPECT_EQ(r.capacity(), 0u);
+
+    // Just because we have heap space doesn't mean we should use it
+    big_int c{3};
+    c.reserve(8);
+    ASSERT_GT(c.capacity(), 0u);
+    const big_int d{4};
+    const big_int r2 = c * d;
+    EXPECT_EQ(r2, 12);
+    EXPECT_EQ(r2.capacity(), 0u);
+
+    // `basic_big_int<256>` has at least 4 inline limbs.
+    // A product that fits within those 4 limbs must not allocate.
+    using big_int_256 = basic_big_int<256>;
+    const big_int_256 e{std::numeric_limits<std::uint64_t>::max()};
+    const big_int_256 f{std::numeric_limits<std::uint64_t>::max()};
+    const big_int_256 r3 = e * f;
+    EXPECT_EQ(r3.capacity(), 0u);
+}
+
 TEST(Multiplication, SingleLimbTimesMultiLimb) {
     // (2^64) * 3 = 3 * 2^64
     const big_int two_64 = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
