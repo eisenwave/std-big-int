@@ -10,11 +10,11 @@
 
 // _BitInt support =====================================================
 
-using bitint32_t = _BitInt(32);
-using ubitint32_t = unsigned _BitInt(32);
-using bitint64_t = _BitInt(64);
-using ubitint64_t = unsigned _BitInt(64);
-using bitint128_t = _BitInt(128);
+using bitint32_t   = _BitInt(32);
+using ubitint32_t  = unsigned _BitInt(32);
+using bitint64_t   = _BitInt(64);
+using ubitint64_t  = unsigned _BitInt(64);
+using bitint128_t  = _BitInt(128);
 using ubitint128_t = unsigned _BitInt(128);
 template<const unsigned N>
 using bitint_n_t = _BitInt(N);
