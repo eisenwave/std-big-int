@@ -652,7 +652,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         requires has_inplace_to_bit_uint
     {
         static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
-                      "bitint_t conversion doesn't work when there is padding.");
+                      "_BitInt conversion doesn't work when there is padding.");
         BEMAN_BIG_INT_DEBUG_ASSERT(is_representation_inplace());
 
         using Result = bit_uint<inplace_bits>;
@@ -689,7 +689,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         requires has_inplace_to_wide_bit_uint
     {
         static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
-                      "bitint_t conversion doesn't work when there is padding.");
+                      "_BitInt conversion doesn't work when there is padding.");
         return static_cast<bit_uint<2 * inplace_bits>>(inplace_to_bit_uint());
     }
 #else
@@ -704,7 +704,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         requires has_inplace_to_bit_sint
     {
         static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
-                      "bitint_t conversion doesn't work when there is padding.");
+                      "_BitInt conversion doesn't work when there is padding.");
         // Use `inplace_bits + 1` to avoid signed overflow when negating a value
         // with the high bit set.
         const auto mag = static_cast<bit_int<inplace_bits + 1>>(inplace_to_bit_uint());

@@ -97,21 +97,25 @@
     #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(...)
 #endif
 
-// bitint_t detection ===========================================================
+// _BitInt detection ===========================================================
 
 #include <climits> // for BITINT_MAXWIDTH
 
 #ifdef BITINT_MAXWIDTH
-    // Once bitint_t is a standard feature and available on all compilers,
+    // Once _BitInt is a standard feature and available on all compilers,
     // this case should be selected for all compilers.
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH BITINT_MAXWIDTH
     #define BEMAN_BIG_INT_HAS_BITINT 1
 #elif defined(__BITINT_MAXWIDTH__)
-    // This case is for Clang when it provides bitint_t as an extension.
+    // This case is for Clang when it provides _BitInt as an extension.
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH __BITINT_MAXWIDTH__
     #define BEMAN_BIG_INT_HAS_BITINT 1
 
-    #include <beman/big_int/detail/config_bitint.hpp>
+__extension__ template <const unsigned N>
+using bit_int = _BitInt(N);
+
+__extension__ template <const unsigned N>
+using bit_uint = unsigned _BitInt(N);
 
 #else
     // Prevent warnings for use of undefined macros.
@@ -207,7 +211,7 @@ concept character_type =                                     //
 #if BEMAN_BIG_INT_HAS_BUILTIN(__is_integral)
     #ifdef BEMAN_BIG_INT_HAS_BITINT
 static_assert(__is_integral(bit_int<32>) && __is_integral(bit_int<32>),
-              "Bad compiler builtin __is_integral rejects bitint_t.");
+              "Bad compiler builtin __is_integral rejects _BitInt.");
     #endif
 static_assert(__is_integral(int) && __is_integral(const volatile unsigned int));
 static_assert(__is_integral(char) && __is_integral(signed char) && __is_integral(unsigned char));
@@ -215,13 +219,13 @@ template <class T>
 concept integral = __is_integral(T);
 #elif defined(BEMAN_BIG_INT_HAS_BITINT)
 // If bit-precise integers do exist but we don't have a builtin __is_integral,
-// we need to create our own concept for integral types that also includes bitint_t.
+// we need to create our own concept for integral types that also includes _BitInt.
 template <class T>
 struct is_bit_int : std::false_type {};
 template <std::size_t N>
-struct is_bit_int<bitint_t(N)> : std::true_type {};
+struct is_bit_int<bit_int<N>> : std::true_type {};
 template <std::size_t N>
-struct is_bit_int<ubitint_t(N)> : std::true_type {};
+struct is_bit_int<bit_uint<N>> : std::true_type {};
 template <class T>
 inline constexpr bool is_bit_int_v = is_bit_int<T>::value;
 template <class T>
@@ -403,9 +407,9 @@ namespace beman::big_int::detail {
     #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!::std::is_constant_evaluated())
 #endif
 
-// consteval bit_cast to bitint_t ===============================================
+// consteval bit_cast to _BitInt ===============================================
 
-// At the time of writing, not even clang trunk supports bit-casting to bitint_t
+// At the time of writing, not even clang trunk supports bit-casting to _BitInt
 // during constant evaluation.
 // The intended usage of this macro is
 // `if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT`
