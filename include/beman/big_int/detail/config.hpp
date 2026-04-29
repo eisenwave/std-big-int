@@ -97,19 +97,22 @@
     #define BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(...)
 #endif
 
-// _BitInt detection ===========================================================
+// bitint_t detection ===========================================================
 
 #include <climits> // for BITINT_MAXWIDTH
 
 #ifdef BITINT_MAXWIDTH
-    // Once _BitInt is a standard feature and available on all compilers,
+    // Once bitint_t is a standard feature and available on all compilers,
     // this case should be selected for all compilers.
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH BITINT_MAXWIDTH
     #define BEMAN_BIG_INT_HAS_BITINT 1
 #elif defined(__BITINT_MAXWIDTH__)
-    // This case is for Clang when it provides _BitInt as an extension.
+    // This case is for Clang when it provides bitint_t as an extension.
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH __BITINT_MAXWIDTH__
     #define BEMAN_BIG_INT_HAS_BITINT 1
+
+#include <beman/big_int/detail/config_bitint.hpp>
+
 #else
     // Prevent warnings for use of undefined macros.
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH 0
@@ -129,33 +132,7 @@
 
 // 128-bit integer support =====================================================
 
-#ifdef BEMAN_BIG_INT_MSVC
-    #include <__msvc_int128.hpp>
-#endif // BEMAN_BIG_INT_MSVC
-
-namespace beman::big_int::detail {
-
-#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
-    #define BEMAN_BIG_INT_HAS_INT128 1
-    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
-BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wbit-int-extension")
-using int128_t  = _BitInt(128);
-using uint128_t = unsigned _BitInt(128);
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
-#elif defined(__SIZEOF_INT128__)
-    #define BEMAN_BIG_INT_HAS_INT128 1
-    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
-using int128_t  = __int128;
-using uint128_t = unsigned __int128;
-#elif defined(BEMAN_BIG_INT_MSVC)
-    #define BEMAN_BIG_INT_HAS_INT128 1
-    #define BEMAN_BIG_INT_HAS_INT128_CLASS 1
-using int128_t  = std::_Signed128;
-using uint128_t = std::_Unsigned128;
-#endif
-
-} // namespace beman::big_int::detail
+#include <beman/big_int/detail/config128.hpp>
 
 // Limb type selection =========================================================
 
@@ -229,8 +206,8 @@ concept character_type =                                     //
 
 #if BEMAN_BIG_INT_HAS_BUILTIN(__is_integral)
     #ifdef BEMAN_BIG_INT_HAS_BITINT
-static_assert(__is_integral(_BitInt(32)) && __is_integral(unsigned _BitInt(32)),
-              "Bad compiler builtin __is_integral rejects _BitInt.");
+static_assert(__is_integral(bitint32_t) && __is_integral(ubitint32_t),
+              "Bad compiler builtin __is_integral rejects bitint_t.");
     #endif
 static_assert(__is_integral(int) && __is_integral(const volatile unsigned int));
 static_assert(__is_integral(char) && __is_integral(signed char) && __is_integral(unsigned char));
@@ -238,13 +215,13 @@ template <class T>
 concept integral = __is_integral(T);
 #elif defined(BEMAN_BIG_INT_HAS_BITINT)
 // If bit-precise integers do exist but we don't have a builtin __is_integral,
-// we need to create our own concept for integral types that also includes _BitInt.
+// we need to create our own concept for integral types that also includes bitint_t.
 template <class T>
 struct is_bit_int : std::false_type {};
 template <std::size_t N>
-struct is_bit_int<_BitInt(N)> : std::true_type {};
+struct is_bit_int<bitint_t(N)> : std::true_type {};
 template <std::size_t N>
-struct is_bit_int<unsigned _BitInt(N)> : std::true_type {};
+struct is_bit_int<ubitint_t(N)> : std::true_type {};
 template <class T>
 inline constexpr bool is_bit_int_v = is_bit_int<T>::value;
 template <class T>
@@ -273,9 +250,9 @@ template <class T>
 concept signed_integer = signed_or_unsigned<T> && negative_representing<T>;
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
-static_assert(signed_or_unsigned<_BitInt(32)>);
-static_assert(unsigned_integer<unsigned _BitInt(32)>);
-static_assert(signed_integer<_BitInt(32)>);
+static_assert(signed_or_unsigned<bitint32_t>);
+static_assert(unsigned_integer<ubitint32_t>);
+static_assert(signed_integer<bitint32_t>);
 #endif
 
 // Alias template that maps a cv-unqualified integral type onto the underlying
@@ -290,8 +267,8 @@ template <class T>
 concept cv_unqualified_floating_point = cv_unqualified<T> && std::floating_point<T>;
 
 // Modeled if `T` is an arithmetic type - that is, a signed or unsigned integer type
-// including `_BitInt` or a floating-point type.
-// This extends `std::is_arithmetic_v to cover `_BitInt` types which are not standard integral.
+// including `bitint_t` or a floating-point type.
+// This extends `std::is_arithmetic_v to cover `bitint_t` types which are not standard integral.
 template <class T>
 concept cv_unqualified_arithmetic = cv_unqualified<T> && (integral<T> || std::floating_point<T>);
 
@@ -328,9 +305,9 @@ struct width<uint128_t> : std::integral_constant<std::size_t, 128> {};
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct width<_BitInt(N)> : std::integral_constant<std::size_t, N> {};
+struct width<bitint_n_t<N>> : std::integral_constant<std::size_t, N> {};
 template <std::size_t N>
-struct width<unsigned _BitInt(N)> : std::integral_constant<std::size_t, N> {};
+struct width<ubitint_n_t<N>> : std::integral_constant<std::size_t, N> {};
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
 template <class T>
@@ -426,9 +403,9 @@ namespace beman::big_int::detail {
     #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!::std::is_constant_evaluated())
 #endif
 
-// consteval bit_cast to _BitInt ===============================================
+// consteval bit_cast to bitint_t ===============================================
 
-// At the time of writing, not even clang trunk supports bit-casting to _BitInt
+// At the time of writing, not even clang trunk supports bit-casting to bitint_t
 // during constant evaluation.
 // The intended usage of this macro is
 // `if BEMAN_BIG_INT_IS_NOT_CONSTEVAL_IF_HAS_NO_CONSTEXPR_BIT_CAST_TO_BIT_INT`

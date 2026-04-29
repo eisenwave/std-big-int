@@ -644,10 +644,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         requires has_inplace_to_bit_uint
     {
         static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
-                      "_BitInt conversion doesn't work when there is padding.");
+                      "bitint_t conversion doesn't work when there is padding.");
         BEMAN_BIG_INT_DEBUG_ASSERT(is_representation_inplace());
 
-        using Result = unsigned _BitInt(inplace_bits);
+        using Result = ubitint_n_t<inplace_bits>;
         if constexpr (inplace_bits == bits_per_limb) {
             // If there is only a single inplace limb,
             // static_cast and std::bit_cast are equivalent.
@@ -681,8 +681,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         requires has_inplace_to_wide_bit_uint
     {
         static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
-                      "_BitInt conversion doesn't work when there is padding.");
-        return static_cast<unsigned _BitInt(2 * inplace_bits)>(inplace_to_bit_uint());
+                      "bitint_t conversion doesn't work when there is padding.");
+        return static_cast<ubitint_n_t<2 * inplace_bits>>(inplace_to_bit_uint());
     }
 #else
         = delete;
@@ -696,10 +696,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         requires has_inplace_to_bit_sint
     {
         static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
-                      "_BitInt conversion doesn't work when there is padding.");
+                      "bitint_t conversion doesn't work when there is padding.");
         // Use `inplace_bits + 1` to avoid signed overflow when negating a value
         // with the high bit set.
-        const auto mag = static_cast<_BitInt(inplace_bits + 1)>(inplace_to_bit_uint());
+        const auto mag = static_cast<bitint_n_t<inplace_bits + 1>>(inplace_to_bit_uint());
         return is_negative() ? -mag : mag;
     }
 #else
@@ -1345,10 +1345,10 @@ template <unsigned_integer T>
         // While `std::bit_cast` should be the fastest form of conversion
         // (especially in constant evaluation and on debug builds),
         // many conditions must be met.
-        // For example, `_BitInt(100)` is not eligible due to padding bits,
+        // For example, `bitint_t(100)` is not eligible due to padding bits,
         // (this could change with a `std::bit_cast_clear_padding` function in the future)
-        // `_BitInt(32)` is too small to be eligible on 64-bit, and
-        // `_BitInt(128)` is eligible, but (as in all other cases),
+        // `bitint32_t` is too small to be eligible on 64-bit, and
+        // `bitint128_t` is eligible, but (as in all other cases),
         // only on little-endian architectures.
         return std::bit_cast<Result>(x);
     } else {
