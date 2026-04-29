@@ -4,12 +4,12 @@
 #ifndef BEMAN_BIG_INT_BIG_INT_HPP
 #define BEMAN_BIG_INT_BIG_INT_HPP
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <climits>
-#include <cmath>
 #include <charconv>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -24,10 +24,10 @@
 #include <type_traits>
 
 #include <beman/big_int/detail/config.hpp>
-#include <beman/big_int/detail/floats.hpp>
-#include <beman/big_int/detail/wide_ops.hpp>
-#include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
+#include <beman/big_int/detail/floats.hpp>
+#include <beman/big_int/detail/mul_impl.hpp>
+#include <beman/big_int/detail/wide_ops.hpp>
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.
@@ -655,7 +655,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                       "_BitInt conversion doesn't work when there is padding.");
         BEMAN_BIG_INT_DEBUG_ASSERT(is_representation_inplace());
 
-        using Result = unsigned _BitInt(inplace_bits);
+        using Result = bit_uint<inplace_bits>;
         if constexpr (inplace_bits == bits_per_limb) {
             // If there is only a single inplace limb,
             // static_cast and std::bit_cast are equivalent.
@@ -690,7 +690,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     {
         static_assert(std::has_unique_object_representations_v<uint_multiprecision_t>,
                       "_BitInt conversion doesn't work when there is padding.");
-        return static_cast<unsigned _BitInt(2 * inplace_bits)>(inplace_to_bit_uint());
+        return static_cast<bit_uint<2 * inplace_bits>>(inplace_to_bit_uint());
     }
 #else
         = delete;
@@ -707,7 +707,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                       "_BitInt conversion doesn't work when there is padding.");
         // Use `inplace_bits + 1` to avoid signed overflow when negating a value
         // with the high bit set.
-        const auto mag = static_cast<_BitInt(inplace_bits + 1)>(inplace_to_bit_uint());
+        const auto mag = static_cast<bit_int<inplace_bits + 1>>(inplace_to_bit_uint());
         return is_negative() ? -mag : mag;
     }
 #else
@@ -1360,8 +1360,8 @@ template <unsigned_integer T>
         // many conditions must be met.
         // For example, `_BitInt(100)` is not eligible due to padding bits,
         // (this could change with a `std::bit_cast_clear_padding` function in the future)
-        // `_BitInt(32)` is too small to be eligible on 64-bit, and
-        // `_BitInt(128)` is eligible, but (as in all other cases),
+        // `_BitInt` is too small to be eligible on 64-bit, and
+        // `_BitInt` is eligible, but (as in all other cases),
         // only on little-endian architectures.
         return std::bit_cast<Result>(x);
     } else {

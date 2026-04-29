@@ -29,8 +29,8 @@ static_assert(std::is_same_v<detail::wider_t<std::uint64_t>, detail::uint128_t>)
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 // wider_t should return a _BitInt when given a _BitInt.
-static_assert(std::is_same_v<detail::wider_t<_BitInt(32)>, _BitInt(64)>);
-static_assert(std::is_same_v<detail::wider_t<unsigned _BitInt(32)>, unsigned _BitInt(64)>);
+static_assert(std::is_same_v<detail::wider_t<bit_int<32>>, bit_int<64>>);
+static_assert(std::is_same_v<detail::wider_t<bit_uint<32>>, bit_uint<64>>);
 #endif
 
 template class basic_big_int<big_int::inplace_bits, big_int::allocator_type>;

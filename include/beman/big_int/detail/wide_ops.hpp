@@ -30,12 +30,12 @@ struct wider<uint_multiprecision_t> {
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct wider<_BitInt(N)> {
-    using type = _BitInt(2 * N);
+struct wider<bit_int<N>> {
+    using type = bit_int<2 * N>;
 };
 template <std::size_t N>
-struct wider<unsigned _BitInt(N)> {
-    using type = unsigned _BitInt(2 * N);
+struct wider<bit_uint<N>> {
+    using type = bit_uint<2 * N>;
 };
 #endif
 

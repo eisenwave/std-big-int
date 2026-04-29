@@ -249,8 +249,7 @@ TEST(Conversion, ToLongDoubleThreeLimbTieWithStickyBit) {
     BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
     BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wfloat-equal")
     BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wfloat-equal")
-    constexpr auto expected_int =
-        (static_cast<unsigned _BitInt(192)>(1) << 191) | (static_cast<unsigned _BitInt(128)>(1));
+    constexpr auto expected_int = (static_cast<bit_uint<192>>(1) << 191) | (static_cast<bit_uint<128>>(1));
     static_assert(static_cast<long double>(expected_int) == expected_int);
     BEMAN_BIG_INT_DIAGNOSTIC_POP()
 #endif

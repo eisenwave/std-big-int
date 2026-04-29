@@ -110,6 +110,13 @@
     // This case is for Clang when it provides _BitInt as an extension.
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH __BITINT_MAXWIDTH__
     #define BEMAN_BIG_INT_HAS_BITINT 1
+
+__extension__ template <const int N>
+using bit_int = _BitInt(N);
+
+__extension__ template <const int N>
+using bit_uint = unsigned _BitInt(N);
+
 #else
     // Prevent warnings for use of undefined macros.
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH 0
@@ -138,13 +145,13 @@ namespace beman::big_int::detail {
 #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
-using int128_t  = _BitInt(128);
-using uint128_t = unsigned _BitInt(128);
+using int128_t  = bit_int<128>;
+using uint128_t = bit_uint<128>;
 #elif defined(__SIZEOF_INT128__)
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
-using int128_t  = __int128;
-using uint128_t = unsigned __int128;
+__extension__ using int128_t  = __int128;
+__extension__ using uint128_t = unsigned __int128;
 #elif defined(BEMAN_BIG_INT_MSVC)
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_CLASS 1
@@ -226,7 +233,7 @@ concept character_type =                                     //
 
 #if BEMAN_BIG_INT_HAS_BUILTIN(__is_integral)
     #ifdef BEMAN_BIG_INT_HAS_BITINT
-static_assert(__is_integral(_BitInt(32)) && __is_integral(unsigned _BitInt(32)),
+static_assert(__is_integral(bit_int<32>) && __is_integral(bit_int<32>),
               "Bad compiler builtin __is_integral rejects _BitInt.");
     #endif
 static_assert(__is_integral(int) && __is_integral(const volatile unsigned int));
@@ -239,9 +246,9 @@ concept integral = __is_integral(T);
 template <class T>
 struct is_bit_int : std::false_type {};
 template <std::size_t N>
-struct is_bit_int<_BitInt(N)> : std::true_type {};
+struct is_bit_int<bit_int<N>> : std::true_type {};
 template <std::size_t N>
-struct is_bit_int<unsigned _BitInt(N)> : std::true_type {};
+struct is_bit_int<bit_uint<N>> : std::true_type {};
 template <class T>
 inline constexpr bool is_bit_int_v = is_bit_int<T>::value;
 template <class T>
@@ -270,9 +277,9 @@ template <class T>
 concept signed_integer = signed_or_unsigned<T> && negative_representing<T>;
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
-static_assert(signed_or_unsigned<_BitInt(32)>);
-static_assert(unsigned_integer<unsigned _BitInt(32)>);
-static_assert(signed_integer<_BitInt(32)>);
+static_assert(signed_or_unsigned<bit_int<32>>);
+static_assert(unsigned_integer<bit_uint<32>>);
+static_assert(signed_integer<bit_int<32>>);
 #endif
 
 // Like `std::make_signed`, but also supports bit-precise integers (`_BitInt`).
@@ -292,12 +299,12 @@ struct make_unsigned<uint128_t> {
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct make_unsigned<_BitInt(N)> {
-    using type = unsigned _BitInt(N);
+struct make_unsigned<bit_int<N>> {
+    using type = bit_uint<N>;
 };
 template <std::size_t N>
-struct make_unsigned<unsigned _BitInt(N)> {
-    using type = unsigned _BitInt(N);
+struct make_unsigned<bit_uint<N>> {
+    using type = bit_uint<N>;
 };
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
@@ -334,12 +341,12 @@ struct make_signed<uint128_t> {
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct make_signed<_BitInt(N)> {
-    using type = _BitInt(N);
+struct make_signed<bit_int<N>> {
+    using type = bit_int<N>;
 };
 template <std::size_t N>
-struct make_signed<unsigned _BitInt(N)> {
-    using type = _BitInt(N);
+struct make_signed<bit_uint<N>> {
+    using type = bit_int<N>;
 };
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
@@ -408,9 +415,9 @@ struct width<uint128_t> : std::integral_constant<std::size_t, 128> {};
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
-struct width<_BitInt(N)> : std::integral_constant<std::size_t, N> {};
+struct width<bit_int<N>> : std::integral_constant<std::size_t, N> {};
 template <std::size_t N>
-struct width<unsigned _BitInt(N)> : std::integral_constant<std::size_t, N> {};
+struct width<bit_uint<N>> : std::integral_constant<std::size_t, N> {};
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
 template <class T>
