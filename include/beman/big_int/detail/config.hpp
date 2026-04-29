@@ -275,13 +275,96 @@ static_assert(unsigned_integer<unsigned _BitInt(32)>);
 static_assert(signed_integer<_BitInt(32)>);
 #endif
 
+// Like `std::make_signed`, but also supports bit-precise integers (`_BitInt`).
+template <class T>
+struct make_unsigned : std::make_unsigned<T> {};
+
+#ifdef BEMAN_BIG_INT_HAS_INT128_CLASS
+template <>
+struct make_unsigned<int128_t> {
+    using type = uint128_t;
+};
+template <>
+struct make_unsigned<uint128_t> {
+    using type = uint128_t;
+};
+#endif // BEMAN_BIG_INT_HAS_INT128_CLASS
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+template <std::size_t N>
+struct make_unsigned<_BitInt(N)> {
+    using type = unsigned _BitInt(N);
+};
+template <std::size_t N>
+struct make_unsigned<unsigned _BitInt(N)> {
+    using type = unsigned _BitInt(N);
+};
+#endif // BEMAN_BIG_INT_HAS_BITINT
+
+template <class T>
+struct make_unsigned<const T> {
+    using type = const typename make_unsigned<T>::type;
+};
+template <class T>
+struct make_unsigned<volatile T> {
+    using type = volatile typename make_unsigned<T>::type;
+};
+template <class T>
+struct make_unsigned<const volatile T> {
+    using type = const volatile typename make_unsigned<T>::type;
+};
+
+template <class T>
+using make_unsigned_t = typename make_unsigned<T>::type;
+
+// Like `std::make_signed`, but also supports bit-precise integers (`_BitInt`).
+template <class T>
+struct make_signed : std::make_signed<T> {};
+
+#ifdef BEMAN_BIG_INT_HAS_INT128_CLASS
+template <>
+struct make_signed<int128_t> {
+    using type = int128_t;
+};
+template <>
+struct make_signed<uint128_t> {
+    using type = int128_t;
+};
+#endif // BEMAN_BIG_INT_HAS_INT128_CLASS
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+template <std::size_t N>
+struct make_signed<_BitInt(N)> {
+    using type = _BitInt(N);
+};
+template <std::size_t N>
+struct make_signed<unsigned _BitInt(N)> {
+    using type = _BitInt(N);
+};
+#endif // BEMAN_BIG_INT_HAS_BITINT
+
+template <class T>
+struct make_signed<const T> : make_signed<T> {
+    using type = const typename make_signed<T>::type;
+};
+template <class T>
+struct make_signed<volatile T> {
+    using type = volatile typename make_signed<T>::type;
+};
+template <class T>
+struct make_signed<const volatile T> {
+    using type = const volatile typename make_signed<T>::type;
+};
+
+template <class T>
+using make_signed_t = typename make_signed<T>::type;
+
 // Alias template that maps a cv-unqualified integral type onto the underlying
 // signed or unsigned integer type.
 // For example, this converts `char8_t` to `unsigned char`, `int` to `int`, etc.
 // The goal is to reduce redundant template instantiations.
 template <cv_unqualified_integral T>
-using make_signed_or_unsigned_t =
-    std::conditional_t<std::is_signed_v<T>, std::make_signed_t<T>, std::make_unsigned_t<T>>;
+using make_signed_or_unsigned_t = std::conditional_t<std::is_signed_v<T>, make_signed_t<T>, make_unsigned_t<T>>;
 
 template <class T>
 concept cv_unqualified_floating_point = cv_unqualified<T> && std::floating_point<T>;
@@ -313,8 +396,8 @@ struct width<const volatile T> : width<T> {};
 
 template <cv_unqualified_integral T>
 struct width<T>
-    : std::integral_constant<std::size_t,
-                             static_cast<std::size_t>(std::numeric_limits<std::make_unsigned_t<T>>::digits)> {};
+    : std::integral_constant<std::size_t, static_cast<std::size_t>(std::numeric_limits<make_unsigned_t<T>>::digits)> {
+};
 
 #ifdef BEMAN_BIG_INT_HAS_INT128_CLASS
 template <>

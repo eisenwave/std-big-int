@@ -236,6 +236,79 @@ TEST(Division, CompoundAssignmentMultiLimb) {
     EXPECT_EQ(a, expected);
 }
 
+TEST(Division, CompoundAssignmentMultiLimbDivisorBigInt) {
+    // Multi-limb dividend, multi-limb basic_big_int divisor: exercises the
+    // generic divmod_into slow path in operator/=.
+    const big_int divisor  = (big_int{1} << 100) + big_int{12345};
+    const big_int dividend = (big_int{1} << 250) + big_int{67890};
+
+    big_int       a        = dividend;
+    const big_int expected = dividend / divisor;
+    a /= divisor;
+    EXPECT_EQ(a, expected);
+
+    // Negative dividend, positive multi-limb divisor.
+    big_int       b     = -dividend;
+    const big_int b_exp = (-dividend) / divisor;
+    b /= divisor;
+    EXPECT_EQ(b, b_exp);
+
+    // Positive dividend, negative multi-limb divisor.
+    big_int       c     = dividend;
+    const big_int c_exp = dividend / (-divisor);
+    c /= -divisor;
+    EXPECT_EQ(c, c_exp);
+
+    // Both negative.
+    big_int       d     = -dividend;
+    const big_int d_exp = (-dividend) / (-divisor);
+    d /= -divisor;
+    EXPECT_EQ(d, d_exp);
+
+    // Quotient that trims back to a single limb after division.
+    big_int       e     = (big_int{1} << 200);
+    const big_int e_div = (big_int{1} << 100);
+    const big_int e_exp = e / e_div;
+    e /= e_div;
+    EXPECT_EQ(e, e_exp);
+
+    // |dividend| < |divisor|: quotient is exactly zero, sign must canonicalize.
+    big_int f = (big_int{1} << 100) + big_int{1};
+    f /= -((big_int{1} << 200));
+    EXPECT_EQ(f, big_int{0});
+    EXPECT_FALSE(f < big_int{0});
+}
+
+TEST(Division, CompoundAssignmentMultiLimbDivisorPrimitive) {
+#ifndef BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
+    GTEST_SKIP() << "Requires 128-bit integer support.";
+#else
+    // uint128_t spans multiple limbs: exercises the integer-rhs slow path in
+    // operator/= where to_limbs(...) yields a multi-limb span.
+    using beman::big_int::detail::uint128_t;
+
+    const uint128_t divisor  = (static_cast<uint128_t>(1) << 100) + uint128_t{12345};
+    const big_int   big_div  = big_int{divisor};
+    const big_int   dividend = (big_int{1} << 250) + big_int{67890};
+
+    big_int       a        = dividend;
+    const big_int expected = dividend / big_div;
+    a /= divisor;
+    EXPECT_EQ(a, expected);
+
+    // Negative dividend; uint128_t divisor is unsigned, so sign comes from dividend.
+    big_int       b     = -dividend;
+    const big_int b_exp = (-dividend) / big_div;
+    b /= divisor;
+    EXPECT_EQ(b, b_exp);
+
+    // |dividend| < |divisor|: quotient zero.
+    big_int c = (big_int{1} << 50);
+    c /= divisor;
+    EXPECT_EQ(c, big_int{0});
+#endif // BEMAN_BIG_INT_HAS_INT128
+}
+
 TEST(Division, CompoundAssignmentSingleLimbDivisorBigInt) {
     // Multi-limb dividend, single-limb basic_big_int divisor: exercises the
     // in-place divide_unsigned_short_inplace fast path in operator/=.
