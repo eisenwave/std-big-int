@@ -3325,16 +3325,9 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
             if (end - current_begin < static_cast<std::ptrdiff_t>(max_digits_per_iteration)) {
                 return {end, std::errc::value_too_large};
             }
-            // The fact that we std::move here should ensure that only one allocation is used.
-            // `div_rem_to_zero` should repurpose the allocation of `remainder`,
-            // which is then moved back into `remainder` at the end of the loop.
-            auto [q, r] = div_rem_to_zero(std::move(remainder), max_pow);
-
-            // Very evil and unsafe (but direct and fast) access to the single limb
-            // that the remainder of the division should hold.
-            BEMAN_BIG_INT_DEBUG_ASSERT(r.is_representation_inplace());
-            BEMAN_BIG_INT_DEBUG_ASSERT(r.limb_count() == 1);
-            const uint_multiprecision_t r_limb = r.m_storage.limbs[0];
+            constexpr bool              divisor_neg = false;
+            const uint_multiprecision_t r_limb =
+                remainder.divmod_in_place_short(max_pow, divisor_neg, detail::division_op::div_rem);
 
             const std::to_chars_result chunk_result =
                 std::to_chars(current_begin, current_begin + max_digits_per_iteration, r_limb, base);
@@ -3345,7 +3338,6 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
             std::fill_n(chunk_result.ptr, max_digits_per_iteration - written, '0');
 
             current_begin += max_digits_per_iteration;
-            remainder = std::move(q);
         }
 
         BEMAN_BIG_INT_DEBUG_ASSERT(remainder.limb_count() == 1);
