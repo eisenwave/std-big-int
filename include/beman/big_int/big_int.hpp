@@ -114,8 +114,8 @@ struct allocation_result {
 // where the result is an unsigned integer.
 // Unlike `std::abs`, this function has no undefined behavior in e.g. `uabs(INT_MIN)`.
 template <signed_integer T>
-[[nodiscard]] constexpr std::make_unsigned_t<T> uabs(const T x) noexcept {
-    using U = std::make_unsigned_t<T>;
+[[nodiscard]] constexpr detail::make_unsigned_t<T> uabs(const T x) noexcept {
+    using U = detail::make_unsigned_t<T>;
     BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
     BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4146) // unary minus on unsigned is intentional
     return x < 0 ? -static_cast<U>(x) : static_cast<U>(x);
@@ -315,7 +315,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             unchecked_set_limb_count(count);
             unchecked_set_sign(x.is_negative());
         } else {
-            using U                 = std::make_unsigned_t<std::remove_cvref_t<T>>;
+            using U                 = detail::make_unsigned_t<std::remove_cvref_t<T>>;
             const bool          neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
             const U             mag = neg ? static_cast<U>(U{0} - static_cast<U>(x)) : static_cast<U>(x);
             constexpr size_type n   = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
@@ -918,7 +918,7 @@ constexpr basic_big_int<b, A>::basic_big_int(I begin, S end, const allocator_typ
         std::size_t i   = 0;
         auto* const dst = limb_ptr();
         for (; begin != end; ++begin) {
-            using U = std::make_unsigned_t<std::iter_value_t<I>>;
+            using U = detail::make_unsigned_t<std::iter_value_t<I>>;
             std::construct_at(dst + i++, static_cast<limb_type>(static_cast<U>(*begin)));
         }
         if (i == 0) {
@@ -929,7 +929,7 @@ constexpr basic_big_int<b, A>::basic_big_int(I begin, S end, const allocator_typ
         }
     } else {
         for (; begin != end; ++begin) {
-            using U = std::make_unsigned_t<std::iter_value_t<I>>;
+            using U = detail::make_unsigned_t<std::iter_value_t<I>>;
             push_back_limb(static_cast<limb_type>(static_cast<U>(*begin)));
         }
         unchecked_trim_magnitude();
@@ -950,7 +950,7 @@ constexpr auto basic_big_int<b, A>::operator>>=(const S s) -> basic_big_int& {
     // This would convert to another type and signal whether the result is exactly representable.
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
-        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= shift_max);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<detail::make_unsigned_t<S>>(s) <= shift_max);
     } else {
         BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
     }
@@ -963,7 +963,7 @@ template <detail::signed_or_unsigned S>
 constexpr auto basic_big_int<b, A>::operator<<=(const S s) -> basic_big_int& {
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
-        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= shift_max);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<detail::make_unsigned_t<S>>(s) <= shift_max);
     } else {
         BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
     }
@@ -1326,7 +1326,7 @@ constexpr T basic_big_int<b, A>::to() const noexcept {
                 return static_cast<T>(inplace_to_sbit_int());
             }
         }
-        using U = std::make_unsigned_t<T>;
+        using U = detail::make_unsigned_t<T>;
         U                 mag{0};
         constexpr auto    n     = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
         const auto* const limbs = limb_ptr();
@@ -1679,7 +1679,7 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
 
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
-        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= Result::shift_max);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<detail::make_unsigned_t<S>>(s) <= Result::shift_max);
     } else {
         BEMAN_BIG_INT_DEBUG_ASSERT(s <= Result::shift_max);
     }
@@ -1715,7 +1715,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
 
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
-        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::make_unsigned_t<S>>(s) <= Result::shift_max);
+        BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<detail::make_unsigned_t<S>>(s) <= Result::shift_max);
     } else {
         BEMAN_BIG_INT_DEBUG_ASSERT(s <= Result::shift_max);
     }

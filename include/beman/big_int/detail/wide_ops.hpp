@@ -242,7 +242,7 @@ template <signed_or_unsigned T>
             }
         }
     #endif
-        using U = std::make_unsigned_t<T>;
+        using U = detail::make_unsigned_t<T>;
         return {
             .low_bits  = static_cast<T>(static_cast<U>(x) * static_cast<U>(y)),
             .high_bits = high_mul(x, y),

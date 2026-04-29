@@ -177,6 +177,85 @@ TEST(Modulus, CompoundAssignmentMultiLimb) {
     EXPECT_EQ(a, 4);
 }
 
+TEST(Modulus, CompoundAssignmentMultiLimbDivisorBigInt) {
+    // Multi-limb dividend, multi-limb basic_big_int divisor: exercises the
+    // generic divmod_into slow path in operator%=.
+    const big_int divisor  = (big_int{1} << 100) + big_int{12345};
+    const big_int dividend = (big_int{1} << 250) + big_int{67890};
+
+    big_int       a        = dividend;
+    const big_int expected = dividend % divisor;
+    a %= divisor;
+    EXPECT_EQ(a, expected);
+    EXPECT_EQ((dividend / divisor) * divisor + a, dividend);
+
+    // Negative dividend, positive multi-limb divisor — remainder follows dividend sign.
+    big_int       b     = -dividend;
+    const big_int b_exp = (-dividend) % divisor;
+    b %= divisor;
+    EXPECT_EQ(b, b_exp);
+    EXPECT_TRUE(b <= big_int{0});
+
+    // Positive dividend, negative multi-limb divisor — remainder still follows dividend sign.
+    big_int       c     = dividend;
+    const big_int c_exp = dividend % (-divisor);
+    c %= -divisor;
+    EXPECT_EQ(c, c_exp);
+    EXPECT_TRUE(c >= big_int{0});
+
+    // Both negative.
+    big_int       d     = -dividend;
+    const big_int d_exp = (-dividend) % (-divisor);
+    d %= -divisor;
+    EXPECT_EQ(d, d_exp);
+
+    // |dividend| < |divisor|: remainder equals dividend, sign canonical.
+    big_int       e_div  = (big_int{1} << 200);
+    big_int       e      = (big_int{1} << 100) + big_int{1};
+    const big_int e_orig = e;
+    e %= e_div;
+    EXPECT_EQ(e, e_orig);
+
+    // Result becomes zero — sign must not be left as negative zero.
+    const big_int multiple = divisor * ((big_int{1} << 64) + big_int{3});
+    big_int       f        = -multiple;
+    f %= -divisor;
+    EXPECT_EQ(f, big_int{0});
+    EXPECT_FALSE(f < big_int{0});
+}
+
+TEST(Modulus, CompoundAssignmentMultiLimbDivisorPrimitive) {
+#ifndef BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
+    GTEST_SKIP() << "Requires 128-bit integer support.";
+#else
+    // uint128_t spans multiple limbs: exercises the integer-rhs slow path in
+    // operator%= where to_limbs(...) yields a multi-limb span.
+    using beman::big_int::detail::uint128_t;
+
+    const uint128_t divisor  = (static_cast<uint128_t>(1) << 100) + uint128_t{12345};
+    const big_int   big_div  = big_int{divisor};
+    const big_int   dividend = (big_int{1} << 250) + big_int{67890};
+
+    big_int       a        = dividend;
+    const big_int expected = dividend % big_div;
+    a %= divisor;
+    EXPECT_EQ(a, expected);
+    EXPECT_EQ((dividend / big_div) * big_div + a, dividend);
+
+    // Negative dividend.
+    big_int       b     = -dividend;
+    const big_int b_exp = (-dividend) % big_div;
+    b %= divisor;
+    EXPECT_EQ(b, b_exp);
+
+    // |dividend| < |divisor|: remainder equals dividend.
+    big_int       c      = (big_int{1} << 50);
+    const big_int c_orig = c;
+    c %= divisor;
+    EXPECT_EQ(c, c_orig);
+#endif // BEMAN_BIG_INT_HAS_INT128
+}
+
 TEST(Modulus, CompoundAssignmentSingleLimbDivisorBigInt) {
     // Multi-limb dividend, single-limb big_int divisor: hits divmod_in_place_short.
     big_int    a          = (big_int{1} << 200) + big_int{12345};
