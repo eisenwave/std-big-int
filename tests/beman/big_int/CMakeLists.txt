@@ -75,7 +75,7 @@ foreach(test_source ${TEST_SOURCES})
         # /WX = -Werror
         target_compile_options(${test_target} PRIVATE /WX /W4)
     endif()
-    gtest_discover_tests(${test_target})
+    gtest_discover_tests(${test_target} DISCOVERY_TIMEOUT 60)
 endforeach()
 
 if(BEMAN_BIG_INT_FUZZ)
