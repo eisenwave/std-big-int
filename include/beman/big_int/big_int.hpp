@@ -269,6 +269,16 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{} {
         if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
             assign_from_float(value);
+        } else if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+            const auto count = value.limb_count();
+            grow(count);
+            auto* dst = limb_ptr();
+            std::copy_n(value.limb_ptr(), count, dst);
+            for (size_type i = count; i < limb_count(); ++i) {
+                dst[i] = 0;
+            }
+            unchecked_set_limb_count(count);
+            unchecked_set_sign(value.is_negative());
         } else {
             if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
                 unchecked_set_sign(value < std::remove_cvref_t<T>{0});
@@ -897,6 +907,16 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
     if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
         assign_from_float(value);
+    } else if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        const auto count = value.limb_count();
+        grow(count);
+        auto* dst = limb_ptr();
+        std::copy_n(value.limb_ptr(), count, dst);
+        for (size_type i = count; i < limb_count(); ++i) {
+            dst[i] = 0;
+        }
+        unchecked_set_limb_count(count);
+        unchecked_set_sign(value.is_negative());
     } else {
         if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
             unchecked_set_sign(value < 0);
