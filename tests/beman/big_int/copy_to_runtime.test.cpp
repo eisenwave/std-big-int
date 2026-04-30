@@ -51,19 +51,6 @@ consteval bool test_macro_form() {
 }
 static_assert(test_macro_form());
 
-consteval bool test_value_macro_form() {
-    constexpr auto v = BEMAN_BIG_INT_COPY_VALUE_TO_RUNTIME(beman::big_int::big_int{99});
-    return v.representation()[0] == 99U;
-}
-static_assert(test_value_macro_form());
-
-consteval bool test_value_macro_with_heap_value() {
-    constexpr auto v = BEMAN_BIG_INT_COPY_VALUE_TO_RUNTIME(1_n << 200);
-    static_assert(v.capacity() == 0);
-    return v.representation().size() >= 4;
-}
-static_assert(test_value_macro_with_heap_value());
-
 consteval bool test_allocator_preserved() {
     using custom_big_int = beman::big_int::basic_big_int<32, std::allocator<beman::big_int::uint_multiprecision_t>>;
     constexpr auto v     = beman::big_int::copy_to_runtime<decltype([]() { return custom_big_int{42}; })>();

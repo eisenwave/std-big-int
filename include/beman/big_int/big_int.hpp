@@ -3828,11 +3828,8 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
-// Convenience macros that wrap an expression in a stateless lambda for the user
+// A convenience macro rather than calling a stateless lambda
 #define BEMAN_BIG_INT_COPY_TO_RUNTIME(...) \
-    (::beman::big_int::copy_to_runtime<decltype([]() { return (__VA_ARGS__); })>())
-
-#define BEMAN_BIG_INT_COPY_VALUE_TO_RUNTIME(...) \
     (::beman::big_int::copy_to_runtime<decltype([]() { return (__VA_ARGS__); })>())
 
 #endif // BEMAN_BIG_INT_BIG_INT_HPP
