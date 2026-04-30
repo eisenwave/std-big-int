@@ -74,9 +74,7 @@ struct stopwatch {
 public:
     using time_point_type = std::uint64_t;
 
-    auto reset() -> void {
-        m_start = now();
-    }
+    auto reset() -> void { m_start = now(); }
 
     template<typename RepresentationRequestedTimeType>
     static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
@@ -118,11 +116,11 @@ auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sin
     const bool numer_was_neg{a < 0};
     const bool denom_was_neg{b < 0};
 
-    big_sint_type ua{(!numer_was_neg) ? a : -a};
+    big_sint_type       ua{(!numer_was_neg) ? a : -a};
     const big_sint_type ub{(!denom_was_neg) ? b : -b};
 
     const big_sint_type quotient{ua / ub};
-    big_sint_type ur{ua - (ub* quotient)};
+    big_sint_type       ur{ua - (ub* quotient)};
 
     ua = quotient;
 
@@ -133,11 +131,10 @@ auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sin
     if(numer_was_neg == denom_was_neg) {
         result.first  = big_sint_type {ua};
         result.second = (!numer_was_neg) ? big_sint_type {ur} : -big_sint_type {ur};
-    } else
-    {
+    } else {
         const bool division_is_exact{ur == static_cast<unsigned>(UINT8_C(0))};
 
-        if(!division_is_exact) {
+        if (!division_is_exact) {
             ++ua;
         }
 
@@ -151,7 +148,7 @@ auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sin
 
         result.second = big_sint_type{ur};
 
-        if(!denom_was_neg) {
+        if (!denom_was_neg) {
             result.second = -result.second;
         }
     }
@@ -159,14 +156,14 @@ auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sin
     return result;
 }
 
-template<typename BigIntegerType, typename IteratorType>
+template <typename BigIntegerType, typename IteratorType>
 auto import_bits(BigIntegerType& value, IteratorType first, IteratorType last) -> void {
     std::string str{};
 
-    while(first != last) {
+    while (first != last) {
         std::stringstream strm{};
 
-        strm << std::hex << std::setw(2) << std::setfill('0') << unsigned { *first++ };
+        strm << std::hex << std::setw(2) << std::setfill('0') << unsigned{*first++};
 
         str.insert(str.length(), strm.str());
     }
@@ -197,17 +194,17 @@ private:
     using transform_context_type = std::array<std::uint32_t, static_cast<std::size_t>(UINT8_C(8))>;
     using data_array_type        = std::array<std::uint8_t, static_cast<std::size_t>(UINT8_C(64))>;
 
-    using data_array_size_type = typename data_array_type::size_type;
+    using data_array_size_type        = typename data_array_type::size_type;
     using transform_context_size_type = typename transform_context_type::size_type;
 
 public:
     using result_type = std::array<std::uint8_t, static_cast<std::size_t>(UINT8_C(32))>;
 
     // LCOV_EXCL_START
-    constexpr hash_sha256() = default;
-    constexpr hash_sha256(const hash_sha256&) = default;
+    constexpr hash_sha256()                        = default;
+    constexpr hash_sha256(const hash_sha256&)      = default;
     constexpr hash_sha256(hash_sha256 &&) noexcept = default;
-    ~hash_sha256() = default;
+    ~hash_sha256()                                 = default;
 
     constexpr auto operator=(hash_sha256 &&) noexcept -> hash_sha256& = default;
     constexpr auto operator=(const hash_sha256&) -> hash_sha256& = default;
@@ -313,10 +310,10 @@ public:
     }
 
 private:
-    std::uint32_t          my_datalen {};
-    std::uint64_t          my_bitlen {};
-    data_array_type        my_data {};
-    transform_context_type transform_context {};
+    std::uint32_t          my_datalen{};
+    std::uint64_t          my_bitlen{};
+    data_array_type        my_data{};
+    transform_context_type transform_context{};
 
     constexpr auto sha256_transform() -> void {
         std::array<std::uint32_t, static_cast<std::size_t>(UINT8_C(64))> m{};
@@ -406,8 +403,8 @@ private:
 
 struct ecc_point {
     const unsigned CurveBits;
-    const char* CoordX;
-    const char* CoordY;
+    const char*    CoordX;
+    const char*    CoordY;
 
     ecc_point(const unsigned curve_bits,
               const char* coord_x,
@@ -430,14 +427,14 @@ struct ecc_point {
 class elliptic_curve : public ecc_point {
 public:
     explicit elliptic_curve(const unsigned curve_bits,
-                            const char* curve_name,
-                            const char* field_characteristic_p,
-                            const char* curve_coefficient_a,
-                            const char* curve_coefficient_b,
-                            const char* coord_gx,
-                            const char* coord_gy,
-                            const char* subgroup_order_n,
-                            const int   subgroup_cofactor_h)
+                            const char*    curve_name,
+                            const char*    field_characteristic_p,
+                            const char*    curve_coefficient_a,
+                            const char*    curve_coefficient_b,
+                            const char*    coord_gx,
+                            const char*    coord_gy,
+                            const char*    subgroup_order_n,
+                            const int      subgroup_cofactor_h)
         : ecc_point(curve_bits, coord_gx, coord_gy),
           CurveName(curve_name),
           FieldCharacteristicP(field_characteristic_p),
@@ -491,11 +488,11 @@ public:
             const big_sint_type quotient {detail::divmod(old_r, r).first};
 
             const big_sint_type tmp_r {r};
-            r = old_r - (quotient * r);
+            r     = old_r - (quotient * r);
             old_r = tmp_r;
 
             const big_sint_type tmp_s {s};
-            s = old_s - (quotient * s);
+            s     = old_s - (quotient * s);
             old_s = tmp_s;
         }
 
@@ -508,7 +505,7 @@ public:
         // Returns true if the given point lies on the elliptic curve.
         // Otherwise returns false.
 
-        if((point.my_x == 0) && (point.my_y == 0)) {
+        if ((point.my_x == 0) && (point.my_y == 0)) {
             // Zero represents the point at infinity.
             return true; // LCOV_EXCL_LINE
         }
@@ -549,7 +546,7 @@ public:
         const auto& x2 { point2.my_x };
         const auto& y2 { point2.my_y };
 
-        if((x1 == 0) && (y1 == 0)) {
+        if ((x1 == 0) && (y1 == 0)) {
             // 0 + point2 = point2
             return point2;
         }
@@ -1011,5 +1008,4 @@ TEST(Benchmarks, EccElliptic01) {
     EXPECT_EQ(result_is_ok, true);
 }
 
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
