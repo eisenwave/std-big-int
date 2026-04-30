@@ -355,14 +355,13 @@ private:
 
         transform_context_type state = transform_context;
 
-        for(auto i = static_cast<std::size_t>(UINT8_C(0)); i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
-            const auto tmp1 =
-                static_cast<std::uint32_t>(
-                    state[static_cast<std::size_t>(UINT8_C(7))]
-                    + bsig1(state[static_cast<std::size_t>(UINT8_C(4))])
-                    + ch(state[static_cast<std::size_t>(UINT8_C(4))], state[static_cast<std::size_t>(UINT8_C(5))], state[static_cast<std::size_t>(UINT8_C(6))])
-                    + transform_constants[i]
-                    + m[i]);
+        for (auto i = static_cast<std::size_t>(UINT8_C(0)); i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
+            const auto tmp1 = static_cast<std::uint32_t>(state[static_cast<std::size_t>(UINT8_C(7))] +
+                                                         bsig1(state[static_cast<std::size_t>(UINT8_C(4))]) +
+                                                         ch(state[static_cast<std::size_t>(UINT8_C(4))],
+                                                            state[static_cast<std::size_t>(UINT8_C(5))],
+                                                            state[static_cast<std::size_t>(UINT8_C(6))]) +
+                                                         transform_constants[i] + m[i]);
 
             const auto tmp2 =
                 static_cast<std::uint32_t>(
