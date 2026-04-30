@@ -24,6 +24,9 @@
 // The SHA-2 HASH-256 implementation has been taken (with slight modification)
 //   from: https://github.com/imahjoub/hash_sha256
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
+
 #include <gtest/gtest.h>
 
 #include "testing.hpp"
@@ -1006,3 +1009,5 @@ TEST(Benchmarks, EccElliptic01) {
 
     EXPECT_EQ(result_is_ok, true);
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
