@@ -3028,6 +3028,28 @@ constexpr void basic_big_int<b, A>::push_back_limb(limb_type limb) {
     unchecked_set_limb_count(static_cast<std::uint32_t>(count + 1));
 }
 
+// Snapshot the value produced by `F` into a `basic_big_int<N, A>`,
+// whose inline storage is large enough to hold the value without any heap allocation.
+// Bridges consteval-computed values to runtime
+// The result is heap-free and constexpr-storable.
+// The result preserves the source's allocator type and instance.
+template <auto F>
+[[nodiscard]] consteval auto copy_to_runtime() {
+    constexpr std::size_t bits_per_limb = sizeof(uint_multiprecision_t) * CHAR_BIT;
+
+    constexpr std::size_t target_bits = []() consteval {
+        const auto v = F();
+        const auto w = v.width_mag();
+        return w == 0 ? bits_per_limb : ((w + bits_per_limb - 1) / bits_per_limb) * bits_per_limb;
+    }();
+
+    using source_type = std::remove_cvref_t<decltype(F())>;
+    using result_type = basic_big_int<target_bits, typename source_type::allocator_type>;
+
+    auto src = F();
+    return result_type{src, src.get_allocator()};
+}
+
 // Standard public alias for defaulted type
 using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
 
@@ -3805,5 +3827,8 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 } // namespace beman::big_int
 
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
+
+// A convenience macro rather than calling a stateless lambda
+#define BEMAN_BIG_INT_COPY_TO_RUNTIME(...) (::beman::big_int::copy_to_runtime<+[]() { return (__VA_ARGS__); }>())
 
 #endif // BEMAN_BIG_INT_BIG_INT_HPP
