@@ -1,9 +1,5 @@
-///////////////////////////////////////////////////////////////////
-//  Copyright Christopher Kormanyos 2023 - 2026.                 //
-//  Distributed under the Boost Software License,                //
-//  Version 1.0. (See accompanying file LICENSE_1_0.txt          //
-//  or copy at http://www.boost.org/LICENSE_1_0.txt)             //
-///////////////////////////////////////////////////////////////////
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
 
 // This C++ work has benefited from parts of andreacorbellini/ecc (in Python script).
 //   see also: https://github.com/andreacorbellini/ecc
@@ -46,7 +42,6 @@
 #include <cstdint>
 #include <cstring>
 #include <iomanip>
-#include <iostream>
 #include <random>
 #include <sstream>
 #include <string>
@@ -924,14 +919,6 @@ auto big_int::example::ecdsa_sign_verify() -> bool {
             std::get<1>(keypair), msg_as_string.cbegin(), msg_as_string.cend(), sig);
 
         result_is_ok = (result_verify_is_ok && result_is_ok);
-
-        {
-            std::stringstream strm{};
-
-            strm << "result predef01: result_is_ok: " << std::boolalpha << result_is_ok;
-
-            std::cout << strm.str() << std::endl;
-        }
     }
 
     {
@@ -963,15 +950,6 @@ auto big_int::example::ecdsa_sign_verify() -> bool {
                 std::get<1>(keypair), msg_str_append_index.cbegin(), msg_str_append_index.cend(), sig);
 
             result_is_ok = (result_verify_is_ok && result_is_ok);
-
-            {
-                std::stringstream strm{};
-
-                strm << "result random" << std::setw(2) << std::setfill('0') << std::right << (count + 1)
-                     << ": result_is_ok: " << std::boolalpha << result_is_ok;
-
-                std::cout << strm.str() << std::endl;
-            }
         }
     }
 
@@ -1002,24 +980,6 @@ TEST(Benchmarks, EccElliptic01) {
     local_stopwatch_type my_stopwatch{};
 
     const bool result_is_ok{big_int::example::ecdsa_sign_verify()};
-
-    const float elapsed{local_stopwatch_type::elapsed_time<float>(my_stopwatch)};
-
-    {
-        std::stringstream strm{};
-
-        strm << "result total___: result_is_ok: " << std::boolalpha << result_is_ok;
-
-        std::cout << strm.str() << std::endl;
-    }
-
-    {
-        std::stringstream strm{};
-
-        strm << "stopwatch time: " << std::fixed << std::setprecision(1) << elapsed << "s";
-
-        std::cout << strm.str() << std::endl;
-    }
 
     EXPECT_EQ(result_is_ok, true);
 }
