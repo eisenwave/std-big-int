@@ -443,7 +443,7 @@ public:
           SubGroupCoFactorH(subgroup_cofactor_h)
     {
         static_cast<void>(CurveName[std::size_t { UINT8_C(0) }]);
-        static_cast<void>(SubGroupCoFactorH[std::size_t { UINT8_C(0) }]);
+        static_cast<void>(SubGroupCoFactorH);
     }
 
     using base_class_type = ecc_point;
