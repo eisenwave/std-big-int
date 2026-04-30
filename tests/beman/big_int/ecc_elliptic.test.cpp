@@ -61,10 +61,10 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 using big_sint_type = beman::big_int::big_int;
 #elif defined(ELLIPTIC_CPP_INT_USE_GMP_INT)
 using big_sint_backend_type = boost::multiprecision::gmp_int;
-using big_sint_type = boost::multiprecision::number<big_sint_backend_type, boost::multiprecision::et_off>;
+using big_sint_type         = boost::multiprecision::number<big_sint_backend_type, boost::multiprecision::et_off>;
 #else
 using big_sint_backend_type = boost::multiprecision::cpp_int_backend<>;
-using big_sint_type = boost::multiprecision::number<big_sint_backend_type, boost::multiprecision::et_off>;
+using big_sint_type         = boost::multiprecision::number<big_sint_backend_type, boost::multiprecision::et_off>;
 #endif
 
 namespace local::concurrency {
@@ -76,7 +76,7 @@ public:
 
     auto reset() -> void { m_start = now(); }
 
-    template<typename RepresentationRequestedTimeType>
+    template <typename RepresentationRequestedTimeType>
     static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
         using local_time_type = RepresentationRequestedTimeType;
 
@@ -128,7 +128,7 @@ auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sin
 
     divmod_result_pair_type result{big_sint_type{}, big_sint_type{}};
 
-    if(numer_was_neg == denom_was_neg) {
+    if (numer_was_neg == denom_was_neg) {
         result.first  = big_sint_type {ua};
         result.second = (!numer_was_neg) ? big_sint_type {ur} : -big_sint_type {ur};
     } else {
@@ -142,7 +142,7 @@ auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sin
 
         result.first = -result.first;
 
-        if(!division_is_exact) {
+        if (!division_is_exact) {
             ur -= ub;
         }
 
