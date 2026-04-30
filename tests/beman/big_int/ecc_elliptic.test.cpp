@@ -355,7 +355,7 @@ private:
                 static_cast<std::uint32_t>(
                     static_cast<std::uint32_t>(
                         my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(3)))])
-                    << static_cast<unsigned>(UINT8_C(0))));
+                    << static_cast<unsigned>(UINT8_C(0)));
         }
 
         for(auto i = static_cast<std::size_t>(UINT8_C(16)) ; i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
@@ -595,10 +595,10 @@ public:
     auto point_add(const point_type& point1, const point_type& point2) -> point_type {
         // Returns the result of (point1 + point2) according to the group law.
 
-        const auto& x1 { point1.my_x };
-        const auto& y1 { point1.my_y };
-        const auto& x2 { point2.my_x };
-        const auto& y2 { point2.my_y };
+        const auto& x1{point1.my_x};
+        const auto& y1{point1.my_y};
+        const auto& x2{point2.my_x};
+        const auto& y2{point2.my_y};
 
         if ((x1 == 0) && (y1 == 0)) {
             // 0 + point2 = point2
