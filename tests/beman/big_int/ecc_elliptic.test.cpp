@@ -497,7 +497,7 @@ public:
           SubGroupOrderN(subgroup_order_n),
           SubGroupCoFactorH(subgroup_cofactor_h)
     {
-        static_cast<void>(CurveName[std::size_t { UINT8_C(0) }]);
+        static_cast<void>(CurveName[std::size_t{ UINT8_C(0)}]);
         static_cast<void>(SubGroupCoFactorH);
     }
 
@@ -612,7 +612,7 @@ public:
 
         if ((x1 == x2) && (y1 != y2)) {
             // Equivalent to: point1 + (-point1) = 0
-            return point_type {}; // LCOV_EXCL_LINE
+            return point_type{}; // LCOV_EXCL_LINE
         }
 
         // Differentiate the cases (point1 == point2) and (point1 != point2).
@@ -636,7 +636,7 @@ public:
         // Returns k * point computed using the double and point_add algorithm.
 
         if (((k % curve_n()) == 0) || ((point.my_x == 0) && (point.my_y == 0))) {
-            return point_type {}; // LCOV_EXCL_LINE
+            return point_type{}; // LCOV_EXCL_LINE
         }
 
         if (k < 0) {
@@ -939,18 +939,13 @@ auto big_int::example::ecdsa_sign_verify() -> bool {
         result_is_ok = (result_sig_is_ok && result_is_ok);
 
         const auto result_verify_is_ok =
-            my_elliptic_curve.verify_signature
-            (
-                std::get<1>(keypair),
-                msg_as_string.cbegin(),
-                msg_as_string.cend(),
-                sig
-            );
+            my_elliptic_curve.verify_signature(
+                std::get<1>(keypair), msg_as_string.cbegin(), msg_as_string.cend(), sig);
 
         result_is_ok = (result_verify_is_ok && result_is_ok);
 
         {
-            std::stringstream strm { };
+            std::stringstream strm{};
 
             strm << "result predef01: result_is_ok: " << std::boolalpha << result_is_ok;
 
@@ -1001,7 +996,7 @@ auto big_int::example::ecdsa_sign_verify() -> bool {
             result_is_ok = (result_verify_is_ok && result_is_ok);
 
             {
-                std::stringstream strm { };
+                std::stringstream strm{};
 
                 strm << "result random" << std::setw(2) << std::setfill('0') << std::right << (count + 1) << ": result_is_ok: " << std::boolalpha << result_is_ok;
 
@@ -1039,12 +1034,12 @@ TEST(Benchmarks, EccElliptic01) {
 
     local_stopwatch_type my_stopwatch{};
 
-    const bool result_is_ok { big_int::example::ecdsa_sign_verify() };
+    const bool result_is_ok{ big_int::example::ecdsa_sign_verify()};
 
-    const float elapsed { local_stopwatch_type::elapsed_time<float>(my_stopwatch) };
+    const float elapsed{local_stopwatch_type::elapsed_time<float>(my_stopwatch)};
 
     {
-        std::stringstream strm { };
+        std::stringstream strm{};
 
         strm << "result total___: result_is_ok: " << std::boolalpha << result_is_ok;
 
@@ -1052,7 +1047,7 @@ TEST(Benchmarks, EccElliptic01) {
     }
 
     {
-        std::stringstream strm { };
+        std::stringstream strm{};
 
         strm << "stopwatch time: " << std::fixed << std::setprecision(1) << elapsed << "s";
 
