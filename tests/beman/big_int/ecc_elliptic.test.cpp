@@ -395,10 +395,22 @@ private:
     static constexpr auto ch(std::uint32_t x, std::uint32_t y, std::uint32_t z) -> std::uint32_t { return (static_cast<std::uint32_t>(x& y) ^ static_cast<std::uint32_t>(~x& z)); }
     static constexpr auto maj(std::uint32_t x, std::uint32_t y, std::uint32_t z) -> std::uint32_t { return (static_cast<std::uint32_t>(x& y) ^ static_cast<std::uint32_t>(x& z) ^ static_cast<std::uint32_t>(y& z)); }
 
-    static constexpr auto bsig0(std::uint32_t x) -> std::uint32_t { return (rotr(x, static_cast<unsigned>(UINT8_C(2))) ^ rotr(x, static_cast<unsigned>(UINT8_C(13))) ^ rotr(x,   static_cast<unsigned>(UINT8_C(22)))); }
-    static constexpr auto bsig1(std::uint32_t x) -> std::uint32_t { return (rotr(x, static_cast<unsigned>(UINT8_C(6))) ^ rotr(x, static_cast<unsigned>(UINT8_C(11))) ^ rotr(x,   static_cast<unsigned>(UINT8_C(25)))); }
-    static constexpr auto ssig0(std::uint32_t x) -> std::uint32_t { return (rotr(x, static_cast<unsigned>(UINT8_C(7))) ^ rotr(x, static_cast<unsigned>(UINT8_C(18))) ^ (x >> static_cast<unsigned>(UINT8_C(3)))); }
-    static constexpr auto ssig1(std::uint32_t x) -> std::uint32_t { return (rotr(x, static_cast<unsigned>(UINT8_C(17))) ^ rotr(x, static_cast<unsigned>(UINT8_C(19))) ^ (x >> static_cast<unsigned>(UINT8_C(10)))); }
+    static constexpr auto bsig0(std::uint32_t x) -> std::uint32_t {
+        return (rotr(x, static_cast<unsigned>(UINT8_C(2))) ^ rotr(x, static_cast<unsigned>(UINT8_C(13))) ^
+                rotr(x, static_cast<unsigned>(UINT8_C(22))));
+    }
+    static constexpr auto bsig1(std::uint32_t x) -> std::uint32_t {
+        return (rotr(x, static_cast<unsigned>(UINT8_C(6))) ^ rotr(x, static_cast<unsigned>(UINT8_C(11))) ^
+                rotr(x, static_cast<unsigned>(UINT8_C(25))));
+    }
+    static constexpr auto ssig0(std::uint32_t x) -> std::uint32_t {
+        return (rotr(x, static_cast<unsigned>(UINT8_C(7))) ^ rotr(x, static_cast<unsigned>(UINT8_C(18))) ^
+                (x >> static_cast<unsigned>(UINT8_C(3))));
+    }
+    static constexpr auto ssig1(std::uint32_t x) -> std::uint32_t {
+        return (rotr(x, static_cast<unsigned>(UINT8_C(17))) ^ rotr(x, static_cast<unsigned>(UINT8_C(19))) ^
+                (x >> static_cast<unsigned>(UINT8_C(10))));
+    }
 };
 
 struct ecc_point {
