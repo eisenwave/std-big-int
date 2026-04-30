@@ -55,6 +55,7 @@
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 
 #if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
 using big_sint_type = beman::big_int::big_int;
@@ -1010,4 +1011,5 @@ TEST(Benchmarks, EccElliptic01) {
     EXPECT_EQ(result_is_ok, true);
 }
 
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
