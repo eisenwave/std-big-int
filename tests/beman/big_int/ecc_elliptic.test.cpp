@@ -271,17 +271,26 @@ public:
         }
 
         // Append to the padding the total message length (in bits) and subsequently transform.
-        my_bitlen = static_cast<std::uint64_t>(my_bitlen + static_cast<std::uint64_t>(
-            static_cast<std::uint64_t>(my_datalen) * static_cast<std::uint8_t>(UINT8_C(8))));
+        my_bitlen =
+            static_cast<std::uint64_t>(my_bitlen + static_cast<std::uint64_t>(static_cast<std::uint64_t>(my_datalen) *
+                                                                              static_cast<std::uint8_t>(UINT8_C(8))));
 
-        my_data[static_cast<data_array_size_type>(UINT8_C(63))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(0)));
-        my_data[static_cast<data_array_size_type>(UINT8_C(62))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(8)));
-        my_data[static_cast<data_array_size_type>(UINT8_C(61))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(16)));
-        my_data[static_cast<data_array_size_type>(UINT8_C(60))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(24)));
-        my_data[static_cast<data_array_size_type>(UINT8_C(59))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(32)));
-        my_data[static_cast<data_array_size_type>(UINT8_C(58))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(40)));
-        my_data[static_cast<data_array_size_type>(UINT8_C(57))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(48)));
-        my_data[static_cast<data_array_size_type>(UINT8_C(56))] = static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(56)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(63))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(0)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(62))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(8)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(61))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(16)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(60))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(24)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(59))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(32)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(58))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(40)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(57))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(48)));
+        my_data[static_cast<data_array_size_type>(UINT8_C(56))] =
+            static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(56)));
 
         sha256_transform();
 
