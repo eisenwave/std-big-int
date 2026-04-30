@@ -240,9 +240,9 @@ public:
 
     constexpr void update(const std::uint8_t* msg, const size_t length) {
 
-        for(auto i = static_cast<std::size_t>(UINT8_C(0)); i < length; ++i) {
-            my_data[static_cast<data_array_size_type>(my_datalen)] = msg[i]; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic,cppcoreguidelines-pro-bounds-constant-array-index)
-            my_datalen++;
+        for (auto i = static_cast<std::size_t>(UINT8_C(0)); i < length; ++i) {
+             my_data[static_cast<data_array_size_type>(my_datalen)] = msg[i]; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic,cppcoreguidelines-pro-bounds-constant-array-index)
+             my_datalen++;
 
             if (my_datalen == static_cast<std::uint32_t>(UINT8_C(64))) {
                 // LCOV_EXCL_START
@@ -308,9 +308,9 @@ public:
         static_cast<std::size_t>(std::numeric_limits<typename transform_context_type::value_type>::digits
         / std::numeric_limits<std::uint8_t>::digits);
 
-        for(auto output_index = static_cast<std::size_t>(UINT8_C(0));
-            output_index < std::tuple_size<result_type>::value;
-            ++output_index) {
+        for (auto output_index = static_cast<std::size_t>(UINT8_C(0));
+             output_index < std::tuple_size<result_type>::value;
+             ++output_index) {
 
             const auto right_shift_amount = static_cast<std::size_t>(static_cast<std::size_t>(
                 static_cast<std::size_t>(
@@ -335,10 +335,10 @@ private:
     constexpr auto sha256_transform() -> void {
         std::array<std::uint32_t, static_cast<std::size_t>(UINT8_C(64))> m{};
 
-        for(auto  i = static_cast<std::size_t>(UINT8_C(0)),
-                  j = static_cast<std::size_t>(UINT8_C(0));
-                  i < static_cast<std::size_t>(UINT8_C(16));
-                ++i, j = static_cast<std::size_t>(j + static_cast<std::size_t>(UINT8_C(4)))) {
+        for (auto  i = static_cast<std::size_t>(UINT8_C(0)),
+                   j = static_cast<std::size_t>(UINT8_C(0));
+                   i < static_cast<std::size_t>(UINT8_C(16));
+                 ++i, j = static_cast<std::size_t>(j + static_cast<std::size_t>(UINT8_C(4)))) {
             m[i] =
                 static_cast<std::uint32_t>(
                     static_cast<std::uint32_t>(
@@ -358,8 +358,8 @@ private:
                     << static_cast<unsigned>(UINT8_C(0)));
         }
 
-        for(auto i = static_cast<std::size_t>(UINT8_C(16)) ; i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
-            m[i] = ssig1(m[i - static_cast<std::size_t>(UINT8_C(2))]) + m[i - static_cast<std::size_t>(UINT8_C(7))] + ssig0(m[i - static_cast<std::size_t>(UINT8_C(15))]) + m[i - static_cast<std::size_t>(UINT8_C(16))];
+        for (auto i = static_cast<std::size_t>(UINT8_C(16)) ; i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
+             m[i] = ssig1(m[i - static_cast<std::size_t>(UINT8_C(2))]) + m[i - static_cast<std::size_t>(UINT8_C(7))] + ssig0(m[i - static_cast<std::size_t>(UINT8_C(15))]) + m[i - static_cast<std::size_t>(UINT8_C(16))];
         }
 
         constexpr std::array<std::uint32_t, 64U> transform_constants{
@@ -538,7 +538,7 @@ public:
         big_sint_type r{p};
         big_sint_type old_r{k};
 
-        while(r != 0U) {
+        while (r != 0U) {
             const big_sint_type quotient {detail::divmod(old_r, r).first};
 
             const big_sint_type tmp_r {r};
@@ -739,7 +739,7 @@ public:
 
         const auto pk{private_key};
 
-        while((r == 0) || (s == 0)) {
+        while ((r == 0) || (s == 0)) {
             const big_sint_type uk {
                 (p_uint_seed == nullptr)
                 ? std::move(get_pseudo_random_uint<big_sint_type>(static_cast<unsigned>(
@@ -747,13 +747,13 @@ public:
                 : *p_uint_seed
             };
 
-            const big_sint_type k {uk};
+            const big_sint_type k{uk};
 
-            const point_type pt {scalar_mult(k, point_type(curve_gx(), curve_gy()))};
+            const point_type pt{scalar_mult(k, point_type(curve_gx(), curve_gy()))};
 
             r = detail::divmod(pt.my_x, curve_n()).second;
 
-            const big_sint_type num {(z + (r * pk)) * inverse_mod(k, curve_n())};
+            const big_sint_type num{(z + (r * pk)) * inverse_mod(k, curve_n())};
 
             s = detail::divmod(num, n).second;
         }
@@ -963,9 +963,9 @@ auto big_int::example::ecdsa_sign_verify() -> bool {
     {
         // We will now test a sequence of multiple successful keygen, sign, verify sequences.
 
-        for(auto   count = static_cast<unsigned>(UINT8_C(0));
-            count < static_cast<unsigned>(UINT8_C(10));
-            ++count) {
+        for (auto   count = static_cast<unsigned>(UINT8_C(0));
+             count < static_cast<unsigned>(UINT8_C(10));
+             ++count) {
             const auto keypair = my_elliptic_curve.make_keypair();
 
             using local_distribution_type = std::uniform_int_distribution<std::uint64_t>;
