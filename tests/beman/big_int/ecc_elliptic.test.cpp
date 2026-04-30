@@ -220,14 +220,22 @@ public:
         my_datalen = static_cast<std::uint32_t>(UINT8_C(0));
         my_bitlen  = static_cast<std::uint64_t>(UINT8_C(0));
 
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(0))] = static_cast<std::uint32_t>(UINT32_C(0x6A09E667));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(1))] = static_cast<std::uint32_t>(UINT32_C(0xBB67AE85));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(2))] = static_cast<std::uint32_t>(UINT32_C(0x3C6EF372));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(3))] = static_cast<std::uint32_t>(UINT32_C(0xA54FF53A));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(4))] = static_cast<std::uint32_t>(UINT32_C(0x510E527F));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(5))] = static_cast<std::uint32_t>(UINT32_C(0x9B05688C));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(6))] = static_cast<std::uint32_t>(UINT32_C(0x1F83D9AB));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(7))] = static_cast<std::uint32_t>(UINT32_C(0x5BE0CD19));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(0))] =
+            static_cast<std::uint32_t>(UINT32_C(0x6A09E667));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(1))] =
+            static_cast<std::uint32_t>(UINT32_C(0xBB67AE85));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(2))] =
+            static_cast<std::uint32_t>(UINT32_C(0x3C6EF372));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(3))] =
+            static_cast<std::uint32_t>(UINT32_C(0xA54FF53A));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(4))] =
+            static_cast<std::uint32_t>(UINT32_C(0x510E527F));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(5))] =
+            static_cast<std::uint32_t>(UINT32_C(0x9B05688C));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(6))] =
+            static_cast<std::uint32_t>(UINT32_C(0x1F83D9AB));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(7))] =
+            static_cast<std::uint32_t>(UINT32_C(0x5BE0CD19));
     }
 
     constexpr void update(const std::uint8_t* msg, const size_t length) {
