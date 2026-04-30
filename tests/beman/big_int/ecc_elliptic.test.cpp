@@ -24,35 +24,19 @@
 // The SHA-2 HASH-256 implementation has been taken (with slight modification)
 //   from: https://github.com/imahjoub/hash_sha256
 
-// Notes for my own local Ubuntu WSL build:
-// cd /mnt/c/Users/ckorm/Documents/Ks/PC_Software/SampleApplications/elliptic_cpp_int
-// g++ -std=c++23 -O2 -Wall -Wextra -Wpedantic -I/mnt/c/boost/boost_1_90_0 elliptic_cpp_int.cpp -o elliptic_cpp_int.exe
-// g++ -std=c++23 -O2 -Wall -Wextra -Wpedantic -I/mnt/c/ChrisGitRepos/std-big-int/include elliptic_cpp_int.cpp -o elliptic_cpp_int.exe
-
-// cd C:\wsdrive\OpenSource\elliptic_cpp_int
-// set GCC=C:\wsdrive\MyGitRepos\ToolsGeneric\Compilation\PcGeneric\GCC\mingw64\13.2.0\bin\g++.exe
-//
-// Build with Boost
-// %GCC% -std=c++23 -O2 -Wall -Wextra -IC:/boost/boost_1_90_0 elliptic_cpp_int.cpp -o elliptic_cpp_int.exe
-// Execute with .\elliptic_cpp_int.exe
-//
-// Build with std-big-int
-// %GCC% -std=c++23 -O2 -Wall -Wextra -IC:/wsdrive/OpenSource/std-big-int/include elliptic_cpp_int.cpp -o elliptic_cpp_int.exe
-// Execute with .\elliptic_cpp_int
-
 #include <gtest/gtest.h>
 
 #include "testing.hpp"
 
 #define ELLIPTIC_CPP_INT_USE_STD_BIG_INT
-//#define ELLIPTIC_CPP_INT_USE_GMP_INT
+// #define ELLIPTIC_CPP_INT_USE_GMP_INT
 
 #if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
-#include <beman/big_int/big_int.hpp>
+    #include <beman/big_int/big_int.hpp>
 #elif defined(ELLIPTIC_CPP_INT_USE_GMP_INT)
-#include <boost/multiprecision/gmp.hpp>
+    #include <boost/multiprecision/gmp.hpp>
 #else
-#include <boost/multiprecision/cpp_int.hpp>
+    #include <boost/multiprecision/cpp_int.hpp>
 #endif
 
 #include <algorithm>
@@ -456,7 +440,11 @@ public:
           CurveCoefficientA(curve_coefficient_a),
           CurveCoefficientB(curve_coefficient_b),
           SubGroupOrderN(subgroup_order_n),
-          SubGroupCoFactorH(subgroup_cofactor_h) { }
+          SubGroupCoFactorH(subgroup_cofactor_h)
+    {
+        static_cast<void>(CurveName[std::size_t { UINT8_C(0) }]);
+        static_cast<void>(SubGroupCoFactorH[std::size_t { UINT8_C(0) }]);
+    }
 
     using base_class_type = ecc_point;
 
