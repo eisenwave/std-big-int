@@ -62,46 +62,6 @@ using big_sint_backend_type = boost::multiprecision::cpp_int_backend<>;
 using big_sint_type         = boost::multiprecision::number<big_sint_backend_type, boost::multiprecision::et_off>;
 #endif
 
-namespace local::concurrency {
-
-template <class ClockType = std::chrono::high_resolution_clock>
-struct stopwatch {
-  public:
-    using time_point_type = std::uint64_t;
-
-    auto reset() -> void { m_start = now(); }
-
-    template <class RepresentationRequestedTimeType>
-    static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
-        using local_time_type = RepresentationRequestedTimeType;
-
-        return local_time_type{static_cast<local_time_type>(my_stopwatch.elapsed()) /
-                               local_time_type{UINTMAX_C(1000000000)}};
-    }
-
-  private:
-    time_point_type m_start{now()};
-
-    [[nodiscard]] static auto now() -> time_point_type {
-        using local_clock_type = ClockType;
-
-        const auto current_now = static_cast<std::uintmax_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(local_clock_type::now().time_since_epoch()).count());
-
-        return static_cast<time_point_type>(static_cast<time_point_type>(current_now));
-    }
-
-    [[nodiscard]] auto elapsed() const -> time_point_type {
-        const time_point_type stop{now()};
-
-        const time_point_type elapsed_ns{static_cast<time_point_type>(stop - m_start)};
-
-        return elapsed_ns;
-    }
-};
-
-} // namespace local::concurrency
-
 namespace big_int::example {
 
 namespace detail {
@@ -975,10 +935,6 @@ auto big_int::example::ecdsa_sign_verify() -> bool {
 }
 
 TEST(Benchmarks, EccElliptic01) {
-    using local_stopwatch_type = local::concurrency::stopwatch<>;
-
-    local_stopwatch_type my_stopwatch{};
-
     const bool result_is_ok{big_int::example::ecdsa_sign_verify()};
 
     EXPECT_EQ(result_is_ok, true);
