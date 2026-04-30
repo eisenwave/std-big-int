@@ -201,10 +201,10 @@ public:
     using result_type = std::array<std::uint8_t, static_cast<std::size_t>(UINT8_C(32))>;
 
     // LCOV_EXCL_START
-    constexpr hash_sha256()                        = default;
-    constexpr hash_sha256(const hash_sha256&)      = default;
-    constexpr hash_sha256(hash_sha256 &&) noexcept = default;
-    ~hash_sha256()                                 = default;
+    constexpr hash_sha256()                       = default;
+    constexpr hash_sha256(const hash_sha256&)     = default;
+    constexpr hash_sha256(hash_sha256&&) noexcept = default;
+    ~hash_sha256()                                = default;
 
     constexpr auto operator=(hash_sha256 &&) noexcept -> hash_sha256& = default;
     constexpr auto operator=(const hash_sha256&) -> hash_sha256& = default;
@@ -654,7 +654,7 @@ public:
             addend = point_add(addend, addend);
 
             k_val >>= static_cast<unsigned>(UINT8_C(1));
-        } while(k_val != 0);
+        } while (k_val != 0);
 
         return result;
     }
@@ -667,7 +667,7 @@ public:
         local_wide_unsigned_integer_type
             unsigned_pseudo_random_value{get_pseudo_random_uint_worker<local_wide_unsigned_integer_type>(bits_to_get)};
 
-        if((max_value != 0U) && (unsigned_pseudo_random_value > max_value)) {
+        if ((max_value != 0U) && (unsigned_pseudo_random_value > max_value)) {
             unsigned_pseudo_random_value = unsigned_pseudo_random_value % max_value;
         }
 
