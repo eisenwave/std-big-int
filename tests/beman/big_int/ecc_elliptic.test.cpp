@@ -333,10 +333,21 @@ private:
                 ++i, j = static_cast<std::size_t>(j + static_cast<std::size_t>(UINT8_C(4)))) {
             m[i] =
                 static_cast<std::uint32_t>(
-                    static_cast<std::uint32_t>(static_cast<std::uint32_t>(my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(0)))]) << static_cast<unsigned>(UINT8_C(24)))
-                    | static_cast<std::uint32_t>(static_cast<std::uint32_t>(my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(1)))]) << static_cast<unsigned>(UINT8_C(16)))
-                    | static_cast<std::uint32_t>(static_cast<std::uint32_t>(my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(2)))]) << static_cast<unsigned>(UINT8_C(8)))
-                    | static_cast<std::uint32_t>(static_cast<std::uint32_t>(my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(3)))]) << static_cast<unsigned>(UINT8_C(0))));
+                    static_cast<std::uint32_t>(
+                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(0)))])
+                    << static_cast<unsigned>(UINT8_C(24))) |
+                static_cast<std::uint32_t>(
+                    static_cast<std::uint32_t>(
+                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(1)))])
+                    << static_cast<unsigned>(UINT8_C(16))) |
+                static_cast<std::uint32_t>(
+                    static_cast<std::uint32_t>(
+                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(2)))])
+                    << static_cast<unsigned>(UINT8_C(8))) |
+                static_cast<std::uint32_t>(
+                    static_cast<std::uint32_t>(
+                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(3)))])
+                    << static_cast<unsigned>(UINT8_C(0))));
         }
 
         for(auto i = static_cast<std::size_t>(UINT8_C(16)) ; i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
