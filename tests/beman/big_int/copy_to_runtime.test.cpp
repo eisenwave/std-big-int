@@ -36,8 +36,8 @@ consteval bool test_heap_required_value() {
     // allocate on the heap during consteval evaluation.
     // The result must hold all those limbs inline.
     constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() {
-        return 1'000'000'000'000'000'000'000'000'000'000'000'000'000_n
-             * 1'000'000'000'000'000'000'000'000'000'000'000'000'000_n;
+        return 1'000'000'000'000'000'000'000'000'000'000'000'000'000_n *
+               1'000'000'000'000'000'000'000'000'000'000'000'000'000_n;
     })>();
     static_assert(v.capacity() == 0);
     static_assert(decltype(v)::inplace_capacity >= 4);
@@ -66,7 +66,7 @@ static_assert(test_value_macro_with_heap_value());
 
 consteval bool test_allocator_preserved() {
     using custom_big_int = beman::big_int::basic_big_int<32, std::allocator<beman::big_int::uint_multiprecision_t>>;
-    constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() { return custom_big_int{42}; })>();
+    constexpr auto v     = beman::big_int::copy_to_runtime<decltype([]() { return custom_big_int{42}; })>();
     static_assert(std::is_same_v<typename decltype(v)::allocator_type, custom_big_int::allocator_type>);
     return v.representation()[0] == 42U;
 }
@@ -87,31 +87,28 @@ TEST(CopyToRuntime, BridgesHeapValueToRuntime) {
 }
 
 TEST(CopyToRuntime, NegativeRoundTrip) {
-    constexpr auto kVal = beman::big_int::copy_to_runtime<decltype([]() {
-        return beman::big_int::big_int{-1} * (1_n << 200);
-    })>();
+    constexpr auto kVal =
+        beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{-1} * (1_n << 200); })>();
     beman::big_int::big_int as_default{kVal};
     EXPECT_LT(as_default, beman::big_int::big_int{0});
     EXPECT_EQ(-as_default, beman::big_int::big_int{1} << 200);
 }
 
 TEST(CopyToRuntime, ZeroIsCanonical) {
-    constexpr auto kZero =
-        beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{0}; })>();
+    constexpr auto kZero = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{0}; })>();
     EXPECT_EQ(kZero.width_mag(), 0U);
     beman::big_int::big_int as_default{kZero};
     EXPECT_EQ(as_default, beman::big_int::big_int{0});
 }
 
 TEST(CopyToRuntime, ConstexprCanBeUsedForComparison) {
-    constexpr auto kThreshold = BEMAN_BIG_INT_COPY_TO_RUNTIME(1_n << 100);
-    beman::big_int::big_int input = (beman::big_int::big_int{1} << 99) + beman::big_int::big_int{1};
+    constexpr auto          kThreshold = BEMAN_BIG_INT_COPY_TO_RUNTIME(1_n << 100);
+    beman::big_int::big_int input      = (beman::big_int::big_int{1} << 99) + beman::big_int::big_int{1};
     EXPECT_LT(input, beman::big_int::big_int{kThreshold});
 }
 
 TEST(CopyToRuntime, MacroExpression) {
-    constexpr auto kVal = BEMAN_BIG_INT_COPY_TO_RUNTIME(
-        1'000'000'000'000'000'000'000_n * 1'000'000'000'000'000'000_n);
+    constexpr auto kVal = BEMAN_BIG_INT_COPY_TO_RUNTIME(1'000'000'000'000'000'000'000_n * 1'000'000'000'000'000'000_n);
     beman::big_int::big_int as_default{kVal};
     EXPECT_EQ(as_default, 1'000'000'000'000'000'000'000_n * 1'000'000'000'000'000'000_n);
 }
