@@ -334,24 +334,39 @@ private:
             m[i] = ssig1(m[i - static_cast<std::size_t>(UINT8_C(2))]) + m[i - static_cast<std::size_t>(UINT8_C(7))] + ssig0(m[i - static_cast<std::size_t>(UINT8_C(15))]) + m[i - static_cast<std::size_t>(UINT8_C(16))];
         }
 
-        constexpr std::array<std::uint32_t, 64U> transform_constants {
-            static_cast<std::uint32_t>(UINT32_C(0x428A2F98)), static_cast<std::uint32_t>(UINT32_C(0x71374491)), static_cast<std::uint32_t>(UINT32_C(0xB5C0FBCF)), static_cast<std::uint32_t>(UINT32_C(0xE9B5DBA5)),
-            static_cast<std::uint32_t>(UINT32_C(0x3956C25B)), static_cast<std::uint32_t>(UINT32_C(0x59F111F1)), static_cast<std::uint32_t>(UINT32_C(0x923F82A4)), static_cast<std::uint32_t>(UINT32_C(0xAB1C5ED5)),
-            static_cast<std::uint32_t>(UINT32_C(0xD807AA98)), static_cast<std::uint32_t>(UINT32_C(0x12835B01)), static_cast<std::uint32_t>(UINT32_C(0x243185BE)), static_cast<std::uint32_t>(UINT32_C(0x550C7DC3)),
-            static_cast<std::uint32_t>(UINT32_C(0x72BE5D74)), static_cast<std::uint32_t>(UINT32_C(0x80DEB1FE)), static_cast<std::uint32_t>(UINT32_C(0x9BDC06A7)), static_cast<std::uint32_t>(UINT32_C(0xC19BF174)),
-            static_cast<std::uint32_t>(UINT32_C(0xE49B69C1)), static_cast<std::uint32_t>(UINT32_C(0xEFBE4786)), static_cast<std::uint32_t>(UINT32_C(0x0FC19DC6)), static_cast<std::uint32_t>(UINT32_C(0x240CA1CC)),
-            static_cast<std::uint32_t>(UINT32_C(0x2DE92C6F)), static_cast<std::uint32_t>(UINT32_C(0x4A7484AA)), static_cast<std::uint32_t>(UINT32_C(0x5CB0A9DC)), static_cast<std::uint32_t>(UINT32_C(0x76F988DA)),
-            static_cast<std::uint32_t>(UINT32_C(0x983E5152)), static_cast<std::uint32_t>(UINT32_C(0xA831C66D)), static_cast<std::uint32_t>(UINT32_C(0xB00327C8)), static_cast<std::uint32_t>(UINT32_C(0xBF597FC7)),
-            static_cast<std::uint32_t>(UINT32_C(0xC6E00BF3)), static_cast<std::uint32_t>(UINT32_C(0xD5A79147)), static_cast<std::uint32_t>(UINT32_C(0x06CA6351)), static_cast<std::uint32_t>(UINT32_C(0x14292967)),
-            static_cast<std::uint32_t>(UINT32_C(0x27B70A85)), static_cast<std::uint32_t>(UINT32_C(0x2E1B2138)), static_cast<std::uint32_t>(UINT32_C(0x4D2C6DFC)), static_cast<std::uint32_t>(UINT32_C(0x53380D13)),
-            static_cast<std::uint32_t>(UINT32_C(0x650A7354)), static_cast<std::uint32_t>(UINT32_C(0x766A0ABB)), static_cast<std::uint32_t>(UINT32_C(0x81C2C92E)), static_cast<std::uint32_t>(UINT32_C(0x92722C85)),
-            static_cast<std::uint32_t>(UINT32_C(0xA2BFE8A1)), static_cast<std::uint32_t>(UINT32_C(0xA81A664B)), static_cast<std::uint32_t>(UINT32_C(0xC24B8B70)), static_cast<std::uint32_t>(UINT32_C(0xC76C51A3)),
-            static_cast<std::uint32_t>(UINT32_C(0xD192E819)), static_cast<std::uint32_t>(UINT32_C(0xD6990624)), static_cast<std::uint32_t>(UINT32_C(0xF40E3585)), static_cast<std::uint32_t>(UINT32_C(0x106AA070)),
-            static_cast<std::uint32_t>(UINT32_C(0x19A4C116)), static_cast<std::uint32_t>(UINT32_C(0x1E376C08)), static_cast<std::uint32_t>(UINT32_C(0x2748774C)), static_cast<std::uint32_t>(UINT32_C(0x34B0BCB5)),
-            static_cast<std::uint32_t>(UINT32_C(0x391C0CB3)), static_cast<std::uint32_t>(UINT32_C(0x4ED8AA4A)), static_cast<std::uint32_t>(UINT32_C(0x5B9CCA4F)), static_cast<std::uint32_t>(UINT32_C(0x682E6FF3)),
-            static_cast<std::uint32_t>(UINT32_C(0x748F82EE)), static_cast<std::uint32_t>(UINT32_C(0x78A5636F)), static_cast<std::uint32_t>(UINT32_C(0x84C87814)), static_cast<std::uint32_t>(UINT32_C(0x8CC70208)),
-            static_cast<std::uint32_t>(UINT32_C(0x90BEFFFA)), static_cast<std::uint32_t>(UINT32_C(0xA4506CEB)), static_cast<std::uint32_t>(UINT32_C(0xBEF9A3F7)), static_cast<std::uint32_t>(UINT32_C(0xC67178F2))
-        };
+        constexpr std::array<std::uint32_t, 64U> transform_constants{
+            static_cast<std::uint32_t>(UINT32_C(0x428A2F98)), static_cast<std::uint32_t>(UINT32_C(0x71374491)),
+            static_cast<std::uint32_t>(UINT32_C(0xB5C0FBCF)), static_cast<std::uint32_t>(UINT32_C(0xE9B5DBA5)),
+            static_cast<std::uint32_t>(UINT32_C(0x3956C25B)), static_cast<std::uint32_t>(UINT32_C(0x59F111F1)),
+            static_cast<std::uint32_t>(UINT32_C(0x923F82A4)), static_cast<std::uint32_t>(UINT32_C(0xAB1C5ED5)),
+            static_cast<std::uint32_t>(UINT32_C(0xD807AA98)), static_cast<std::uint32_t>(UINT32_C(0x12835B01)),
+            static_cast<std::uint32_t>(UINT32_C(0x243185BE)), static_cast<std::uint32_t>(UINT32_C(0x550C7DC3)),
+            static_cast<std::uint32_t>(UINT32_C(0x72BE5D74)), static_cast<std::uint32_t>(UINT32_C(0x80DEB1FE)),
+            static_cast<std::uint32_t>(UINT32_C(0x9BDC06A7)), static_cast<std::uint32_t>(UINT32_C(0xC19BF174)),
+            static_cast<std::uint32_t>(UINT32_C(0xE49B69C1)), static_cast<std::uint32_t>(UINT32_C(0xEFBE4786)),
+            static_cast<std::uint32_t>(UINT32_C(0x0FC19DC6)), static_cast<std::uint32_t>(UINT32_C(0x240CA1CC)),
+            static_cast<std::uint32_t>(UINT32_C(0x2DE92C6F)), static_cast<std::uint32_t>(UINT32_C(0x4A7484AA)),
+            static_cast<std::uint32_t>(UINT32_C(0x5CB0A9DC)), static_cast<std::uint32_t>(UINT32_C(0x76F988DA)),
+            static_cast<std::uint32_t>(UINT32_C(0x983E5152)), static_cast<std::uint32_t>(UINT32_C(0xA831C66D)),
+            static_cast<std::uint32_t>(UINT32_C(0xB00327C8)), static_cast<std::uint32_t>(UINT32_C(0xBF597FC7)),
+            static_cast<std::uint32_t>(UINT32_C(0xC6E00BF3)), static_cast<std::uint32_t>(UINT32_C(0xD5A79147)),
+            static_cast<std::uint32_t>(UINT32_C(0x06CA6351)), static_cast<std::uint32_t>(UINT32_C(0x14292967)),
+            static_cast<std::uint32_t>(UINT32_C(0x27B70A85)), static_cast<std::uint32_t>(UINT32_C(0x2E1B2138)),
+            static_cast<std::uint32_t>(UINT32_C(0x4D2C6DFC)), static_cast<std::uint32_t>(UINT32_C(0x53380D13)),
+            static_cast<std::uint32_t>(UINT32_C(0x650A7354)), static_cast<std::uint32_t>(UINT32_C(0x766A0ABB)),
+            static_cast<std::uint32_t>(UINT32_C(0x81C2C92E)), static_cast<std::uint32_t>(UINT32_C(0x92722C85)),
+            static_cast<std::uint32_t>(UINT32_C(0xA2BFE8A1)), static_cast<std::uint32_t>(UINT32_C(0xA81A664B)),
+            static_cast<std::uint32_t>(UINT32_C(0xC24B8B70)), static_cast<std::uint32_t>(UINT32_C(0xC76C51A3)),
+            static_cast<std::uint32_t>(UINT32_C(0xD192E819)), static_cast<std::uint32_t>(UINT32_C(0xD6990624)),
+            static_cast<std::uint32_t>(UINT32_C(0xF40E3585)), static_cast<std::uint32_t>(UINT32_C(0x106AA070)),
+            static_cast<std::uint32_t>(UINT32_C(0x19A4C116)), static_cast<std::uint32_t>(UINT32_C(0x1E376C08)),
+            static_cast<std::uint32_t>(UINT32_C(0x2748774C)), static_cast<std::uint32_t>(UINT32_C(0x34B0BCB5)),
+            static_cast<std::uint32_t>(UINT32_C(0x391C0CB3)), static_cast<std::uint32_t>(UINT32_C(0x4ED8AA4A)),
+            static_cast<std::uint32_t>(UINT32_C(0x5B9CCA4F)), static_cast<std::uint32_t>(UINT32_C(0x682E6FF3)),
+            static_cast<std::uint32_t>(UINT32_C(0x748F82EE)), static_cast<std::uint32_t>(UINT32_C(0x78A5636F)),
+            static_cast<std::uint32_t>(UINT32_C(0x84C87814)), static_cast<std::uint32_t>(UINT32_C(0x8CC70208)),
+            static_cast<std::uint32_t>(UINT32_C(0x90BEFFFA)), static_cast<std::uint32_t>(UINT32_C(0xA4506CEB)),
+            static_cast<std::uint32_t>(UINT32_C(0xBEF9A3F7)), static_cast<std::uint32_t>(UINT32_C(0xC67178F2))};
 
         transform_context_type state = transform_context;
 
