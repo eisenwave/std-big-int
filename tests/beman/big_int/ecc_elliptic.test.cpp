@@ -24,9 +24,6 @@
 // The SHA-2 HASH-256 implementation has been taken (with slight modification)
 //   from: https://github.com/imahjoub/hash_sha256
 
-BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
-
 #include <gtest/gtest.h>
 
 #include "testing.hpp"
@@ -55,6 +52,9 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
 #include <string>
 #include <utility>
 #include <vector>
+
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
 
 #if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
 using big_sint_type = beman::big_int::big_int;
