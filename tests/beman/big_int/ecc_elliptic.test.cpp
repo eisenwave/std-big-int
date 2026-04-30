@@ -69,14 +69,14 @@ using big_sint_type         = boost::multiprecision::number<big_sint_backend_typ
 
 namespace local::concurrency {
 
-template<typename ClockType = std::chrono::high_resolution_clock>
+template <class ClockType = std::chrono::high_resolution_clock>
 struct stopwatch {
 public:
     using time_point_type = std::uint64_t;
 
     auto reset() -> void { m_start = now(); }
 
-    template <typename RepresentationRequestedTimeType>
+    template <class RepresentationRequestedTimeType>
     static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
         using local_time_type = RepresentationRequestedTimeType;
 
@@ -156,7 +156,7 @@ auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sin
     return result;
 }
 
-template <typename BigIntegerType, typename IteratorType>
+template <class BigIntegerType, typename IteratorType>
 auto import_bits(BigIntegerType& value, IteratorType first, IteratorType last) -> void {
     std::string str{};
 
@@ -244,7 +244,7 @@ public:
             my_data[static_cast<data_array_size_type>(my_datalen)] = msg[i]; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic,cppcoreguidelines-pro-bounds-constant-array-index)
             my_datalen++;
 
-            if(my_datalen == static_cast<std::uint32_t>(UINT8_C(64))) {
+            if (my_datalen == static_cast<std::uint32_t>(UINT8_C(64))) {
                 // LCOV_EXCL_START
                 sha256_transform();
 
@@ -266,7 +266,7 @@ public:
         ++hash_index;
 
         // Pad whatever data is left in the buffer.
-        if(my_datalen < static_cast<std::uint32_t>(UINT8_C(56U))) {
+        if (my_datalen < static_cast<std::uint32_t>(UINT8_C(56U))) {
             std::fill((my_data.begin() + hash_index), (my_data.begin() + static_cast<std::size_t>(UINT8_C(56))), static_cast<std::uint8_t>(UINT8_C(0)));
         } else {
             // LCOV_EXCL_START
@@ -521,12 +521,12 @@ public:
         // This function returns the only integer x such that (x * k) % p == 1.
         // k must be non-zero and p must be a prime.
 
-        if(k == 0) {
+        if (k == 0) {
             // Error: Division by zero.
             return 0; // LCOV_EXCL_LINE
         }
 
-        if(k < 0) {
+        if (k < 0) {
             // k ** -1 = p - (-k) ** -1  (mod p)
             return p - inverse_mod(-k, p);
         }
@@ -605,12 +605,12 @@ public:
             return point2;
         }
 
-        if((x2 == 0) && (y2 == 0)) {
+        if ((x2 == 0) && (y2 == 0)) {
             // point1 + 0 = point1
             return point1; // LCOV_EXCL_LINE
         }
 
-        if((x1 == x2) && (y1 != y2)) {
+        if ((x1 == x2) && (y1 != y2)) {
             // Equivalent to: point1 + (-point1) = 0
             return point_type {}; // LCOV_EXCL_LINE
         }
@@ -635,11 +635,11 @@ public:
     auto scalar_mult(const big_sint_type& k, const point_type& point) -> point_type { // NOLINT(misc-no-recursion)
         // Returns k * point computed using the double and point_add algorithm.
 
-        if(((k % curve_n()) == 0) || ((point.my_x == 0) && (point.my_y == 0))) {
+        if (((k % curve_n()) == 0) || ((point.my_x == 0) && (point.my_y == 0))) {
             return point_type {}; // LCOV_EXCL_LINE
         }
 
-        if(k < 0) {
+        if (k < 0) {
             // k * point = -k * (-point)
             return scalar_mult(-k, point_neg(point)); // LCOV_EXCL_LINE
         }
@@ -653,7 +653,7 @@ public:
             const auto lo_bit = static_cast<unsigned>(
                 static_cast<unsigned>(k_val) & static_cast<unsigned>(UINT8_C(1)));
 
-            if(lo_bit != static_cast<unsigned>(UINT8_C(0))) {
+            if (lo_bit != static_cast<unsigned>(UINT8_C(0))) {
                 // Add.
                 result = point_add(result, addend);
             }
@@ -667,7 +667,7 @@ public:
         return result;
     }
 
-    template<typename UnknownWideUintType>
+    template <class UnknownWideUintType>
     static auto get_pseudo_random_uint(const unsigned bits_to_get,
                                        const UnknownWideUintType& max_value = UnknownWideUintType(0U)) -> UnknownWideUintType {
         using local_wide_unsigned_integer_type = UnknownWideUintType;
@@ -699,7 +699,7 @@ public:
         return {private_key, {big_sint_type{public_key.my_x}, big_sint_type{public_key.my_y}}};
     }
 
-    template<typename MsgIteratorType>
+    template <class MsgIteratorType>
     auto hash_message(MsgIteratorType msg_first, MsgIteratorType msg_last) -> big_sint_type {
 
         // This subroutine returns the hash of the message (msg), where
@@ -724,7 +724,7 @@ public:
         return z;
     }
 
-    template<typename MsgIteratorType>
+    template <class MsgIteratorType>
     auto sign_message(const big_sint_type&  private_key,
                       MsgIteratorType msg_first,
                       MsgIteratorType msg_last,
@@ -761,7 +761,7 @@ public:
         return {big_sint_type(r), big_sint_type(s)};
     }
 
-    template<typename MsgIteratorType>
+    template <class MsgIteratorType>
     auto verify_signature(const std::pair<big_sint_type, big_sint_type>& pub,
                           MsgIteratorType                          msg_first,
                           MsgIteratorType                          msg_last,
@@ -791,7 +791,7 @@ private:
     const char* SubGroupOrderN;
     const int   SubGroupCoFactorH;
 
-    template<typename UnknownWideUintType>
+    template <class UnknownWideUintType>
     static auto get_pseudo_random_uint_worker(const unsigned bits_to_get) -> UnknownWideUintType {
         using local_wide_unsigned_integer_type = UnknownWideUintType;
 
