@@ -63,7 +63,7 @@ using big_sint_backend_type = boost::multiprecision::cpp_int_backend<>;
 using big_sint_type         = boost::multiprecision::number<big_sint_backend_type, boost::multiprecision::et_off>;
 #endif
 
-namespace beman::big_int::local::concurrency {
+namespace beman::big_int::example::local::concurrency {
 
 template <class ClockType = std::chrono::high_resolution_clock>
 struct stopwatch {
@@ -101,7 +101,7 @@ struct stopwatch {
     }
 };
 
-} // namespace beman::big_int::local::concurrency
+} // namespace beman::big_int::example::local::concurrency
 
 namespace beman::big_int::example {
 
@@ -941,7 +941,7 @@ auto beman::big_int::example::ecdsa_sign_verify() -> bool {
 }
 
 TEST(Benchmarks, EccElliptic01) {
-    using local_stopwatch_type = local::concurrency::stopwatch<>;
+    using local_stopwatch_type = beman::big_int::example::local::concurrency::stopwatch<>;
 
     local_stopwatch_type my_stopwatch{};
 
