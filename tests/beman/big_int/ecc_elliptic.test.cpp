@@ -112,18 +112,6 @@ auto div_rem_to_neg_inf(const big_sint_type& a, const big_sint_type& b) -> std::
 
 auto div_rem_to_neg_inf(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type> {
 
-    // The div_rem_to_neg_inf function divides a by b and rounds the result
-    // down to the nearest whole number (toward negative infinity).
-    // It is equivalent to the // symbol in Python and the
-    // QuotientRemainder function in Mathematica.
-
-auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type> {
-
-    // The divmod function divides a by b and rounds the result
-    // down to the nearest whole number (toward negative infinity).
-    // It is equivalent to the // symbol in Python and the
-    // QuotientRemainder function in Mathematica.
-
     const bool numer_was_neg{a < 0};
     const bool denom_was_neg{b < 0};
 
@@ -639,7 +627,8 @@ class elliptic_curve : public ecc_point {
         // Negate y3 for the modulus operation below.
         const big_sint_type y3{(m * (x1 - x3)) - y1};
 
-        return point_type{detail::div_rem_to_neg_inf(x3, curve_p()).second, detail::div_rem_to_neg_inf(y3, curve_p()).second};
+        return point_type{detail::div_rem_to_neg_inf(x3, curve_p()).second,
+                          detail::div_rem_to_neg_inf(y3, curve_p()).second};
     }
 
     auto scalar_mult(const big_sint_type& k, const point_type& point) -> point_type { // NOLINT(misc-no-recursion)
