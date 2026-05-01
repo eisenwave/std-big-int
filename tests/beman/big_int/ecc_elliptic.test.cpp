@@ -791,7 +791,8 @@ class elliptic_curve : public ecc_point {
         const auto pt = point_add(scalar_mult(u1, point_type(curve_gx(), curve_gy())),
                                   scalar_mult(u2, point_type(pub.first, pub.second)));
 
-        return (detail::div_rem_to_neg_inf(sig.first, curve_n()).second == detail::div_rem_to_neg_inf(pt.my_x, curve_n()).second);
+        return (detail::div_rem_to_neg_inf(sig.first, curve_n()).second ==
+                detail::div_rem_to_neg_inf(pt.my_x, curve_n()).second);
     }
 
   private:
