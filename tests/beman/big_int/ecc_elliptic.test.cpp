@@ -50,7 +50,6 @@
 
 #if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 #endif
 
@@ -90,13 +89,13 @@ struct stopwatch {
         const auto current_now = static_cast<std::uintmax_t>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(local_clock_type::now().time_since_epoch()).count());
 
-        return static_cast<time_point_type>(static_cast<time_point_type>(current_now));
+        return static_cast<time_point_type>(current_now);
     }
 
     [[nodiscard]] auto elapsed() const -> time_point_type {
         const time_point_type stop{now()};
 
-        const time_point_type elapsed_ns{static_cast<time_point_type>(stop - m_start)};
+        const time_point_type elapsed_ns{stop - m_start};
 
         return elapsed_ns;
     }
@@ -219,22 +218,14 @@ class hash_sha256 {
         my_datalen = static_cast<std::uint32_t>(UINT8_C(0));
         my_bitlen  = static_cast<std::uint64_t>(UINT8_C(0));
 
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(0))] =
-            static_cast<std::uint32_t>(UINT32_C(0x6A09E667));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(1))] =
-            static_cast<std::uint32_t>(UINT32_C(0xBB67AE85));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(2))] =
-            static_cast<std::uint32_t>(UINT32_C(0x3C6EF372));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(3))] =
-            static_cast<std::uint32_t>(UINT32_C(0xA54FF53A));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(4))] =
-            static_cast<std::uint32_t>(UINT32_C(0x510E527F));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(5))] =
-            static_cast<std::uint32_t>(UINT32_C(0x9B05688C));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(6))] =
-            static_cast<std::uint32_t>(UINT32_C(0x1F83D9AB));
-        transform_context[static_cast<transform_context_size_type>(UINT8_C(7))] =
-            static_cast<std::uint32_t>(UINT32_C(0x5BE0CD19));
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(0))] = UINT32_C(0x6A09E667);
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(1))] = UINT32_C(0xBB67AE85);
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(2))] = UINT32_C(0x3C6EF372);
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(3))] = UINT32_C(0xA54FF53A);
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(4))] = UINT32_C(0x510E527F);
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(5))] = UINT32_C(0x9B05688C);
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(6))] = UINT32_C(0x1F83D9AB);
+        transform_context[static_cast<transform_context_size_type>(UINT8_C(7))] = UINT32_C(0x5BE0CD19);
     }
 
     constexpr void update(const std::uint8_t* msg, const size_t length) {
@@ -249,7 +240,7 @@ class hash_sha256 {
 
                 my_datalen = static_cast<std::uint32_t>(UINT8_C(0));
 
-                my_bitlen = static_cast<std::uint64_t>(my_bitlen + static_cast<std::uint_fast16_t>(UINT16_C(512)));
+                my_bitlen = my_bitlen + static_cast<std::uint_fast16_t>(UINT16_C(512));
                 // LCOV_EXCL_STOP
             }
         }
@@ -265,7 +256,7 @@ class hash_sha256 {
         ++hash_index;
 
         // Pad whatever data is left in the buffer.
-        if (my_datalen < static_cast<std::uint32_t>(UINT8_C(56U))) {
+        if (my_datalen < static_cast<std::uint32_t>(UINT8_C(56))) {
             std::fill((my_data.begin() + hash_index),
                       (my_data.begin() + static_cast<std::size_t>(UINT8_C(56))),
                       static_cast<std::uint8_t>(UINT8_C(0)));
@@ -282,9 +273,7 @@ class hash_sha256 {
         }
 
         // Append to the padding the total message length (in bits) and subsequently transform.
-        my_bitlen =
-            static_cast<std::uint64_t>(my_bitlen + static_cast<std::uint64_t>(static_cast<std::uint64_t>(my_datalen) *
-                                                                              static_cast<std::uint8_t>(UINT8_C(8))));
+        my_bitlen = (my_bitlen + (static_cast<std::uint64_t>(my_datalen) * static_cast<std::uint8_t>(UINT8_C(8))));
 
         my_data[static_cast<data_array_size_type>(UINT8_C(63))] =
             static_cast<std::uint8_t>(my_bitlen >> static_cast<unsigned>(UINT8_C(0)));
@@ -315,15 +304,11 @@ class hash_sha256 {
              output_index < std::tuple_size<result_type>::value;
              ++output_index) {
 
-            const auto right_shift_amount = static_cast<std::size_t>(static_cast<std::size_t>(
-                static_cast<std::size_t>(
-                    static_cast<std::size_t>(conversion_scale - static_cast<std::size_t>(UINT8_C(1))) -
-                    static_cast<std::size_t>(output_index % conversion_scale)) *
-                static_cast<std::size_t>(UINT8_C(8))));
+            const auto right_shift_amount =
+                ((conversion_scale - (UINT8_C(1))) - (output_index % conversion_scale)) * UINT8_C(8);
 
-            hash_result[output_index] = static_cast<std::uint8_t>(
-                transform_context[static_cast<transform_context_size_type>(output_index / conversion_scale)] >>
-                right_shift_amount);
+            hash_result[output_index] =
+                static_cast<std::uint8_t>(transform_context[output_index / conversion_scale] >> right_shift_amount);
         }
 
         return hash_result;
@@ -340,24 +325,11 @@ class hash_sha256 {
 
         for (auto i = static_cast<std::size_t>(UINT8_C(0)), j = static_cast<std::size_t>(UINT8_C(0));
              i < static_cast<std::size_t>(UINT8_C(16));
-             ++i, j = static_cast<std::size_t>(j + static_cast<std::size_t>(UINT8_C(4)))) {
-            m[i] =
-                static_cast<std::uint32_t>(
-                    static_cast<std::uint32_t>(
-                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(0)))])
-                    << static_cast<unsigned>(UINT8_C(24))) |
-                static_cast<std::uint32_t>(
-                    static_cast<std::uint32_t>(
-                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(1)))])
-                    << static_cast<unsigned>(UINT8_C(16))) |
-                static_cast<std::uint32_t>(
-                    static_cast<std::uint32_t>(
-                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(2)))])
-                    << static_cast<unsigned>(UINT8_C(8))) |
-                static_cast<std::uint32_t>(
-                    static_cast<std::uint32_t>(
-                        my_data[static_cast<data_array_size_type>(j + static_cast<data_array_size_type>(UINT8_C(3)))])
-                    << static_cast<unsigned>(UINT8_C(0)));
+             ++i, j = j + static_cast<std::size_t>(UINT8_C(4))) {
+            m[i] = (static_cast<std::uint32_t>(my_data[j + UINT8_C(0)]) << static_cast<unsigned>(UINT8_C(24))) |
+                   (static_cast<std::uint32_t>(my_data[j + UINT8_C(1)]) << static_cast<unsigned>(UINT8_C(16))) |
+                   (static_cast<std::uint32_t>(my_data[j + UINT8_C(2)]) << static_cast<unsigned>(UINT8_C(8))) |
+                   (static_cast<std::uint32_t>(my_data[j + UINT8_C(3)]) << static_cast<unsigned>(UINT8_C(0)));
         }
 
         for (auto i = static_cast<std::size_t>(UINT8_C(16)); i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
@@ -366,53 +338,37 @@ class hash_sha256 {
         }
 
         constexpr std::array<std::uint32_t, 64U> transform_constants{
-            static_cast<std::uint32_t>(UINT32_C(0x428A2F98)), static_cast<std::uint32_t>(UINT32_C(0x71374491)),
-            static_cast<std::uint32_t>(UINT32_C(0xB5C0FBCF)), static_cast<std::uint32_t>(UINT32_C(0xE9B5DBA5)),
-            static_cast<std::uint32_t>(UINT32_C(0x3956C25B)), static_cast<std::uint32_t>(UINT32_C(0x59F111F1)),
-            static_cast<std::uint32_t>(UINT32_C(0x923F82A4)), static_cast<std::uint32_t>(UINT32_C(0xAB1C5ED5)),
-            static_cast<std::uint32_t>(UINT32_C(0xD807AA98)), static_cast<std::uint32_t>(UINT32_C(0x12835B01)),
-            static_cast<std::uint32_t>(UINT32_C(0x243185BE)), static_cast<std::uint32_t>(UINT32_C(0x550C7DC3)),
-            static_cast<std::uint32_t>(UINT32_C(0x72BE5D74)), static_cast<std::uint32_t>(UINT32_C(0x80DEB1FE)),
-            static_cast<std::uint32_t>(UINT32_C(0x9BDC06A7)), static_cast<std::uint32_t>(UINT32_C(0xC19BF174)),
-            static_cast<std::uint32_t>(UINT32_C(0xE49B69C1)), static_cast<std::uint32_t>(UINT32_C(0xEFBE4786)),
-            static_cast<std::uint32_t>(UINT32_C(0x0FC19DC6)), static_cast<std::uint32_t>(UINT32_C(0x240CA1CC)),
-            static_cast<std::uint32_t>(UINT32_C(0x2DE92C6F)), static_cast<std::uint32_t>(UINT32_C(0x4A7484AA)),
-            static_cast<std::uint32_t>(UINT32_C(0x5CB0A9DC)), static_cast<std::uint32_t>(UINT32_C(0x76F988DA)),
-            static_cast<std::uint32_t>(UINT32_C(0x983E5152)), static_cast<std::uint32_t>(UINT32_C(0xA831C66D)),
-            static_cast<std::uint32_t>(UINT32_C(0xB00327C8)), static_cast<std::uint32_t>(UINT32_C(0xBF597FC7)),
-            static_cast<std::uint32_t>(UINT32_C(0xC6E00BF3)), static_cast<std::uint32_t>(UINT32_C(0xD5A79147)),
-            static_cast<std::uint32_t>(UINT32_C(0x06CA6351)), static_cast<std::uint32_t>(UINT32_C(0x14292967)),
-            static_cast<std::uint32_t>(UINT32_C(0x27B70A85)), static_cast<std::uint32_t>(UINT32_C(0x2E1B2138)),
-            static_cast<std::uint32_t>(UINT32_C(0x4D2C6DFC)), static_cast<std::uint32_t>(UINT32_C(0x53380D13)),
-            static_cast<std::uint32_t>(UINT32_C(0x650A7354)), static_cast<std::uint32_t>(UINT32_C(0x766A0ABB)),
-            static_cast<std::uint32_t>(UINT32_C(0x81C2C92E)), static_cast<std::uint32_t>(UINT32_C(0x92722C85)),
-            static_cast<std::uint32_t>(UINT32_C(0xA2BFE8A1)), static_cast<std::uint32_t>(UINT32_C(0xA81A664B)),
-            static_cast<std::uint32_t>(UINT32_C(0xC24B8B70)), static_cast<std::uint32_t>(UINT32_C(0xC76C51A3)),
-            static_cast<std::uint32_t>(UINT32_C(0xD192E819)), static_cast<std::uint32_t>(UINT32_C(0xD6990624)),
-            static_cast<std::uint32_t>(UINT32_C(0xF40E3585)), static_cast<std::uint32_t>(UINT32_C(0x106AA070)),
-            static_cast<std::uint32_t>(UINT32_C(0x19A4C116)), static_cast<std::uint32_t>(UINT32_C(0x1E376C08)),
-            static_cast<std::uint32_t>(UINT32_C(0x2748774C)), static_cast<std::uint32_t>(UINT32_C(0x34B0BCB5)),
-            static_cast<std::uint32_t>(UINT32_C(0x391C0CB3)), static_cast<std::uint32_t>(UINT32_C(0x4ED8AA4A)),
-            static_cast<std::uint32_t>(UINT32_C(0x5B9CCA4F)), static_cast<std::uint32_t>(UINT32_C(0x682E6FF3)),
-            static_cast<std::uint32_t>(UINT32_C(0x748F82EE)), static_cast<std::uint32_t>(UINT32_C(0x78A5636F)),
-            static_cast<std::uint32_t>(UINT32_C(0x84C87814)), static_cast<std::uint32_t>(UINT32_C(0x8CC70208)),
-            static_cast<std::uint32_t>(UINT32_C(0x90BEFFFA)), static_cast<std::uint32_t>(UINT32_C(0xA4506CEB)),
-            static_cast<std::uint32_t>(UINT32_C(0xBEF9A3F7)), static_cast<std::uint32_t>(UINT32_C(0xC67178F2))};
+            UINT32_C(0x428A2F98), UINT32_C(0x71374491), UINT32_C(0xB5C0FBCF), UINT32_C(0xE9B5DBA5),
+            UINT32_C(0x3956C25B), UINT32_C(0x59F111F1), UINT32_C(0x923F82A4), UINT32_C(0xAB1C5ED5),
+            UINT32_C(0xD807AA98), UINT32_C(0x12835B01), UINT32_C(0x243185BE), UINT32_C(0x550C7DC3),
+            UINT32_C(0x72BE5D74), UINT32_C(0x80DEB1FE), UINT32_C(0x9BDC06A7), UINT32_C(0xC19BF174),
+            UINT32_C(0xE49B69C1), UINT32_C(0xEFBE4786), UINT32_C(0x0FC19DC6), UINT32_C(0x240CA1CC),
+            UINT32_C(0x2DE92C6F), UINT32_C(0x4A7484AA), UINT32_C(0x5CB0A9DC), UINT32_C(0x76F988DA),
+            UINT32_C(0x983E5152), UINT32_C(0xA831C66D), UINT32_C(0xB00327C8), UINT32_C(0xBF597FC7),
+            UINT32_C(0xC6E00BF3), UINT32_C(0xD5A79147), UINT32_C(0x06CA6351), UINT32_C(0x14292967),
+            UINT32_C(0x27B70A85), UINT32_C(0x2E1B2138), UINT32_C(0x4D2C6DFC), UINT32_C(0x53380D13),
+            UINT32_C(0x650A7354), UINT32_C(0x766A0ABB), UINT32_C(0x81C2C92E), UINT32_C(0x92722C85),
+            UINT32_C(0xA2BFE8A1), UINT32_C(0xA81A664B), UINT32_C(0xC24B8B70), UINT32_C(0xC76C51A3),
+            UINT32_C(0xD192E819), UINT32_C(0xD6990624), UINT32_C(0xF40E3585), UINT32_C(0x106AA070),
+            UINT32_C(0x19A4C116), UINT32_C(0x1E376C08), UINT32_C(0x2748774C), UINT32_C(0x34B0BCB5),
+            UINT32_C(0x391C0CB3), UINT32_C(0x4ED8AA4A), UINT32_C(0x5B9CCA4F), UINT32_C(0x682E6FF3),
+            UINT32_C(0x748F82EE), UINT32_C(0x78A5636F), UINT32_C(0x84C87814), UINT32_C(0x8CC70208),
+            UINT32_C(0x90BEFFFA), UINT32_C(0xA4506CEB), UINT32_C(0xBEF9A3F7), UINT32_C(0xC67178F2)};
 
         transform_context_type state = transform_context;
 
         for (auto i = static_cast<std::size_t>(UINT8_C(0)); i < static_cast<std::size_t>(UINT8_C(64)); ++i) {
-            const auto tmp1 = static_cast<std::uint32_t>(state[static_cast<std::size_t>(UINT8_C(7))] +
-                                                         bsig1(state[static_cast<std::size_t>(UINT8_C(4))]) +
-                                                         ch(state[static_cast<std::size_t>(UINT8_C(4))],
-                                                            state[static_cast<std::size_t>(UINT8_C(5))],
-                                                            state[static_cast<std::size_t>(UINT8_C(6))]) +
-                                                         transform_constants[i] + m[i]);
+            const auto tmp1 = state[static_cast<std::size_t>(UINT8_C(7))] +
+                              bsig1(state[static_cast<std::size_t>(UINT8_C(4))]) +
+                              ch(state[static_cast<std::size_t>(UINT8_C(4))],
+                                 state[static_cast<std::size_t>(UINT8_C(5))],
+                                 state[static_cast<std::size_t>(UINT8_C(6))]) +
+                              transform_constants[i] + m[i];
 
-            const auto tmp2 = static_cast<std::uint32_t>(bsig0(state[static_cast<std::size_t>(UINT8_C(0))]) +
-                                                         maj(state[static_cast<std::size_t>(UINT8_C(0))],
-                                                             state[static_cast<std::size_t>(UINT8_C(1))],
-                                                             state[static_cast<std::size_t>(UINT8_C(2))]));
+            const auto tmp2 =
+                bsig0(state[static_cast<std::size_t>(UINT8_C(0))]) + maj(state[static_cast<std::size_t>(UINT8_C(0))],
+                                                                         state[static_cast<std::size_t>(UINT8_C(1))],
+                                                                         state[static_cast<std::size_t>(UINT8_C(2))]);
 
             state[static_cast<std::size_t>(UINT8_C(7))] = state[static_cast<std::size_t>(UINT8_C(6))];
             state[static_cast<std::size_t>(UINT8_C(6))] = state[static_cast<std::size_t>(UINT8_C(5))];
@@ -421,7 +377,7 @@ class hash_sha256 {
             state[static_cast<std::size_t>(UINT8_C(3))] = state[static_cast<std::size_t>(UINT8_C(2))];
             state[static_cast<std::size_t>(UINT8_C(2))] = state[static_cast<std::size_t>(UINT8_C(1))];
             state[static_cast<std::size_t>(UINT8_C(1))] = state[static_cast<std::size_t>(UINT8_C(0))];
-            state[static_cast<std::size_t>(UINT8_C(0))] = static_cast<std::uint32_t>(tmp1 + tmp2);
+            state[static_cast<std::size_t>(UINT8_C(0))] = tmp1 + tmp2;
         }
 
         transform_context[static_cast<std::size_t>(UINT8_C(0))] += state[static_cast<std::size_t>(UINT8_C(0))];
@@ -435,20 +391,17 @@ class hash_sha256 {
     }
 
     static constexpr auto rotl(std::uint32_t a, unsigned b) -> std::uint32_t {
-        return (static_cast<std::uint32_t>(a << b) |
-                static_cast<std::uint32_t>(a >> (static_cast<unsigned>(UINT8_C(32)) - b)));
+        return ((a << b) | (a >> (static_cast<unsigned>(UINT8_C(32)) - b)));
     }
     static constexpr auto rotr(std::uint32_t a, unsigned b) -> std::uint32_t {
-        return (static_cast<std::uint32_t>(a >> b) |
-                static_cast<std::uint32_t>(a << (static_cast<unsigned>(UINT8_C(32)) - b)));
+        return ((a >> b) | (a << (static_cast<unsigned>(UINT8_C(32)) - b)));
     }
 
     static constexpr auto ch(std::uint32_t x, std::uint32_t y, std::uint32_t z) -> std::uint32_t {
-        return (static_cast<std::uint32_t>(x & y) ^ static_cast<std::uint32_t>(~x & z));
+        return ((x & y) ^ (~x & z));
     }
     static constexpr auto maj(std::uint32_t x, std::uint32_t y, std::uint32_t z) -> std::uint32_t {
-        return (static_cast<std::uint32_t>(x & y) ^ static_cast<std::uint32_t>(x & z) ^
-                static_cast<std::uint32_t>(y & z));
+        return ((x & y) ^ (x & z) ^ (y & z));
     }
 
     static constexpr auto bsig0(std::uint32_t x) -> std::uint32_t {
@@ -516,14 +469,14 @@ class elliptic_curve : public ecc_point {
 
     using keypair_type = std::pair<big_sint_type, std::pair<big_sint_type, big_sint_type>>;
 
-    auto curve_p() noexcept -> big_sint_type { return big_sint_type(detail::from_chars_16(FieldCharacteristicP)); }
-    auto curve_a() noexcept -> big_sint_type { return big_sint_type(detail::from_chars_16(CurveCoefficientA)); }
-    auto curve_b() noexcept -> big_sint_type { return big_sint_type(detail::from_chars_16(CurveCoefficientB)); }
+    auto curve_p() noexcept -> big_sint_type { return detail::from_chars_16(FieldCharacteristicP); }
+    auto curve_a() noexcept -> big_sint_type { return detail::from_chars_16(CurveCoefficientA); }
+    auto curve_b() noexcept -> big_sint_type { return detail::from_chars_16(CurveCoefficientB); }
 
-    auto curve_gx() noexcept -> big_sint_type { return big_sint_type(detail::from_chars_16(CoordX)); }
-    auto curve_gy() noexcept -> big_sint_type { return big_sint_type(detail::from_chars_16(CoordY)); }
+    auto curve_gx() noexcept -> big_sint_type { return detail::from_chars_16(CoordX); }
+    auto curve_gy() noexcept -> big_sint_type { return detail::from_chars_16(CoordY); }
 
-    auto curve_n() noexcept -> big_sint_type { return big_sint_type(detail::from_chars_16(SubGroupOrderN)); }
+    auto curve_n() noexcept -> big_sint_type { return detail::from_chars_16(SubGroupOrderN); }
 
     auto inverse_mod(const big_sint_type& k, const big_sint_type& p) -> big_sint_type {
         // Returns the inverse of k modulo p.
@@ -649,8 +602,7 @@ class elliptic_curve : public ecc_point {
         big_sint_type k_val{k};
 
         do {
-            const auto lo_bit =
-                static_cast<unsigned>(static_cast<unsigned>(k_val) & static_cast<unsigned>(UINT8_C(1)));
+            const auto lo_bit = static_cast<unsigned>(k_val) & static_cast<unsigned>(UINT8_C(1));
 
             if (lo_bit != static_cast<unsigned>(UINT8_C(0))) {
                 // Add.
@@ -722,7 +674,7 @@ class elliptic_curve : public ecc_point {
 
         big_sint_type z{};
 
-        static_cast<void>(detail::import_bits(z, hash_result.cbegin(), hash_result.cend()));
+        detail::import_bits(z, hash_result.cbegin(), hash_result.cend());
 
         return z;
     }
@@ -840,7 +792,7 @@ inline constexpr char CurveCoefficientB[]    = "7";
 inline constexpr char BasePointGx[]          = "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798";
 inline constexpr char BasePointGy[]          = "483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8";
 inline constexpr char SubGroupOrderN[]       = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
-inline constexpr auto SubGroupCoFactorH      = static_cast<int>(INT8_C(1));
+inline constexpr auto SubGroupCoFactorH      = 1;
 
 } // namespace curve_params
 
