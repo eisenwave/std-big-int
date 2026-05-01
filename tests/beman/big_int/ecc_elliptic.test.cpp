@@ -108,14 +108,9 @@ namespace big_int::example {
 
 namespace detail {
 
-auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type>;
+auto div_rem_to_neg_inf(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type>;
 
-auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type> {
-
-    // The divmod function divides a by b and rounds the result
-    // down to the nearest whole number (toward negative infinity).
-    // It is equivalent to the // symbol in Python and the
-    // QuotientRemainder function in Mathematica.
+auto div_rem_to_neg_inf(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type> {
 
     const bool numer_was_neg{a < 0};
     const bool denom_was_neg{b < 0};
@@ -553,7 +548,7 @@ class elliptic_curve : public ecc_point {
         big_sint_type old_r{k};
 
         while (r != 0U) {
-            const big_sint_type quotient{detail::divmod(old_r, r).first};
+            const big_sint_type quotient{detail::div_rem_to_neg_inf(old_r, r).first};
 
             const big_sint_type tmp_r{r};
             r     = old_r - (quotient * r);
@@ -564,7 +559,7 @@ class elliptic_curve : public ecc_point {
             old_s = tmp_s;
         }
 
-        return detail::divmod(old_s, p).second;
+        return detail::div_rem_to_neg_inf(old_s, p).second;
     }
 
     // Functions that work on curve points
@@ -584,7 +579,7 @@ class elliptic_curve : public ecc_point {
         const big_sint_type num{(point.my_y * point.my_y) - (point.my_x * (point.my_x * point.my_x)) -
                                 (point.my_x * curve_a()) - curve_b()};
 
-        const big_sint_type divmod_result{detail::divmod(num, curve_p()).second};
+        const big_sint_type divmod_result{detail::div_rem_to_neg_inf(num, curve_p()).second};
 
         return (divmod_result == 0);
     }
@@ -595,7 +590,7 @@ class elliptic_curve : public ecc_point {
 
         return {((point.my_x == 0) && (point.my_y == 0))
                     ? point_type{}
-                    : point_type{point.my_x, -detail::divmod(point.my_y, curve_p()).second}};
+                    : point_type{point.my_x, -detail::div_rem_to_neg_inf(point.my_y, curve_p()).second}};
     }
     // LCOV_EXCL_STOP
 
@@ -632,7 +627,8 @@ class elliptic_curve : public ecc_point {
         // Negate y3 for the modulus operation below.
         const big_sint_type y3{(m * (x1 - x3)) - y1};
 
-        return point_type{detail::divmod(x3, curve_p()).second, detail::divmod(y3, curve_p()).second};
+        return point_type{detail::div_rem_to_neg_inf(x3, curve_p()).second,
+                          detail::div_rem_to_neg_inf(y3, curve_p()).second};
     }
 
     auto scalar_mult(const big_sint_type& k, const point_type& point) -> point_type { // NOLINT(misc-no-recursion)
@@ -761,11 +757,11 @@ class elliptic_curve : public ecc_point {
 
             const point_type pt{scalar_mult(k, point_type(curve_gx(), curve_gy()))};
 
-            r = detail::divmod(pt.my_x, curve_n()).second;
+            r = detail::div_rem_to_neg_inf(pt.my_x, curve_n()).second;
 
             const big_sint_type num{(z + (r * pk)) * inverse_mod(k, curve_n())};
 
-            s = detail::divmod(num, n).second;
+            s = detail::div_rem_to_neg_inf(num, n).second;
         }
 
         return {big_sint_type(r), big_sint_type(s)};
@@ -785,13 +781,14 @@ class elliptic_curve : public ecc_point {
 
         const auto z = hash_message(msg_first, msg_last);
 
-        const big_sint_type u1{detail::divmod(z * w, curve_n()).second};
-        const big_sint_type u2{detail::divmod(sig.first * w, curve_n()).second};
+        const big_sint_type u1{detail::div_rem_to_neg_inf(z * w, curve_n()).second};
+        const big_sint_type u2{detail::div_rem_to_neg_inf(sig.first * w, curve_n()).second};
 
         const auto pt = point_add(scalar_mult(u1, point_type(curve_gx(), curve_gy())),
                                   scalar_mult(u2, point_type(pub.first, pub.second)));
 
-        return (detail::divmod(sig.first, curve_n()).second == detail::divmod(pt.my_x, curve_n()).second);
+        return (detail::div_rem_to_neg_inf(sig.first, curve_n()).second ==
+                detail::div_rem_to_neg_inf(pt.my_x, curve_n()).second);
     }
 
   private:
