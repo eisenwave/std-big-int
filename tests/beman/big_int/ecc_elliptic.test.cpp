@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
 // This C++ work has benefited from parts of andreacorbellini/ecc (in Python script).
 //   see also: https://github.com/andreacorbellini/ecc
 //   and also: https://github.com/andreacorbellini/ecc/blob/master/scripts/ecdsa.py
 
-// For algorithm description of ECDSA, please consult also:
+// For a description of the geometric ECDSA algorithm, please consult also:
 //   D. Hankerson, A. Menezes, S. Vanstone, "Guide to Elliptic
 //   Curve Cryptography", Springer 2004, Chapter 4, in particular
 //   Algorithm 4.24 (keygen on page 180), and Algorithms 4.29 and 4.30.
 //   Complete descriptions of sign/verify are featured on page 184.
 
-// For another algorithm description of ECDSA,
+// For another algorithmic description of ECDSA,
 //   see also: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.186-5.pdf
 
-// For algorithm description of SHA-2 HASH-256,
+// For algorithmic description of SHA-2 HASH-256,
 //   see also: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
 
 // The SHA-2 HASH-256 implementation has been taken (with slight modification)
@@ -48,9 +49,11 @@
 #include <utility>
 #include <vector>
 
+#if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
+#endif
 
 #if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
 using big_sint_type = beman::big_int::big_int;
@@ -62,6 +65,46 @@ using big_sint_backend_type = boost::multiprecision::cpp_int_backend<>;
 using big_sint_type         = boost::multiprecision::number<big_sint_backend_type, boost::multiprecision::et_off>;
 #endif
 
+namespace local::concurrency {
+
+template <class ClockType = std::chrono::high_resolution_clock>
+struct stopwatch {
+  public:
+    using time_point_type = std::uint64_t;
+
+    auto reset() -> void { m_start = now(); }
+
+    template <class RepresentationRequestedTimeType>
+    static auto elapsed_time(const stopwatch& my_stopwatch) noexcept -> RepresentationRequestedTimeType {
+        using local_time_type = RepresentationRequestedTimeType;
+
+        return local_time_type{static_cast<local_time_type>(my_stopwatch.elapsed()) /
+                               local_time_type{UINTMAX_C(1000000000)}};
+    }
+
+  private:
+    time_point_type m_start{now()};
+
+    [[nodiscard]] static auto now() -> time_point_type {
+        using local_clock_type = ClockType;
+
+        const auto current_now = static_cast<std::uintmax_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(local_clock_type::now().time_since_epoch()).count());
+
+        return static_cast<time_point_type>(static_cast<time_point_type>(current_now));
+    }
+
+    [[nodiscard]] auto elapsed() const -> time_point_type {
+        const time_point_type stop{now()};
+
+        const time_point_type elapsed_ns{static_cast<time_point_type>(stop - m_start)};
+
+        return elapsed_ns;
+    }
+};
+
+} // namespace local::concurrency
+
 namespace big_int::example {
 
 namespace detail {
@@ -69,6 +112,12 @@ namespace detail {
 auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type>;
 
 auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type> {
+
+    // The divmod function divides a by b and rounds the result
+    // down to the nearest whole number (toward negative infinity).
+    // It is equivalent to the // symbol in Python and the
+    // QuotientRemainder function in Mathematica.
+
     const bool numer_was_neg{a < 0};
     const bool denom_was_neg{b < 0};
 
@@ -197,8 +246,7 @@ class hash_sha256 {
     constexpr void update(const std::uint8_t* msg, const size_t length) {
 
         for (auto i = static_cast<std::size_t>(UINT8_C(0)); i < length; ++i) {
-            my_data[static_cast<data_array_size_type>(my_datalen)] = msg
-                [i]; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic,cppcoreguidelines-pro-bounds-constant-array-index)
+            my_data[static_cast<data_array_size_type>(my_datalen)] = msg[i];
             my_datalen++;
 
             if (my_datalen == static_cast<std::uint32_t>(UINT8_C(64))) {
@@ -661,8 +709,9 @@ class elliptic_curve : public ecc_point {
     template <class MsgIteratorType>
     auto hash_message(MsgIteratorType msg_first, MsgIteratorType msg_last) -> big_sint_type {
 
-        // This subroutine returns the hash of the message (msg), where
-        // the type of the hash is 256-bit SHA2, as implenebted locally above.
+        // This subroutine returns the hash of the message (msg) as a big integer.
+        // The type of the hash is 256-bit SHA2, as implemented locally above.
+        // Thereby the returned big integer type is also 256-bits in width.
 
         // For those interested in the general case of ECC, a larger/smaller
         // bit-length hash needs to be left/right shifted for cases when there
@@ -688,6 +737,10 @@ class elliptic_curve : public ecc_point {
                       MsgIteratorType      msg_first,
                       MsgIteratorType      msg_last,
                       const big_sint_type* p_uint_seed = nullptr) -> std::pair<big_sint_type, big_sint_type> {
+
+        // This subroutine signs a pre-hashed message and returns the
+        // point {r,s}. These are the signature components on the
+        // elliptic curve.
 
         const auto z{hash_message(msg_first, msg_last)};
 
@@ -724,6 +777,11 @@ class elliptic_curve : public ecc_point {
                           MsgIteratorType                                msg_first,
                           MsgIteratorType                                msg_last,
                           const std::pair<big_sint_type, big_sint_type>& sig) -> bool {
+
+        // This subroutine verifies a signed, pre-hashed message using
+        // the public key and the point {r,s} (i.e., the signature components)
+        // on the elliptic curve.
+
         const big_sint_type w(inverse_mod(sig.second, curve_n()));
 
         const auto z = hash_message(msg_first, msg_last);
@@ -935,9 +993,20 @@ auto big_int::example::ecdsa_sign_verify() -> bool {
 }
 
 TEST(Benchmarks, EccElliptic01) {
+    using local_stopwatch_type = local::concurrency::stopwatch<>;
+
+    local_stopwatch_type my_stopwatch{};
+
     const bool result_is_ok{big_int::example::ecdsa_sign_verify()};
 
+    const float elapsed{local_stopwatch_type::elapsed_time<float>(my_stopwatch)};
+
+    const bool result_stopwatch_is_ok{(elapsed > 0.01F) && (elapsed < 1000.F)};
+
     EXPECT_EQ(result_is_ok, true);
+    EXPECT_EQ(result_stopwatch_is_ok, true);
 }
 
+#if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
+#endif
