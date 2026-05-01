@@ -117,6 +117,13 @@ auto div_rem_to_neg_inf(const big_sint_type& a, const big_sint_type& b) -> std::
     // It is equivalent to the // symbol in Python and the
     // QuotientRemainder function in Mathematica.
 
+auto divmod(const big_sint_type& a, const big_sint_type& b) -> std::pair<big_sint_type, big_sint_type> {
+
+    // The divmod function divides a by b and rounds the result
+    // down to the nearest whole number (toward negative infinity).
+    // It is equivalent to the // symbol in Python and the
+    // QuotientRemainder function in Mathematica.
+
     const bool numer_was_neg{a < 0};
     const bool denom_was_neg{b < 0};
 
