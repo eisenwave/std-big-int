@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
 // This C++ work has benefited from parts of andreacorbellini/ecc (in Python script).
