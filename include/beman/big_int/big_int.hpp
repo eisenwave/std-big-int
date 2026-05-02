@@ -1597,6 +1597,15 @@ constexpr auto basic_big_int<b, A>::bitwise_assign_impl(T&& rhs) -> basic_big_in
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<T>, basic_big_int>) {
+            if (std::addressof(rhs) == this) {
+                if constexpr (op == detail::bitwise_op::xor_) {
+                    set_zero();
+                }
+                // & and | are identity on self so value needs to be unchanged.
+                return *this;
+            }
+        }
         bitwise_in_place<op>(rhs.representation(), rhs.is_negative());
     } else {
         const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
@@ -1604,6 +1613,7 @@ constexpr auto basic_big_int<b, A>::bitwise_assign_impl(T&& rhs) -> basic_big_in
     }
     return *this;
 }
+
 // [big.int.binary]
 //
 // The shared pattern for `operator+` and `operator-` is: build `Result r` from one
