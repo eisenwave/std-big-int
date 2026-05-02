@@ -64,6 +64,38 @@ def generate_case(suite: str, name: str, a: int, b: int) -> str:
     ]
     return "\n".join(lines)
 
+def generate_compound_case(suite: str, name: str, a: int, b: int) -> str:
+    """Generate a TEST() verifying that op= matches the free operator."""
+    lines = [f"TEST({suite}, {name}) {{"]
+    lines += make_big_int("a", a)
+    lines += make_big_int("b", b)
+    lines += [
+        "",
+        "    { big_int x = a; x &= b; EXPECT_EQ(x, a & b); }",
+        "    { big_int x = b; x &= a; EXPECT_EQ(x, b & a);  // commutativity",
+        "    }",
+        "    { big_int x = a; x |= b; EXPECT_EQ(x, a | b); }",
+        "    { big_int x = b; x |= a; EXPECT_EQ(x, b | a);  // commutativity",
+        "    }",
+        "    { big_int x = a; x ^= b; EXPECT_EQ(x, a ^ b); }",
+        "    { big_int x = b; x ^= a; EXPECT_EQ(x, b ^ a);  // commutativity",
+        "    }",
+        "}",
+    ]
+    return "\n".join(lines)
+
+def generate_self_assign_case(suite: str, name: str, a: int) -> str:
+    """Generate a TEST() for self-compound-assignment (x op= x)."""
+    lines = [f"TEST({suite}, {name}) {{"]
+    lines += make_big_int("a", a)
+    lines += [
+        "",
+        "    { big_int x = a; x &= x; EXPECT_EQ(x, a & a); }",
+        "    { big_int x = a; x |= x; EXPECT_EQ(x, a | a); }",
+        "    { big_int x = a; x ^= x; EXPECT_EQ(x, a ^ a); }  // must be zero",
+        "}",
+    ]
+    return "\n".join(lines)
 
 def random_n_limb(n: int, rng: random.Random) -> int:
     """Generate a random positive integer with exactly n limbs (top limb nonzero)."""
@@ -182,6 +214,30 @@ def main():
     ]):
         cases.append(de_morgan_case("BitwiseDeMorgan", f"Case{i}", a, b))
 
+    compound_inputs = [
+        (5, 3), (5, -3), (-5, 3), (-5, -3),
+        (42, -1), (-42, -1), (0, -1),
+        (LIMB_MAX, -LIMB_MAX), (-LIMB_MAX, -LIMB_MAX),
+        (1 << LIMB_BITS, -(1 << LIMB_BITS)),
+        (random_n_limb(2, rng), random_n_limb(2, rng)),
+        (-random_n_limb(2, rng), random_n_limb(2, rng)),
+        (random_n_limb(4, rng), random_n_limb(2, rng)),
+        (-random_n_limb(4, rng), -random_n_limb(3, rng)),
+    ]
+    for i, (a, b) in enumerate(compound_inputs):
+        cases.append(generate_compound_case("BitwiseCompoundAssign", f"Case{i}", a, b))
+
+    self_assign_inputs = [
+        0, 1, -1, 7, -7, 42, -42, LIMB_MAX, -LIMB_MAX,
+        1 << LIMB_BITS, -(1 << LIMB_BITS),
+        random_n_limb(2, rng),
+        -random_n_limb(2, rng),
+        random_n_limb(4, rng),
+        -random_n_limb(4, rng),
+    ]
+    for i, a in enumerate(self_assign_inputs):
+        cases.append(generate_self_assign_case("BitwiseSelfAssign", f"Case{i}", a))
+        
     # Edge cases.
     cases.append(generate_case("BitwiseEdgeCases", "ZeroAndMinusOne",        0, -1))
     cases.append(generate_case("BitwiseEdgeCases", "MinusOneAndMinusOne",   -1, -1))
