@@ -1795,7 +1795,7 @@ constexpr void basic_big_int<b, A>::bitwise_in_place(const std::span<const uint_
         constexpr bool    res_neg   = detail::eval_bitwise<op>(NL, NR);
         const std::size_t old_count = limb_count();
 
-        const std::size_t n = [&]() -> std::size_t {
+        constexpr auto make_n = [&]() -> std::size_t {
             if constexpr (op == detail::bitwise_op::and_) {
                 if constexpr (!NL && !NR)
                     return std::min<std::size_t>(old_count, other.size());
@@ -1805,9 +1805,11 @@ constexpr void basic_big_int<b, A>::bitwise_in_place(const std::span<const uint_
                     return other.size();
                 else
                     return std::max<std::size_t>(old_count, other.size());
+            } else {
+                return std::max<std::size_t>(old_count, other.size());
             }
-            return std::max<std::size_t>(old_count, other.size());
-        }();
+        };
+        const std::size_t n = make_n();
 
         grow(n + static_cast<std::size_t>(res_neg));
         // Zero any newly-grown limbs that the old value didn't cover.
