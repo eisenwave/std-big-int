@@ -237,7 +237,6 @@ def main():
     ]
     for i, a in enumerate(self_assign_inputs):
         cases.append(generate_self_assign_case("BitwiseSelfAssign", f"Case{i}", a))
-        
     # Edge cases.
     cases.append(generate_case("BitwiseEdgeCases", "ZeroAndMinusOne",        0, -1))
     cases.append(generate_case("BitwiseEdgeCases", "MinusOneAndMinusOne",   -1, -1))
