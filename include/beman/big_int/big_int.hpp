@@ -1795,18 +1795,18 @@ constexpr void basic_big_int<b, A>::bitwise_in_place(const std::span<const uint_
         constexpr bool    res_neg   = detail::eval_bitwise<op>(NL, NR);
         const std::size_t old_count = limb_count();
 
-        const std::size_t n = []<bool NL2, bool NR2>(std::size_t old_count, std::size_t other_size) -> std::size_t {
+        const std::size_t n = []<bool NL2, bool NR2>(std::size_t old_n, std::size_t other_size) -> std::size_t {
             if constexpr (op == detail::bitwise_op::and_) {
                 if constexpr (!NL2 && !NR2)
-                    return std::min<std::size_t>(old_count, other_size);
+                    return std::min<std::size_t>(old_n, other_size);
                 else if constexpr (!NL2)
-                    return old_count;
+                    return old_n;
                 else if constexpr (!NR2)
                     return other_size;
                 else
-                    return std::max<std::size_t>(old_count, other_size);
+                    return std::max<std::size_t>(old_n, other_size);
             } else {
-                return std::max<std::size_t>(old_count, other_size);
+                return std::max<std::size_t>(old_n, other_size);
             }
         }.template operator()<NL, NR>(old_count, other.size());
 
