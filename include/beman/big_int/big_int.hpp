@@ -164,6 +164,78 @@ template <bitwise_op op, cv_unqualified_integral T>
     }
 }
 
+// Two's-complement bitwise operation on little-endian unsigned limb spans.
+// Computes `(lhs, lhs_neg) OP (rhs, rhs_neg)` and writes the magnitude of
+// the result into `out`, returning whether the result is negative.
+//
+// `out` may safely alias `lhs` or `rhs`: limb `i` of both inputs is read
+// before limb `i` of `out` is written in the same iteration.
+//
+// Preconditions:
+//   - out.size() >= n   where n is computed internally from op/signs
+//   - lhs and rhs are trimmed (no requirement, but carry logic is exact)
+template <bitwise_op op, bool neg_left, bool neg_right, std::size_t extent_a, std::size_t extent_b>
+constexpr bool eval_bitwise_into_spans(const std::span<const uint_multiprecision_t, extent_a> lhs,
+                                       const std::span<const uint_multiprecision_t, extent_b> rhs,
+                                       const std::span<uint_multiprecision_t>                 out) noexcept {
+    constexpr bool res_neg = eval_bitwise<op>(neg_left, neg_right);
+
+    const std::size_t n = [&]() -> std::size_t {
+        if constexpr (op == bitwise_op::and_) {
+            if constexpr (!neg_left && !neg_right)
+                return std::min(lhs.size(), rhs.size());
+            else if constexpr (!neg_left)
+                return lhs.size();
+            else if constexpr (!neg_right)
+                return rhs.size();
+            else
+                return std::max(lhs.size(), rhs.size());
+        } else {
+            return std::max(lhs.size(), rhs.size());
+        }
+    }();
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(out.size() >= n + static_cast<std::size_t>(res_neg));
+
+    bool carry_l = neg_left;
+    bool carry_r = neg_right;
+    bool carry_o = res_neg;
+
+    for (std::size_t i = 0; i < n; ++i) {
+        uint_multiprecision_t l = i < lhs.size() ? lhs[i] : uint_multiprecision_t{0};
+        uint_multiprecision_t r = i < rhs.size() ? rhs[i] : uint_multiprecision_t{0};
+
+        if constexpr (neg_left) {
+            l                 = ~l;
+            auto [sum, carry] = carrying_add(l, uint_multiprecision_t{0}, carry_l);
+            l                 = sum;
+            carry_l           = carry;
+        }
+        if constexpr (neg_right) {
+            r                 = ~r;
+            auto [sum, carry] = carrying_add(r, uint_multiprecision_t{0}, carry_r);
+            r                 = sum;
+            carry_r           = carry;
+        }
+
+        uint_multiprecision_t res = eval_bitwise<op>(l, r);
+        if constexpr (res_neg) {
+            res               = ~res;
+            auto [sum, carry] = carrying_add(res, uint_multiprecision_t{0}, carry_o);
+            res               = sum;
+            carry_o           = carry;
+        }
+        out[i] = res;
+    }
+
+    if constexpr (res_neg) {
+        if (carry_o) {
+            out[n] = uint_multiprecision_t{1};
+            return true; // Wrote n+1 limbs.
+        }
+    }
+    return false; // Exactly n limbs.
+}
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -362,6 +434,16 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         requires detail::common_big_int_type_with<T, basic_big_int>;
     template <class T>
     constexpr basic_big_int& operator%=(T&& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
+
+    template <class T>
+    constexpr basic_big_int& operator&=(T&& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
+    template <class T>
+    constexpr basic_big_int& operator|=(T&& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
+    template <class T>
+    constexpr basic_big_int& operator^=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
 
     // [big.int.ops]
@@ -727,6 +809,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::cv_unqualified_arithmetic T, bool ignore_sign = false>
     [[nodiscard]] constexpr T to() const noexcept;
 
+    template <detail::bitwise_op op, class T>
+    constexpr basic_big_int& bitwise_assign_impl(T&& rhs)
+        requires detail::common_big_int_type_with<T, basic_big_int>;
+
     template <detail::bitwise_op op, bool neg_left, bool neg_right, std::size_t extent_a, std::size_t extent_b>
     [[nodiscard]] static constexpr basic_big_int
     make_bitwise_of_limbs(std::span<const uint_multiprecision_t, extent_a> lhs,
@@ -741,6 +827,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     template <detail::bitwise_op op, class L, class R>
     [[nodiscard]] static constexpr detail::common_big_int_type<L, R> bitwise_impl(L&& x, R&& y);
+
+    // In-place two's-complement bitwise op: *this OP= (other_limbs, other_neg).
+    template <detail::bitwise_op op, std::size_t extent>
+    constexpr void bitwise_in_place(std::span<const uint_multiprecision_t, extent> other, bool other_neg);
 };
 
 // =============================================================================
@@ -1501,6 +1591,19 @@ inline constexpr binary_op_form classify_form_v = [] {
 
 } // namespace detail
 
+template <std::size_t b, class A>
+template <detail::bitwise_op op, class T>
+constexpr auto basic_big_int<b, A>::bitwise_assign_impl(T&& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
+        bitwise_in_place<op>(rhs.representation(), rhs.is_negative());
+    } else {
+        const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
+        bitwise_in_place<op>(detail::to_fixed_span(rhs_limbs), detail::integer_signbit(rhs));
+    }
+    return *this;
+}
 // [big.int.binary]
 //
 // The shared pattern for `operator+` and `operator-` is: build `Result r` from one
@@ -1670,6 +1773,60 @@ constexpr detail::common_big_int_type<L, R> basic_big_int<b, A>::bitwise_impl(L&
         return Result::template dispatch_bitwise<op>(
             detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
     }
+}
+
+template <std::size_t b, class A>
+template <detail::bitwise_op op, std::size_t extent>
+constexpr void basic_big_int<b, A>::bitwise_in_place(const std::span<const uint_multiprecision_t, extent> other,
+                                                     const bool                                           other_neg) {
+    const bool this_neg = is_negative();
+
+    const auto run = [&]<bool NL, bool NR>() {
+        constexpr bool    res_neg   = detail::eval_bitwise<op>(NL, NR);
+        const std::size_t old_count = limb_count();
+
+        const std::size_t n = [&]() -> std::size_t {
+            if constexpr (op == detail::bitwise_op::and_) {
+                if constexpr (!NL && !NR)
+                    return std::min<std::size_t>(old_count, other.size());
+                else if constexpr (!NL)
+                    return old_count;
+                else if constexpr (!NR)
+                    return other.size();
+                else
+                    return std::max<std::size_t>(old_count, other.size());
+            } else {
+                return std::max<std::size_t>(old_count, other.size());
+            }
+        }();
+
+        grow(n + static_cast<std::size_t>(res_neg));
+        // Zero any newly-grown limbs that the old value didn't cover.
+        {
+            limb_type* const p = limb_ptr();
+            for (std::size_t i = old_count; i < n + static_cast<std::size_t>(res_neg); ++i) {
+                p[i] = limb_type{0};
+            }
+        }
+
+        const bool extra = detail::eval_bitwise_into_spans<op, NL, NR>(
+            std::span<const uint_multiprecision_t>{limb_ptr(), old_count},
+            other,
+            std::span<uint_multiprecision_t>{limb_ptr(), n + static_cast<std::size_t>(res_neg)});
+
+        unchecked_set_limb_count(static_cast<std::uint32_t>(extra ? n + 1 : n));
+        unchecked_trim_magnitude();
+        unchecked_set_sign(res_neg && !unchecked_is_magnitude_zero());
+    };
+
+    if (!this_neg && !other_neg)
+        run.template operator()<false, false>();
+    else if (this_neg && !other_neg)
+        run.template operator()<true, false>();
+    else if (!this_neg && other_neg)
+        run.template operator()<false, true>();
+    else
+        run.template operator()<true, true>();
 }
 
 template <class L, class R>
@@ -2311,17 +2468,17 @@ constexpr basic_big_int<b, A>
 basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
                                            const std::span<const uint_multiprecision_t, extent_b> rhs) {
     constexpr bool res_neg = detail::eval_bitwise<op>(neg_left, neg_right);
-    const auto     n       = [&]() -> std::size_t {
+
+    const std::size_t n = [&]() -> std::size_t {
         if constexpr (op == detail::bitwise_op::and_) {
-            if constexpr (!neg_left && !neg_right) {
+            if constexpr (!neg_left && !neg_right)
                 return std::min(lhs.size(), rhs.size());
-            } else if constexpr (!neg_left) {
+            else if constexpr (!neg_left)
                 return lhs.size();
-            } else if constexpr (!neg_right) {
+            else if constexpr (!neg_right)
                 return rhs.size();
-            } else {
+            else
                 return std::max(lhs.size(), rhs.size());
-            }
         } else {
             return std::max(lhs.size(), rhs.size());
         }
@@ -2329,50 +2486,11 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
 
     basic_big_int result;
     result.grow(n + static_cast<std::size_t>(res_neg));
-    limb_type* const dst = result.limb_ptr();
 
-    bool carry_l = neg_left;
-    bool carry_r = neg_right;
-    bool carry_o = res_neg;
-    for (std::size_t i = 0; i < n; ++i) {
-        limb_type l = i < lhs.size() ? lhs[i] : limb_type{0};
-        limb_type r = i < rhs.size() ? rhs[i] : limb_type{0};
-        if constexpr (neg_left) {
-            l                 = ~l;
-            auto [sum, carry] = detail::carrying_add(l, limb_type{0}, carry_l);
-            l                 = sum;
-            carry_l           = carry;
-        }
-        if constexpr (neg_right) {
-            r                 = ~r;
-            auto [sum, carry] = detail::carrying_add(r, limb_type{0}, carry_r);
-            r                 = sum;
-            carry_r           = carry;
-        }
-        limb_type res = detail::eval_bitwise<op>(l, r);
-        if constexpr (res_neg) {
-            res               = ~res;
-            auto [sum, carry] = detail::carrying_add(res, limb_type{0}, carry_o);
-            res               = sum;
-            carry_o           = carry;
-        }
-        dst[i] = res;
-    }
-    // `carry_o` surviving all `n` limbs means the two's complement result was all zeros,
-    // i.e. the bitwise result before negation was all-ones in every limb.
-    // For starters, (2^64 - 1) ^ -1 = 0 in two's complement, result is -2^64,
-    // which requires an extra limb of magnitude[0, 1] = 2^64.
-    if constexpr (res_neg) {
-        if (carry_o) {
-            dst[n] = limb_type{1};
-            result.unchecked_set_limb_count(static_cast<std::uint32_t>(n + 1));
-        } else {
-            result.unchecked_set_limb_count(static_cast<std::uint32_t>(n));
-        }
-    } else {
-        result.unchecked_set_limb_count(static_cast<std::uint32_t>(n));
-    }
+    const bool extra = detail::eval_bitwise_into_spans<op, neg_left, neg_right>(
+        lhs, rhs, std::span<uint_multiprecision_t>{result.limb_ptr(), n + static_cast<std::size_t>(res_neg)});
 
+    result.unchecked_set_limb_count(static_cast<std::uint32_t>(extra ? n + 1 : n));
     result.unchecked_trim_magnitude();
     result.unchecked_set_sign(res_neg && !result.unchecked_is_magnitude_zero());
     return result;
@@ -2865,6 +2983,30 @@ constexpr auto basic_big_int<b, A>::operator%=(T&& rhs) -> basic_big_int&
         }
     }
     return *this;
+}
+
+template <std::size_t b, class A>
+template <class T>
+constexpr auto basic_big_int<b, A>::operator&=(T&& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    return bitwise_assign_impl<detail::bitwise_op::and_>(std::forward<T>(rhs));
+}
+
+template <std::size_t b, class A>
+template <class T>
+constexpr auto basic_big_int<b, A>::operator|=(T&& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    return bitwise_assign_impl<detail::bitwise_op::or_>(std::forward<T>(rhs));
+}
+
+template <std::size_t b, class A>
+template <class T>
+constexpr auto basic_big_int<b, A>::operator^=(T&& rhs) -> basic_big_int&
+    requires detail::common_big_int_type_with<T, basic_big_int>
+{
+    return bitwise_assign_impl<detail::bitwise_op::xor_>(std::forward<T>(rhs));
 }
 
 // private helpers
