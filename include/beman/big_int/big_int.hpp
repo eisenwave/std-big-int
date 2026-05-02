@@ -1805,9 +1805,8 @@ constexpr void basic_big_int<b, A>::bitwise_in_place(const std::span<const uint_
                     return other.size();
                 else
                     return std::max<std::size_t>(old_count, other.size());
-            } else {
-                return std::max<std::size_t>(old_count, other.size());
             }
+            return std::max<std::size_t>(old_count, other.size());
         }();
 
         grow(n + static_cast<std::size_t>(res_neg));
