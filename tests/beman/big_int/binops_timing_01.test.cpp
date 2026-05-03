@@ -120,7 +120,7 @@ auto time_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
 template <class BinOp>
 auto time_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> void {
 
-    // Prepare all the divisions for an upcoming compariative timing analysis.
+    // Prepare all the binary operations for an upcoming compariative timing analysis.
     using big_int_type = beman::big_int::big_int;
     using cpp_int_type =
         boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
@@ -149,8 +149,8 @@ auto time_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
         cpp_int_pairs.push_back({cpp_int_type("0x" + next_str_pair.first), cpp_int_type("0x" + next_str_pair.second)});
     }
 
-    // Use a stopwatch to do a comparative timing run of division
-    // big_int-versus-cpp_int.
+    // Use a stopwatch to do a comparative timing run of the
+    // selected binary operations big_int-versus-cpp_int.
     using local_stopwatch_type = concurrency::stopwatch<>;
 
     float elapsed_big_int{};
@@ -199,7 +199,7 @@ auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
 template <class BinOp>
 auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> void {
 
-    // Verify all division results big_int-versus-cpp_int.
+    // Verify all binary operation results std-big-int-versus-cpp_int.
     for (const auto& next_str_pair : str_pairs) {
         EXPECT_TRUE(bmp::check_cpp_int_equal(std::forward<BinOp>(op), next_str_pair.first, next_str_pair.second));
     }
