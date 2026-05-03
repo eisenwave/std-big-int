@@ -115,10 +115,10 @@ auto fill_str_pairs(vector_str_pair_type& str_pairs, const std::size_t trials) -
 }
 
 template <class BinOp>
-auto time_divisions_all(BinOp op, const vector_str_pair_type& str_pairs) -> void;
+auto time_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> void;
 
 template <class BinOp>
-auto time_divisions_all(BinOp op, const vector_str_pair_type& str_pairs) -> void {
+auto time_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> void {
 
     // Prepare all the divisions for an upcoming compariative timing analysis.
     using big_int_type = beman::big_int::big_int;
@@ -194,10 +194,10 @@ auto time_divisions_all(BinOp op, const vector_str_pair_type& str_pairs) -> void
 }
 
 template <class BinOp>
-auto test_divisions_all(BinOp op, const vector_str_pair_type& str_pairs) -> void;
+auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> void;
 
 template <class BinOp>
-auto test_divisions_all(BinOp op, const vector_str_pair_type& str_pairs) -> void {
+auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> void {
 
     // Verify all division results big_int-versus-cpp_int.
     for (const auto& next_str_pair : str_pairs) {
@@ -214,10 +214,10 @@ TEST(BinaryOperations, BinOpsTiming01) {
     local::fill_str_pairs(str_pairs, trials);
 
     // Use std::plus{}, std::multiplies{}, std::divides{}, etc.
-    local::time_divisions_all(std::divides{}, str_pairs);
+    local::time_bin_op_execs_all(std::divides{}, str_pairs);
 
     // Use std::plus{}, std::multiplies{}, std::divides{}, etc.
-    local::test_divisions_all(std::divides{}, str_pairs);
+    local::test_bin_op_execs_all(std::divides{}, str_pairs);
 
     // TODO(ckormanyos): Formulate this example as a binary-ops perf checker
     //                   that generates a table of pref results featuring
