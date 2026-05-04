@@ -66,7 +66,7 @@ A more in-depth example can be found in [primes.cpp](./primes.cpp).
 Here, we compute several pseudo-random prime-valued unsigned $512$-bit integers.
 For primality testing, we use the well-known Miller-Rabin test.
 
-In this example, the basic number-theoretical `powm(b, p, m)` is needed.
+In this example, the basic number-theoretical function `powm(b, p, m)` is needed.
 It has been implemented locally. This function computes $b^p{\text{mod}}m$.
 
 $2048$ trials are performed in the search for $512$-bit prime candidates.
