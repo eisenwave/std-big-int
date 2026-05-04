@@ -2,7 +2,6 @@
 
 #include <beman/big_int/big_int.hpp>
 
-#include <memory>
 #include <iomanip>
 #include <iostream>
 #include <string>
