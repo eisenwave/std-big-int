@@ -8,7 +8,6 @@
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
 auto get_system_entropy() -> unsigned {
-
     std::random_device rd{};
 
     return rd();
@@ -19,7 +18,7 @@ template <class BigIntType, class RndEngineType>
 auto get_pseudo_random_integer(BigIntType& value_to_get, const BigIntType& max_val, RndEngineType& eng) -> BigIntType {
     using distribution_type = std::uniform_int_distribution<std::uint64_t>;
 
-    distribution_type dist{std::uint64_t{UINT64_C(0x1000000000000001)}, std::uint64_t{UINT64_C(0xFFFFFFFFFFFFFFFF)}};
+    distribution_type dist{std::uint64_t{0x1000000000000001}, std::uint64_t{0xFFFFFFFFFFFFFFFF}};
 
     value_to_get = BigIntType{};
 
@@ -151,8 +150,6 @@ auto miller_rabin(const BigIntType& np, const int trials, RndEngineType& eng) ->
 
     return result_candidate_is_prime;
 }
-
-auto main() -> int;
 
 auto main() -> int {
 
