@@ -9,20 +9,20 @@ real-world examples making use of and showing the features and interfaces of
 In [fibonacci.cpp](./fibonacci.cpp), we compute and verify
 the $1,000^{th}$ Fibonacci number.
 
+Fibonacci numbers are defined by the recursion
+
+$$
+F_{n+1}=F_{n}+F_{n-1}{\text{.}}
+$$
+
 Fibonacci numbers are fascinating because their simple recurrence
 is deeply connectd to rich structures that can be found everywhere
 in nature and mathematics.
 
-Fibonacci numbers are defined by the recursion
+They grow roughly exponentially approximately according to
 
 $$
-F_{n+1}\,=\,F_{n}+F_{n-1}{\text{.}}
+F_{n}\,\approx\,\dfrac{{\phi}^{n}}{\sqrt{5}}{\text{,}}
 $$
 
-Fibonacci numbers grow roughly exponentially approximately according to
-
-$$
-F_{n}\,\approx\,\dfrac{{\Phi}^{n}}{\sqrt{5}}{\text{,}}
-$$
-
-where ${\Phi}$ is the golden ratio.
+where ${\phi}$ is the golden ratio.
