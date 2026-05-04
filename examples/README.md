@@ -16,7 +16,7 @@ F_{n+1}=F_{n}+F_{n-1}{\text{.}}
 $$
 
 Fibonacci numbers are fascinating because their simple recurrence
-is deeply connectd to rich structures that can be found everywhere
+is deeply connected to rich structures that can be found everywhere
 in nature and mathematics.
 
 They grow roughly exponentially approximately according to
