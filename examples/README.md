@@ -23,13 +23,13 @@ such as combinatorics, probability, and analysis.
 Factorials grow roughly exponentially approximately according to
 
 $$
-n!\sim\sqrt{2 {\pi} n}\left(\dfrac{n}{e}\right)^{n}^{\text{,}}
+n!\sim\sqrt{2 {\pi} n}\left(\dfrac{n}{e}\right)^{n}{\text{,}}
 $$
 
 where $e{\approx}2.7182818$ is Euler's constant.
 
 The factorial can be extended to the real-valued gamma function
-(i.e., ${\Gamma}(x)$) via
+${\Gamma}(x)$ via
 
 $$
 n! = {\Gamma\left(n+1\right)}{\text{,}}
