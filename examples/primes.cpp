@@ -4,20 +4,16 @@
 #include <iostream>
 #include <random>
 
-//#define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY
+// #define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY)
-template <class BuiltInUintType>
-auto current_time_stamp_now() noexcept -> BuiltInUintType {
+#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
+auto get_system_entropy() -> unsigned {
 
-    const auto current_now =
-        static_cast<std::uintmax_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                        std::chrono::high_resolution_clock::now().time_since_epoch())
-                                        .count());
+    std::random_device rd{};
 
-    return static_cast<BuiltInUintType>(current_now);
+    return rd();
 }
-#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY
+#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
 template <class BigIntType, class RndEngineType>
 auto get_pseudo_random_integer(BigIntType& value_to_get, const BigIntType& max_val, RndEngineType& eng) -> BigIntType {
@@ -164,11 +160,12 @@ auto main() -> int {
 
     using candidate_rnd_gen_type = std::minstd_rand;
 
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY)
-    candidate_rnd_gen_type rnd_eng_candidate(current_time_stamp_now<typename candidate_rnd_gen_type::result_type>());
+#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
+    candidate_rnd_gen_type rnd_eng_candidate(
+        static_cast<typename candidate_rnd_gen_type::result_type>(get_system_entropy()));
 #else
     candidate_rnd_gen_type rnd_eng_candidate(static_cast<typename candidate_rnd_gen_type::result_type>(42));
-#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY
+#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
     const big_int big_max512_int{(big_int{1} << 512U) - 1};
 
@@ -177,12 +174,12 @@ auto main() -> int {
 
         using miller_rabin_rnd_gen_type = std::mt19937_64;
 
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY)
+#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
         miller_rabin_rnd_gen_type rnd_eng_mr{
-            current_time_stamp_now<typename miller_rabin_rnd_gen_type::result_type>()};
+            static_cast<typename miller_rabin_rnd_gen_type::result_type>(get_system_entropy())};
 #else
         miller_rabin_rnd_gen_type rnd_eng_mr{static_cast<typename miller_rabin_rnd_gen_type::result_type>(123)};
-#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY
+#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
         big_int prime_candidate{};
         get_pseudo_random_integer(prime_candidate, big_max512_int, rnd_eng_candidate);
