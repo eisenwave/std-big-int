@@ -11,7 +11,7 @@ In [factorial.cpp](./factorial.cpp), we compute and verify the value of $100!$.
 The factorial $n!$ is defined by
 
 $$
-n!=n{\times}(n-1){\times}(n-2){\times}(n-3){\times}{\cdot}{\times}3{\times}2{\times}1{\text{.}}
+n!=n{\times}(n-1){\times}(n-2){\times}(n-3){\times}{\cdots}{\times}3{\times}2{\times}1{\text{.}}
 $$
 
 The factorial of $1$ is $1$ and, by convention, the factorial of $0$ is also $1$.
