@@ -26,12 +26,12 @@ using str_pair_type        = typename vector_str_pair_type::value_type;
 
 using random_engine_length_type = std::minstd_rand;
 
-random_engine_length_type generator_limb_length{static_cast<typename random_engine_length_type::result_type>(42)};
+random_engine_length_type generator_bits_length{static_cast<typename random_engine_length_type::result_type>(42)};
 
 inline constexpr std::size_t limb_bits{
     static_cast<std::size_t>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-std::uniform_int_distribution distribution_limb_length{std::size_t{4U} * static_cast<std::size_t>(limb_bits),
+std::uniform_int_distribution distribution_bits_length{std::size_t{4U} * static_cast<std::size_t>(limb_bits),
                                                        std::size_t{96U} * static_cast<std::size_t>(limb_bits)};
 
 auto get_hex_string_pair() -> std::pair<std::string, std::string>;
@@ -41,8 +41,19 @@ auto get_hex_string_pair() -> std::pair<std::string, std::string> {
     std::size_t len_a_in_bits{};
     std::size_t len_b_in_bits{};
 
-    len_a_in_bits = detail::distribution_limb_length(detail::generator_limb_length);
-    len_b_in_bits = detail::distribution_limb_length(detail::generator_limb_length);
+    static unsigned seed_prescalar{};
+    static unsigned seed_increment{};
+
+    // On a pre-defined schedule, seed the random length generator with fixed values.
+    if ((++seed_prescalar % 1024U) == 0U) {
+        seed_increment += 123U;
+
+        detail::generator_bits_length.seed(
+            static_cast<typename random_engine_length_type::result_type>(42U + seed_increment));
+    }
+
+    len_a_in_bits = detail::distribution_bits_length(detail::generator_bits_length);
+    len_b_in_bits = detail::distribution_bits_length(detail::generator_bits_length);
 
     const std::string str_a{bmp::random_big_int(len_a_in_bits)};
     const std::string str_b{bmp::random_big_int(len_b_in_bits)};
@@ -149,8 +160,8 @@ auto time_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
         cpp_int_pairs.push_back({cpp_int_type("0x" + next_str_pair.first), cpp_int_type("0x" + next_str_pair.second)});
     }
 
-    // Use a stopwatch to do a comparative timing run of the
-    // selected binary operations big_int-versus-cpp_int.
+    // Use a stopwatch to measure runtimes while performing the comparative
+    // timing run of the selected binary operations big_int-versus-cpp_int.
     using local_stopwatch_type = concurrency::stopwatch<>;
 
     float elapsed_big_int{};
@@ -199,7 +210,7 @@ auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
 template <class BinOp>
 auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> void {
 
-    // Verify all binary operation results std-big-int-versus-cpp_int.
+    // Verify all binary operation results big_int-versus-cpp_int.
     for (const auto& next_str_pair : str_pairs) {
         EXPECT_TRUE(bmp::check_cpp_int_equal(std::forward<BinOp>(op), next_str_pair.first, next_str_pair.second));
     }
@@ -220,6 +231,6 @@ TEST(BinaryOperations, BinOpsTiming01) {
     local::test_bin_op_execs_all(std::divides{}, str_pairs);
 
     // TODO(ckormanyos): Formulate this example as a binary-ops perf checker
-    //                   that generates a table of pref results featuring
-    //                   std-big-int-versus-cpp_int.
+    //                   that generates a table of perf results featuring
+    //                   big_int-versus-cpp_int.
 }
