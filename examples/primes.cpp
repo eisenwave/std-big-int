@@ -4,7 +4,7 @@
 #include <iostream>
 #include <random>
 
-#define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY
+//#define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_CHRONO_ENTROPY)
 template <class BuiltInUintType>
