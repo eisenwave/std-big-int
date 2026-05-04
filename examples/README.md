@@ -11,7 +11,7 @@ In [factorial.cpp](./factorial.cpp), we compute and verify the value of $100!$.
 The factorial $n!$ is defined by
 
 $$
-n!=n{\times}(n-1){\times}(n-2){\times}(n-3){\times}{\ldot}{\times}3{\times}2{\times}1{\text{.}}
+n!=n{\times}(n-1){\times}(n-2){\times}(n-3){\times}{\cdot}{\times}3{\times}2{\times}1{\text{.}}
 $$
 
 The factorial of $1$ is $1$ and, by convention, the factorial of $0$ is also $1$.
@@ -35,7 +35,7 @@ $$
 n! = {\Gamma\left(n+1\right)}{\text{,}}
 $$
 
-and in our example $n!={\Gamma(101)}{\approx}9.3326215{\times}10^{157}$.
+and in our example $100!={\Gamma(101)}{\approx}9.3326215{\times}10^{157}$.
 
 ## Fibonacci
 
