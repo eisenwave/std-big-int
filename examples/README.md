@@ -55,7 +55,14 @@ in nature and mathematics.
 They grow roughly exponentially approximately according to
 
 $$
-F_{n}\sim\dfrac{{\phi}^{n}}{\sqrt{5}}{\text{,}}
+F_{n}\sim\dfrac{{\varphi}^{n}}{\sqrt{5}}{\text{,}}
 $$
 
-where ${\phi}$ is the golden ratio.
+where ${\varphi}{\approx}1.6180340$ is the golden ratio.
+
+## Primes
+
+A more in-depth example can be found in [primes.cpp](./primes.cpp).
+Here, we compute several pseudo-random prime-valued unsigned $512$-bit integers.
+
+TODO(ckormanyos): 512-bit primes via Miller-Rabin. Implementation is close. Description needed.
