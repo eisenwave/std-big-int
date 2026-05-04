@@ -1,6 +1,5 @@
 #include <beman/big_int/big_int.hpp>
 
-#include <chrono>
 #include <iostream>
 #include <random>
 
@@ -186,7 +185,7 @@ auto main() -> int {
         if (is_prime) {
             const std::string str_prime{to_string(prime_candidate)};
 
-            std::cout << "str_prime: " << str_prime << std::endl;
+            std::cout << "prime: " << str_prime << std::endl;
         }
     }
 }
