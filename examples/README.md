@@ -85,7 +85,7 @@ to use psudo-random system entropy. Then the calculated primes appear more rando
 different in each program run. It is also possible Increase the number of `trials`to obtain more primes.
 
 To independently check the primality (or lack thereof), a quick query can be made at
-[Wolfram Alpha(R)](https://www.wolframalpha.com/). This is shown, for example in
+[Wolfram Alpha(R)](https://www.wolframalpha.com/). This is shown, for example, in
 [this link](https://www.wolframalpha.com/input?i=PrimeQ%5B33545827758229961273845289751438945381311292693888077185805377977457965764007405527579687949087613712601036019793858743972367926713851187549346132786704442081978813245271507%5D)
 and listed below. The expected response is _this_ _is_ _a_ _prime_ _number_.
 
