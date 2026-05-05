@@ -63,7 +63,7 @@ where ${\varphi}{\approx}1.6180340$ is the golden ratio.
 ## Primes
 
 A more in-depth example can be found in [primes.cpp](./primes.cpp).
-Here, we compute several pseudo-random, prime-valued, unsigned $512$-bit integers.
+Here, we compute several pseudo-random $512$-bit unsigned integer primes.
 For primality testing, we use the well-known Miller-Rabin test.
 
 In this example, the basic number-theoretical function `powm(b, p, m)` is needed.
@@ -74,7 +74,7 @@ In this configuration, the values of the calculated primes are deterministic
 and the same for each run. The default delivery seeks in total, $1024$ pseudo-random
 $512$-bit primes.
 
-In default mode, The final, $1024^{th}$ prime found is
+In default mode, the final, $1024^{th}$ prime found is
 
 ```c++
 3750867405051033249371647008080901089195783022691426216457048753381360585526425336110162049798738177321277648810523977660559987300559660049237330866192789
@@ -88,7 +88,7 @@ It is also possible Increase the number of `max_prime_count` to obtain more prim
 
 To independently check the primality (or lack thereof), a quick query can be made at
 [Wolfram Alpha(R)](https://www.wolframalpha.com/). This is shown, for example, in
-[this link](https://www.wolframalpha.com/input?i=PrimeQ%3750867405051033249371647008080901089195783022691426216457048753381360585526425336110162049798738177321277648810523977660559987300559660049237330866192789%5D)
+[this link](https://www.wolframalpha.com/input?i=PrimeQ%5B3750867405051033249371647008080901089195783022691426216457048753381360585526425336110162049798738177321277648810523977660559987300559660049237330866192789%5D)
 and listed below. The response contains the expected text _this_ _is_ _a_ _prime_ _number_.
 
 ```
@@ -99,6 +99,7 @@ PrimeQ[3750867405051033249371647008080901089195783022691426216457048753381360585
 
 The program also calculates the prime density found at the end of its short run.
 In this fixed-seed configuration, we find $1/357.1$ primes found
-per candidate tested. The theoretical value (from the prime number theorem) is $1/355.1$,
-which is somewhat close. To get a more accurate estimate of the prime density,
+per candidate tested. The theoretical value (from the prime number theorem) is $1/355.1$.
+Our empirical result is somewhat close to the theoretical value.
+To get a more accurate estimate of the prime density,
 many more trials - millions in fact - must be run.
