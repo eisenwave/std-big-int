@@ -55,8 +55,6 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
 
     // Calculate (b ^ p) % m.
 
-    BigIntType result{};
-
     BigIntType x{1};
 
     unsigned p0{};
@@ -73,14 +71,12 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
         p >>= 1U;
     }
 
-    result = x;
-
-    return result;
+    return x;
 }
 
 auto lsb_position(std::uint64_t x) -> unsigned {
     // We use enhanced knowledge that via the way the prime candidates are created,
-    // ecah limb will have a non-zero value. So we can simply check the LSB here
+    // each limb will have a non-zero value. So we can simply check the LSB here
     // based on one single limb.
 
     unsigned pos{};
@@ -98,7 +94,6 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
     // Perform the Miller-Rabin primality test on the prime candidate np.
     // This subroutine returns true if the prime candidate is prime within
     // the limits of Miller-Rabin testing for the given input of trials.
-    // In this reduced implementation, we ignore small primes.
 
     // All even numbers are non-prime.
     if ((static_cast<unsigned>(np) & 1U) == 0U) {
@@ -157,7 +152,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         for (auto j = std::size_t{UINT8_C(0)}; ((j < static_cast<std::size_t>(k)) && result_candidate_is_prime); ++j) {
             if (y == nm1) {
                 // This trial passes and the candidate is very probably prime
-                // within the limits of Miller-Rabin.
+                // within the limits of Miller-Rabin primality testing.
 
                 break;
             }
@@ -177,7 +172,8 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             y = (y * y) % np;
 
             // If we reach the final iteration without hitting nm1,
-            // then the candidate is not prime.
+            // then the candidate is not prime within the limits of
+            // Miller-Rabin primality testing.
 
             if (static_cast<unsigned>(j + std::size_t{UINT8_C(1)}) == k) {
                 result_candidate_is_prime = false;
@@ -198,7 +194,7 @@ auto main() -> int {
     int trial_count{};
 
     constexpr int max_prime_count{1024};
-    // constexpr int max_prime_count{10000};
+    // constexpr int max_prime_count{32000};
 
     while (prime_count < max_prime_count) {
 
