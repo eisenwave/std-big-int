@@ -76,6 +76,8 @@ void run_parity_sweep(BinOp op) {
 TEST(VsCppInt, AddRandom) { run_parity_sweep(std::plus<>{}); }
 TEST(VsCppInt, SubRandom) { run_parity_sweep(std::minus<>{}); }
 TEST(VsCppInt, MulRandom) { run_parity_sweep(std::multiplies<>{}); }
+TEST(VsCppInt, DivRandom) { run_parity_sweep(std::divides<>{}); }
+TEST(VsCppInt, ModRandom) { run_parity_sweep(std::modulus<>{}); }
 
 // Exercises zero-operand corner cases, which the random sweep is unlikely to
 // hit on its own.
