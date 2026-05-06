@@ -3,27 +3,40 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <sstream>
 
 // #define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-auto get_system_entropy() -> unsigned;
+[[nodiscard]] inline auto get_system_entropy() -> unsigned;
 #endif
 
 namespace rnd_gens {
 using gen_type = std::mt19937_64;
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-gen_type eng1{get_system_entropy()};
-gen_type eng2{get_system_entropy()};
+auto eng1() -> gen_type& {
+    static gen_type instance{get_system_entropy()};
+    return instance;
+};
+auto eng2() -> gen_type& {
+    static gen_type instance{get_system_entropy()};
+    return instance;
+};
 #else
-gen_type eng1{42};
-gen_type eng2{123};
+auto eng1() -> gen_type& {
+    static gen_type instance{42};
+    return instance;
+};
+auto eng2() -> gen_type& {
+    static gen_type instance{123};
+    return instance;
+};
 #endif
 } // namespace rnd_gens
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-auto get_system_entropy() -> unsigned {
+[[nodiscard]] inline auto get_system_entropy() -> unsigned {
     std::random_device rd{};
 
     return rd();
@@ -31,12 +44,12 @@ auto get_system_entropy() -> unsigned {
 #endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
 template <class BigIntType, class RndEngineType>
-auto get_pseudo_random_integer(BigIntType& value_to_get, RndEngineType& eng, const BigIntType& max_val) -> BigIntType {
+[[nodiscard]] auto get_pseudo_random_integer(RndEngineType& eng, const BigIntType& max_val) -> BigIntType {
     using distribution_type = std::uniform_int_distribution<std::uint64_t>;
 
-    distribution_type dist{std::uint64_t{0x1000000000000001}, std::uint64_t{0xFFFFFFFFFFFFFFFF}};
+    distribution_type dist{std::uint64_t{0x8000000100000001}, std::uint64_t{0xFFFFFFFFFFFFFFFF}};
 
-    value_to_get = BigIntType{};
+    BigIntType value_to_get{};
 
     for (int bit_index{0}; value_to_get < max_val; bit_index += 64) {
         if (bit_index != 0U) {
@@ -45,9 +58,7 @@ auto get_pseudo_random_integer(BigIntType& value_to_get, RndEngineType& eng, con
         value_to_get += dist(eng);
     }
 
-    value_to_get %= max_val;
-
-    return value_to_get;
+    return value_to_get % max_val;
 }
 
 template <class BigIntType>
@@ -74,14 +85,15 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
     return x;
 }
 
-auto lsb_position(std::uint64_t x) -> unsigned {
-    // We use enhanced knowledge that via the way the prime candidates are created,
-    // each limb will have a non-zero value. So we can simply check the LSB here
-    // based on one single limb.
+static auto lsb_position(std::uint64_t x) noexcept -> unsigned {
+    // We use tricky, enhanced knowledge here. Because of the way the prime
+    // candidates are created, each limb is "rigged" to have a non-zero value.
+    // So here, we can safely calculate the LSB of the big_int based on one
+    // single limb.
 
     unsigned pos{};
 
-    while (static_cast<unsigned>(x & UINT64_C(1)) == 0U) {
+    while ((static_cast<unsigned>(x) & 1U) == 0U) {
         x >>= 1U;
         ++pos;
     }
@@ -144,8 +156,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
     for (int trial{0}; ((trial < trials) && result_candidate_is_prime); ++trial) {
         static_cast<void>(trial);
 
-        BigIntType next_rnd{};
-        get_pseudo_random_integer(next_rnd, rnd_gens::eng1, nm2);
+        BigIntType next_rnd{get_pseudo_random_integer(rnd_gens::eng1(), nm2)};
 
         BigIntType y{powm(next_rnd, q, np)};
 
@@ -184,27 +195,35 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
     return result_candidate_is_prime;
 }
 
+[[nodiscard]] inline auto str_prime_density(std::uint64_t trial_count, std::uint64_t prime_count) -> std::string {
+    std::stringstream strm{};
+
+    strm << "prime density: 1/" << std::fixed << std::setprecision(1)
+         << static_cast<float>(static_cast<double>(trial_count) / static_cast<double>(prime_count));
+
+    return strm.str();
+}
+
 auto main() -> int {
 
     using beman::big_int::big_int;
 
     const big_int max_val{(big_int{1} << 512U) - 1};
 
-    int prime_count{};
-    int trial_count{};
+    std::uint64_t prime_count{};
+    std::uint64_t trial_count{};
 
-    constexpr int max_prime_count{1024};
-    // constexpr int max_prime_count{32000};
+    constexpr std::uint64_t max_prime_count{1024};
+    // constexpr std::uint64_t max_prime_count{250000};
 
     while (prime_count < max_prime_count) {
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-        rnd_gens::eng1.seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
-        rnd_gens::eng2.seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
+        rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
+        rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
 #endif
 
-        big_int prime_candidate{};
-        get_pseudo_random_integer(prime_candidate, rnd_gens::eng2, max_val);
+        big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};
         ++trial_count;
 
         const bool is_prime{miller_rabin(prime_candidate, 25)};
@@ -212,10 +231,12 @@ auto main() -> int {
         if (is_prime) {
             const std::string str_prime{to_string(prime_candidate)};
 
-            std::cout << "prime" << ++prime_count << "/" << trial_count << ": " << str_prime << std::endl;
+            ++prime_count;
+
+            std::cout << "prime" << prime_count << "/" << trial_count << ", "
+                      << str_prime_density(trial_count, prime_count) << ": " << str_prime << std::endl;
         }
     }
 
-    std::cout << "prime density: 1/" << std::fixed << std::setprecision(1)
-              << static_cast<float>(static_cast<double>(trial_count) / prime_count) << std::endl;
+    std::cout << str_prime_density(trial_count, prime_count) << std::endl;
 }

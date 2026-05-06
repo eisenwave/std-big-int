@@ -77,7 +77,7 @@ $512$-bit primes.
 In default mode, the final, $1024^{th}$ prime found is
 
 ```c++
-3750867405051033249371647008080901089195783022691426216457048753381360585526425336110162049798738177321277648810523977660559987300559660049237330866192789
+11467539641765088900397755761948757342740339393956341880365809291331468652813173081510423427126578730302881069436310288474659389618552505369342345643941077
 ```
 
 Optionally near the top of the example's source file, define `BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY`
@@ -88,18 +88,19 @@ It is also possible Increase the number of `max_prime_count` to obtain more prim
 
 To independently check the primality (or lack thereof), a quick query can be made at
 [Wolfram Alpha(R)](https://www.wolframalpha.com/). This is shown, for example, in
-[this link](https://www.wolframalpha.com/input?i=PrimeQ%5B3750867405051033249371647008080901089195783022691426216457048753381360585526425336110162049798738177321277648810523977660559987300559660049237330866192789%5D)
+[this link](https://www.wolframalpha.com/input?i=PrimeQ%5B11467539641765088900397755761948757342740339393956341880365809291331468652813173081510423427126578730302881069436310288474659389618552505369342345643941077%5D)
 and listed below. The response contains the expected text _this_ _is_ _a_ _prime_ _number_.
 
 ```
-PrimeQ[3750867405051033249371647008080901089195783022691426216457048753381360585526425336110162049798738177321277648810523977660559987300559660049237330866192789]
+PrimeQ[11467539641765088900397755761948757342740339393956341880365809291331468652813173081510423427126578730302881069436310288474659389618552505369342345643941077]
 ```
 
 ### Check the prime number theorem
 
 The program also calculates the prime density found at the end of its short run.
-In this fixed-seed configuration, we find $1/357.1$ primes found
-per candidate tested. The theoretical value (from the prime number theorem) is $1/355.1$.
+In this fixed-seed configuration, we find $1/346.0$ primes found
+per candidate tested. The theoretical value from the bold conjecture
+of the prime number theorem is $1/355.1$.
 Our empirical result is somewhat close to the theoretical value.
-To get a more accurate estimate of the prime density,
-many more trials - millions in fact - must be run.
+To get an accurate estimate of the prime density,
+very many more trials - resulting in millions of found primes in fact - must be run.
