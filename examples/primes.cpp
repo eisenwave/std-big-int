@@ -215,7 +215,7 @@ auto main() -> int {
     std::uint64_t prime_count{};
     std::uint64_t trial_count{};
 
-    constexpr std::uint64_t max_prime_count{1024};
+    constexpr std::uint64_t max_prime_count{32};
     // constexpr std::uint64_t max_prime_count{250000};
 
     while (prime_count < max_prime_count) {
