@@ -219,6 +219,7 @@ auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
 } // namespace local
 
 TEST(BinaryOperations, BinOpsTiming01) {
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     local::vector_str_pair_type str_pairs{};
 
     constexpr std::size_t trials{16384U};
@@ -233,4 +234,7 @@ TEST(BinaryOperations, BinOpsTiming01) {
     // TODO(ckormanyos): Formulate this example as a binary-ops perf checker
     //                   that generates a table of perf results featuring
     //                   big_int-versus-cpp_int.
+#else
+    GTEST_SKIP() << "Benchmarks not run" << std::endl;
+#endif
 }

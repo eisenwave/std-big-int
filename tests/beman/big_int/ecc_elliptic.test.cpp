@@ -941,6 +941,7 @@ auto beman::big_int::example::ecdsa_sign_verify() -> bool {
 }
 
 TEST(Benchmarks, EccElliptic01) {
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     using local_stopwatch_type = beman::big_int::example::local::concurrency::stopwatch<>;
 
     local_stopwatch_type my_stopwatch{};
@@ -953,6 +954,9 @@ TEST(Benchmarks, EccElliptic01) {
 
     EXPECT_EQ(result_is_ok, true);
     EXPECT_EQ(result_stopwatch_is_ok, true);
+#else
+    GTEST_SKIP() << "Benchmarks not run" << std::endl;
+#endif
 }
 
 #if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)
