@@ -15,6 +15,15 @@
 // `__int128` and `_BitInt` are guarded individually since each is only
 // conditionally available.
 
+// clang-19 totally crashes running these tests
+#if defined(__clang__) && __clang_major__ == 19
+
+TEST(MultiLimbConstruction, SkippedUnderClang19) {
+    GTEST_SKIP() << "Skipped: clang-19 crashes compiling these tests.";
+}
+
+#else
+
 namespace {
 
 constexpr std::size_t test_limb_bits = sizeof(beman::big_int::uint_multiprecision_t) * CHAR_BIT;
@@ -269,3 +278,5 @@ TEST(MultiLimbConstruction, AssignFromUnsignedBitInt192) {
 #endif // BEMAN_BIG_INT_HAS_BITINT
 
 } // namespace
+
+#endif // clang-19 guard
