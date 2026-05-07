@@ -8,7 +8,13 @@ if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     )
 endif()
 
-set(_fuzz_ops add sub mul div)
+set(_fuzz_ops
+    add
+    sub
+    mul
+    div
+    sqrt
+)
 
 foreach(op IN LISTS _fuzz_ops)
     set(fuzz_target beman.big_int.fuzz.${op})

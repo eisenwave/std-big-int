@@ -135,7 +135,7 @@ using cpp_int = ::boost::multiprecision::cpp_int;
 
 } // namespace detail
 
-// Applies `op` to each backend after parsing `lhs` and `rhs` as signed hex
+// Applies binary-`op` to each backend after parsing `lhs` and `rhs` as signed hex
 // strings (leading '-' allowed; no "0x" prefix), then asserts the two results
 // match bit-for-bit. `op` must be a generic callable that accepts two
 // integers of either library type, e.g. `std::plus<>{}`, `std::minus<>{}`,
@@ -151,6 +151,20 @@ check_cpp_int_equal(BinOp&& op, const std::string_view lhs, const std::string_vi
     const auto a_cp = detail::parse_cpp_int(lhs);
     const auto b_cp = detail::parse_cpp_int(rhs);
     return detail::same_value(op(a_bn, b_bn), op(a_cp, b_cp));
+}
+
+// Applies unary-`op` to each backend after parsing `arg` as signed hex
+// strings (leading '-' allowed; no "0x" prefix), then asserts the two results
+// match bit-for-bit. `op` must be a generic callable that accepts one
+// integer of either library type, e.g. a user function such as sqrt.
+//
+// Example:
+//     EXPECT_TRUE(check_cpp_int_equal(sqrt_exec<>{}, "deadbeefcafebabe"));
+template <class UnaryOp>
+[[nodiscard]] inline ::testing::AssertionResult check_cpp_int_equal_unary(UnaryOp&& op, const std::string_view arg) {
+    const auto a_bn = detail::parse_big_int(arg);
+    const auto a_cp = detail::parse_cpp_int(arg);
+    return detail::same_value(op(a_bn), op(a_cp));
 }
 
 // Returns a signed hex string representing a random integer whose magnitude

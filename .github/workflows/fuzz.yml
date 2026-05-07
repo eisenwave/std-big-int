@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        op: [add, sub, mul, div]
+        op: [add, sub, mul, div, sqrt]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
