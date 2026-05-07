@@ -21,16 +21,18 @@ namespace beman::big_int::fuzz {
 // Layout: top bit of byte 0 = sign; the remaining 7 bits of byte 0 plus
 // bytes 1..n-1 are the magnitude bytes, big-endian. Empty input maps to "0"
 // to avoid producing an invalid (empty) hex literal.
-[[nodiscard]] inline std::string bytes_to_signed_hex(const std::uint8_t* data, const std::size_t size) {
+[[nodiscard]] inline std::string bytes_to_signed_hex(const std::uint8_t* data, const std::size_t size, const bool use_negative = true) {
     static constexpr char digits[] = "0123456789abcdef";
     if (size == 0) {
         return std::string{"0"};
     }
-    const bool  negative = (data[0] & 0x80U) != 0U;
     std::string out;
     out.reserve(1 + size * 2);
-    if (negative) {
-        out.push_back('-');
+    if (use_negative) {
+        const bool negative = (data[0] & 0x80U) != 0U;
+        if (negative) {
+            out.push_back('-');
+        }
     }
     for (std::size_t i = 0; i < size; ++i) {
         const std::uint8_t b = (i == 0) ? static_cast<std::uint8_t>(data[0] & 0x7FU) : data[i];
@@ -81,6 +83,29 @@ int run(BinOp&& op, const std::uint8_t* data, const std::size_t size, const bool
                      "beman::big_int parity mismatch\n  lhs = %s\n  rhs = %s\n  %s\n",
                      lhs.c_str(),
                      rhs.c_str(),
+                     result.message());
+        std::abort();
+    }
+    return 0;
+}
+
+// Run one fuzz iteration: split `data` in half, encode each half, and assert parity.
+// `skip_zero_rhs` is set by the division harness to drop divide-by-zero inputs
+// libFuzzer treats a -1 return as "uninteresting; do not add to corpus".
+template <class UnaryOp>
+int run_unary(UnaryOp&& op, const std::uint8_t* data, const std::size_t size, const bool use_negative = true) {
+    const std::size_t   split    = size;
+    const std::uint8_t* arg_data = data;
+    const std::size_t   arg_size = split;
+
+    const std::string arg = bytes_to_signed_hex(arg_data, arg_size, use_negative);
+
+    const auto result = ::beman::big_int::boost_mp_testing::check_cpp_int_equal_unary(
+        std::forward<UnaryOp>(op), std::string_view{arg});
+    if (!result) {
+        std::fprintf(stderr,
+                     "beman::big_int parity mismatch\n  arg = %s\n  %s\n",
+                     arg.c_str(),
                      result.message());
         std::abort();
     }
