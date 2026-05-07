@@ -11,8 +11,6 @@
 
 #include <beman/big_int/big_int.hpp>
 
-#include "testing.hpp"
-
 using beman::big_int::big_int;
 using beman::big_int::uint_multiprecision_t;
 
@@ -1696,6 +1694,858 @@ TEST(BitwiseDeMorgan, Case5) {
     // De Morgan: ~(a | b) == ~a & ~b
     EXPECT_EQ(~(a | b), expected_nor);
     EXPECT_EQ(~a & ~b, expected_nor);
+}
+
+TEST(BitwiseCompoundAssign, Case0) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000005ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0x0000000000000003ULL}};
+    const big_int                                  b       = pos_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case1) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000005ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0x0000000000000003ULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case2) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000005ULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0x0000000000000003ULL}};
+    const big_int                                  b       = pos_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case3) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000005ULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0x0000000000000003ULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case4) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x000000000000002AULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case5) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x000000000000002AULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case6) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case7) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case8) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 1> b_limbs = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case9) {
+    constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
+    const big_int                                  b       = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case10) {
+    constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0xD7C524A55304317FULL, 0xC6A7EE39C4B032CDULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3AA2E4F90E51F30DULL, 0x0837B8A3D261A7ACULL}};
+    const big_int                                  b       = pos_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case11) {
+    constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x50C187FCCE177B4EULL, 0x448AAA9E66B2BC5CULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0x3602F8AC10F1BC81ULL, 0xF16287E4E9C349E1ULL}};
+    const big_int                                  b       = pos_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case12) {
+    constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
+        {0xE059A0EE9132B63EULL, 0x508EBAD7B7C93ACFULL, 0xA7CAD415366EB16FULL, 0x654821D07FCD9EB2ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 2> b_limbs = {{0xEA1FCA65E27A984DULL, 0x757750A9A491F0B3ULL}};
+    const big_int                                  b       = pos_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseCompoundAssign, Case13) {
+    constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
+        {0x43CF2FDE24933B83ULL, 0x3F22FAF823BED01DULL, 0x8FB5D27BBEB79919ULL, 0x434308BC89FA6A69ULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+    constexpr std::array<uint_multiprecision_t, 3> b_limbs = {
+        {0x95A76D79BF3C4C06ULL, 0xE5D7B8756DADD6C7ULL, 0x663F1C97956269F1ULL}};
+    const big_int b = neg_from_limbs(b_limbs);
+
+    {
+        big_int x = a;
+        x &= b;
+        EXPECT_EQ(x, a & b);
+    }
+    {
+        big_int x = b;
+        x &= a;
+        EXPECT_EQ(x, b & a); // commutativity
+    }
+    {
+        big_int x = a;
+        x |= b;
+        EXPECT_EQ(x, a | b);
+    }
+    {
+        big_int x = b;
+        x |= a;
+        EXPECT_EQ(x, b | a); // commutativity
+    }
+    {
+        big_int x = a;
+        x ^= b;
+        EXPECT_EQ(x, a ^ b);
+    }
+    {
+        big_int x = b;
+        x ^= a;
+        EXPECT_EQ(x, b ^ a); // commutativity
+    }
+}
+
+TEST(BitwiseSelfAssign, Case0) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000000ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case1) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case2) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000001ULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case3) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000007ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case4) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x0000000000000007ULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case5) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x000000000000002AULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case6) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0x000000000000002AULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case7) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case8) {
+    constexpr std::array<uint_multiprecision_t, 1> a_limbs = {{0xFFFFFFFFFFFFFFFFULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case9) {
+    constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case10) {
+    constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x0000000000000000ULL, 0x0000000000000001ULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case11) {
+    constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x382567B85CABCC97ULL, 0xFF5E9FF0FF50BDE5ULL}};
+    const big_int                                  a       = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case12) {
+    constexpr std::array<uint_multiprecision_t, 2> a_limbs = {{0x827050A82369B584ULL, 0x1745D6D87E570DE0ULL}};
+    const big_int                                  a       = neg_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case13) {
+    constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
+        {0x0C0FD195C17AF08AULL, 0x1C11F735DC713D96ULL, 0xA0A04DC427209BDFULL, 0xCAC5B68C28F49482ULL}};
+    const big_int a = pos_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
+}
+
+TEST(BitwiseSelfAssign, Case14) {
+    constexpr std::array<uint_multiprecision_t, 4> a_limbs = {
+        {0x6C12ACE8AE340454ULL, 0x10435A1098AE4334ULL, 0x61B1CD2262801C45ULL, 0xFF01CF99988C24CAULL}};
+    const big_int a = neg_from_limbs(a_limbs);
+
+    {
+        big_int x = a;
+        x &= x;
+        EXPECT_EQ(x, a & a);
+    }
+    {
+        big_int x = a;
+        x |= x;
+        EXPECT_EQ(x, a | a);
+    }
+    {
+        big_int x = a;
+        x ^= x;
+        EXPECT_EQ(x, a ^ a);
+    } // must be zero
 }
 
 TEST(BitwiseEdgeCases, ZeroAndMinusOne) {
