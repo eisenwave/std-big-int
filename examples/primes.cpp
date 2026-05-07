@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include <beman/big_int/big_int.hpp>
 
 #include <iomanip>
