@@ -28,7 +28,7 @@ namespace {
 
 constexpr std::size_t test_limb_bits = sizeof(beman::big_int::uint_multiprecision_t) * CHAR_BIT;
 
-#ifdef BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
+    #ifdef BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
 
 using i128 = beman::big_int::detail::int128_t;
 using u128 = beman::big_int::detail::uint128_t;
@@ -143,15 +143,15 @@ TEST(MultiLimbConstruction, ConstructFromInt128WithAllocator) {
     EXPECT_EQ(static_cast<u128>(x), value);
 }
 
-#endif // BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
+    #endif // BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
 
 // =============================================================================
 // _BitInt
 // =============================================================================
 
-#ifdef BEMAN_BIG_INT_HAS_BITINT
+    #ifdef BEMAN_BIG_INT_HAS_BITINT
 
-    #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 96
+        #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 96
 
 using bui96 = bit_uint<96>;
 using bi96  = bit_int<96>;
@@ -210,9 +210,9 @@ TEST(MultiLimbConstruction, AssignFromUnsignedBitInt96) {
     EXPECT_EQ(static_cast<bui96>(x), value);
 }
 
-    #endif // _BitInt(96)
+        #endif // _BitInt(96)
 
-    #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 192
+        #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 192
 
 using bui192 = bit_uint<192>;
 using bi192  = bit_int<192>;
@@ -273,9 +273,9 @@ TEST(MultiLimbConstruction, AssignFromUnsignedBitInt192) {
     EXPECT_EQ(static_cast<bui192>(x), value);
 }
 
-    #endif // _BitInt(192)
+        #endif // _BitInt(192)
 
-#endif // BEMAN_BIG_INT_HAS_BITINT
+    #endif // BEMAN_BIG_INT_HAS_BITINT
 
 } // namespace
 
