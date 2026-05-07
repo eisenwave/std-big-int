@@ -161,8 +161,7 @@ check_cpp_int_equal(BinOp&& op, const std::string_view lhs, const std::string_vi
 // Example:
 //     EXPECT_TRUE(check_cpp_int_equal(sqrt_exec<>{}, "deadbeefcafebabe"));
 template <class UnaryOp>
-[[nodiscard]] inline ::testing::AssertionResult
-check_cpp_int_equal_unary(UnaryOp&& op, const std::string_view arg) {
+[[nodiscard]] inline ::testing::AssertionResult check_cpp_int_equal_unary(UnaryOp&& op, const std::string_view arg) {
     const auto a_bn = detail::parse_big_int(arg);
     const auto a_cp = detail::parse_cpp_int(arg);
     return detail::same_value(op(a_bn), op(a_cp));

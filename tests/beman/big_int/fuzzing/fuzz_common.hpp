@@ -21,7 +21,8 @@ namespace beman::big_int::fuzz {
 // Layout: top bit of byte 0 = sign; the remaining 7 bits of byte 0 plus
 // bytes 1..n-1 are the magnitude bytes, big-endian. Empty input maps to "0"
 // to avoid producing an invalid (empty) hex literal.
-[[nodiscard]] inline std::string bytes_to_signed_hex(const std::uint8_t* data, const std::size_t size, const bool use_negative = true) {
+[[nodiscard]] inline std::string
+bytes_to_signed_hex(const std::uint8_t* data, const std::size_t size, const bool use_negative = true) {
     static constexpr char digits[] = "0123456789abcdef";
     if (size == 0) {
         return std::string{"0"};
@@ -100,13 +101,10 @@ int run_unary(UnaryOp&& op, const std::uint8_t* data, const std::size_t size, co
 
     const std::string arg = bytes_to_signed_hex(arg_data, arg_size, use_negative);
 
-    const auto result = ::beman::big_int::boost_mp_testing::check_cpp_int_equal_unary(
-        std::forward<UnaryOp>(op), std::string_view{arg});
+    const auto result = ::beman::big_int::boost_mp_testing::check_cpp_int_equal_unary(std::forward<UnaryOp>(op),
+                                                                                      std::string_view{arg});
     if (!result) {
-        std::fprintf(stderr,
-                     "beman::big_int parity mismatch\n  arg = %s\n  %s\n",
-                     arg.c_str(),
-                     result.message());
+        std::fprintf(stderr, "beman::big_int parity mismatch\n  arg = %s\n  %s\n", arg.c_str(), result.message());
         std::abort();
     }
     return 0;
