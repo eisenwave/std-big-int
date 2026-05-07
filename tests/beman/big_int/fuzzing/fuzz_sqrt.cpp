@@ -6,10 +6,20 @@
 #include <cstddef>
 #include <cstdint>
 
-template <class T>
+template <class T = void>
 struct sqrt_exec {
     [[nodiscard]] T operator()(const T& my_arg) const { return sqrt(my_arg); }
 };
+
+template <>
+struct sqrt_exec<void> {
+    template<typename T>
+    [[nodiscard]] T operator()(const T& my_arg) const { return sqrt(my_arg); }
+};
+
+namespace beman::big_int {
+
+namespace detail {
 
 template <class LimbType>
 static auto msb_limb(LimbType x) -> int {
@@ -41,6 +51,8 @@ static auto msb(const big_int& m) -> int {
     return bpos;
 }
 
+} // namespace detail
+
 static auto sqrt(big_int m) -> big_int {
     // Calculate the square root.
 
@@ -51,7 +63,7 @@ static auto sqrt(big_int m) -> big_int {
     } else {
         // Obtain the initial guess via algorithms
         // involving the position of the msb.
-        const auto msb_pos = msb(m);
+        const auto msb_pos = detail::msb(m);
 
         const auto msb_pos_mod_2 = msb_pos % 2;
 
@@ -81,6 +93,8 @@ static auto sqrt(big_int m) -> big_int {
     return s;
 }
 
+} // namespace beman::big_int
+
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size) {
-    return ::beman::big_int::fuzz::run_unary(sqrt_exec<>{}, data, size);
+    return ::beman::big_int::fuzz::run_unary(sqrt_exec<>{}, data, size, false);
 }
