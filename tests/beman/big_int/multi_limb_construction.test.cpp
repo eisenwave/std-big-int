@@ -129,8 +129,8 @@ TEST(MultiLimbConstruction, AssignOverwritesWithLargerInt128) {
 
 TEST(MultiLimbConstruction, ConstructFromInt128WithAllocator) {
     std::allocator<beman::big_int::uint_multiprecision_t> a;
-    const u128                                            value = make_u128(0xABCDEF0123456789ULL, 0xFEDCBA9876543210ULL);
-    beman::big_int::big_int                               x(value, a);
+    const u128              value = make_u128(0xABCDEF0123456789ULL, 0xFEDCBA9876543210ULL);
+    beman::big_int::big_int x(value, a);
     EXPECT_EQ(static_cast<u128>(x), value);
 }
 
@@ -150,7 +150,7 @@ using bi96  = bit_int<96>;
 // ----- compile-time tests -----
 
 consteval bool test_bitint96_construction() {
-    const bui96             value = (static_cast<bui96>(0xCAFEBABEU) << 64) | static_cast<bui96>(0xDEADBEEF12345678ULL);
+    const bui96 value = (static_cast<bui96>(0xCAFEBABEU) << 64) | static_cast<bui96>(0xDEADBEEF12345678ULL);
     beman::big_int::big_int x(value);
     return static_cast<bui96>(x) == value;
 }
@@ -169,7 +169,7 @@ TEST(MultiLimbConstruction, FromUnsignedBitInt96Small) {
 
 TEST(MultiLimbConstruction, FromUnsignedBitInt96Large) {
     // Set bits in the upper portion to force multi-limb storage on 64-bit limbs.
-    const bui96             value = (static_cast<bui96>(0xCAFEBABEU) << 64) | static_cast<bui96>(0xDEADBEEF12345678ULL);
+    const bui96 value = (static_cast<bui96>(0xCAFEBABEU) << 64) | static_cast<bui96>(0xDEADBEEF12345678ULL);
     beman::big_int::big_int x(value);
     EXPECT_TRUE(x == value);
     EXPECT_EQ(static_cast<bui96>(x), value);
@@ -195,7 +195,7 @@ TEST(MultiLimbConstruction, FromSignedBitInt96LargeNegative) {
 }
 
 TEST(MultiLimbConstruction, AssignFromUnsignedBitInt96) {
-    const bui96             value = (static_cast<bui96>(0xCAFEBABEU) << 64) | static_cast<bui96>(0xDEADBEEF12345678ULL);
+    const bui96 value = (static_cast<bui96>(0xCAFEBABEU) << 64) | static_cast<bui96>(0xDEADBEEF12345678ULL);
     beman::big_int::big_int x;
     x = value;
     EXPECT_EQ(static_cast<bui96>(x), value);
@@ -220,8 +220,8 @@ static_assert(test_bitint192_construction());
 // ----- runtime tests -----
 
 TEST(MultiLimbConstruction, FromUnsignedBitInt192) {
-    const bui192 value =
-        (static_cast<bui192>(1) << 191) | (static_cast<bui192>(0xCAFEBABEU) << 64) | static_cast<bui192>(0xDEADBEEFULL);
+    const bui192            value = (static_cast<bui192>(1) << 191) | (static_cast<bui192>(0xCAFEBABEU) << 64) |
+                                    static_cast<bui192>(0xDEADBEEFULL);
     beman::big_int::big_int x(value);
     EXPECT_EQ(static_cast<bui192>(x), value);
 }
@@ -236,15 +236,15 @@ TEST(MultiLimbConstruction, FromUnsignedBitInt192InplacePath) {
     // basic_big_int<192> has 3 inplace limbs on 64-bit limbs (6 on 32-bit),
     // so a 192-bit value satisfies `value_limbs <= inplace_capacity`
     // and the constructor never grows.
-    const bui192 value =
-        (static_cast<bui192>(1) << 191) | (static_cast<bui192>(0xCAFEBABEU) << 64) | static_cast<bui192>(0xDEADBEEFULL);
+    const bui192 value = (static_cast<bui192>(1) << 191) | (static_cast<bui192>(0xCAFEBABEU) << 64) |
+                         static_cast<bui192>(0xDEADBEEFULL);
     beman::big_int::basic_big_int<192> x(value);
     EXPECT_EQ(static_cast<bui192>(x), value);
     EXPECT_EQ(x.capacity(), 0U);
 }
 
 TEST(MultiLimbConstruction, FromSignedBitInt192Negative) {
-    const bi192             value = -static_cast<bi192>((static_cast<bui192>(1) << 130) | static_cast<bui192>(0xDEADBEEFULL));
+    const bi192 value = -static_cast<bi192>((static_cast<bui192>(1) << 130) | static_cast<bui192>(0xDEADBEEFULL));
     beman::big_int::big_int x(value);
     EXPECT_EQ(static_cast<bi192>(x), value);
 }
@@ -257,8 +257,8 @@ TEST(MultiLimbConstruction, FromSignedBitInt192Min) {
 }
 
 TEST(MultiLimbConstruction, AssignFromUnsignedBitInt192) {
-    const bui192 value =
-        (static_cast<bui192>(1) << 191) | (static_cast<bui192>(0xCAFEBABEU) << 64) | static_cast<bui192>(0xDEADBEEFULL);
+    const bui192            value = (static_cast<bui192>(1) << 191) | (static_cast<bui192>(0xCAFEBABEU) << 64) |
+                                    static_cast<bui192>(0xDEADBEEFULL);
     beman::big_int::big_int x;
     x = value;
     EXPECT_EQ(static_cast<bui192>(x), value);
