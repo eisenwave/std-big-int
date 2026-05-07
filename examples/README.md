@@ -123,7 +123,7 @@ In this configuration, the values of the calculated primes are deterministic
 and the same for each run. The default delivery seeks in total, $32$ pseudo-random
 $512$-bit primes.
 
-In default mode, the final, $32^{nd}$ prime found is
+In default mode, the final prime found is
 
 ```c++
 12680293809733072376366760157730751163493517016757182600714055191918444828961620925625855886789545802167240696194578016620710649320943737449185800530725859
