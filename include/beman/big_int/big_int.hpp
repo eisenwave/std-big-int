@@ -164,6 +164,25 @@ template <bitwise_op op, cv_unqualified_integral T>
     }
 }
 
+// Returns the number of limbs needed to represent the magnitude of the result
+// of `(lhs_size limbs, neg_left) OP (rhs_size limbs, neg_right)`.
+template <bitwise_op op, bool neg_left, bool neg_right>
+[[nodiscard]] constexpr std::size_t bitwise_result_limb_count(const std::size_t lhs_size,
+                                                              const std::size_t rhs_size) noexcept {
+    if constexpr (op == bitwise_op::and_) {
+        if constexpr (!neg_left && !neg_right)
+            return std::min(lhs_size, rhs_size);
+        else if constexpr (!neg_left)
+            return lhs_size;
+        else if constexpr (!neg_right)
+            return rhs_size;
+        else
+            return std::max(lhs_size, rhs_size);
+    } else {
+        return std::max(lhs_size, rhs_size);
+    }
+}
+
 // Two's-complement bitwise operation on little-endian unsigned limb spans.
 // Computes `(lhs, lhs_neg) OP (rhs, rhs_neg)` and writes the magnitude of
 // the result into `out`, returning whether the result is negative.
@@ -180,20 +199,7 @@ constexpr bool eval_bitwise_into_spans(const std::span<const uint_multiprecision
                                        const std::span<uint_multiprecision_t>                 out) noexcept {
     constexpr bool res_neg = eval_bitwise<op>(neg_left, neg_right);
 
-    const std::size_t n = [&]() -> std::size_t {
-        if constexpr (op == bitwise_op::and_) {
-            if constexpr (!neg_left && !neg_right)
-                return std::min(lhs.size(), rhs.size());
-            else if constexpr (!neg_left)
-                return lhs.size();
-            else if constexpr (!neg_right)
-                return rhs.size();
-            else
-                return std::max(lhs.size(), rhs.size());
-        } else {
-            return std::max(lhs.size(), rhs.size());
-        }
-    }();
+    const std::size_t n = bitwise_result_limb_count<op, neg_left, neg_right>(lhs.size(), rhs.size());
 
     BEMAN_BIG_INT_DEBUG_ASSERT(out.size() >= n + static_cast<std::size_t>(res_neg));
 
@@ -1795,20 +1801,7 @@ constexpr void basic_big_int<b, A>::bitwise_in_place(const std::span<const uint_
         constexpr bool    res_neg   = detail::eval_bitwise<op>(NL, NR);
         const std::size_t old_count = limb_count();
 
-        const std::size_t n = []<bool NL2, bool NR2>(std::size_t old_n, std::size_t other_size) -> std::size_t {
-            if constexpr (op == detail::bitwise_op::and_) {
-                if constexpr (!NL2 && !NR2)
-                    return std::min<std::size_t>(old_n, other_size);
-                else if constexpr (!NL2)
-                    return old_n;
-                else if constexpr (!NR2)
-                    return other_size;
-                else
-                    return std::max<std::size_t>(old_n, other_size);
-            } else {
-                return std::max<std::size_t>(old_n, other_size);
-            }
-        }.template operator()<NL, NR>(old_count, other.size());
+        const std::size_t n = detail::bitwise_result_limb_count<op, NL, NR>(old_count, other.size());
 
         grow(n + static_cast<std::size_t>(res_neg));
         // Zero any newly-grown limbs that the old value didn't cover.
