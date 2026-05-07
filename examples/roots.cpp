@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <boost/multiprecision/cpp_int.hpp>
 #include <beman/big_int/big_int.hpp>
 
 #include <iostream>
@@ -115,7 +114,6 @@ static auto cbrt(big_int m) -> big_int {
             big_int m_over_s_pow_3_minus_one(m);
 
             // Use an unrolled loop to divide by s^2 here.
-            // Without a loop, s^2 could potentially overflow.
             m_over_s_pow_3_minus_one /= s;
             m_over_s_pow_3_minus_one /= s;
 
