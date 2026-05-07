@@ -13,8 +13,10 @@ struct sqrt_exec {
 
 template <>
 struct sqrt_exec<void> {
-    template<typename T>
-    [[nodiscard]] T operator()(const T& my_arg) const { return sqrt(my_arg); }
+    template <typename T>
+    [[nodiscard]] T operator()(const T& my_arg) const {
+        return sqrt(my_arg);
+    }
 };
 
 namespace beman::big_int {
