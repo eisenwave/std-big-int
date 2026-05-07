@@ -17,7 +17,7 @@
 
 namespace {
 
-constexpr std::size_t bits_per_limb = sizeof(beman::big_int::uint_multiprecision_t) * CHAR_BIT;
+constexpr std::size_t test_limb_bits = sizeof(beman::big_int::uint_multiprecision_t) * CHAR_BIT;
 
 #ifdef BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
 
@@ -63,7 +63,7 @@ TEST(MultiLimbConstruction, FromUnsignedInt128LargeValueGrows) {
     beman::big_int::big_int x(value);
     EXPECT_TRUE(x == value);
     EXPECT_EQ(static_cast<u128>(x), value);
-    if constexpr (bits_per_limb == 64) {
+    if constexpr (test_limb_bits == 64) {
         ASSERT_EQ(x.representation().size(), 2U);
         EXPECT_EQ(x.representation()[0], 0xFEDCBA9876543210ULL);
         EXPECT_EQ(x.representation()[1], 0xABCDEF0123456789ULL);
