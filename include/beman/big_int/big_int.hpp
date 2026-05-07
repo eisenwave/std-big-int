@@ -358,7 +358,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             unchecked_set_limb_count(count);
             unchecked_set_sign(value.is_negative());
         } else {
-            if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
+            if constexpr (detail::signed_integer<std::remove_cvref_t<T>>) {
                 unchecked_set_sign(value < std::remove_cvref_t<T>{0});
                 assign_magnitude(detail::uabs(value));
             } else {
@@ -404,7 +404,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             unchecked_set_sign(x.is_negative());
         } else {
             using U                 = detail::make_unsigned_t<std::remove_cvref_t<T>>;
-            const bool          neg = std::is_signed_v<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
+            const bool          neg = detail::signed_integer<std::remove_cvref_t<T>> && x < std::remove_cvref_t<T>{0};
             const U             mag = neg ? static_cast<U>(U{0} - static_cast<U>(x)) : static_cast<U>(x);
             constexpr size_type n   = detail::div_to_pos_inf(sizeof(U), sizeof(limb_type));
             grow(n);
