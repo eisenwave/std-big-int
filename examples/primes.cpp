@@ -119,8 +119,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         // Handle even numbers.
         const auto n0 = static_cast<unsigned>(np);
 
-        const auto n_is_even =
-            (static_cast<unsigned>(n0 & static_cast<unsigned>(UINT8_C(1))) == static_cast<unsigned>(UINT8_C(0)));
+        const bool n_is_even{static_cast<unsigned>(n0 & 1U) == 0U};
 
         if (n_is_even) {
             // If true:
@@ -130,15 +129,14 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             // The prime candidate is not prime because it is either
             // even and larger than 2 or equal to zero. Herewith, we
             // handle non-prime even numbers and the non-primality of 0.
-            const bool is_prime_two_or_is_non_prime_even{
-                ((n0 == static_cast<unsigned>(UINT8_C(2))) && (np == unsigned{UINT8_C(2)}))};
+            const bool is_prime_two_or_is_non_prime_even{(n0 == 2U) && (np == 2U)};
 
             return is_prime_two_or_is_non_prime_even;
         }
 
         if ((n0 <= small_primes.back()) && (np <= small_primes.back())) {
             // This handles the trivial special case of the (non-primality) of 1.
-            if (n0 == static_cast<unsigned>(UINT8_C(1))) {
+            if (n0 == 1U) {
                 return false;
             }
 
@@ -162,7 +160,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         }
     }
 
-    const BigIntType nm1{np - static_cast<unsigned>(UINT8_C(1))};
+    const BigIntType nm1{np - 1U};
 
     auto local_functor_isone{[](const BigIntType& t1) { return ((static_cast<unsigned>(t1) == 1U) && (t1 == 1U)); }};
 
@@ -199,7 +197,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
 
         BigIntType y{powm(next_rnd, q, np)};
 
-        for (auto j = std::size_t{UINT8_C(0)}; ((j < static_cast<std::size_t>(k)) && result_candidate_is_prime); ++j) {
+        for (auto j = std::size_t{0}; ((j < static_cast<std::size_t>(k)) && result_candidate_is_prime); ++j) {
             if (y == nm1) {
                 // This trial passes and the candidate is very probably prime
                 // within the limits of Miller-Rabin primality testing.
@@ -211,7 +209,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
                 // Failure and the candidate is not prime, but only if this is
                 // not the first step.
 
-                if (j != std::size_t{UINT8_C(0)}) {
+                if (j != std::size_t{0}) {
                     result_candidate_is_prime = false;
                 }
 
@@ -225,7 +223,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             // then the candidate is not prime within the limits of
             // Miller-Rabin primality testing.
 
-            if (static_cast<unsigned>(j + std::size_t{UINT8_C(1)}) == k) {
+            if (static_cast<unsigned>(j + std::size_t{1}) == k) {
                 result_candidate_is_prime = false;
             }
         }
