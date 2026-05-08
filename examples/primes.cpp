@@ -109,21 +109,87 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
     // This subroutine returns true if the prime candidate is prime within
     // the limits of Miller-Rabin testing for the given input of trials.
 
-    // All even numbers are non-prime.
-    if ((static_cast<unsigned>(np) & 1U) == 0U) {
-        return false;
-    }
+    // Table[Prime[i], {i, 2, 49, 1}] =
+    // {
+    //     3,   5,   7,  11,  13,  17,  19,  23,
+    //    29,  31,  37,  41,  43,  47,  53,  59,
+    //    61,  67,  71,  73,  79,  83,  89,  97,
+    //   101, 103, 107, 109, 113, 127, 131, 137,
+    //   139, 149, 151, 157, 163, 167, 173, 179,
+    //   181, 191, 193, 197, 199, 211, 223, 227
+    // }
+    // See also:
+    // https://www.wolframalpha.com/input/?i=Table%5BPrime%5Bi%5D%2C+%7Bi%2C+2%2C+49%7D%5D
 
-    // List of small primes.
-    constexpr std::array<unsigned, std::size_t{32U}> small_primes = {
-        3U,  5U,  7U,  11U, 13U, 17U, 19U, 23U, 29U,  31U,  37U,  41U,  43U,  47U,  53U,  59U,
-        61U, 67U, 71U, 73U, 79U, 83U, 89U, 97U, 101U, 103U, 107U, 109U, 113U, 127U, 131U, 137U};
+    const std::array<unsigned, static_cast<std::size_t>(UINT8_C(48))> small_primes = {
+        3U,   5U,   7U,   11U,  13U,  17U,  19U,  23U,  29U,  31U,  37U,  41U,  43U,  47U,  53U,  59U,
+        61U,  67U,  71U,  73U,  79U,  83U,  89U,  97U,  101U, 103U, 107U, 109U, 113U, 127U, 131U, 137U,
+        139U, 149U, 151U, 157U, 163U, 167U, 173U, 179U, 181U, 191U, 193U, 197U, 199U, 211U, 223U, 227U};
 
-    const bool is_small_prime_divisible = std::any_of(
-        small_primes.cbegin(), small_primes.cend(), [&np](int p) { return ((np % p) == 0U) && (np != p); });
+    {
+        // Handle even numbers.
+        const auto n0 = static_cast<unsigned>(np);
 
-    if (is_small_prime_divisible) {
-        return false;
+        const auto n_is_even =
+            (static_cast<unsigned>(n0 & static_cast<unsigned>(UINT8_C(1))) == static_cast<unsigned>(UINT8_C(0)));
+
+        if (n_is_even) {
+            // If true:
+            // Handle the trivial special case of 2, which is prime.
+
+            // If false:
+            // The prime candidate is not prime because it is either
+            // even and larger than 2 or equal to zero. Herewith, we
+            // handle non-prime even numbers and the non-primality of 0.
+            const bool is_prime_two_or_is_non_prime_even{
+                ((n0 == static_cast<unsigned>(UINT8_C(2))) && (np == unsigned{UINT8_C(2)}))};
+
+            return is_prime_two_or_is_non_prime_even;
+        }
+
+        if ((n0 <= small_primes.back()) && (np <= small_primes.back())) {
+            // This handles the trivial special case of the (non-primality) of 1.
+            if (n0 == static_cast<unsigned>(UINT8_C(1))) {
+                return false;
+            }
+
+            // Exclude pure small primes from the small_primes table.
+            // We are already restricted to np <= small_primes.back()
+            // via the query above. So it is sufficient to test only
+            // the lowest limb.
+            bool is_small_prime{false};
+
+            for (const auto& small_p : small_primes) {
+                if (static_cast<unsigned>(n0 == small_p)) {
+                    is_small_prime = true;
+
+                    break;
+                }
+            }
+
+            if (is_small_prime) {
+                return true;
+            }
+        }
+
+        // Handle numbers divisible by small primes in the small_primes table.
+        bool is_small_prime_divisible{false};
+
+        for (const auto& small_p : small_primes) {
+            // This test does not include the secondary query if (np == small_p).
+            // This is OK here because exact small primes have already been
+            // filtered out above.
+
+            if ((np % small_p) == static_cast<unsigned>(UINT8_C(0))) {
+                is_small_prime_divisible = true;
+
+                break;
+            }
+        }
+
+        if (is_small_prime_divisible) {
+            return false;
+        }
     }
 
     const BigIntType nm1{np - static_cast<unsigned>(UINT8_C(1))};
@@ -135,10 +201,11 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         // If this fails, np is definitely composite. If it passes, np might still
         // be composite (Carmichael numbers are the classic troublemakers).
         // But this simple test weeds out many non-prime candidates. The value
-        // 228 is not a correctness requirement. Rather, it is just a performance
-        // tradeoff in this interpretation of Miller-Rabin primality testing.
+        // 228 (which is small_primes.bacui + 1) is not a correctness requirement.
+        // Rather, it is just a performance tradeoff in this interpretation
+        // of Miller-Rabin primality testing.
 
-        const BigIntType fn{powm(BigIntType(228U), nm1, np)};
+        const BigIntType fn{powm(BigIntType(small_primes.back() + 1), nm1, np)};
 
         if (!local_functor_isone(fn)) {
             return false;
