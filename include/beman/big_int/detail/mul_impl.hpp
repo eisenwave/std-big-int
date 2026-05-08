@@ -8,6 +8,7 @@
 #include <beman/big_int/detail/wide_ops.hpp>
 
 #include <algorithm>
+#include <compare>
 #include <memory>
 #include <span>
 
@@ -104,6 +105,27 @@ constexpr bool is_span_zero(const std::span<const uint_multiprecision_t> s) noex
 }
 
 // ---------------------------------------------------------------------------
+// Three-way compare of two little-endian unsigned spans.
+// Operands need not be trimmed: trailing zero limbs on either side are
+// treated as insignificant.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr std::strong_ordering
+compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
+                       const std::span<const uint_multiprecision_t> b) noexcept {
+    const std::size_t na = a.size();
+    const std::size_t nb = b.size();
+    const std::size_t n  = std::max(na, nb);
+    for (std::size_t i = n; i-- > 0;) {
+        const auto ai = i < na ? a[i] : uint_multiprecision_t{0};
+        const auto bi = i < nb ? b[i] : uint_multiprecision_t{0};
+        if (ai != bi) {
+            return ai < bi ? std::strong_ordering::less : std::strong_ordering::greater;
+        }
+    }
+    return std::strong_ordering::equal;
+}
+
+// ---------------------------------------------------------------------------
 // Unsigned span addition: result = a + b
 // `result.size()` must be >= max(a.size(), b.size()).
 // `result` may alias `a`. Returns true if there is a carry out.
@@ -145,6 +167,74 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
 
     BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
     return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), a.size()});
+}
+
+// ---------------------------------------------------------------------------
+// Signed span subtraction: writes |a - b| into result, returns its size and
+// whether the result is negative (i.e. b > a, so result holds b - a).
+// `result` may alias `a` or `b`. Used by Toom-Cook 3 to evaluate at x = -1.
+// ---------------------------------------------------------------------------
+struct signed_sub_result {
+    std::size_t size;
+    bool        negative;
+};
+
+constexpr signed_sub_result
+subtract_unsigned_spans_signed(const std::span<uint_multiprecision_t>       result,
+                               const std::span<const uint_multiprecision_t> a,
+                               const std::span<const uint_multiprecision_t> b) noexcept {
+    // Trim before comparing so the size relationship matches the value relationship,
+    // satisfying subtract_unsigned_spans's a.size() >= b.size() invariant.
+    const std::size_t a_trim = a.empty() ? 0 : trimmed_size(a);
+    const std::size_t b_trim = b.empty() ? 0 : trimmed_size(b);
+    const auto        a_view = a.first(a_trim);
+    const auto        b_view = b.first(b_trim);
+
+    if (compare_unsigned_spans(a_view, b_view) >= 0) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a_trim);
+        if (a_trim == 0) {
+            return {0, false};
+        }
+        return {subtract_unsigned_spans(result.first(a_trim), a_view, b_view), false};
+    }
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= b_trim);
+    return {subtract_unsigned_spans(result.first(b_trim), b_view, a_view), true};
+}
+
+// ---------------------------------------------------------------------------
+// Single-limb short division.
+// `quotient[i]` := floor(([remainder, dividend[i]] as two limbs) / divisor)
+// scanning from the top limb down.
+// Returns the scalar remainder.
+// `quotient` and `dividend` may be the same range (i.e. alias each other),
+// but `quotient` may not be a strict subrange of `dividend`.
+//
+// Preconditions:
+//   - divisor != 0
+//   - quotient.size() >= dividend.size()
+//   - dividend.size() >= 1
+//   - quotient may alias dividend (we read dividend[i] before writing
+//     quotient[i]; subsequent iterations touch strictly lower indices).
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t
+divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
+                      const std::span<const uint_multiprecision_t> dividend,
+                      const uint_multiprecision_t                  divisor) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
+
+    uint_multiprecision_t remainder = 0;
+    for (std::size_t i = dividend.size(); i-- > 0;) {
+        // narrowing_div requires x.high_bits < y; the previous remainder was
+        // taken mod divisor, so this invariant holds (and 0 < divisor on the
+        // first iteration).
+        const wide<uint_multiprecision_t> num{.low_bits = dividend[i], .high_bits = remainder};
+        const auto [q, r] = narrowing_div(num, divisor);
+        quotient[i]       = q;
+        remainder         = r;
+    }
+    return remainder;
 }
 
 // ---------------------------------------------------------------------------
