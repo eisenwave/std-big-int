@@ -7,6 +7,7 @@
 #include <span>
 
 #include "benchmark_testing.hpp"
+#include "testing.hpp"
 
 namespace local {
 template <typename BigIntType>
@@ -52,8 +53,8 @@ bool run_benchmarks() {
     const auto big_int_bytes = std::as_bytes(big_int_fibonacci.representation());
     const auto cpp_int_bytes = std::as_bytes(cpp_int_rep);
 
-    const auto big_int_sig = beman::big_int::benchmark_testing::significant_byte_len(big_int_bytes);
-    const auto cpp_int_sig = beman::big_int::benchmark_testing::significant_byte_len(cpp_int_bytes);
+    const auto big_int_sig = beman::big_int::significant_byte_len(big_int_bytes);
+    const auto cpp_int_sig = beman::big_int::significant_byte_len(cpp_int_bytes);
 
     const bool result_length_is_ok{big_int_sig == cpp_int_sig};
 
