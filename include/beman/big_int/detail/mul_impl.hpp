@@ -432,6 +432,277 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     scratch.deallocate(total_scratch);
 }
 
+// Minimum number of limbs for Toom-Cook 3 to be worthwhile
+// TODO(mborland) : We need to test where this should actually be
+inline constexpr std::size_t toom_cook_3_cutoff = 120;
+
+// Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
+// Includes space for karatsuba fallback plan
+constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { return 8 * s; }
+
+// ---------------------------------------------------------------------------
+// Recursive Toom-Cook 3-Way multiplication (Bodrato variant).
+// Reference: Knuth TAOCP section 4.3.3
+// Reference: Bodrato, "Towards Optimal Toom-Cook Multiplication" (2006)
+//
+// Splits each operand into three pieces of size k = ceil(max(an,bn)/3):
+//   a = a2*B^(2k) + a1*B^k + a0,   b = b2*B^(2k) + b1*B^k + b0  (B = 2^limb_bits)
+//
+// Evaluates the product polynomial r(x) = p(x)*q(x) at five points
+// {0, 1, -1, 2, infinity}, then interpolates the five coefficients c0-c4 of
+// r(x) via Bodrato's seven-step in-place sequence (one /3, two /2).
+// Result = c0 + c1*B^k + c2*B^(2k) + c3*B^(3k) + c4*B^(4k).
+//
+// `result` must be pre-zeroed and have space for a.size() + b.size() limbs.
+// `result` must NOT alias `a` or `b`.
+// `scratch` provides pre-allocated workspace for temporaries.
+// ---------------------------------------------------------------------------
+template <class Allocator>
+constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> result,
+                                    std::span<const uint_multiprecision_t> a,
+                                    std::span<const uint_multiprecision_t> b,
+                                    scratch_allocator<Allocator>&          scratch) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size(a) + trimmed_size(b));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
+
+    a = a.first(trimmed_size(a));
+    b = b.first(trimmed_size(b));
+
+    // Partition at k = ceil(max(an, bn) / 3).
+    const std::size_t min_size = std::min(a.size(), b.size());
+    const std::size_t k        = (std::max(a.size(), b.size()) + 2) / 3;
+
+    // Fall through to Karatsuba (and on through to schoolbook) when the smaller
+    // operand is below the performance cutoff or below the algorithm's 2*k
+    // invariant (Toom-Cook 3 needs both a2 and b2 non-empty).
+    if (min_size < toom_cook_3_cutoff || min_size <= 2 * k) {
+        multiply_karatsuba(result, a, b, scratch);
+        return;
+    }
+
+    // Split each operand into three pieces. Empty pieces represent zero.
+    const auto a0 = a.first(std::min(k, a.size()));
+    const auto a1 = a.size() > k     ? a.subspan(k, std::min(k, a.size() - k))
+                                     : std::span<const uint_multiprecision_t>{};
+    const auto a2 = a.size() > 2 * k ? a.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
+
+    const auto b0 = b.first(std::min(k, b.size()));
+    const auto b1 = b.size() > k     ? b.subspan(k, std::min(k, b.size() - k))
+                                     : std::span<const uint_multiprecision_t>{};
+    const auto b2 = b.size() > 2 * k ? b.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
+
+    // Carve scratch:
+    //   tmpa, tmpb: k+2 limbs each
+    //   v1, vm1, v2: 2k+2 limbs each, hold three product values that survive through interpolation
+    //   v0 = a0*b0 and vinf = a2*b2 live directly in result.
+    const std::size_t tmp_cap       = k + 2;
+    const std::size_t prod_cap      = 2 * k + 2;
+    const std::size_t total_scratch = 2 * tmp_cap + 3 * prod_cap;
+
+    auto block = scratch.allocate(total_scratch);
+    auto tmpa  = block.first(tmp_cap);
+    auto tmpb  = block.subspan(tmp_cap, tmp_cap);
+    auto v1    = block.subspan(2 * tmp_cap, prod_cap);
+    auto vm1   = block.subspan(2 * tmp_cap + prod_cap, prod_cap);
+    auto v2    = block.subspan(2 * tmp_cap + 2 * prod_cap, prod_cap);
+
+    // ---- v0 = a0*b0, written into result[0..2k) ----
+    // result is pre-zeroed by the caller convention, so result.first(2k) is too.
+    multiply_toom_cook_3(result.first(a0.size() + b0.size()), a0, b0, scratch);
+
+    // ---- vinf = a2*b2, written into result[4k..) ----
+    if (!a2.empty() && !b2.empty()) {
+        multiply_toom_cook_3(result.subspan(4 * k, a2.size() + b2.size()), a2, b2, scratch);
+    }
+
+    // ---- Helper: in-place tmp[0..size) += addend; returns new size (may grow by 1) ----
+    const auto add_into_tmp = [](const std::span<uint_multiprecision_t>       tmp,
+                                 const std::size_t                            size,
+                                 const std::span<const uint_multiprecision_t> addend) -> std::size_t {
+        if (addend.empty()) {
+            return size;
+        }
+        const std::size_t new_size = std::max(size, addend.size());
+        BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > new_size);
+        const bool carry = add_unsigned_spans(
+            tmp.first(new_size), std::span<const uint_multiprecision_t>{tmp.data(), size}, addend);
+        if (carry) {
+            tmp[new_size] = 1;
+            return new_size + 1;
+        }
+        return new_size;
+    };
+
+    // ---- Helper: in-place tmp[0..size) *= 2; returns new size (may grow by 1) ----
+    const auto double_in_place = [](const std::span<uint_multiprecision_t> tmp,
+                                    const std::size_t                      size) -> std::size_t {
+        if (size == 0) {
+            return 0;
+        }
+        BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > size);
+        const auto view  = std::span<const uint_multiprecision_t>{tmp.data(), size};
+        const bool carry = add_unsigned_spans(tmp.first(size), view, view);
+        if (carry) {
+            tmp[size] = 1;
+            return size + 1;
+        }
+        return size;
+    };
+
+    // ---- Evaluate at x = 1: tmpa = a0 + a1 + a2; tmpb = b0 + b1 + b2 ----
+    std::ranges::copy(a0, tmpa.begin());
+    std::size_t tmpa_size = a0.size();
+    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a1);
+    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a2);
+
+    std::ranges::copy(b0, tmpb.begin());
+    std::size_t tmpb_size = b0.size();
+    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b1);
+    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b2);
+
+    // v1 = tmpa * tmpb
+    std::ranges::fill(v1, uint_multiprecision_t{0});
+    multiply_toom_cook_3(v1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                         std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, scratch);
+
+    // ---- Evaluate at x = -1: tmpa = (a0 + a2) - a1 (signed); tmpb similarly ----
+    std::ranges::copy(a0, tmpa.begin());
+    tmpa_size               = a0.size();
+    tmpa_size               = add_into_tmp(tmpa, tmpa_size, a2);
+    const auto sub_a        = subtract_unsigned_spans_signed(
+        tmpa, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, a1);
+    tmpa_size               = sub_a.size;
+    const bool sign_a       = sub_a.negative;
+
+    std::ranges::copy(b0, tmpb.begin());
+    tmpb_size               = b0.size();
+    tmpb_size               = add_into_tmp(tmpb, tmpb_size, b2);
+    const auto sub_b        = subtract_unsigned_spans_signed(
+        tmpb, std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, b1);
+    tmpb_size               = sub_b.size;
+    const bool sign_b       = sub_b.negative;
+
+    // Sign of vm1 = sign of (p(-1)*q(-1)). Magnitude = |p(-1)| * |q(-1)|.
+    const bool sign_vm1 = sign_a ^ sign_b;
+
+    // vm1 = |p(-1)| * |q(-1)|
+    std::ranges::fill(vm1, uint_multiprecision_t{0});
+    if (tmpa_size == 0 || tmpb_size == 0) {
+        // One of the evaluations is zero, so vm1 = 0.
+    } else {
+        multiply_toom_cook_3(vm1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                             std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, scratch);
+    }
+
+    // ---- Evaluate at x = 2: tmpa = 4*a2 + 2*a1 + a0 (Horner: ((a2*2)+a1)*2+a0); tmpb similarly ----
+    std::ranges::copy(a2, tmpa.begin());
+    tmpa_size = a2.size();
+    tmpa_size = double_in_place(tmpa, tmpa_size); // 2*a2
+    tmpa_size = add_into_tmp(tmpa, tmpa_size, a1); // 2*a2 + a1
+    tmpa_size = double_in_place(tmpa, tmpa_size); // 4*a2 + 2*a1
+    tmpa_size = add_into_tmp(tmpa, tmpa_size, a0); // 4*a2 + 2*a1 + a0
+
+    std::ranges::copy(b2, tmpb.begin());
+    tmpb_size = b2.size();
+    tmpb_size = double_in_place(tmpb, tmpb_size);
+    tmpb_size = add_into_tmp(tmpb, tmpb_size, b1);
+    tmpb_size = double_in_place(tmpb, tmpb_size);
+    tmpb_size = add_into_tmp(tmpb, tmpb_size, b0);
+
+    // v2 = p(2) * q(2)
+    std::ranges::fill(v2, uint_multiprecision_t{0});
+    multiply_toom_cook_3(v2, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                         std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, scratch);
+
+    // ---- Bodrato interpolation (in-place; full 2k+2 buffers throughout) ----
+    // After this sequence: v0=c0 (in result), vm1=c1, v1=c2, v2=c3, vinf=c4 (in result).
+    //
+    // Clip vinf_view to its semantic size of 2k limbs: c4 = a2*b2 with a2.size() <= k
+    // and b2.size() <= k yields a product of at most 2k limbs. The result span may
+    // extend past 4k+2k when called recursively from a parent whose prod_cap buffer
+    // is larger than the actual product (slack = caller-pre-zeroed). Subtracting
+    // those slack zeros is correct, but the size assertion in subtract_unsigned_spans
+    // would fail without clipping.
+    const auto v0_view   = std::span<const uint_multiprecision_t>{result.data(), 2 * k};
+    const auto vinf_size = std::min(result.size() - 4 * k, 2 * k);
+    const auto vinf_view = std::span<const uint_multiprecision_t>{result.data() + 4 * k, vinf_size};
+    const auto v1_view   = std::span<const uint_multiprecision_t>{v1};
+    const auto vm1_view  = std::span<const uint_multiprecision_t>{vm1};
+    const auto v2_view   = std::span<const uint_multiprecision_t>{v2};
+
+    // Step 1: v2 <- (v2 - vm1) / 3 (sign-aware: add if vm1 was negative).
+    if (sign_vm1) {
+        [[maybe_unused]] const bool carry_out = add_unsigned_spans(v2, v2_view, vm1_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
+    } else {
+        subtract_unsigned_spans(v2, v2_view, vm1_view);
+    }
+    {
+        [[maybe_unused]] const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 2: vm1 <- (v1 - vm1) / 2 (sign-aware). After this, vm1 is non-negative.
+    if (sign_vm1) {
+        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
+    } else {
+        subtract_unsigned_spans(vm1, v1_view, vm1_view);
+    }
+    {
+        [[maybe_unused]] const auto rem = divide_unsigned_short(vm1, vm1_view, uint_multiprecision_t{2});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 3: v1 <- v1 - v0 (sizes: v1 is 2k+2, v0_view is 2k; v1 >= v0 numerically).
+    subtract_unsigned_spans(v1, v1_view, v0_view);
+
+    // Step 4: v2 <- (v2 - v1) / 2.
+    subtract_unsigned_spans(v2, v2_view, v1_view);
+    {
+        [[maybe_unused]] const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{2});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 5: v1 <- v1 - vm1 - vinf.
+    subtract_unsigned_spans(v1, v1_view, vm1_view);
+    subtract_unsigned_spans(v1, v1_view, vinf_view);
+
+    // Step 6: v2 <- v2 - 2*vinf (subtract twice, no doubling helper needed).
+    subtract_unsigned_spans(v2, v2_view, vinf_view);
+    subtract_unsigned_spans(v2, v2_view, vinf_view);
+
+    // Step 7: vm1 <- vm1 - v2.
+    subtract_unsigned_spans(vm1, vm1_view, v2_view);
+
+    // ---- Recompose: result += vm1*B^k + v1*B^(2k) + v2*B^(3k) ----
+    // c0 already at result[0..2k); c4 already at result[4k..). Add the three middle
+    // coefficients with carry chains spanning to result.size() so carries can
+    // propagate into the c4 region.
+    const auto add_shifted = [&](const std::size_t                            shift,
+                                 const std::span<const uint_multiprecision_t> src) {
+        const auto dest  = result.subspan(shift);
+        bool       carry = false;
+        for (std::size_t i = 0; i < dest.size(); ++i) {
+            const auto si            = i < src.size() ? src[i] : uint_multiprecision_t{0};
+            const auto [r_value, c1] = carrying_add(dest[i], si, carry);
+            dest[i]                  = r_value;
+            carry                    = c1;
+        }
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+    };
+
+    add_shifted(k, vm1_view);
+    add_shifted(2 * k, v1_view);
+    add_shifted(3 * k, v2_view);
+
+    // Move bump pointer back so the next sibling recursive call reuses the same region.
+    scratch.deallocate(total_scratch);
+}
+
 // ---------------------------------------------------------------------------
 // Top-level multiplication dispatcher.
 // `result` must be pre-zeroed and have space for a.size() + b.size() limbs.
