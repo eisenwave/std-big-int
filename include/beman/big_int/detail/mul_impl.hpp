@@ -737,10 +737,19 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
         return multiply_single_limb(result, a, b[0]);
     }
 
-    // Use Karatsuba when both operands are large enough
-    // Also avoid using this function at compile time, because we can end up with high recursion depth
-    // Unlikely to matter, but long multiplication works just fine in this case
+    // Use Toom-Cook 3 above its cutoff, Karatsuba above its cutoff, and schoolbook below.
+    // Avoid these at compile time because the recursion depth could blow up consteval limits;
+    // long multiplication works just fine in that case.
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+        if (a.size() >= toom_cook_3_cutoff && b.size() >= toom_cook_3_cutoff) {
+            const std::size_t s            = std::max(a.size(), b.size());
+            const std::size_t storage_size = toom_cook_3_storage_size(s);
+            const std::size_t result_total = a.size() + b.size();
+
+            scratch_allocator<Allocator> scratch(storage_size, alloc);
+            multiply_toom_cook_3(result.first(result_total), a, b, scratch);
+            return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), result_total});
+        }
         if (a.size() >= karatsuba_cutoff && b.size() >= karatsuba_cutoff) {
             const std::size_t s            = std::max(a.size(), b.size());
             const std::size_t storage_size = karatsuba_storage_size(s);
