@@ -109,21 +109,57 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
     // This subroutine returns true if the prime candidate is prime within
     // the limits of Miller-Rabin testing for the given input of trials.
 
-    // All even numbers are non-prime.
-    if ((static_cast<unsigned>(np) & 1U) == 0U) {
-        return false;
-    }
+    // Table[Prime[i], {i, 2, 49, 1}]
+    constexpr std::array<unsigned, 48> small_primes = {
+        3U,   5U,   7U,   11U,  13U,  17U,  19U,  23U,  29U,  31U,  37U,  41U,  43U,  47U,  53U,  59U,
+        61U,  67U,  71U,  73U,  79U,  83U,  89U,  97U,  101U, 103U, 107U, 109U, 113U, 127U, 131U, 137U,
+        139U, 149U, 151U, 157U, 163U, 167U, 173U, 179U, 181U, 191U, 193U, 197U, 199U, 211U, 223U, 227U};
 
-    // List of small primes.
-    constexpr std::array<unsigned, std::size_t{32U}> small_primes = {
-        3U,  5U,  7U,  11U, 13U, 17U, 19U, 23U, 29U,  31U,  37U,  41U,  43U,  47U,  53U,  59U,
-        61U, 67U, 71U, 73U, 79U, 83U, 89U, 97U, 101U, 103U, 107U, 109U, 113U, 127U, 131U, 137U};
+    {
+        // Handle even numbers.
+        const auto n0 = static_cast<unsigned>(np);
 
-    const bool is_small_prime_divisible = std::any_of(
-        small_primes.cbegin(), small_primes.cend(), [&np](int p) { return ((np % p) == 0U) && (np != p); });
+        const auto n_is_even =
+            (static_cast<unsigned>(n0 & static_cast<unsigned>(UINT8_C(1))) == static_cast<unsigned>(UINT8_C(0)));
 
-    if (is_small_prime_divisible) {
-        return false;
+        if (n_is_even) {
+            // If true:
+            // Handle the trivial special case of 2, which is prime.
+
+            // If false:
+            // The prime candidate is not prime because it is either
+            // even and larger than 2 or equal to zero. Herewith, we
+            // handle non-prime even numbers and the non-primality of 0.
+            const bool is_prime_two_or_is_non_prime_even{
+                ((n0 == static_cast<unsigned>(UINT8_C(2))) && (np == unsigned{UINT8_C(2)}))};
+
+            return is_prime_two_or_is_non_prime_even;
+        }
+
+        if ((n0 <= small_primes.back()) && (np <= small_primes.back())) {
+            // This handles the trivial special case of the (non-primality) of 1.
+            if (n0 == static_cast<unsigned>(UINT8_C(1))) {
+                return false;
+            }
+
+            // Exclude pure small primes from the small_primes table.
+            // We are already restricted to np <= small_primes.back()
+            // via the query above. So it is sufficient to test only
+            // the lowest unsigned cast, n0.
+            const bool is_small_prime = std::ranges::contains(small_primes, n0);
+
+            if (is_small_prime) {
+                return true;
+            }
+        }
+
+        // Handle numbers divisible by small primes in the small_primes table.
+        const bool is_small_prime_divisible =
+            std::ranges::any_of(small_primes, [np](unsigned p) { return np % p == 0; });
+
+        if (is_small_prime_divisible) {
+            return false;
+        }
     }
 
     const BigIntType nm1{np - static_cast<unsigned>(UINT8_C(1))};
@@ -135,10 +171,11 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         // If this fails, np is definitely composite. If it passes, np might still
         // be composite (Carmichael numbers are the classic troublemakers).
         // But this simple test weeds out many non-prime candidates. The value
-        // 228 is not a correctness requirement. Rather, it is just a performance
-        // tradeoff in this interpretation of Miller-Rabin primality testing.
+        // 228 (which is small_primes.back + 1) is not a correctness requirement.
+        // Rather, it is just a performance tradeoff in this interpretation
+        // of Miller-Rabin primality testing.
 
-        const BigIntType fn{powm(BigIntType(228U), nm1, np)};
+        const BigIntType fn{powm(BigIntType(small_primes.back() + 1), nm1, np)};
 
         if (!local_functor_isone(fn)) {
             return false;
