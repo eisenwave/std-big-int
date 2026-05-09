@@ -10,40 +10,22 @@
 
 // #define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-[[nodiscard]] inline auto get_system_entropy() -> unsigned;
-#endif
-
 namespace rnd_gens {
 using gen_type = std::mt19937_64;
 
 auto eng1() -> gen_type& {
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-    static gen_type instance{get_system_entropy()};
-#else
     static gen_type instance{};
-#endif
+
     return instance;
 };
 
 auto eng2() -> gen_type& {
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-    static gen_type instance{get_system_entropy()};
-#else
     static gen_type instance{};
-#endif
+
     return instance;
 };
 
 } // namespace rnd_gens
-
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-[[nodiscard]] inline auto get_system_entropy() -> unsigned {
-    std::random_device rd{};
-
-    return rd();
-}
-#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
 template <class BigIntType, class RndEngineType>
 [[nodiscard]] auto get_pseudo_random_integer(RndEngineType& eng, const BigIntType& max_val) -> BigIntType {
@@ -256,8 +238,8 @@ auto main() -> int {
     while (prime_count < max_prime_count) {
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-        rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
-        rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
+        rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+        rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
 #endif
 
         const big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};
