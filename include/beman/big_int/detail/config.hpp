@@ -10,9 +10,6 @@
     #define BEMAN_BIG_INT_MSVC _MSC_VER
 #elif defined(__clang__)
     #define BEMAN_BIG_INT_CLANG __clang__
-    #if defined(__APPLE__) || defined(__APPLE_CC__)
-        #define BEMAN_BIG_INT_APPLE_CLANG __clang__
-    #endif
 #elif defined(__GNUC__)
     #define BEMAN_BIG_INT_GCC __GNUC__
 #else

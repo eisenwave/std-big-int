@@ -21,7 +21,7 @@ auto eng1() -> gen_type& {
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
     static gen_type instance{get_system_entropy()};
 #else
-    static gen_type instance{42};
+    static gen_type instance{};
 #endif
     return instance;
 };
@@ -30,7 +30,7 @@ auto eng2() -> gen_type& {
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
     static gen_type instance{get_system_entropy()};
 #else
-    static gen_type instance{123};
+    static gen_type instance{};
 #endif
     return instance;
 };
@@ -283,11 +283,11 @@ auto main() -> int {
 
     int ret_val{};
 
-#if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY) && !defined(BEMAN_BIG_INT_APPLE_CLANG)
+#if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
     if constexpr ((max_prime_count == 32U) && (prime_candidate_bits == 512U)) {
-        constexpr const char* prime_ctrl{"1268029380973307237636676015773075116349351701675718260071405519"
-                                         "1918444828961620925625855886789545802167240696194578016620710649"
-                                         "320943737449185800530725859"};
+        constexpr const char* prime_ctrl{"8911508676488368383475561283727944998457661480546015847355276362"
+                                         "5917690648545984690234991420722225879687115682622916184439218207"
+                                         "62599423351134473334554903"};
 
         ret_val = (str_prime == prime_ctrl) ? 0 : -1;
     }
