@@ -178,4 +178,6 @@ auto main() -> int {
     std::cout << "\nresult_cbrt:\n" << str_result_cbrt << std::endl;
 
     std::cout << "\nresult_is_ok: " << std::boolalpha << result_is_ok << std::endl;
+
+    return result_is_ok ? 0 : -1;
 }

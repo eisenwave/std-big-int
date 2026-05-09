@@ -6,6 +6,7 @@
 #include <iostream>
 #include <random>
 #include <sstream>
+#include <string>
 
 // #define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
@@ -16,25 +17,24 @@
 namespace rnd_gens {
 using gen_type = std::mt19937_64;
 
+auto eng1() -> gen_type& {
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-auto eng1() -> gen_type& {
     static gen_type instance{get_system_entropy()};
-    return instance;
-};
-auto eng2() -> gen_type& {
-    static gen_type instance{get_system_entropy()};
-    return instance;
-};
 #else
-auto eng1() -> gen_type& {
     static gen_type instance{42};
-    return instance;
-};
-auto eng2() -> gen_type& {
-    static gen_type instance{123};
-    return instance;
-};
 #endif
+    return instance;
+};
+
+auto eng2() -> gen_type& {
+#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
+    static gen_type instance{get_system_entropy()};
+#else
+    static gen_type instance{123};
+#endif
+    return instance;
+};
+
 } // namespace rnd_gens
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
@@ -87,7 +87,7 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
     return x;
 }
 
-static auto lsb_position(std::uint64_t x) noexcept -> unsigned {
+static constexpr auto lsb_position(std::uint64_t x) noexcept -> unsigned {
     // We use tricky, enhanced knowledge here. Because of the way the prime
     // candidates are created, each limb is "rigged" to have a non-zero value.
     // So here, we can safely calculate the LSB of the big_int based on one
@@ -117,9 +117,9 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
 
     {
         // Handle even numbers.
-        const auto n0 = static_cast<unsigned>(np);
+        const auto n0{static_cast<unsigned>(np)};
 
-        const bool n_is_even{static_cast<unsigned>(n0 & 1U) == 0U};
+        const bool n_is_even{(n0 & 1U) == 0U};
 
         if (n_is_even) {
             // If true:
@@ -144,7 +144,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             // We are already restricted to np <= small_primes.back()
             // via the query above. So it is sufficient to test only
             // the lowest unsigned cast, n0.
-            const bool is_small_prime = std::ranges::contains(small_primes, n0);
+            const bool is_small_prime{std::ranges::contains(small_primes, n0)};
 
             if (is_small_prime) {
                 return true;
@@ -152,8 +152,8 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         }
 
         // Handle numbers divisible by small primes in the small_primes table.
-        const bool is_small_prime_divisible =
-            std::ranges::any_of(small_primes, [np](unsigned p) { return np % p == 0; });
+        const bool is_small_prime_divisible{
+            std::ranges::any_of(small_primes, [np](unsigned p) { return (np % p) == 0U; })};
 
         if (is_small_prime_divisible) {
             return false;
@@ -173,7 +173,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         // Rather, it is just a performance tradeoff in this interpretation
         // of Miller-Rabin primality testing.
 
-        const BigIntType fn{powm(BigIntType(small_primes.back() + 1), nm1, np)};
+        const BigIntType fn{powm(BigIntType{small_primes.back() + 1U}, nm1, np)};
 
         if (!local_functor_isone(fn)) {
             return false;
@@ -197,7 +197,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
 
         BigIntType y{powm(next_rnd, q, np)};
 
-        for (auto j = std::size_t{0}; ((j < static_cast<std::size_t>(k)) && result_candidate_is_prime); ++j) {
+        for (auto j{0U}; ((j < k) && result_candidate_is_prime); ++j) {
             if (y == nm1) {
                 // This trial passes and the candidate is very probably prime
                 // within the limits of Miller-Rabin primality testing.
@@ -209,7 +209,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
                 // Failure and the candidate is not prime, but only if this is
                 // not the first step.
 
-                if (j != std::size_t{0}) {
+                if (j != 0U) {
                     result_candidate_is_prime = false;
                 }
 
@@ -223,7 +223,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             // then the candidate is not prime within the limits of
             // Miller-Rabin primality testing.
 
-            if (static_cast<unsigned>(j + std::size_t{1}) == k) {
+            if ((j + 1U) == k) {
                 result_candidate_is_prime = false;
             }
         }
@@ -245,13 +245,17 @@ auto main() -> int {
 
     using beman::big_int::big_int;
 
-    const big_int max_val{(big_int{1} << 512U) - 1};
+    constexpr unsigned prime_candidate_bits{512U};
+
+    const big_int max_val{(big_int{1} << prime_candidate_bits) - 1};
 
     std::uint64_t prime_count{};
     std::uint64_t trial_count{};
 
     constexpr std::uint64_t max_prime_count{32};
-    // constexpr std::uint64_t max_prime_count{250000};
+    // constexpr std::uint64_t max_prime_count{100000};
+
+    std::string str_prime{};
 
     while (prime_count < max_prime_count) {
 
@@ -260,13 +264,13 @@ auto main() -> int {
         rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
 #endif
 
-        big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};
+        const big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};
         ++trial_count;
 
         const bool is_prime{miller_rabin(prime_candidate, 25)};
 
         if (is_prime) {
-            const std::string str_prime{to_string(prime_candidate)};
+            str_prime = to_string(prime_candidate);
 
             ++prime_count;
 
@@ -276,4 +280,18 @@ auto main() -> int {
     }
 
     std::cout << str_prime_density(trial_count, prime_count) << std::endl;
+
+    int ret_val{};
+
+#if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
+    if constexpr ((max_prime_count == 32U) && (prime_candidate_bits == 512U)) {
+        constexpr const char* prime_ctrl{"1268029380973307237636676015773075116349351701675718260071405519"
+                                         "1918444828961620925625855886789545802167240696194578016620710649"
+                                         "320943737449185800530725859"};
+
+        ret_val = (str_prime == prime_ctrl) ? 0 : -1;
+    }
+#endif
+
+    return ret_val;
 }
