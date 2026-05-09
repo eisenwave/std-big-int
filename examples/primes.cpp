@@ -6,58 +6,40 @@
 #include <iostream>
 #include <random>
 #include <sstream>
+#include <string>
 
 // #define BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
-
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-[[nodiscard]] inline auto get_system_entropy() -> unsigned;
-#endif
 
 namespace rnd_gens {
 using gen_type = std::mt19937_64;
 
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
 auto eng1() -> gen_type& {
-    static gen_type instance{get_system_entropy()};
+    static gen_type instance{};
+
     return instance;
 };
+
 auto eng2() -> gen_type& {
-    static gen_type instance{get_system_entropy()};
+    static gen_type instance{};
+
     return instance;
 };
-#else
-auto eng1() -> gen_type& {
-    static gen_type instance{42};
-    return instance;
-};
-auto eng2() -> gen_type& {
-    static gen_type instance{123};
-    return instance;
-};
-#endif
+
 } // namespace rnd_gens
-
-#if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-[[nodiscard]] inline auto get_system_entropy() -> unsigned {
-    std::random_device rd{};
-
-    return rd();
-}
-#endif // BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY
 
 template <class BigIntType, class RndEngineType>
 [[nodiscard]] auto get_pseudo_random_integer(RndEngineType& eng, const BigIntType& max_val) -> BigIntType {
-    using distribution_type = std::uniform_int_distribution<std::uint64_t>;
-
-    distribution_type dist{std::uint64_t{0x8000000100000001}, std::uint64_t{0xFFFFFFFFFFFFFFFF}};
-
     BigIntType value_to_get{};
 
     for (int bit_index{0}; value_to_get < max_val; bit_index += 64) {
         if (bit_index != 0U) {
             value_to_get <<= 64U;
         }
-        value_to_get += dist(eng);
+
+        // Get the next 64-bit chunk. Also ensure each chunk retrieved
+        // is non-zero and also that the resulting candidate will, after
+        // piecing the chunks together, have the full bit width.
+        value_to_get += (eng() | std::uint64_t{0x8000000000000000});
     }
 
     return value_to_get % max_val;
@@ -87,11 +69,11 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
     return x;
 }
 
-static auto lsb_position(std::uint64_t x) noexcept -> unsigned {
+static constexpr auto lsb_position(std::uint64_t x) noexcept -> unsigned {
     // We use tricky, enhanced knowledge here. Because of the way the prime
-    // candidates are created, each limb is "rigged" to have a non-zero value.
-    // So here, we can safely calculate the LSB of the big_int based on one
-    // single limb.
+    // candidates are created, each 64-bit chunk is "rigged" to have a non-zero
+    // value. So here, we can safely calculate the LSB of the entire big_int
+    // based on the single lowest chunk.
 
     unsigned pos{};
 
@@ -117,9 +99,9 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
 
     {
         // Handle even numbers.
-        const auto n0 = static_cast<unsigned>(np);
+        const auto n0{static_cast<unsigned>(np)};
 
-        const bool n_is_even{static_cast<unsigned>(n0 & 1U) == 0U};
+        const bool n_is_even{(n0 & 1U) == 0U};
 
         if (n_is_even) {
             // If true:
@@ -143,8 +125,8 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             // Exclude pure small primes from the small_primes table.
             // We are already restricted to np <= small_primes.back()
             // via the query above. So it is sufficient to test only
-            // the lowest unsigned cast, n0.
-            const bool is_small_prime = std::ranges::contains(small_primes, n0);
+            // the lowest unsigned-casted value, n0.
+            const bool is_small_prime{std::ranges::contains(small_primes, n0)};
 
             if (is_small_prime) {
                 return true;
@@ -152,8 +134,8 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         }
 
         // Handle numbers divisible by small primes in the small_primes table.
-        const bool is_small_prime_divisible =
-            std::ranges::any_of(small_primes, [np](unsigned p) { return np % p == 0; });
+        const bool is_small_prime_divisible{
+            std::ranges::any_of(small_primes, [&np](unsigned p) { return (np % p) == 0U; })};
 
         if (is_small_prime_divisible) {
             return false;
@@ -173,7 +155,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
         // Rather, it is just a performance tradeoff in this interpretation
         // of Miller-Rabin primality testing.
 
-        const BigIntType fn{powm(BigIntType(small_primes.back() + 1), nm1, np)};
+        const BigIntType fn{powm(BigIntType{small_primes.back() + 1U}, nm1, np)};
 
         if (!local_functor_isone(fn)) {
             return false;
@@ -197,7 +179,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
 
         BigIntType y{powm(next_rnd, q, np)};
 
-        for (auto j = std::size_t{0}; ((j < static_cast<std::size_t>(k)) && result_candidate_is_prime); ++j) {
+        for (auto j{0U}; ((j < k) && result_candidate_is_prime); ++j) {
             if (y == nm1) {
                 // This trial passes and the candidate is very probably prime
                 // within the limits of Miller-Rabin primality testing.
@@ -209,7 +191,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
                 // Failure and the candidate is not prime, but only if this is
                 // not the first step.
 
-                if (j != std::size_t{0}) {
+                if (j != 0U) {
                     result_candidate_is_prime = false;
                 }
 
@@ -223,7 +205,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             // then the candidate is not prime within the limits of
             // Miller-Rabin primality testing.
 
-            if (static_cast<unsigned>(j + std::size_t{1}) == k) {
+            if ((j + 1U) == k) {
                 result_candidate_is_prime = false;
             }
         }
@@ -245,28 +227,32 @@ auto main() -> int {
 
     using beman::big_int::big_int;
 
-    const big_int max_val{(big_int{1} << 512U) - 1};
+    constexpr unsigned prime_candidate_bits{512U};
+
+    const big_int max_val{(big_int{1} << prime_candidate_bits) - 1};
 
     std::uint64_t prime_count{};
     std::uint64_t trial_count{};
 
     constexpr std::uint64_t max_prime_count{32};
-    // constexpr std::uint64_t max_prime_count{250000};
+    // constexpr std::uint64_t max_prime_count{100000};
+
+    std::string str_prime{};
 
     while (prime_count < max_prime_count) {
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-        rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
-        rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(get_system_entropy()));
+        rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+        rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
 #endif
 
-        big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};
+        const big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};
         ++trial_count;
 
         const bool is_prime{miller_rabin(prime_candidate, 25)};
 
         if (is_prime) {
-            const std::string str_prime{to_string(prime_candidate)};
+            str_prime = to_string(prime_candidate);
 
             ++prime_count;
 
@@ -276,4 +262,18 @@ auto main() -> int {
     }
 
     std::cout << str_prime_density(trial_count, prime_count) << std::endl;
+
+    int ret_val{};
+
+#if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
+    if constexpr ((max_prime_count == 32U) && (prime_candidate_bits == 512U)) {
+        constexpr const char* prime_ctrl{"1014317171946031703077660604216145574369246266597170419026897995"
+                                         "2647685451042758582438652518606262043864611102965422197344907990"
+                                         "728961691317186137657753121"};
+
+        ret_val = (str_prime == prime_ctrl) ? 0 : -1;
+    }
+#endif
+
+    return ret_val;
 }

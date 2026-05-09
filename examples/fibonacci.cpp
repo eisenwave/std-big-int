@@ -42,4 +42,6 @@ auto main() -> int {
     const bool result_is_ok{str_fib_1000 == str_ctrl};
 
     std::cout << "fib_1000:\n" << str_fib_1000 << "\n\nresult_is_ok:\n" << std::boolalpha << result_is_ok << std::endl;
+
+    return result_is_ok ? 0 : -1;
 }

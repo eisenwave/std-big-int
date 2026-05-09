@@ -14,11 +14,6 @@ constexpr auto factorial(unsigned int n) -> BigIntType {
 auto main() -> int {
     using beman::big_int::big_int;
 
-    // TODO(ckormanyos) Consistently use constexpr if (and only if)
-    //                  constexpr std::string is available (C++?).
-    //                  This example is probably low enough in complexity
-    //                  for constexpr calculation.
-
     // Compute the 100th Factorial number.
     const big_int fact_100{factorial<big_int>(100)};
 
@@ -31,4 +26,6 @@ auto main() -> int {
     const bool result_is_ok{str_fact_100 == str_ctrl};
 
     std::cout << "fact_100:\n" << str_fact_100 << "\n\nresult_is_ok:\n" << std::boolalpha << result_is_ok << std::endl;
+
+    return result_is_ok ? 0 : -1;
 }
