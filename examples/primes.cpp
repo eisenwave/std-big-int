@@ -283,7 +283,7 @@ auto main() -> int {
 
     int ret_val{};
 
-#if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
+#if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY) && !defined(BEMAN_BIG_INT_APPLE_CLANG)
     if constexpr ((max_prime_count == 32U) && (prime_candidate_bits == 512U)) {
         constexpr const char* prime_ctrl{"1268029380973307237636676015773075116349351701675718260071405519"
                                          "1918444828961620925625855886789545802167240696194578016620710649"
