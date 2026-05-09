@@ -49,15 +49,13 @@ template <class BigIntType, class RndEngineType>
 [[nodiscard]] auto get_pseudo_random_integer(RndEngineType& eng, const BigIntType& max_val) -> BigIntType {
     using distribution_type = std::uniform_int_distribution<std::uint64_t>;
 
-    distribution_type dist{std::uint64_t{0x8000000100000001}, std::uint64_t{0xFFFFFFFFFFFFFFFF}};
-
     BigIntType value_to_get{};
 
     for (int bit_index{0}; value_to_get < max_val; bit_index += 64) {
         if (bit_index != 0U) {
             value_to_get <<= 64U;
         }
-        value_to_get += dist(eng);
+        value_to_get += eng();
     }
 
     return value_to_get % max_val;
@@ -252,7 +250,7 @@ auto main() -> int {
     std::uint64_t prime_count{};
     std::uint64_t trial_count{};
 
-    constexpr std::uint64_t max_prime_count{32};
+    constexpr std::uint64_t max_prime_count{64};
     // constexpr std::uint64_t max_prime_count{100000};
 
     std::string str_prime{};
@@ -284,10 +282,10 @@ auto main() -> int {
     int ret_val{};
 
 #if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-    if constexpr ((max_prime_count == 32U) && (prime_candidate_bits == 512U)) {
-        constexpr const char* prime_ctrl{"8911508676488368383475561283727944998457661480546015847355276362"
-                                         "5917690648545984690234991420722225879687115682622916184439218207"
-                                         "62599423351134473334554903"};
+    if constexpr ((max_prime_count == 64U) && (prime_candidate_bits == 512U)) {
+        constexpr const char* prime_ctrl{"1069917779487573013849170768990222241794276375982721602240684044"
+                                         "9360651104467717790233680663257648767577456280404719962097713835"
+                                         "88323520491773521191698229"};
 
         ret_val = (str_prime == prime_ctrl) ? 0 : -1;
     }

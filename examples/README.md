@@ -120,13 +120,13 @@ It has been implemented locally. This function computes $b^p{\text{mod}}m$.
 
 In the delivery state of this example, fixed, non-random seeds are used.
 In this configuration, the values of the calculated primes are deterministic
-and the same for each run. The default delivery seeks in total, $32$ pseudo-random
+and the same for each run. The default delivery seeks in total, $64$ pseudo-random
 $512$-bit primes.
 
 In default mode, the final prime found is
 
 ```c++
-8911508676488368383475561283727944998457661480546015847355276362591769064854598469023499142072222587968711568262291618443921820762599423351134473334554903
+1069917779487573013849170768990222241794276375982721602240684044936065110446771779023368066325764876757745628040471996209771383588323520491773521191698229
 ```
 
 Optionally near the top of the example's source file, define `BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY`
@@ -137,17 +137,17 @@ It is also possible Increase the number of `max_prime_count` to obtain more prim
 
 To independently check the primality (or lack thereof), a quick query can be made at
 [Wolfram Alpha(R)](https://www.wolframalpha.com/). This is shown, for example, in
-[this link](https://www.wolframalpha.com/input?i=PrimeQ%5B8911508676488368383475561283727944998457661480546015847355276362591769064854598469023499142072222587968711568262291618443921820762599423351134473334554903%5D)
+[this link](https://www.wolframalpha.com/input?i=PrimeQ%5B1069917779487573013849170768990222241794276375982721602240684044936065110446771779023368066325764876757745628040471996209771383588323520491773521191698229%5D)
 and listed below. The response contains the expected text _this_ _is_ _a_ _prime_ _number_.
 
 ```
-PrimeQ[8911508676488368383475561283727944998457661480546015847355276362591769064854598469023499142072222587968711568262291618443921820762599423351134473334554903]
+PrimeQ[1069917779487573013849170768990222241794276375982721602240684044936065110446771779023368066325764876757745628040471996209771383588323520491773521191698229]
 ```
 
 ### Check the prime number theorem
 
 The program also calculates the prime density found at the end of its short run.
-In this fixed-seed configuration, we find $1/311.0$ primes found
+In this fixed-seed configuration, we find $1/312.0$ primes found
 per candidate tested. The theoretical value from the bold conjecture
 of the prime number theorem is $1/355.1$.
 Our empirical result is somewhat close to the theoretical value.
