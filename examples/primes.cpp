@@ -47,8 +47,6 @@ auto eng2() -> gen_type& {
 
 template <class BigIntType, class RndEngineType>
 [[nodiscard]] auto get_pseudo_random_integer(RndEngineType& eng, const BigIntType& max_val) -> BigIntType {
-    using distribution_type = std::uniform_int_distribution<std::uint64_t>;
-
     BigIntType value_to_get{};
 
     for (int bit_index{0}; value_to_get < max_val; bit_index += 64) {
