@@ -36,8 +36,9 @@ template <class BigIntType, class RndEngineType>
             value_to_get <<= 64U;
         }
 
-        // Get the next value. Also ensure each limb is non-zero and
-        // also that the resulting candidate has the full bit width.
+        // Get the next 64-bit chunk. Also ensure each chunk retrieved
+        // is non-zero and also that the resulting candidate will, after
+        // piecing the chunks together, have the full bit width.
         value_to_get += (eng() | std::uint64_t{0x8000000000000000});
     }
 
@@ -70,9 +71,9 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
 
 static constexpr auto lsb_position(std::uint64_t x) noexcept -> unsigned {
     // We use tricky, enhanced knowledge here. Because of the way the prime
-    // candidates are created, each limb is "rigged" to have a non-zero value.
-    // So here, we can safely calculate the LSB of the big_int based on one
-    // single limb.
+    // candidates are created, each 64-bit chunk is "rigged" to have a non-zero
+    // value. So here, we can safely calculate the LSB of the entire big_int
+    // based on the single lowest chunk.
 
     unsigned pos{};
 
@@ -124,7 +125,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
             // Exclude pure small primes from the small_primes table.
             // We are already restricted to np <= small_primes.back()
             // via the query above. So it is sufficient to test only
-            // the lowest unsigned cast, n0.
+            // the lowest unsigned-casted value, n0.
             const bool is_small_prime{std::ranges::contains(small_primes, n0)};
 
             if (is_small_prime) {
@@ -134,7 +135,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
 
         // Handle numbers divisible by small primes in the small_primes table.
         const bool is_small_prime_divisible{
-            std::ranges::any_of(small_primes, [np](unsigned p) { return (np % p) == 0U; })};
+            std::ranges::any_of(small_primes, [&np](unsigned p) { return (np % p) == 0U; })};
 
         if (is_small_prime_divisible) {
             return false;

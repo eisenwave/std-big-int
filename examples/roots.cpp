@@ -2,8 +2,10 @@
 
 #include <beman/big_int/big_int.hpp>
 
+#include <iomanip>
 #include <iostream>
 #include <span>
+#include <string>
 
 using beman::big_int::big_int;
 
