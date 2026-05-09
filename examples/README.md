@@ -120,7 +120,7 @@ It has been implemented locally. This function computes $b^p{\text{mod}}m$.
 
 In the delivery state of this example, fixed, non-random seeds are used.
 In this configuration, the values of the calculated primes are deterministic
-and the same for each run. The default delivery seeks in total, $64$ pseudo-random
+and the same for each run. The default delivery seeks in total, $32$ pseudo-random
 $512$-bit primes.
 
 In default mode, the final prime found is
