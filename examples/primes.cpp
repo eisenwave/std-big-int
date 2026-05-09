@@ -35,7 +35,10 @@ template <class BigIntType, class RndEngineType>
         if (bit_index != 0U) {
             value_to_get <<= 64U;
         }
-        value_to_get += eng();
+
+        // Get the next value. Also ensure each limb is non-zero and
+        // also that the resulting candidate has the full bit width.
+        value_to_get += (eng() | std::uint64_t{0x8000000000000000});
     }
 
     return value_to_get % max_val;
@@ -230,7 +233,7 @@ auto main() -> int {
     std::uint64_t prime_count{};
     std::uint64_t trial_count{};
 
-    constexpr std::uint64_t max_prime_count{64};
+    constexpr std::uint64_t max_prime_count{32};
     // constexpr std::uint64_t max_prime_count{100000};
 
     std::string str_prime{};
@@ -262,10 +265,10 @@ auto main() -> int {
     int ret_val{};
 
 #if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-    if constexpr ((max_prime_count == 64U) && (prime_candidate_bits == 512U)) {
-        constexpr const char* prime_ctrl{"1069917779487573013849170768990222241794276375982721602240684044"
-                                         "9360651104467717790233680663257648767577456280404719962097713835"
-                                         "88323520491773521191698229"};
+    if constexpr ((max_prime_count == 32U) && (prime_candidate_bits == 512U)) {
+        constexpr const char* prime_ctrl{"1014317171946031703077660604216145574369246266597170419026897995"
+                                         "2647685451042758582438652518606262043864611102965422197344907990"
+                                         "728961691317186137657753121"};
 
         ret_val = (str_prime == prime_ctrl) ? 0 : -1;
     }
