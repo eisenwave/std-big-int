@@ -7,7 +7,6 @@
 #include <format>
 #include <iomanip>
 #include <iostream>
-#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
@@ -96,18 +95,18 @@ static auto ascii_to_hex(std::string_view input) -> std::string {
     out.reserve(input.size() * 2U);
 
     for (char c : input) {
-        out.push_back(hex[static_cast<unsigned char>(c) >> 4]);
-        out.push_back(hex[static_cast<unsigned char>(c) & 0x0F]);
+        out.push_back(hex[static_cast<std::size_t>(c) >> 4]);
+        out.push_back(hex[static_cast<std::size_t>(c) & 0x0F]);
     }
 
     return out;
 }
 
 static auto hex_to_ascii(std::string_view hex) -> std::string {
-    std::string out{};
+    std::string out;
     out.reserve(hex.size() / 2);
 
-    for (auto i : std::views::iota(std::size_t{0}, hex.size()) | std::views::stride(2)) {
+    for (std::size_t i = 0; i < hex.size(); i += 2) {
         unsigned int value{};
 
         std::from_chars(hex.data() + i, hex.data() + i + 2, value, 16);
