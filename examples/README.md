@@ -156,7 +156,7 @@ very many more trials - resulting in millions of found primes in fact - must be 
 
 ## RSA
 
-A straightforward example of portraying a $2048$-bit RSA encryption/decryption round-trip
+A straightforward example portraying a $2048$-bit RSA encryption/decryption round-trip
 is implemented in [rsa.cpp](./rsa.cpp). Known parameters from a published test case
 in the literature are used.
 
@@ -164,7 +164,7 @@ The `powm(b, p, m)` is central to RSA encryption and decryption and
 is needed for this example. It has been implemented locally.
 This function computes $b^p{\text{mod}}m$.
 
-The text field
+The short text field
 
 ```c++
 inline static constexpr char str_message[] = "Hello std-big-int RSA";
