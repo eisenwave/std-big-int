@@ -69,7 +69,7 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
     return x;
 }
 
-static constexpr auto lsb_position(std::uint64_t x) noexcept -> unsigned {
+constexpr auto lsb_position(std::uint64_t x) noexcept -> unsigned {
     // We use tricky, enhanced knowledge here. Because of the way the prime
     // candidates are created, each 64-bit chunk is "rigged" to have a non-zero
     // value. So here, we can safely calculate the LSB of the entire big_int
@@ -214,7 +214,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
     return result_candidate_is_prime;
 }
 
-[[nodiscard]] inline auto str_prime_density(std::uint64_t trial_count, std::uint64_t prime_count) -> std::string {
+[[nodiscard]] auto str_prime_density(std::uint64_t trial_count, std::uint64_t prime_count) -> std::string {
     std::stringstream strm{};
 
     strm << "prime density: 1/" << std::fixed << std::setprecision(1)
@@ -235,15 +235,18 @@ auto main() -> int {
     std::uint64_t trial_count{};
 
     constexpr std::uint64_t max_prime_count{32};
-    // constexpr std::uint64_t max_prime_count{100000};
 
     std::string str_prime{};
 
     while (prime_count < max_prime_count) {
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-        rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
-        rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+        static unsigned seed_prescaler{};
+        if ((seed_prescaler % 128U) == 0U) {
+            rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+            rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+        }
+        ++seed_prescaler;
 #endif
 
         const big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};
