@@ -235,15 +235,18 @@ auto main() -> int {
     std::uint64_t trial_count{};
 
     constexpr std::uint64_t max_prime_count{32};
-    // constexpr std::uint64_t max_prime_count{100000};
 
     std::string str_prime{};
 
     while (prime_count < max_prime_count) {
 
 #if defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
-        rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
-        rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+        static unsigned seed_prescaler{};
+        if ((seed_prescaler % 128U) == 0U) {
+            rnd_gens::eng1().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+            rnd_gens::eng2().seed(static_cast<typename rnd_gens::gen_type::result_type>(std::random_device{}()));
+        }
+        ++seed_prescaler;
 #endif
 
         const big_int prime_candidate{get_pseudo_random_integer(rnd_gens::eng2(), max_val)};

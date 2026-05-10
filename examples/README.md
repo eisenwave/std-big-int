@@ -153,3 +153,22 @@ of the prime number theorem is $1/355.1$.
 Our empirical result is somewhat close to the theoretical value.
 To get an accurate estimate of the prime density,
 very many more trials - resulting in millions of found primes in fact - must be run.
+
+## RSA
+
+A straightforward example of portraying a $2048$-bit RSA encryption/decryption round-trip
+is implemented in [rsa.cpp](./rsa.cpp). Known parameters from a published test case
+in the literature are used.
+
+The `powm(b, p, m)` is central to RSA encryption and decryption and
+is needed for this example. It has been implemented locally.
+This function computes $b^p{\text{mod}}m$.
+
+The text field
+
+```c++
+inline static constexpr char str_message[] = "Hello std-big-int RSA";
+```
+
+is encrypted and subsequently decrypted (recovered) using the calculated
+$2048$-bit `big_int` cipher.
