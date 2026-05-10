@@ -69,7 +69,7 @@ auto powm(BigIntType b, BigIntType p, const BigIntType& m) -> BigIntType {
     return x;
 }
 
-static constexpr auto lsb_position(std::uint64_t x) noexcept -> unsigned {
+constexpr auto lsb_position(std::uint64_t x) noexcept -> unsigned {
     // We use tricky, enhanced knowledge here. Because of the way the prime
     // candidates are created, each 64-bit chunk is "rigged" to have a non-zero
     // value. So here, we can safely calculate the LSB of the entire big_int
@@ -214,7 +214,7 @@ auto miller_rabin(const BigIntType& np, const int trials) -> bool {
     return result_candidate_is_prime;
 }
 
-[[nodiscard]] inline auto str_prime_density(std::uint64_t trial_count, std::uint64_t prime_count) -> std::string {
+[[nodiscard]] auto str_prime_density(std::uint64_t trial_count, std::uint64_t prime_count) -> std::string {
     std::stringstream strm{};
 
     strm << "prime density: 1/" << std::fixed << std::setprecision(1)
