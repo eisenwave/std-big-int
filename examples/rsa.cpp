@@ -107,10 +107,10 @@ static auto hex_to_ascii(std::string_view hex) -> std::string {
     std::string out{};
     out.reserve(hex.size() / 2);
 
-    for (auto chunk : hex | std::views::chunk(2)) {
+    for (auto i : std::views::iota(std::size_t{0}, hex.size()) | std::views::stride(2)) {
         unsigned int value{};
 
-        std::from_chars(chunk.data(), chunk.data() + 2, value, 16);
+        std::from_chars(hex.data() + i, hex.data() + i + 2, value, 16);
 
         out.push_back(static_cast<char>(value));
     }
