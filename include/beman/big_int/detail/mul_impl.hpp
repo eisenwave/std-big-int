@@ -179,10 +179,9 @@ struct signed_sub_result {
     bool        negative;
 };
 
-constexpr signed_sub_result
-subtract_unsigned_spans_signed(const std::span<uint_multiprecision_t>       result,
-                               const std::span<const uint_multiprecision_t> a,
-                               const std::span<const uint_multiprecision_t> b) noexcept {
+constexpr signed_sub_result subtract_unsigned_spans_signed(const std::span<uint_multiprecision_t>       result,
+                                                           const std::span<const uint_multiprecision_t> a,
+                                                           const std::span<const uint_multiprecision_t> b) noexcept {
     // Trim before comparing so the size relationship matches the value relationship,
     // satisfying subtract_unsigned_spans's a.size() >= b.size() invariant.
     const std::size_t a_trim = a.empty() ? 0 : trimmed_size(a);
@@ -485,13 +484,11 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
 
     // Split each operand into three pieces. Empty pieces represent zero.
     const auto a0 = a.first(std::min(k, a.size()));
-    const auto a1 = a.size() > k     ? a.subspan(k, std::min(k, a.size() - k))
-                                     : std::span<const uint_multiprecision_t>{};
+    const auto a1 = a.size() > k ? a.subspan(k, std::min(k, a.size() - k)) : std::span<const uint_multiprecision_t>{};
     const auto a2 = a.size() > 2 * k ? a.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
 
     const auto b0 = b.first(std::min(k, b.size()));
-    const auto b1 = b.size() > k     ? b.subspan(k, std::min(k, b.size() - k))
-                                     : std::span<const uint_multiprecision_t>{};
+    const auto b1 = b.size() > k ? b.subspan(k, std::min(k, b.size() - k)) : std::span<const uint_multiprecision_t>{};
     const auto b2 = b.size() > 2 * k ? b.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
 
     // Carve scratch:
@@ -527,8 +524,8 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
         }
         const std::size_t new_size = std::max(size, addend.size());
         BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > new_size);
-        const bool carry = add_unsigned_spans(
-            tmp.first(new_size), std::span<const uint_multiprecision_t>{tmp.data(), size}, addend);
+        const bool carry =
+            add_unsigned_spans(tmp.first(new_size), std::span<const uint_multiprecision_t>{tmp.data(), size}, addend);
         if (carry) {
             tmp[new_size] = 1;
             return new_size + 1;
@@ -593,16 +590,18 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
     if (tmpa_size == 0 || tmpb_size == 0) {
         // One of the evaluations is zero, so vm1 = 0.
     } else {
-        multiply_toom_cook_3(vm1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                             std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, scratch);
+        multiply_toom_cook_3(vm1,
+                             std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                             std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
+                             scratch);
     }
 
     // ---- Evaluate at x = 2: tmpa = 4*a2 + 2*a1 + a0 (Horner: ((a2*2)+a1)*2+a0); tmpb similarly ----
     std::ranges::copy(a2, tmpa.begin());
     tmpa_size = a2.size();
-    tmpa_size = double_in_place(tmpa, tmpa_size); // 2*a2
+    tmpa_size = double_in_place(tmpa, tmpa_size);  // 2*a2
     tmpa_size = add_into_tmp(tmpa, tmpa_size, a1); // 2*a2 + a1
-    tmpa_size = double_in_place(tmpa, tmpa_size); // 4*a2 + 2*a1
+    tmpa_size = double_in_place(tmpa, tmpa_size);  // 4*a2 + 2*a1
     tmpa_size = add_into_tmp(tmpa, tmpa_size, a0); // 4*a2 + 2*a1 + a0
 
     std::ranges::copy(b2, tmpb.begin());
@@ -682,8 +681,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
     // c0 already at result[0..2k); c4 already at result[4k..). Add the three middle
     // coefficients with carry chains spanning to result.size() so carries can
     // propagate into the c4 region.
-    const auto add_shifted = [&](const std::size_t                            shift,
-                                 const std::span<const uint_multiprecision_t> src) {
+    const auto add_shifted = [&](const std::size_t shift, const std::span<const uint_multiprecision_t> src) {
         const auto dest  = result.subspan(shift);
         bool       carry = false;
         for (std::size_t i = 0; i < dest.size(); ++i) {

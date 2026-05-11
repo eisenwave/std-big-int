@@ -60,8 +60,8 @@ TEST(Multiplication, ToomCook3AsymmetricFallback) {
     // Asymmetric beyond the gate: Toom-3 falls back to Karatsuba even though
     // both operands clear the cutoff. min <= 2*k violates the invariant that
     // both a2 and b2 are non-empty.
-    check_balanced(800, 1500);  // k=500, 2k=1000 >= 800 -> fallback
-    check_balanced(900, 2000);  // k=667, 2k=1334 >= 900 -> fallback
+    check_balanced(800, 1500); // k=500, 2k=1000 >= 800 -> fallback
+    check_balanced(900, 2000); // k=667, 2k=1334 >= 900 -> fallback
 }
 
 TEST(Multiplication, ToomCook3Squaring) {

@@ -63,13 +63,10 @@ inline void fill_random(const std::span<uint_t> dest, std::mt19937_64& rng) {
 // needed, but we still construct a minimal allocator to keep the lambda
 // signature uniform).
 template <class Algo>
-double measure_algorithm(const std::size_t limbs,
-                         const unsigned    trials,
-                         const std::size_t scratch_size,
-                         Algo              algo) {
-    std::mt19937_64           rng{0xC0FFEEULL};
-    std::vector<uint_t>       a(limbs);
-    std::vector<uint_t>       b(limbs);
+double measure_algorithm(const std::size_t limbs, const unsigned trials, const std::size_t scratch_size, Algo algo) {
+    std::mt19937_64     rng{0xC0FFEEULL};
+    std::vector<uint_t> a(limbs);
+    std::vector<uint_t> b(limbs);
     fill_random(a, rng);
     fill_random(b, rng);
 
@@ -100,41 +97,38 @@ double measure_algorithm(const std::size_t limbs,
 // algorithm's own internal threshold).
 
 double run_long_at(const std::size_t limbs, const unsigned trials) {
-    return measure_algorithm(limbs,
-                             trials,
-                             /*scratch_size=*/0,
-                             [](const std::span<uint_t>       r,
-                                const std::span<const uint_t> a,
-                                const std::span<const uint_t> b,
-                                scratch_for_test&) {
-                                 ::beman::big_int::detail::multiply_long(r.first(a.size() + b.size()), a, b);
-                             });
+    return measure_algorithm(
+        limbs,
+        trials,
+        /*scratch_size=*/0,
+        [](const std::span<uint_t>       r,
+           const std::span<const uint_t> a,
+           const std::span<const uint_t> b,
+           scratch_for_test&) { ::beman::big_int::detail::multiply_long(r.first(a.size() + b.size()), a, b); });
 }
 
 double run_karatsuba_at(const std::size_t limbs, const unsigned trials) {
-    return measure_algorithm(
-        limbs,
-        trials,
-        ::beman::big_int::detail::karatsuba_storage_size(limbs),
-        [](const std::span<uint_t>       r,
-           const std::span<const uint_t> a,
-           const std::span<const uint_t> b,
-           scratch_for_test&             s) {
-            ::beman::big_int::detail::multiply_karatsuba(r.first(a.size() + b.size()), a, b, s);
-        });
+    return measure_algorithm(limbs,
+                             trials,
+                             ::beman::big_int::detail::karatsuba_storage_size(limbs),
+                             [](const std::span<uint_t>       r,
+                                const std::span<const uint_t> a,
+                                const std::span<const uint_t> b,
+                                scratch_for_test&             s) {
+                                 ::beman::big_int::detail::multiply_karatsuba(r.first(a.size() + b.size()), a, b, s);
+                             });
 }
 
 double run_toom_cook_3_at(const std::size_t limbs, const unsigned trials) {
-    return measure_algorithm(
-        limbs,
-        trials,
-        ::beman::big_int::detail::toom_cook_3_storage_size(limbs),
-        [](const std::span<uint_t>       r,
-           const std::span<const uint_t> a,
-           const std::span<const uint_t> b,
-           scratch_for_test&             s) {
-            ::beman::big_int::detail::multiply_toom_cook_3(r.first(a.size() + b.size()), a, b, s);
-        });
+    return measure_algorithm(limbs,
+                             trials,
+                             ::beman::big_int::detail::toom_cook_3_storage_size(limbs),
+                             [](const std::span<uint_t>       r,
+                                const std::span<const uint_t> a,
+                                const std::span<const uint_t> b,
+                                scratch_for_test&             s) {
+                                 ::beman::big_int::detail::multiply_toom_cook_3(r.first(a.size() + b.size()), a, b, s);
+                             });
 }
 
 // Registry of algorithms to sweep. Each entry constrains the sweep to a
@@ -149,8 +143,8 @@ struct algorithm_runner {
 };
 
 constexpr algorithm_runner algorithms[] = {
-    {"schoolbook",  std::size_t{2},   std::size_t{200},  run_long_at},
-    {"karatsuba",   std::size_t{4},   std::size_t{2000}, run_karatsuba_at},
+    {"schoolbook", std::size_t{2}, std::size_t{200}, run_long_at},
+    {"karatsuba", std::size_t{4}, std::size_t{2000}, run_karatsuba_at},
     {"toom-cook-3", std::size_t{800}, std::size_t{5000}, run_toom_cook_3_at},
     // Future additions, e.g.:
     // {"toom-cook-4", std::size_t{2000},  std::size_t{10000}, run_toom_cook_4_at},
@@ -161,14 +155,13 @@ constexpr algorithm_runner algorithms[] = {
 // schoolbook -> Karatsuba crossover, dense in the middle for the
 // Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
 constexpr std::size_t sweep_limbs[] = {
-    std::size_t{2},    std::size_t{4},    std::size_t{6},    std::size_t{8},    std::size_t{10},
-    std::size_t{12},   std::size_t{14},   std::size_t{16},   std::size_t{20},   std::size_t{24},
-    std::size_t{28},   std::size_t{32},   std::size_t{36},   std::size_t{40},   std::size_t{48},
-    std::size_t{56},   std::size_t{64},   std::size_t{72},   std::size_t{80},   std::size_t{96},
-    std::size_t{112},  std::size_t{128},  std::size_t{144},  std::size_t{160},  std::size_t{192},
-    std::size_t{224},  std::size_t{256},  std::size_t{320},  std::size_t{400},  std::size_t{500},
-    std::size_t{640},  std::size_t{800},  std::size_t{1000}, std::size_t{1280}, std::size_t{1600},
-    std::size_t{2000}, std::size_t{2500}, std::size_t{3200}, std::size_t{4000}, std::size_t{5000},
+    std::size_t{2},    std::size_t{4},    std::size_t{6},    std::size_t{8},    std::size_t{10},   std::size_t{12},
+    std::size_t{14},   std::size_t{16},   std::size_t{20},   std::size_t{24},   std::size_t{28},   std::size_t{32},
+    std::size_t{36},   std::size_t{40},   std::size_t{48},   std::size_t{56},   std::size_t{64},   std::size_t{72},
+    std::size_t{80},   std::size_t{96},   std::size_t{112},  std::size_t{128},  std::size_t{144},  std::size_t{160},
+    std::size_t{192},  std::size_t{224},  std::size_t{256},  std::size_t{320},  std::size_t{400},  std::size_t{500},
+    std::size_t{640},  std::size_t{800},  std::size_t{1000}, std::size_t{1280}, std::size_t{1600}, std::size_t{2000},
+    std::size_t{2500}, std::size_t{3200}, std::size_t{4000}, std::size_t{5000},
 };
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
@@ -214,8 +207,8 @@ void run_sweep() {
             }
             const unsigned trials = choose_trials(limbs);
             const double   ns     = algo.run(limbs, trials);
-            std::cout << algo.name << ',' << limbs << ',' << trials << ',' << std::fixed
-                      << std::setprecision(1) << ns << '\n';
+            std::cout << algo.name << ',' << limbs << ',' << trials << ',' << std::fixed << std::setprecision(1) << ns
+                      << '\n';
         }
         std::cout.flush();
     }
