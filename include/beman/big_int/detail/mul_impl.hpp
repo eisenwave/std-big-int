@@ -489,16 +489,12 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
 
     // Split each operand into three pieces. Empty pieces represent zero.
     const auto a0 = a.first(std::min(k, a.size()));
-    const auto a1 = a.size() > k ? a.subspan(k, std::min(k, a.size() - k))
-                                 : std::span<const uint_multiprecision_t>{};
-    const auto a2 = a.size() > 2 * k ? a.subspan(2 * k)
-                                     : std::span<const uint_multiprecision_t>{};
+    const auto a1 = a.size() > k ? a.subspan(k, std::min(k, a.size() - k)) : std::span<const uint_multiprecision_t>{};
+    const auto a2 = a.size() > 2 * k ? a.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
 
     const auto b0 = b.first(std::min(k, b.size()));
-    const auto b1 = b.size() > k ? b.subspan(k, std::min(k, b.size() - k))
-                                 : std::span<const uint_multiprecision_t>{};
-    const auto b2 = b.size() > 2 * k ? b.subspan(2 * k)
-                                     : std::span<const uint_multiprecision_t>{};
+    const auto b1 = b.size() > k ? b.subspan(k, std::min(k, b.size() - k)) : std::span<const uint_multiprecision_t>{};
+    const auto b2 = b.size() > 2 * k ? b.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
 
     // Carve scratch:
     //   tmpa, tmpb: k+2 limbs each
@@ -526,8 +522,8 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
 
     // ---- Helper: in-place tmp[0..size) += addend; returns new size (may grow by 1) ----
     constexpr auto add_into_tmp = [](const std::span<uint_multiprecision_t>       tmp,
-                                 const std::size_t                            size,
-                                 const std::span<const uint_multiprecision_t> addend) -> std::size_t {
+                                     const std::size_t                            size,
+                                     const std::span<const uint_multiprecision_t> addend) -> std::size_t {
         if (addend.empty()) {
             return size;
         }
@@ -543,8 +539,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
     };
 
     // ---- Helper: in-place tmp[0..size) <<= 1; returns new size (may grow by 1) ----
-    constexpr auto shift_left_one = [](const std::span<uint_multiprecision_t> tmp,
-                                   std::size_t                            size) -> std::size_t {
+    constexpr auto shift_left_one = [](const std::span<uint_multiprecision_t> tmp, std::size_t size) -> std::size_t {
         if (size == 0) {
             return 0;
         }
@@ -590,25 +585,27 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
 
     // v1 = tmpa * tmpb
     std::ranges::fill(v1, uint_multiprecision_t{0});
-    multiply_toom_cook_3(v1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                         std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, scratch);
+    multiply_toom_cook_3(v1,
+                         std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                         std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
+                         scratch);
 
     // ---- Evaluate at x = -1: tmpa = (a0 + a2) - a1 (signed); tmpb similarly ----
     std::ranges::copy(a0, tmpa.begin());
-    tmpa_size               = a0.size();
-    tmpa_size               = add_into_tmp(tmpa, tmpa_size, a2);
-    const auto sub_a        = subtract_unsigned_spans_signed(
-        tmpa, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, a1);
-    tmpa_size               = sub_a.size;
-    const bool sign_a       = sub_a.negative;
+    tmpa_size = a0.size();
+    tmpa_size = add_into_tmp(tmpa, tmpa_size, a2);
+    const auto sub_a =
+        subtract_unsigned_spans_signed(tmpa, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, a1);
+    tmpa_size         = sub_a.size;
+    const bool sign_a = sub_a.negative;
 
     std::ranges::copy(b0, tmpb.begin());
-    tmpb_size               = b0.size();
-    tmpb_size               = add_into_tmp(tmpb, tmpb_size, b2);
-    const auto sub_b        = subtract_unsigned_spans_signed(
-        tmpb, std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, b1);
-    tmpb_size               = sub_b.size;
-    const bool sign_b       = sub_b.negative;
+    tmpb_size = b0.size();
+    tmpb_size = add_into_tmp(tmpb, tmpb_size, b2);
+    const auto sub_b =
+        subtract_unsigned_spans_signed(tmpb, std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, b1);
+    tmpb_size         = sub_b.size;
+    const bool sign_b = sub_b.negative;
 
     // Sign of vm1 = sign of (p(-1)*q(-1)). Magnitude = |p(-1)| * |q(-1)|.
     const bool sign_vm1 = sign_a ^ sign_b;
@@ -641,8 +638,10 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
 
     // v2 = p(2) * q(2)
     std::ranges::fill(v2, uint_multiprecision_t{0});
-    multiply_toom_cook_3(v2, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                         std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, scratch);
+    multiply_toom_cook_3(v2,
+                         std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                         std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
+                         scratch);
 
     // ---- Bodrato interpolation (in-place; full 2k+2 buffers throughout) ----
     // After this sequence: v0=c0 (in result), vm1=c1, v1=c2, v2=c3, vinf=c4 (in result).

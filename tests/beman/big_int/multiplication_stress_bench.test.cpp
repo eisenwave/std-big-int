@@ -155,10 +155,8 @@ constexpr algorithm_runner algorithms[] = {
 // schoolbook -> Karatsuba crossover, dense in the middle for the
 // Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
 constexpr std::size_t sweep_limbs[] = {
-    2,    4,    6,    8,    10,   12,   14,   16,   20,   24,
-    28,   32,   36,   40,   48,   56,   64,   72,   80,   96,
-    112,  128,  144,  160,  192,  224,  256,  320,  400,  500,
-    640,  800,  1000, 1280, 1600, 2000, 2500, 3200, 4000, 5000,
+    2,   4,   6,   8,   10,  12,  14,  16,  20,  24,  28,  32,  36,   40,   48,   56,   64,   72,   80,   96,
+    112, 128, 144, 160, 192, 224, 256, 320, 400, 500, 640, 800, 1000, 1280, 1600, 2000, 2500, 3200, 4000, 5000,
 };
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
