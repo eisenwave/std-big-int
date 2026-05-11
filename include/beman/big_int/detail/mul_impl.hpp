@@ -174,10 +174,15 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
 // whether the result is negative (i.e. b > a, so result holds b - a).
 // `result` may alias `a` or `b`. Used by Toom-Cook 3 to evaluate at x = -1.
 // ---------------------------------------------------------------------------
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
+
 struct signed_sub_result {
     std::size_t size;
     bool        negative;
 };
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 constexpr signed_sub_result subtract_unsigned_spans_signed(const std::span<uint_multiprecision_t>       result,
                                                            const std::span<const uint_multiprecision_t> a,
