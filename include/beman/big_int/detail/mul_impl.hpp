@@ -544,14 +544,14 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
             return 0;
         }
         BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > size);
-        constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+        constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
         uint_multiprecision_t prev      = 0;
         for (std::size_t i = 0; i < size; ++i) {
             const auto limb = tmp[i];
             tmp[i]          = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = limb}, 1u);
             prev            = limb;
         }
-        if (const auto carry = prev >> (limb_bits - 1)) {
+        if (const auto carry = prev >> (local_limb_bits - 1)) {
             tmp[size++] = carry;
         }
         return size;
