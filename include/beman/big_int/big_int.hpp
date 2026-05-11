@@ -1248,77 +1248,15 @@ constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
-    std::uint32_t lc{};
-    if (is_representation_inplace()) {
-        lc = inplace_capacity;
-    } else {
-        lc = limb_count();
-    }
-
-    if (lc == 0) {
+    if (is_negative()) {
+        basic_big_int<b, A> negated(*this);
+        negated.negate();
+        return negated.size();
+    } else if (is_zero()) {
         return std::size_t{0};
-    }
-
-    auto u{*(limb_ptr() + (limb_count() - 1))};
-
-    std::size_t r{0U};
-
-    if constexpr (std::numeric_limits<uint_multiprecision_t>::digits == 64) {
-
-        // Use O(log2[N]) binary-halving in an unrolled loop to find the msb.
-        if (u & 0xFFFFFFFF00000000ULL) {
-            u >>= 32;
-            r |= 32U;
-        }
-        if (u & 0x00000000FFFF0000ULL) {
-            u >>= 16;
-            r |= 16U;
-        }
-        if (u & 0x000000000000FF00ULL) {
-            u >>= 8;
-            r |= 8U;
-        }
-        if (u & 0x00000000000000F0ULL) {
-            u >>= 4;
-            r |= 4U;
-        }
-        if (u & 0x000000000000000CULL) {
-            u >>= 2;
-            r |= 2U;
-        }
-        if (u & 0x0000000000000002ULL) {
-            r |= 1U;
-        }
-    } else if constexpr (std::numeric_limits<uint_multiprecision_t>::digits == 32) {
-        // Use O(log2[N]) binary-halving in an unrolled loop to find the msb.
-        if (u & 0xFFFF0000UL) {
-            u >>= 16;
-            r |= 16U;
-        }
-        if (u & 0x0000FF00UL) {
-            u >>= 8;
-            r |= 8U;
-        }
-        if (u & 0x000000F0UL) {
-            u >>= 4;
-            r |= 4U;
-        }
-        if (u & 0x0000000CUL) {
-            u >>= 2;
-            r |= 2U;
-        }
-        if (u & 0x00000002UL) {
-            r |= 1U;
-        }
     } else {
-        // small-limb fallback
-        while (u >>= 1) {
-            ++r;
-        }
+        return width_mag();
     }
-
-    return (lc - std::size_t{1}) * static_cast<std::size_t>(std::numeric_limits<uint_multiprecision_t>::digits) + r +
-           std::size_t{1};
 }
 
 template <std::size_t b, class A>

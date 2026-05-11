@@ -10,7 +10,7 @@
 
 consteval bool test_size_default() {
     beman::big_int::big_int x;
-    return x.size() == 1; // inplace_limbs for 64-bit = 1
+    return x.size() == 0; // inplace_limbs for 64-bit = 1
 }
 static_assert(test_size_default());
 
@@ -19,6 +19,12 @@ consteval bool test_size_from_value() {
     return x.size() == 6; // still inline, size() returns inplace_limbs
 }
 static_assert(test_size_from_value());
+
+consteval bool test_size_from_value_neg() {
+    beman::big_int::big_int x{-42};
+    return x.size() == 6; // still inline, size() returns inplace_limbs
+}
+static_assert(test_size_from_value_neg());
 
 consteval bool test_max_size() {
     return beman::big_int::big_int::max_size() == (std::numeric_limits<std::uint32_t>::max() >> 1U);
@@ -87,11 +93,16 @@ static_assert(test_shrink_to_fit_noop_inline());
 
 TEST(Allocation, SizeDefault) {
     beman::big_int::big_int x;
-    EXPECT_EQ(x.size(), 1);
+    EXPECT_EQ(x.size(), 0);
 }
 
 TEST(Allocation, SizeFromValue) {
     beman::big_int::big_int x{42U};
+    EXPECT_EQ(x.size(), 6);
+}
+
+TEST(Allocation, SizeFromValueNeg) {
+    beman::big_int::big_int x{-42};
     EXPECT_EQ(x.size(), 6);
 }
 
