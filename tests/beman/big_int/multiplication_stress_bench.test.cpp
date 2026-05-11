@@ -149,45 +149,49 @@ struct algorithm_runner {
 };
 
 constexpr algorithm_runner algorithms[] = {
-    {"schoolbook",  std::size_t{4},   std::size_t{200},  run_long_at},
-    {"karatsuba",   std::size_t{20},  std::size_t{2000}, run_karatsuba_at},
-    {"toom-cook-3", std::size_t{80},  std::size_t{5000}, run_toom_cook_3_at},
+    {"schoolbook",  std::size_t{2},   std::size_t{200},  run_long_at},
+    {"karatsuba",   std::size_t{4},   std::size_t{2000}, run_karatsuba_at},
+    {"toom-cook-3", std::size_t{800}, std::size_t{5000}, run_toom_cook_3_at},
     // Future additions, e.g.:
-    // {"toom-cook-4", std::size_t{200},  std::size_t{10000}, run_toom_cook_4_at},
-    // {"toom-cook-5", std::size_t{500},  std::size_t{20000}, run_toom_cook_5_at},
+    // {"toom-cook-4", std::size_t{2000},  std::size_t{10000}, run_toom_cook_4_at},
+    // {"toom-cook-5", std::size_t{5000},  std::size_t{20000}, run_toom_cook_5_at},
 };
 
-// Limb counts to sample. Dense coverage around the existing cutoffs
-// (Karatsuba: 40, Toom-Cook 3: 120) so the crossover is clearly visible,
-// then a coarser tail to inform higher-order cutoffs.
+// Limb counts to sample. Dense coverage at the low end for the
+// schoolbook -> Karatsuba crossover, dense in the middle for the
+// Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
 constexpr std::size_t sweep_limbs[] = {
-    std::size_t{4},    std::size_t{8},    std::size_t{16},   std::size_t{24},   std::size_t{32},
-    std::size_t{40},   std::size_t{48},   std::size_t{56},   std::size_t{64},   std::size_t{72},
-    std::size_t{80},   std::size_t{96},   std::size_t{112},  std::size_t{128},  std::size_t{144},
-    std::size_t{160},  std::size_t{192},  std::size_t{224},  std::size_t{256},  std::size_t{320},
-    std::size_t{400},  std::size_t{500},  std::size_t{640},  std::size_t{800},  std::size_t{1000},
-    std::size_t{1280}, std::size_t{1600}, std::size_t{2000}, std::size_t{2500}, std::size_t{3200},
-    std::size_t{4000}, std::size_t{5000},
+    std::size_t{2},    std::size_t{4},    std::size_t{6},    std::size_t{8},    std::size_t{10},
+    std::size_t{12},   std::size_t{14},   std::size_t{16},   std::size_t{20},   std::size_t{24},
+    std::size_t{28},   std::size_t{32},   std::size_t{36},   std::size_t{40},   std::size_t{48},
+    std::size_t{56},   std::size_t{64},   std::size_t{72},   std::size_t{80},   std::size_t{96},
+    std::size_t{112},  std::size_t{128},  std::size_t{144},  std::size_t{160},  std::size_t{192},
+    std::size_t{224},  std::size_t{256},  std::size_t{320},  std::size_t{400},  std::size_t{500},
+    std::size_t{640},  std::size_t{800},  std::size_t{1000}, std::size_t{1280}, std::size_t{1600},
+    std::size_t{2000}, std::size_t{2500}, std::size_t{3200}, std::size_t{4000}, std::size_t{5000},
 };
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
 // multiplication grows. Adjust if a machine is much faster/slower than the
 // development baseline.
 [[nodiscard]] constexpr unsigned choose_trials(const std::size_t limbs) noexcept {
+    if (limbs <= 8) {
+        return 200000U;
+    }
     if (limbs <= 16) {
-        return 50000U;
+        return 100000U;
     }
     if (limbs <= 32) {
-        return 20000U;
+        return 30000U;
     }
     if (limbs <= 64) {
-        return 5000U;
+        return 10000U;
     }
     if (limbs <= 128) {
-        return 1000U;
+        return 2000U;
     }
     if (limbs <= 256) {
-        return 300U;
+        return 500U;
     }
     if (limbs <= 512) {
         return 100U;
