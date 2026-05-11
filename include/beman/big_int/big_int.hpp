@@ -1248,11 +1248,93 @@ constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
+    std::uint32_t lc{};
     if (is_representation_inplace()) {
-        return inplace_capacity;
+        lc = inplace_capacity;
     } else {
-        return limb_count();
+        lc = limb_count();
     }
+
+    if (lc == 0) {
+        return std::size_t{0};
+    }
+
+    auto u{*(limb_ptr() + (limb_count() - 1))};
+
+    std::size_t r{0U};
+
+    if constexpr (std::numeric_limits<uint_multiprecision_t>::digits == 64) {
+
+#if defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG)
+        r = static_cast<std::size_t>(63 - __builtin_clzll(u));
+#elif defined(BEMAN_BIG_INT_MSVC)
+        unsigned long index{};
+        _BitScanReverse64(&index, static_cast<unsigned __int64>(u));
+        r = static_cast<std::size_t>(index);
+#else
+        // Use O(log2[N]) binary-halving in an unrolled loop to find the msb.
+        if (u & 0xFFFFFFFF00000000ULL) {
+            u >>= 32;
+            r |= 32U;
+        }
+        if (u & 0x00000000FFFF0000ULL) {
+            u >>= 16;
+            r |= 16U;
+        }
+        if (u & 0x000000000000FF00ULL) {
+            u >>= 8;
+            r |= 8U;
+        }
+        if (u & 0x00000000000000F0ULL) {
+            u >>= 4;
+            r |= 4U;
+        }
+        if (u & 0x000000000000000CULL) {
+            u >>= 2;
+            r |= 2U;
+        }
+        if (u & 0x0000000000000002ULL) {
+            r |= 1U;
+        }
+#endif
+    } else if constexpr (std::numeric_limits<uint_multiprecision_t>::digits == 32) {
+#if defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG)
+        r = static_cast<std::size_t>(31 - __builtin_clz(u));
+#elif defined(BEMAN_BIG_INT_MSVC)
+        unsigned long index{};
+        _BitScanReverse(&index, static_cast<unsigned long>(u));
+        r = static_cast<std::size_t>(index);
+#else
+        // Use O(log2[N]) binary-halving in an unrolled loop to find the msb.
+        if (u & 0xFFFF0000UL) {
+            u >>= 16;
+            r |= 16U;
+        }
+        if (u & 0x0000FF00UL) {
+            u >>= 8;
+            r |= 8U;
+        }
+        if (u & 0x000000F0UL) {
+            u >>= 4;
+            r |= 4U;
+        }
+        if (u & 0x0000000CUL) {
+            u >>= 2;
+            r |= 2U;
+        }
+        if (u & 0x00000002UL) {
+            r |= 1U;
+        }
+#endif
+    } else {
+        // small-limb fallback
+        while (u >>= 1) {
+            ++r;
+        }
+    }
+
+    return (lc - std::size_t{1}) * static_cast<std::size_t>(std::numeric_limits<uint_multiprecision_t>::digits) + r +
+           std::size_t{1};
 }
 
 template <std::size_t b, class A>
@@ -3876,7 +3958,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
     if (p != end) {
         return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
     }
-    const auto parsed_size = parsed.size();
+    const auto parsed_size = parsed.representation().size();
     if (parsed.capacity() != 0) {
         return {big_int{}, parsed_size, std::errc::result_out_of_range};
     }
@@ -3906,7 +3988,7 @@ literal_operator_n_compute_limbs(const char* const begin, const char* const end)
     // so there's no reason it would fail now.
     BEMAN_BIG_INT_ASSERT(p == end);
     BEMAN_BIG_INT_ASSERT(ec == std::errc{});
-    BEMAN_BIG_INT_ASSERT(parsed.size() == limb_count);
+    BEMAN_BIG_INT_ASSERT(parsed.representation().size() == limb_count);
     std::copy_n(parsed.representation().data(), limb_count, result.data());
     return result;
 }
