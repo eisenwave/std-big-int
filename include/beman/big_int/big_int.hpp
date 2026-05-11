@@ -1265,13 +1265,6 @@ constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
 
     if constexpr (std::numeric_limits<uint_multiprecision_t>::digits == 64) {
 
-#if defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG)
-        r = static_cast<std::size_t>(63 - __builtin_clzll(u));
-#elif defined(BEMAN_BIG_INT_MSVC)
-        unsigned long index{};
-        _BitScanReverse64(&index, static_cast<unsigned __int64>(u));
-        r = static_cast<std::size_t>(index);
-#else
         // Use O(log2[N]) binary-halving in an unrolled loop to find the msb.
         if (u & 0xFFFFFFFF00000000ULL) {
             u >>= 32;
@@ -1296,15 +1289,7 @@ constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
         if (u & 0x0000000000000002ULL) {
             r |= 1U;
         }
-#endif
     } else if constexpr (std::numeric_limits<uint_multiprecision_t>::digits == 32) {
-#if defined(BEMAN_BIG_INT_GCC) || defined(BEMAN_BIG_INT_CLANG)
-        r = static_cast<std::size_t>(31 - __builtin_clz(u));
-#elif defined(BEMAN_BIG_INT_MSVC)
-        unsigned long index{};
-        _BitScanReverse(&index, static_cast<unsigned long>(u));
-        r = static_cast<std::size_t>(index);
-#else
         // Use O(log2[N]) binary-halving in an unrolled loop to find the msb.
         if (u & 0xFFFF0000UL) {
             u >>= 16;
@@ -1325,7 +1310,6 @@ constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
         if (u & 0x00000002UL) {
             r |= 1U;
         }
-#endif
     } else {
         // small-limb fallback
         while (u >>= 1) {
