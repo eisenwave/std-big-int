@@ -15,7 +15,7 @@
 namespace beman::big_int::detail {
 
 // Minimum number of limbs for Karatsuba to be worthwhile
-// Directly from Boost
+// Directly from Boost, and reconfirmed as correct
 inline constexpr std::size_t karatsuba_cutoff = 40;
 
 // Heuristic estimate of scratch space needed for Karatsuba multiplication
@@ -432,9 +432,9 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     scratch.deallocate(total_scratch);
 }
 
-// Minimum number of limbs for Toom-Cook 3 to be worthwhile
-// TODO(mborland) : We need to test where this should actually be
-inline constexpr std::size_t toom_cook_3_cutoff = 120;
+// Minimum number of limbs for Toom-Cook 3 to be worthwhile.
+// Toom-Cook 3 first beats Karatsuba around 800 limbs on Apple Silicon.
+inline constexpr std::size_t toom_cook_3_cutoff = 800;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
 // Includes space for karatsuba fallback plan
