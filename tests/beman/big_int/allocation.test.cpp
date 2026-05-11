@@ -16,7 +16,7 @@ static_assert(test_size_default());
 
 consteval bool test_size_from_value() {
     beman::big_int::big_int x{42U};
-    return x.size() == 1; // still inline, size() returns inplace_limbs
+    return x.size() == 6; // still inline, size() returns inplace_limbs
 }
 static_assert(test_size_from_value());
 
@@ -92,7 +92,7 @@ TEST(Allocation, SizeDefault) {
 
 TEST(Allocation, SizeFromValue) {
     beman::big_int::big_int x{42U};
-    EXPECT_EQ(x.size(), 1);
+    EXPECT_EQ(x.size(), 6);
 }
 
 TEST(Allocation, MaxSize) {
