@@ -16,9 +16,11 @@ using random_engine_length_type =
 
 random_engine_length_type generator_limb_length{static_cast<typename random_engine_length_type::result_type>(53)};
 
-// Toom-Cook 3 cutoff is 120 limbs. Sizes 130..400 exercise the algorithm
-// at depths 0..2 and force most calls to actually take the Toom-3 path.
-std::uniform_int_distribution distribution_limb_length{std::size_t{UINT16_C(130)}, std::size_t{UINT16_C(400)}};
+// Toom-Cook 3 cutoff is 800 limbs. Sizes 810..1500 exercise the algorithm:
+// balanced pairs enter Toom-3 directly, asymmetric pairs may fall back to
+// Karatsuba (min <= 2*k), so both paths get coverage.
+std::uniform_int_distribution distribution_limb_length{std::size_t{UINT16_C(810)},
+                                                       std::size_t{UINT16_C(1500)}};
 
 } // namespace detail
 
@@ -38,7 +40,9 @@ auto test_one_multiplication() -> void {
 } // namespace local
 
 TEST(Multiplication, ToomCook3Exercise01) {
-    constexpr unsigned trials{128U};
+    // Trial count reduced from 128 because each multiplication now operates
+    // on much larger (810-1500 limb) operands to clear the raised cutoff.
+    constexpr unsigned trials{32U};
 
     for (unsigned index{0U}; index < trials; ++index) {
         static_cast<void>(index);

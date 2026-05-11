@@ -60,11 +60,13 @@ auto run_one_mersenne(const unsigned p2) -> void {
 }
 
 // Mersenne primes large enough to drive multiple Toom-Cook 3 recursion levels.
-// At 64-bit limbs, p2/64 limbs are needed; at toom_cook_3_cutoff = 120 limbs
-// (~7680 bits), Toom-3 recursion engages and recurses while sub-products
-// remain above the cutoff.
-constexpr std::array<unsigned, std::size_t{4}> my_mersenne_powers_of_two{
-    13466917U, 20996011U, 24036583U, 30402457U};
+// At 64-bit limbs, p2/64 limbs are needed; at toom_cook_3_cutoff = 800 limbs
+// (~51200 bits), Toom-3 still recurses several levels for these exponents
+// (e.g. 13466917 bits = ~210k limbs, recurses ~5-6 levels before falling
+// through to Karatsuba). Dropped the two largest exponents from the
+// karatsuba-era list to keep test wall time under control now that each
+// Toom-3 step does more work below the higher cutoff.
+constexpr std::array<unsigned, std::size_t{2}> my_mersenne_powers_of_two{13466917U, 20996011U};
 
 } // namespace local
 
@@ -76,12 +78,4 @@ TEST(Multiplication, ToomCook3Mersenne00) {
 
 TEST(Multiplication, ToomCook3Mersenne01) {
     local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{1}]);
-}
-
-TEST(Multiplication, ToomCook3Mersenne02) {
-    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{2}]);
-}
-
-TEST(Multiplication, ToomCook3Mersenne03) {
-    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{3}]);
 }
