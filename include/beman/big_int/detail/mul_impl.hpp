@@ -489,12 +489,16 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
 
     // Split each operand into three pieces. Empty pieces represent zero.
     const auto a0 = a.first(std::min(k, a.size()));
-    const auto a1 = a.size() > k ? a.subspan(k, std::min(k, a.size() - k)) : std::span<const uint_multiprecision_t>{};
-    const auto a2 = a.size() > 2 * k ? a.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
+    const auto a1 = a.size() > k ? a.subspan(k, std::min(k, a.size() - k))
+                                 : std::span<const uint_multiprecision_t>{};
+    const auto a2 = a.size() > 2 * k ? a.subspan(2 * k)
+                                     : std::span<const uint_multiprecision_t>{};
 
     const auto b0 = b.first(std::min(k, b.size()));
-    const auto b1 = b.size() > k ? b.subspan(k, std::min(k, b.size() - k)) : std::span<const uint_multiprecision_t>{};
-    const auto b2 = b.size() > 2 * k ? b.subspan(2 * k) : std::span<const uint_multiprecision_t>{};
+    const auto b1 = b.size() > k ? b.subspan(k, std::min(k, b.size() - k))
+                                 : std::span<const uint_multiprecision_t>{};
+    const auto b2 = b.size() > 2 * k ? b.subspan(2 * k)
+                                     : std::span<const uint_multiprecision_t>{};
 
     // Carve scratch:
     //   tmpa, tmpb: k+2 limbs each
@@ -521,7 +525,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
     }
 
     // ---- Helper: in-place tmp[0..size) += addend; returns new size (may grow by 1) ----
-    const auto add_into_tmp = [](const std::span<uint_multiprecision_t>       tmp,
+    constexpr auto add_into_tmp = [](const std::span<uint_multiprecision_t>       tmp,
                                  const std::size_t                            size,
                                  const std::span<const uint_multiprecision_t> addend) -> std::size_t {
         if (addend.empty()) {
@@ -538,20 +542,39 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
         return new_size;
     };
 
-    // ---- Helper: in-place tmp[0..size) *= 2; returns new size (may grow by 1) ----
-    const auto double_in_place = [](const std::span<uint_multiprecision_t> tmp,
-                                    const std::size_t                      size) -> std::size_t {
+    // ---- Helper: in-place tmp[0..size) <<= 1; returns new size (may grow by 1) ----
+    constexpr auto shift_left_one = [](const std::span<uint_multiprecision_t> tmp,
+                                   std::size_t                            size) -> std::size_t {
         if (size == 0) {
             return 0;
         }
         BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > size);
-        const auto view  = std::span<const uint_multiprecision_t>{tmp.data(), size};
-        const bool carry = add_unsigned_spans(tmp.first(size), view, view);
-        if (carry) {
-            tmp[size] = 1;
-            return size + 1;
+        constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+        uint_multiprecision_t prev      = 0;
+        for (std::size_t i = 0; i < size; ++i) {
+            const auto limb = tmp[i];
+            tmp[i]          = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = limb}, 1u);
+            prev            = limb;
+        }
+        if (const auto carry = prev >> (limb_bits - 1)) {
+            tmp[size++] = carry;
         }
         return size;
+    };
+
+    // ---- Helper: in-place tmp >>= 1; returns the dropped low bit (caller asserts == 0 for exact div) ----
+    constexpr auto shift_right_one = [](const std::span<uint_multiprecision_t> tmp) -> uint_multiprecision_t {
+        if (tmp.empty()) {
+            return 0;
+        }
+        const uint_multiprecision_t rem  = tmp[0] & uint_multiprecision_t{1};
+        uint_multiprecision_t       high = 0;
+        for (std::size_t i = tmp.size(); i-- > 0;) {
+            const auto limb = tmp[i];
+            tmp[i]          = funnel_shr(wide<uint_multiprecision_t>{.low_bits = limb, .high_bits = high}, 1u);
+            high            = limb;
+        }
+        return rem;
     };
 
     // ---- Evaluate at x = 1: tmpa = a0 + a1 + a2; tmpb = b0 + b1 + b2 ----
@@ -601,19 +624,19 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
                              scratch);
     }
 
-    // ---- Evaluate at x = 2: tmpa = 4*a2 + 2*a1 + a0 (Horner: ((a2*2)+a1)*2+a0); tmpb similarly ----
+    // ---- Evaluate at x = 2: tmpa = 4*a2 + 2*a1 + a0 (Horner: ((a2<<1)+a1)<<1+a0); tmpb similarly ----
     std::ranges::copy(a2, tmpa.begin());
     tmpa_size = a2.size();
-    tmpa_size = double_in_place(tmpa, tmpa_size);  // 2*a2
+    tmpa_size = shift_left_one(tmpa, tmpa_size);   // 2*a2
     tmpa_size = add_into_tmp(tmpa, tmpa_size, a1); // 2*a2 + a1
-    tmpa_size = double_in_place(tmpa, tmpa_size);  // 4*a2 + 2*a1
+    tmpa_size = shift_left_one(tmpa, tmpa_size);   // 4*a2 + 2*a1
     tmpa_size = add_into_tmp(tmpa, tmpa_size, a0); // 4*a2 + 2*a1 + a0
 
     std::ranges::copy(b2, tmpb.begin());
     tmpb_size = b2.size();
-    tmpb_size = double_in_place(tmpb, tmpb_size);
+    tmpb_size = shift_left_one(tmpb, tmpb_size);
     tmpb_size = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size = double_in_place(tmpb, tmpb_size);
+    tmpb_size = shift_left_one(tmpb, tmpb_size);
     tmpb_size = add_into_tmp(tmpb, tmpb_size, b0);
 
     // v2 = p(2) * q(2)
@@ -657,7 +680,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
         subtract_unsigned_spans(vm1, v1_view, vm1_view);
     }
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(vm1, vm1_view, uint_multiprecision_t{2});
+        [[maybe_unused]] const auto rem = shift_right_one(vm1);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -667,7 +690,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
     // Step 4: v2 <- (v2 - v1) / 2.
     subtract_unsigned_spans(v2, v2_view, v1_view);
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{2});
+        [[maybe_unused]] const auto rem = shift_right_one(v2);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 

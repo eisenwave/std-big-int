@@ -73,7 +73,7 @@ double measure_algorithm(const std::size_t limbs, const unsigned trials, const s
     std::vector<uint_t> result(2 * limbs, uint_t{0});
 
     std_allocator    alloc;
-    scratch_for_test scratch(std::max(scratch_size, std::size_t{1}), alloc);
+    scratch_for_test scratch(std::max<std::size_t>(scratch_size, 1), alloc);
 
     const auto a_view = std::span<const uint_t>{a};
     const auto b_view = std::span<const uint_t>{b};
@@ -143,25 +143,22 @@ struct algorithm_runner {
 };
 
 constexpr algorithm_runner algorithms[] = {
-    {"schoolbook", std::size_t{2}, std::size_t{200}, run_long_at},
-    {"karatsuba", std::size_t{4}, std::size_t{2000}, run_karatsuba_at},
-    {"toom-cook-3", std::size_t{800}, std::size_t{5000}, run_toom_cook_3_at},
+    {"schoolbook", 2, 200, run_long_at},
+    {"karatsuba", 4, 2000, run_karatsuba_at},
+    {"toom-cook-3", 800, 5000, run_toom_cook_3_at},
     // Future additions, e.g.:
-    // {"toom-cook-4", std::size_t{2000},  std::size_t{10000}, run_toom_cook_4_at},
-    // {"toom-cook-5", std::size_t{5000},  std::size_t{20000}, run_toom_cook_5_at},
+    // {"toom-cook-4", 2000, 10000, run_toom_cook_4_at},
+    // {"toom-cook-5", 5000, 20000, run_toom_cook_5_at},
 };
 
 // Limb counts to sample. Dense coverage at the low end for the
 // schoolbook -> Karatsuba crossover, dense in the middle for the
 // Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
 constexpr std::size_t sweep_limbs[] = {
-    std::size_t{2},    std::size_t{4},    std::size_t{6},    std::size_t{8},    std::size_t{10},   std::size_t{12},
-    std::size_t{14},   std::size_t{16},   std::size_t{20},   std::size_t{24},   std::size_t{28},   std::size_t{32},
-    std::size_t{36},   std::size_t{40},   std::size_t{48},   std::size_t{56},   std::size_t{64},   std::size_t{72},
-    std::size_t{80},   std::size_t{96},   std::size_t{112},  std::size_t{128},  std::size_t{144},  std::size_t{160},
-    std::size_t{192},  std::size_t{224},  std::size_t{256},  std::size_t{320},  std::size_t{400},  std::size_t{500},
-    std::size_t{640},  std::size_t{800},  std::size_t{1000}, std::size_t{1280}, std::size_t{1600}, std::size_t{2000},
-    std::size_t{2500}, std::size_t{3200}, std::size_t{4000}, std::size_t{5000},
+    2,    4,    6,    8,    10,   12,   14,   16,   20,   24,
+    28,   32,   36,   40,   48,   56,   64,   72,   80,   96,
+    112,  128,  144,  160,  192,  224,  256,  320,  400,  500,
+    640,  800,  1000, 1280, 1600, 2000, 2500, 3200, 4000, 5000,
 };
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
