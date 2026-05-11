@@ -189,7 +189,7 @@ constexpr signed_sub_result subtract_unsigned_spans_signed(const std::span<uint_
     const auto        a_view = a.first(a_trim);
     const auto        b_view = b.first(b_trim);
 
-    if (compare_unsigned_spans(a_view, b_view) >= 0) {
+    if (compare_unsigned_spans(a_view, b_view) != std::strong_ordering::less) {
         BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a_trim);
         if (a_trim == 0) {
             return {0, false};
