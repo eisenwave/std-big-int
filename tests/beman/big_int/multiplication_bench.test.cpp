@@ -4,33 +4,7 @@
 #include <beman/big_int/big_int.hpp>
 #include "benchmark_testing.hpp"
 #include "boost_mp_testing.hpp"
-
-namespace local {
-
-template <class IntegralType>
-[[nodiscard]] constexpr auto pow(const IntegralType& b, unsigned p) -> IntegralType {
-    using local_integer_type = IntegralType;
-
-    // Calculate (b ^ p).
-
-    local_integer_type result{1};
-
-    local_integer_type y{b};
-
-    while (p != 0U) {
-        if ((p & 1U) != 0U) {
-            result *= y;
-        }
-
-        y *= y;
-
-        p >>= 1U;
-    }
-
-    return result;
-}
-
-} // namespace local
+#include "testing.hpp"
 
 bool run_benchmarks(const unsigned p2) {
     using cpp_int_type =
@@ -42,13 +16,13 @@ bool run_benchmarks(const unsigned p2) {
     local_stopwatch_type my_stopwatch{};
 
     const cpp_int_type cpp_int_two{2};
-    const cpp_int_type cpp_int_mersenne{cpp_int_type{local::pow(cpp_int_two, p2)} - 1};
+    const cpp_int_type cpp_int_mersenne{cpp_int_type{beman::big_int::pow(cpp_int_two, p2)} - 1};
     std::cout << "stopwatch big_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
 
     my_stopwatch.reset();
 
     const big_int_type big_int_two{2};
-    const big_int_type big_int_mersenne{big_int_type{local::pow(big_int_two, p2)} - 1};
+    const big_int_type big_int_mersenne{big_int_type{beman::big_int::pow(big_int_two, p2)} - 1};
     std::cout << "stopwatch cpp_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
 
     const std::span<const ::boost::multiprecision::limb_type> cpp_int_rep{cpp_int_mersenne.backend().limbs(),
@@ -56,8 +30,8 @@ bool run_benchmarks(const unsigned p2) {
     const auto big_int_bytes = std::as_bytes(big_int_mersenne.representation());
     const auto cpp_int_bytes = std::as_bytes(cpp_int_rep);
 
-    const auto big_int_sig = beman::big_int::benchmark_testing::significant_byte_len(big_int_bytes);
-    const auto cpp_int_sig = beman::big_int::benchmark_testing::significant_byte_len(cpp_int_bytes);
+    const auto big_int_sig = beman::big_int::significant_byte_len(big_int_bytes);
+    const auto cpp_int_sig = beman::big_int::significant_byte_len(cpp_int_bytes);
 
     const bool result_length_is_ok{big_int_sig == cpp_int_sig};
 

@@ -25,27 +25,6 @@ enum class division_op : unsigned char {
 };
 
 // ---------------------------------------------------------------------------
-// Three-way compare of two little-endian unsigned spans.
-// Operands need not be trimmed: trailing zero limbs on either side are
-// treated as insignificant.
-// ---------------------------------------------------------------------------
-[[nodiscard]] constexpr std::strong_ordering
-compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
-                       const std::span<const uint_multiprecision_t> b) noexcept {
-    const std::size_t na = a.size();
-    const std::size_t nb = b.size();
-    const std::size_t n  = std::max(na, nb);
-    for (std::size_t i = n; i-- > 0;) {
-        const auto ai = i < na ? a[i] : uint_multiprecision_t{0};
-        const auto bi = i < nb ? b[i] : uint_multiprecision_t{0};
-        if (ai != bi) {
-            return ai < bi ? std::strong_ordering::less : std::strong_ordering::greater;
-        }
-    }
-    return std::strong_ordering::equal;
-}
-
-// ---------------------------------------------------------------------------
 // In-place +1 on a little-endian unsigned span. Returns true on carry out.
 // ---------------------------------------------------------------------------
 [[nodiscard]] constexpr bool increment_span(const std::span<uint_multiprecision_t> s) noexcept {
@@ -68,42 +47,6 @@ compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
         }
     }
     return true;
-}
-
-// ---------------------------------------------------------------------------
-// Single-limb short division.
-// `quotient[i]` := floor(([remainder, dividend[i]] as two limbs) / divisor)
-// scanning from the top limb down.
-// Returns the scalar remainder.
-// `quotient` and `dividend` may be the same range (i.e. alias each other),
-// but `quotient` may not be a strict subrange of `dividend`.
-//
-// Preconditions:
-//   - divisor != 0
-//   - quotient.size() >= dividend.size()
-//   - dividend.size() >= 1
-//   - quotient may alias dividend (we read dividend[i] before writing
-//     quotient[i]; subsequent iterations touch strictly lower indices).
-// ---------------------------------------------------------------------------
-[[nodiscard]] constexpr uint_multiprecision_t
-divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
-                      const std::span<const uint_multiprecision_t> dividend,
-                      const uint_multiprecision_t                  divisor) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(divisor != 0);
-    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size());
-    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
-
-    uint_multiprecision_t remainder = 0;
-    for (std::size_t i = dividend.size(); i-- > 0;) {
-        // narrowing_div requires x.high_bits < y; the previous remainder was
-        // taken mod divisor, so this invariant holds (and 0 < divisor on the
-        // first iteration).
-        const wide<uint_multiprecision_t> num{.low_bits = dividend[i], .high_bits = remainder};
-        const auto [q, r] = narrowing_div(num, divisor);
-        quotient[i]       = q;
-        remainder         = r;
-    }
-    return remainder;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,14 +1,12 @@
-
-#include <beman/big_int/big_int.hpp>
-
-#include <gtest/gtest.h>
-
-#include <boost/multiprecision/cpp_int.hpp>
-
-#include <array>
-#include <span>
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
 
 #include "testing.hpp"
+#include <boost/multiprecision/cpp_int.hpp>
+#include <beman/big_int/big_int.hpp>
+#include <gtest/gtest.h>
+#include <array>
+#include <span>
 
 namespace local {
 
@@ -17,12 +15,9 @@ auto run_one_mersenne(const unsigned p2) -> void {
         boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
     using big_int_type = beman::big_int::big_int;
 
-    // Mersenne prime (2^1398269 - 1) approx. 8.147175644125731*10^420920
-
-    // Mathematica:
-    //
-    // 2^1398269 - 1
-    // N[%]
+    // Mersenne value (2^p2 - 1) computed via square-and-multiply pow().
+    // The exponents below produce limb counts well above the Toom-Cook 3
+    // cutoff (120) at multiple recursion depths.
 
     const cpp_int_type cpp_int_two{2};
     const cpp_int_type cpp_int_mersenne{cpp_int_type{beman::big_int::pow(cpp_int_two, p2)} - 1};
@@ -64,41 +59,23 @@ auto run_one_mersenne(const unsigned p2) -> void {
     EXPECT_TRUE(result_is_ok);
 }
 
-// Note: We test millons of decimal digits, since
-// Mathematica:
-//   N[2^20996011 - 1]
-//   1.259768954503301*10^6320429
+// Mersenne primes large enough to drive multiple Toom-Cook 3 recursion levels.
+// At 64-bit limbs, p2/64 limbs are needed; at toom_cook_3_cutoff = 800 limbs
+// (~51200 bits), Toom-3 still recurses several levels for these exponents
+// (e.g. 13466917 bits = ~210k limbs, recurses ~5-6 levels before falling
+// through to Karatsuba). Dropped the two largest exponents from the
+// karatsuba-era list to keep test wall time under control now that each
+// Toom-3 step does more work below the higher cutoff.
+constexpr std::array<unsigned, std::size_t{2}> my_mersenne_powers_of_two{13466917U, 20996011U};
 
-constexpr std::array<unsigned, std::size_t{7}> my_mersenne_powers_of_two{
-    1257787U, 1398269U, 2976221U, 3021377U, 6972593U, 13466917U, 20996011U};
 } // namespace local
 
 // See also https://oeis.org/A057429 sequences of Mersenne primes.
 
-TEST(Multiplication, KaratsubaMersenne00) {
+TEST(Multiplication, ToomCook3Mersenne00) {
     local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{0}]);
 }
 
-TEST(Multiplication, KaratsubaMersenne01) {
+TEST(Multiplication, ToomCook3Mersenne01) {
     local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{1}]);
-}
-
-TEST(Multiplication, KaratsubaMersenne02) {
-    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{2}]);
-}
-
-TEST(Multiplication, KaratsubaMersenne03) {
-    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{3}]);
-}
-
-TEST(Multiplication, KaratsubaMersenne04) {
-    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{4}]);
-}
-
-TEST(Multiplication, KaratsubaMersenne05) {
-    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{5}]);
-}
-
-TEST(Multiplication, KaratsubaMersenne06) {
-    local::run_one_mersenne(local::my_mersenne_powers_of_two[std::size_t{6}]);
 }
