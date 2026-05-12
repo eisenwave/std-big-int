@@ -43,48 +43,48 @@ using poly_alloc        = std::pmr::polymorphic_allocator<uint_multiprecision_t>
 // and that the deallocation count matches the allocation count when a big_int
 // goes out of scope.
 class counting_resource final : public std::pmr::memory_resource {
-    public:
-        explicit counting_resource(std::pmr::memory_resource* upstream = std::pmr::new_delete_resource()) noexcept
-            : m_upstream{upstream} {}
+  public:
+    explicit counting_resource(std::pmr::memory_resource* upstream = std::pmr::new_delete_resource()) noexcept
+        : m_upstream{upstream} {}
 
-        // The resource doesn't own the bytes, so this is a total failure if they are leaked
-        ~counting_resource() override {
-            if (m_live_bytes != 0) {
-                ADD_FAILURE() << "counting_resource destroyed with " << m_live_bytes << " live bytes ("
-                              << (m_allocs - m_deallocs) << " outstanding allocations)";
-            }
+    // The resource doesn't own the bytes, so this is a total failure if they are leaked
+    ~counting_resource() override {
+        if (m_live_bytes != 0) {
+            ADD_FAILURE() << "counting_resource destroyed with " << m_live_bytes << " live bytes ("
+                          << (m_allocs - m_deallocs) << " outstanding allocations)";
         }
+    }
 
-        counting_resource(const counting_resource&)            = delete;
-        counting_resource& operator=(const counting_resource&) = delete;
-        counting_resource(counting_resource&&)                 = delete;
-        counting_resource& operator=(counting_resource&&)      = delete;
+    counting_resource(const counting_resource&)            = delete;
+    counting_resource& operator=(const counting_resource&) = delete;
+    counting_resource(counting_resource&&)                 = delete;
+    counting_resource& operator=(counting_resource&&)      = delete;
 
-        [[nodiscard]] std::size_t alloc_count() const noexcept { return m_allocs; }
-        [[nodiscard]] std::size_t dealloc_count() const noexcept { return m_deallocs; }
-        [[nodiscard]] std::size_t live_bytes() const noexcept { return m_live_bytes; }
+    [[nodiscard]] std::size_t alloc_count() const noexcept { return m_allocs; }
+    [[nodiscard]] std::size_t dealloc_count() const noexcept { return m_deallocs; }
+    [[nodiscard]] std::size_t live_bytes() const noexcept { return m_live_bytes; }
 
-    private:
-        [[nodiscard]] void* do_allocate(const std::size_t bytes, const std::size_t align) override {
-            ++m_allocs;
-            m_live_bytes += bytes;
-            return m_upstream->allocate(bytes, align);
-        }
+  private:
+    [[nodiscard]] void* do_allocate(const std::size_t bytes, const std::size_t align) override {
+        ++m_allocs;
+        m_live_bytes += bytes;
+        return m_upstream->allocate(bytes, align);
+    }
 
-        void do_deallocate(void* p, const std::size_t bytes, const std::size_t align) override {
-            ++m_deallocs;
-            m_live_bytes -= bytes;
-            m_upstream->deallocate(p, bytes, align);
-        }
+    void do_deallocate(void* p, const std::size_t bytes, const std::size_t align) override {
+        ++m_deallocs;
+        m_live_bytes -= bytes;
+        m_upstream->deallocate(p, bytes, align);
+    }
 
-        [[nodiscard]] bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
-            return this == &other;
-        }
+    [[nodiscard]] bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        return this == &other;
+    }
 
-        std::pmr::memory_resource* m_upstream;
-        std::size_t                m_allocs{0};
-        std::size_t                m_deallocs{0};
-        std::size_t                m_live_bytes{0};
+    std::pmr::memory_resource* m_upstream;
+    std::size_t                m_allocs{0};
+    std::size_t                m_deallocs{0};
+    std::size_t                m_live_bytes{0};
 };
 
 // ----- Type-level checks -----
@@ -186,8 +186,8 @@ TEST(Pmr, ConstructFromNonPmrBigInt) {
 
 TEST(Pmr, ConstructFromLargeNonPmrBigInt) {
     // A literal value that needs more than one 64-bit limb.
-    const big_int     big_src   = 0x1234'5678'9ABC'DEF0'1234'5678'9ABC'DEF0_n;
-    const std::string expected  = to_string(big_src);
+    const big_int     big_src  = 0x1234'5678'9ABC'DEF0'1234'5678'9ABC'DEF0_n;
+    const std::string expected = to_string(big_src);
     counting_resource cr;
     const pmr_big_int dst{big_src, &cr};
     EXPECT_EQ(to_string(dst), expected);
@@ -208,10 +208,9 @@ TEST(Pmr, ConstructFromNonPmrBigIntWithDifferentInplaceBits) {
 
 TEST(Pmr, FromIteratorPairWithResource) {
     counting_resource                                    cr;
-    std::array<beman::big_int::uint_multiprecision_t, 3> limbs{0x1111'1111'1111'1111ULL,
-                                                               0x2222'2222'2222'2222ULL,
-                                                               0x3333'3333'3333'3333ULL};
-    const pmr_big_int                                    x{limbs.begin(), limbs.end(), &cr};
+    std::array<beman::big_int::uint_multiprecision_t, 3> limbs{
+        0x1111'1111'1111'1111ULL, 0x2222'2222'2222'2222ULL, 0x3333'3333'3333'3333ULL};
+    const pmr_big_int x{limbs.begin(), limbs.end(), &cr};
     EXPECT_EQ(x.representation().size(), 3U);
     EXPECT_EQ(x.representation()[0], 0x1111'1111'1111'1111ULL);
     EXPECT_EQ(x.representation()[1], 0x2222'2222'2222'2222ULL);
@@ -385,10 +384,10 @@ TEST(Pmr, DivisionAndModulusSameResource) {
 TEST(Pmr, MultiLimbArithmeticMatchesNonPmr) {
     counting_resource cr;
     // Use the same numeric value in pmr and non-pmr forms; arithmetic must agree.
-    const big_int     ref_a   = 1'234'567'890'123'456'789_n * 11_n;
-    const big_int     ref_b   = 9'876'543'210'987'654'321_n;
-    const big_int     ref_sum = ref_a + ref_b;
-    const big_int     ref_mul = ref_a * ref_b;
+    const big_int ref_a   = 1'234'567'890'123'456'789_n * 11_n;
+    const big_int ref_b   = 9'876'543'210'987'654'321_n;
+    const big_int ref_sum = ref_a + ref_b;
+    const big_int ref_mul = ref_a * ref_b;
 
     const pmr_big_int a{ref_a, &cr};
     const pmr_big_int b{ref_b, &cr};
@@ -449,7 +448,7 @@ TEST(Pmr, CompoundAddGrowsViaSameResource) {
     counting_resource cr;
     pmr_big_int       x{std::numeric_limits<std::uint64_t>::max(), &cr};
     EXPECT_EQ(cr.alloc_count(), 0U); // inline
-    x += pmr_big_int{1, &cr};         // grows to 2 limbs -> heap allocation on cr
+    x += pmr_big_int{1, &cr};        // grows to 2 limbs -> heap allocation on cr
     EXPECT_GE(cr.alloc_count(), 1U);
     EXPECT_EQ(x.get_allocator().resource(), &cr);
     EXPECT_EQ(x.representation().size(), 2U);
@@ -504,7 +503,7 @@ TEST(Pmr, ShiftRightPreservesAllocator) {
 }
 
 TEST(Pmr, ShiftOperatorsMatchNonPmr) {
-    const pmr_big_int x = pmr_big_int{1} << 250;
+    const pmr_big_int x   = pmr_big_int{1} << 250;
     const big_int     ref = big_int{1} << 250;
     EXPECT_EQ(to_string(x), to_string(ref));
 }
@@ -591,7 +590,7 @@ TEST(Pmr, ToCharsRoundTrip) {
     const auto [out_ptr, ec_out] = to_chars(buf.data(), buf.data() + buf.size(), x, 10);
     ASSERT_EQ(ec_out, std::errc{});
 
-    pmr_big_int       y{0, &cr};
+    pmr_big_int y{0, &cr};
     const auto [in_ptr, ec_in] = from_chars(buf.data(), out_ptr, y, 10);
     EXPECT_EQ(ec_in, std::errc{});
     EXPECT_EQ(in_ptr, out_ptr);
@@ -634,16 +633,16 @@ TEST(Pmr, HashEqualsBetweenPmrAndNonPmr) {
     // The hash is computed over the limb span and sign bit, so a pmr value
     // and a non-pmr value that hold the same number must hash identically
     // (modulo the allocator type parameter on the std::hash<...> instantiation).
-    const big_int                non_pmr{0xDEAD'BEEFU};
-    const pmr_big_int            pmr{0xDEAD'BEEFU};
+    const big_int     non_pmr{0xDEAD'BEEFU};
+    const pmr_big_int pmr{0xDEAD'BEEFU};
     EXPECT_EQ(std::hash<big_int>{}(non_pmr), std::hash<pmr_big_int>{}(pmr));
 }
 
 TEST(Pmr, HashMultiLimbAcrossInplaceBits) {
-    counting_resource             cr;
-    pmr_big_int                   small{1, &cr};
+    counting_resource cr;
+    pmr_big_int       small{1, &cr};
     small <<= 200;
-    pmr_basic_big_int<1024>       wide{1, &cr};
+    pmr_basic_big_int<1024> wide{1, &cr};
     wide <<= 200;
     EXPECT_EQ(std::hash<pmr_big_int>{}(small), std::hash<pmr_basic_big_int<1024>>{}(wide));
 }
@@ -662,10 +661,10 @@ TEST(Pmr, UnorderedSetWithPmrBigIntKeys) {
 }
 
 TEST(Pmr, UnorderedMapMultiLimbKeys) {
-    counting_resource                  cr;
+    counting_resource                    cr;
     std::unordered_map<pmr_big_int, int> m;
-    pmr_big_int                        k1{1, &cr};
-    pmr_big_int                        k2{2, &cr};
+    pmr_big_int                          k1{1, &cr};
+    pmr_big_int                          k2{2, &cr};
     k1 <<= 200;
     k2 <<= 200;
     m[k1] = 10;
@@ -682,12 +681,12 @@ TEST(Pmr, UnorderedMapMultiLimbKeys) {
 // this by counting allocations on the resource shared with the vector.
 
 TEST(Pmr, PmrVectorPropagatesResourceToElements) {
-    counting_resource                cr;
-    std::pmr::vector<pmr_big_int>    v{&cr};
+    counting_resource             cr;
+    std::pmr::vector<pmr_big_int> v{&cr};
     v.reserve(4);
 
     // Emplace values that force heap allocation per element (> 1 limb).
-    v.emplace_back();        // default-constructed
+    v.emplace_back(); // default-constructed
     v.back() = pmr_big_int{1};
     v.back() <<= 200;
     v.emplace_back();
@@ -706,8 +705,8 @@ TEST(Pmr, PmrVectorPropagatesResourceToElements) {
 }
 
 TEST(Pmr, PmrVectorEmplaceBackWithInts) {
-    counting_resource                cr;
-    std::pmr::vector<pmr_big_int>    v{&cr};
+    counting_resource             cr;
+    std::pmr::vector<pmr_big_int> v{&cr};
     v.emplace_back(42);
     v.emplace_back(-7);
     v.emplace_back(std::numeric_limits<std::uint64_t>::max());
@@ -721,10 +720,10 @@ TEST(Pmr, PmrVectorEmplaceBackWithInts) {
 }
 
 TEST(Pmr, PmrVectorCopyBetweenResources) {
-    counting_resource src_cr;
-    counting_resource dst_cr;
+    counting_resource             src_cr;
+    counting_resource             dst_cr;
     std::pmr::vector<pmr_big_int> src{&src_cr};
-    pmr_big_int big_value{1, &src_cr};
+    pmr_big_int                   big_value{1, &src_cr};
     big_value <<= 200;
     src.push_back(big_value);
     src.emplace_back(42);
@@ -747,8 +746,8 @@ TEST(Pmr, PmrVectorCopyBetweenResources) {
 TEST(Pmr, MonotonicBufferResource) {
     // A monotonic_buffer_resource trivially returns sub-allocations from a
     // pre-sized buffer; deallocate is a no-op, and release() frees everything.
-    std::array<std::byte, 4096>              buffer{};
-    std::pmr::monotonic_buffer_resource      mbr{buffer.data(), buffer.size(), std::pmr::null_memory_resource()};
+    std::array<std::byte, 4096>         buffer{};
+    std::pmr::monotonic_buffer_resource mbr{buffer.data(), buffer.size(), std::pmr::null_memory_resource()};
     {
         pmr_big_int x{1, &mbr};
         x <<= 500; // forces heap, served by mbr
@@ -784,7 +783,7 @@ TEST(Pmr, NullMemoryResourceForcesInlineOnly) {
 // ----- Stream output via testing.hpp -----
 
 TEST(Pmr, OstreamOutput) {
-    const pmr_big_int x{12345};
+    const pmr_big_int  x{12345};
     std::ostringstream oss;
     oss << x;
     EXPECT_EQ(oss.str(), "12345");
