@@ -236,7 +236,7 @@ auto main() -> int {
 
     constexpr std::uint64_t max_prime_count{32};
 
-    std::string str_prime{};
+    big_int next_prime{};
 
     while (prime_count < max_prime_count) {
 
@@ -255,12 +255,12 @@ auto main() -> int {
         const bool is_prime{miller_rabin(prime_candidate, 25)};
 
         if (is_prime) {
-            str_prime = to_string(prime_candidate);
+            next_prime = prime_candidate;
 
             ++prime_count;
 
             std::cout << "prime" << prime_count << "/" << trial_count << ", "
-                      << str_prime_density(trial_count, prime_count) << ": " << str_prime << std::endl;
+                      << str_prime_density(trial_count, prime_count) << ": " << to_string(next_prime) << std::endl;
         }
     }
 
@@ -270,11 +270,12 @@ auto main() -> int {
 
 #if !defined(BEMAN_BIG_INT_EXAMPLE_PRIMES_USE_ENTROPY)
     if constexpr ((max_prime_count == 32U) && (prime_candidate_bits == 512U)) {
-        constexpr const char* prime_ctrl{"1014317171946031703077660604216145574369246266597170419026897995"
-                                         "2647685451042758582438652518606262043864611102965422197344907990"
-                                         "728961691317186137657753121"};
-
-        ret_val = (str_prime == prime_ctrl) ? 0 : -1;
+        using namespace beman::big_int::literals;
+        ret_val =
+            (next_prime ==
+             10143171719460317030776606042161455743692462665971704190268979952647685451042758582438652518606262043864611102965422197344907990728961691317186137657753121_n)
+                ? 0
+                : -1;
     }
 #endif
 
