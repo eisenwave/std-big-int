@@ -305,9 +305,9 @@ TEST(Hash, SignDistinguishesAcrossInplaceBits) {
 
 TEST(Hash, NegatingTwiceRestoresHash) {
     const std::hash<big_int> h{};
-    const big_int            x = (big_int{1} << 100) + big_int{7};
+    const big_int            x        = (big_int{1} << 100) + big_int{7};
     const std::size_t        original = h(x);
-    const big_int            negated = -x;
+    const big_int            negated  = -x;
     EXPECT_NE(original, h(negated));
     EXPECT_EQ(original, h(-negated));
 }

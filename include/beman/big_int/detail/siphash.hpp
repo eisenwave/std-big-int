@@ -53,7 +53,6 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
 
     constexpr std::uint64_t k0 = 0x0706050403020100ULL;
     constexpr std::uint64_t k1 = 0x0f0e0d0c0b0a0908ULL;
-    
     std::uint64_t v0 = 0x736f6d6570736575ULL ^ k0;
     std::uint64_t v1 = 0x646f72616e646f6dULL ^ k1;
     std::uint64_t v2 = 0x6c7967656e657261ULL ^ k0;
