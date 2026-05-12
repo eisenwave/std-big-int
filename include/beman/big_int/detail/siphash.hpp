@@ -64,26 +64,27 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
     }
 
     const auto byte_len = limbs.size() * sizeof(uint_multiprecision_t);
-
-    if constexpr (std::same_as<uint_multiprecision_t, uint64_t>) {
+    
+    if constexpr (sizeof(uint_multiprecision_t) == sizeof(std::uint64_t)) {
         for (const auto m : limbs) {
-            compress(v0, v1, v2, v3, m);
+            compress(v0, v1, v2, v3, static_cast<std::uint64_t>(m));
         }
     } else {
         // Pack pairs of uint32_t into uint64_t words
         const auto pairs = limbs.size() / 2;
         for (std::size_t i = 0; i < pairs; ++i) {
-            auto m = limbs[i * 2] | (static_cast<uint64_t>(limbs[i * 2 + 1]) << 32);
+            auto m = static_cast<std::uint64_t>(limbs[i * 2]) |
+                     (static_cast<std::uint64_t>(limbs[i * 2 + 1]) << 32);
             compress(v0, v1, v2, v3, m);
         }
         // Odd trailing uint_multiprecision_t folds into the final block
     }
 
     // Final block: length in high byte + possible trailing uint32_t
-    auto b = static_cast<uint64_t>(byte_len) << 56;
-    if constexpr (std::same_as<uint_multiprecision_t, uint32_t>) {
+    auto b = static_cast<std::uint64_t>(byte_len) << 56;
+    if constexpr (sizeof(uint_multiprecision_t) == sizeof(std::uint32_t)) {
         if (limbs.size() & 1) {
-            b |= limbs.back();
+            b |= static_cast<std::uint64_t>(limbs.back());
         }
     }
 
