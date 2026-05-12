@@ -646,14 +646,24 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         const std::size_t needed    = src_count + extra_space;
         const std::size_t eff_cap   = is_representation_inplace() ? inplace_capacity : m_capacity;
 
+        // Allocator propagation follows `std::allocator_traits`. Stateful allocators
+        // such as `std::pmr::polymorphic_allocator` have a deleted copy/move
+        // assignment operator, so the `m_alloc = ...` lines must be guarded by
+        // `propagate_on_container_*_assignment` rather than running unconditionally.
+        constexpr bool propagate_alloc =
+            is_move ? alloc_traits::propagate_on_container_move_assignment::value
+                    : alloc_traits::propagate_on_container_copy_assignment::value;
+
         if (needed <= eff_cap) {
             // Fast path: current buffer is already big enough
             const auto old_count = limb_count();
             m_size_and_sign      = src.m_size_and_sign;
-            if constexpr (is_move) {
-                m_alloc = std::move(src.m_alloc);
-            } else {
-                m_alloc = src.m_alloc;
+            if constexpr (propagate_alloc) {
+                if constexpr (is_move) {
+                    m_alloc = std::move(src.m_alloc);
+                } else {
+                    m_alloc = src.m_alloc;
+                }
             }
             limb_type* const       dst_limbs = limb_ptr();
             const limb_type* const src_limbs = src.limb_ptr();
@@ -669,17 +679,22 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
 
         // Slow path: current buffer is too small.
-        // Release it and get a new allocation
+        // Release it (with our current allocator, before any propagation) and
+        // get a new allocation. We may also be able to adopt src's buffer if
+        // the allocators are compatible (stateless, propagating, or just equal).
         free_storage();
         m_size_and_sign = src.m_size_and_sign;
-        if constexpr (is_move) {
-            m_alloc = std::move(src.m_alloc);
-        } else {
-            m_alloc = src.m_alloc;
-        }
 
         if (src.is_representation_inplace() && needed <= inplace_capacity) {
-            // Both src and the requested headroom fit inline.
+            // Both src and the requested headroom fit inline. No buffer to
+            // adopt or allocate; just propagate (if applicable) and copy limbs.
+            if constexpr (propagate_alloc) {
+                if constexpr (is_move) {
+                    m_alloc = std::move(src.m_alloc);
+                } else {
+                    m_alloc = src.m_alloc;
+                }
+            }
             m_capacity = 0;
             for (std::size_t i = 0; i < inplace_capacity; ++i) {
                 m_storage.limbs[i] = src.m_storage.limbs[i];
@@ -688,20 +703,46 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
 
         if constexpr (is_move) {
-            // For a heap `src`, adopt its pointer unconditionally and then grow
-            // if the stolen capacity doesn't cover `needed`.
+            // For a heap `src`, adopt its pointer when the allocators are
+            // compatible -- i.e., we are propagating from src, the allocator
+            // type is always-equal (e.g. std::allocator), or the two
+            // allocators compare equal at runtime.
             if (!src.is_representation_inplace()) {
-                m_capacity             = src.m_capacity;
-                m_storage.data         = src.m_storage.data;
-                src.m_capacity         = 0;
-                src.m_size_and_sign    = 1;
-                src.m_storage.limbs[0] = limb_type{0};
-                if (m_capacity < needed) {
-                    grow(needed);
+                const bool can_steal = []() {
+                    if constexpr (propagate_alloc || alloc_traits::is_always_equal::value) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }();
+                const bool steal = can_steal || (m_alloc == src.m_alloc);
+                if (steal) {
+                    if constexpr (propagate_alloc) {
+                        m_alloc = std::move(src.m_alloc);
+                    }
+                    m_capacity             = src.m_capacity;
+                    m_storage.data         = src.m_storage.data;
+                    src.m_capacity         = 0;
+                    src.m_size_and_sign    = 1;
+                    src.m_storage.limbs[0] = limb_type{0};
+                    if (m_capacity < needed) {
+                        grow(needed);
+                    }
+                    return;
                 }
-                return;
+                // Allocators differ and don't propagate: fall through to a
+                // fresh allocation owned by our allocator.
             }
-            // `src` is inline, fall through to the allocate-and-copy path below.
+            // `src` is inline (or unstealable heap), fall through to the
+            // allocate-and-copy path below.
+        }
+
+        if constexpr (propagate_alloc) {
+            if constexpr (is_move) {
+                m_alloc = std::move(src.m_alloc);
+            } else {
+                m_alloc = src.m_alloc;
+            }
         }
 
         // Fall back to a fresh allocation of `needed` limbs.
