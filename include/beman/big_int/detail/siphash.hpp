@@ -51,12 +51,13 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
     using impl::compress;
     using impl::sipround;
 
-    constexpr auto k0 = 0x0706050403020100ULL;
-    constexpr auto k1 = 0x0f0e0d0c0b0a0908ULL;
-    auto           v0 = 0x736f6d6570736575ULL ^ k0;
-    auto           v1 = 0x646f72616e646f6dULL ^ k1;
-    auto           v2 = 0x6c7967656e657261ULL ^ k0;
-    auto           v3 = 0x7465646279746573ULL ^ k1;
+    constexpr std::uint64_t k0 = 0x0706050403020100ULL;
+    constexpr std::uint64_t k1 = 0x0f0e0d0c0b0a0908ULL;
+    
+    std::uint64_t v0 = 0x736f6d6570736575ULL ^ k0;
+    std::uint64_t v1 = 0x646f72616e646f6dULL ^ k1;
+    std::uint64_t v2 = 0x6c7967656e657261ULL ^ k0;
+    std::uint64_t v3 = 0x7465646279746573ULL ^ k1;
 
     const auto byte_len = limbs.size() * sizeof(uint_multiprecision_t);
 
