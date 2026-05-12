@@ -12,36 +12,42 @@
 
 namespace beman::big_int::detail {
 
+struct state_holder {
+    std::uint64_t v0;
+    std::uint64_t v1;
+    std::uint64_t v2;
+    std::uint64_t v3;
+};
+
 namespace impl {
 
-constexpr void sipround(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2, std::uint64_t& v3) {
-    v0 += v1;
-    v1 = std::rotl(v1, 13);
-    v1 ^= v0;
-    v0 = std::rotl(v0, 32);
+constexpr state_holder sipround(state_holder s) {
+    s.v0 += s.v1;
+    s.v1 = std::rotl(s.v1, 13);
+    s.v1 ^= s.v0;
+    s.v0 = std::rotl(s.v0, 32);
 
-    v2 += v3;
-    v3 = std::rotl(v3, 16);
-    v3 ^= v2;
+    s.v2 += s.v3;
+    s.v3 = std::rotl(s.v3, 16);
+    s.v3 ^= s.v2;
 
-    v0 += v3;
-    v3 = std::rotl(v3, 21);
-    v3 ^= v0;
+    s.v0 += s.v3;
+    s.v3 = std::rotl(s.v3, 21);
+    s.v3 ^= s.v0;
 
-    v2 += v1;
-    v1 = std::rotl(v1, 17);
-    v1 ^= v2;
-    v2 = std::rotl(v2, 32);
+    s.v2 += s.v1;
+    s.v1 = std::rotl(s.v1, 17);
+    s.v1 ^= s.v2;
+    s.v2 = std::rotl(s.v2, 32);
+    return s;
 }
 
-constexpr void
-compress(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2, std::uint64_t& v3, const std::uint64_t m) {
-    v3 ^= m;
-
-    sipround(v0, v1, v2, v3);
-    sipround(v0, v1, v2, v3);
-
-    v0 ^= m;
+constexpr state_holder compress(state_holder s, const std::uint64_t m) {
+    s.v3 ^= m;
+    s = sipround(s);
+    s = sipround(s);
+    s.v0 ^= m;
+    return s;
 }
 
 } // namespace impl
@@ -53,21 +59,23 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
 
     constexpr std::uint64_t k0 = 0x0706050403020100ULL;
     constexpr std::uint64_t k1 = 0x0f0e0d0c0b0a0908ULL;
-    std::uint64_t           v0 = 0x736f6d6570736575ULL ^ k0;
-    std::uint64_t           v1 = 0x646f72616e646f6dULL ^ k1;
-    std::uint64_t           v2 = 0x6c7967656e657261ULL ^ k0;
-    std::uint64_t           v3 = 0x7465646279746573ULL ^ k1;
+    state_holder            s{
+        0x736f6d6570736575ULL ^ k0,
+        0x646f72616e646f6dULL ^ k1,
+        0x6c7967656e657261ULL ^ k0,
+        0x7465646279746573ULL ^ k1,
+    };
 
     // Fold the sign into the initial state so it propagates through every round
     if (sign) {
-        v3 ^= std::numeric_limits<std::uint64_t>::max();
+        s.v3 ^= std::numeric_limits<std::uint64_t>::max();
     }
 
     const auto byte_len = limbs.size() * sizeof(uint_multiprecision_t);
-    
+
     if constexpr (sizeof(uint_multiprecision_t) == sizeof(std::uint64_t)) {
         for (const auto m : limbs) {
-            compress(v0, v1, v2, v3, static_cast<std::uint64_t>(m));
+            s = compress(s, static_cast<std::uint64_t>(m));
         }
     } else {
         // Pack pairs of uint32_t into uint64_t words
@@ -75,7 +83,7 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
         for (std::size_t i = 0; i < pairs; ++i) {
             auto m = static_cast<std::uint64_t>(limbs[i * 2]) |
                      (static_cast<std::uint64_t>(limbs[i * 2 + 1]) << 32);
-            compress(v0, v1, v2, v3, m);
+            s = compress(s, m);
         }
         // Odd trailing uint_multiprecision_t folds into the final block
     }
@@ -88,16 +96,16 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
         }
     }
 
-    compress(v0, v1, v2, v3, b);
+    s = compress(s, b);
 
-    v2 ^= 0xFFULL;
+    s.v2 ^= 0xFFULL;
 
-    sipround(v0, v1, v2, v3);
-    sipround(v0, v1, v2, v3);
-    sipround(v0, v1, v2, v3);
-    sipround(v0, v1, v2, v3);
+    s = sipround(s);
+    s = sipround(s);
+    s = sipround(s);
+    s = sipround(s);
 
-    const auto h = v0 ^ v1 ^ v2 ^ v3;
+    const auto h = s.v0 ^ s.v1 ^ s.v2 ^ s.v3;
 
     if constexpr (sizeof(std::size_t) == sizeof(std::uint64_t)) {
         return h;
