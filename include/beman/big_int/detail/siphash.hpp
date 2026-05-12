@@ -83,7 +83,7 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
         for (std::size_t i = 0; i < pairs; ++i) {
             auto m = static_cast<std::uint64_t>(limbs[i * 2]) |
                      (static_cast<std::uint64_t>(limbs[i * 2 + 1]) << 32);
-            s = compress(s, m);
+            s      = compress(s, m);
         }
         // Odd trailing uint_multiprecision_t folds into the final block
     }
@@ -110,7 +110,7 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
     if constexpr (sizeof(std::size_t) == sizeof(std::uint64_t)) {
         return h;
     } else {
-        return static_cast<std::size_t>(h ^ (h >> 32U));
+        return h ^ (h >> 32U);
     }
 }
 
