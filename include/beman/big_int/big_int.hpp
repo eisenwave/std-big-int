@@ -3140,7 +3140,11 @@ template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::alloc_limbs(const size_type n) -> alloc_result {
     BEMAN_BIG_INT_ASSERT(n != 0);
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
-    return alloc_traits::allocate_at_least(m_alloc, n);
+    if constexpr (detail::traits_has_allocate_at_least<alloc_traits, A>) {
+        return alloc_traits::allocate_at_least(m_alloc, n);
+    } else {
+        return {.ptr = alloc_traits::allocate(m_alloc, n), .count = n};
+    }
 #else
     return {.ptr = alloc_traits::allocate(m_alloc, n), .count = n};
 #endif
