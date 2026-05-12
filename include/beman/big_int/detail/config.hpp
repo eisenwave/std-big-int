@@ -427,6 +427,9 @@ inline constexpr std::size_t width_v = width<T>::value;
 
 // Allocator trait detection ===================================================
 
+// `<memory>` defines `__cpp_lib_allocate_at_least`
+#include <memory>
+
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
 
 namespace beman::big_int::detail {
