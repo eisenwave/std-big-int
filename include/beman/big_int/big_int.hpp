@@ -1248,10 +1248,14 @@ constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
-    if (is_representation_inplace()) {
-        return inplace_capacity;
+    if (is_negative()) {
+        basic_big_int<b, A> negated(*this);
+        negated.negate();
+        return negated.size();
+    } else if (is_zero()) {
+        return std::size_t{0};
     } else {
-        return limb_count();
+        return width_mag();
     }
 }
 
@@ -3876,7 +3880,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
     if (p != end) {
         return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
     }
-    const auto parsed_size = parsed.size();
+    const auto parsed_size = parsed.representation().size();
     if (parsed.capacity() != 0) {
         return {big_int{}, parsed_size, std::errc::result_out_of_range};
     }
@@ -3906,7 +3910,7 @@ literal_operator_n_compute_limbs(const char* const begin, const char* const end)
     // so there's no reason it would fail now.
     BEMAN_BIG_INT_ASSERT(p == end);
     BEMAN_BIG_INT_ASSERT(ec == std::errc{});
-    BEMAN_BIG_INT_ASSERT(parsed.size() == limb_count);
+    BEMAN_BIG_INT_ASSERT(parsed.representation().size() == limb_count);
     std::copy_n(parsed.representation().data(), limb_count, result.data());
     return result;
 }
