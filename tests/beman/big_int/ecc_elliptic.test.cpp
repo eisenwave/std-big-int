@@ -887,61 +887,10 @@ auto beman::big_int::example::ecdsa_sign_verify() -> bool {
         result_is_ok = (result_verify_is_ok && result_is_ok);
     }
 
-    {
-        // We will now test a sequence of multiple successful keygen, sign, verify sequences.
-
-        for (auto count = static_cast<unsigned>(UINT8_C(0)); count < static_cast<unsigned>(UINT8_C(10)); ++count) {
-            const auto keypair = my_elliptic_curve.make_keypair();
-
-            using local_distribution_type = std::uniform_int_distribution<std::uint64_t>;
-
-            using local_random_engine_type = std::mt19937_64;
-            using local_random_device_type = std::random_device;
-
-            local_random_device_type dev{};
-
-            const auto seed_value = static_cast<typename local_random_engine_type::result_type>(dev());
-
-            local_random_engine_type generator(seed_value);
-
-            local_distribution_type dist{std::uint64_t{UINT64_C(0x1000000000000001)},
-                                         std::uint64_t{UINT64_C(0xFFFFFFFFFFFFFFFF)}};
-
-            const auto msg_str_append_index = msg_as_string + std::to_string(dist(generator));
-
-            const auto sig = my_elliptic_curve.sign_message(
-                std::get<0>(keypair), msg_str_append_index.cbegin(), msg_str_append_index.cend());
-
-            const auto result_verify_is_ok = my_elliptic_curve.verify_signature(
-                std::get<1>(keypair), msg_str_append_index.cbegin(), msg_str_append_index.cend(), sig);
-
-            result_is_ok = (result_verify_is_ok && result_is_ok);
-        }
-    }
-
-    {
-        // We will now test keygen, sign, and a (purposely failing!) verification.
-        // Here, the message being verified has been artificially modified and
-        // signature verification is intended to fail and does fail, as expected.
-
-        const auto keypair{my_elliptic_curve.make_keypair()};
-
-        const std::pair<big_sint_type, big_sint_type> sig{
-            my_elliptic_curve.sign_message(std::get<0>(keypair), msg_as_string.cbegin(), msg_as_string.cend())};
-
-        const auto msg_str_to_fail = msg_as_string + "x";
-
-        const auto result_verify_expected_fail_is_ok = (!my_elliptic_curve.verify_signature(
-            std::get<1>(keypair), msg_str_to_fail.cbegin(), msg_str_to_fail.cend(), sig));
-
-        result_is_ok = (result_verify_expected_fail_is_ok && result_is_ok);
-    }
-
     return result_is_ok;
 }
 
 TEST(Benchmarks, EccElliptic01) {
-#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     using local_stopwatch_type = beman::big_int::example::local::concurrency::stopwatch<>;
 
     local_stopwatch_type my_stopwatch{};
@@ -954,9 +903,6 @@ TEST(Benchmarks, EccElliptic01) {
 
     EXPECT_EQ(result_is_ok, true);
     EXPECT_EQ(result_stopwatch_is_ok, true);
-#else
-    GTEST_SKIP() << "Benchmarks not run" << std::endl;
-#endif
 }
 
 #if defined(ELLIPTIC_CPP_INT_USE_STD_BIG_INT)

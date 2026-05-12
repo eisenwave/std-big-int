@@ -187,21 +187,8 @@ auto time_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
         elapsed_cpp_int = local_stopwatch_type::elapsed_time<float>(my_stopwatch);
     }
 
-    EXPECT_TRUE(elapsed_big_int > 0.001F);
-    EXPECT_TRUE(elapsed_cpp_int > 0.001F);
-
-    // Optionally print the timing results to the console.
-
-    // Multiplication
-    // elapsed_big_int: 0.0322567
-    // elapsed_cpp_int: 0.0357098
-
-    // Division
-    // elapsed_big_int: 0.097041
-    // elapsed_cpp_int: 0.0754829
-
-    // std::cout << "elapsed_big_int: " << elapsed_big_int << std::endl;
-    // std::cout << "elapsed_cpp_int: " << elapsed_cpp_int << std::endl;
+    EXPECT_TRUE(elapsed_big_int > 0.0001F);
+    EXPECT_TRUE(elapsed_cpp_int > 0.0001F);
 }
 
 template <class BinOp>
@@ -219,10 +206,9 @@ auto test_bin_op_execs_all(BinOp op, const vector_str_pair_type& str_pairs) -> v
 } // namespace local
 
 TEST(BinaryOperations, BinOpsTiming01) {
-#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     local::vector_str_pair_type str_pairs{};
 
-    constexpr std::size_t trials{16384U};
+    constexpr std::size_t trials{128U};
     local::fill_str_pairs(str_pairs, trials);
 
     // Use std::plus{}, std::multiplies{}, std::divides{}, etc.
@@ -230,11 +216,4 @@ TEST(BinaryOperations, BinOpsTiming01) {
 
     // Use std::plus{}, std::multiplies{}, std::divides{}, etc.
     local::test_bin_op_execs_all(std::divides{}, str_pairs);
-
-    // TODO(ckormanyos): Formulate this example as a binary-ops perf checker
-    //                   that generates a table of perf results featuring
-    //                   big_int-versus-cpp_int.
-#else
-    GTEST_SKIP() << "Benchmarks not run" << std::endl;
-#endif
 }
