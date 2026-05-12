@@ -275,6 +275,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <size_t b, class A>
     friend constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int);
 
+    friend struct ::std::hash<basic_big_int>;
+
   private:
     using alloc_traits = std::allocator_traits<Allocator>;
     using alloc_result = detail::allocation_result<pointer>;
@@ -3982,7 +3984,7 @@ template <std::size_t b, class A>
 struct std::hash<beman::big_int::basic_big_int<b, A>> {
 
     std::size_t operator()(const beman::big_int::basic_big_int<b, A>& x) const noexcept {
-        return beman::big_int::detail::siphash(x.representation());
+        return beman::big_int::detail::siphash(x.representation(), x.is_negative());
     }
 };
 

@@ -263,9 +263,7 @@ TEST(Hash, UnorderedSetMultiLimbKeys) {
 }
 
 TEST(Hash, UnorderedSetWithBothSignsAreDistinctElements) {
-    // Container equality is not the same as hash equality. Even if the
-    // hash collides for +x and -x, the unordered_set must store both as
-    // distinct elements because their `operator==` is false.
+    // Both the hash and operator== must distinguish +x from -x.
     std::unordered_set<big_int> s;
     s.insert(big_int{5});
     s.insert(big_int{-5});
@@ -273,6 +271,45 @@ TEST(Hash, UnorderedSetWithBothSignsAreDistinctElements) {
     EXPECT_EQ(s.size(), 2U);
     EXPECT_TRUE(s.contains(big_int{5}));
     EXPECT_TRUE(s.contains(big_int{-5}));
+}
+
+TEST(Hash, SignDistinguishesSmallValues) {
+    const std::hash<big_int> h{};
+    for (int i = 1; i <= 32; ++i) {
+        const big_int pos{i};
+        const big_int neg{-i};
+        EXPECT_NE(h(pos), h(neg)) << "collision at i=" << i;
+    }
+}
+
+TEST(Hash, SignDistinguishesMultiLimbValues) {
+    const std::hash<big_int> h{};
+    const big_int            magnitude = (big_int{1} << 200) + big_int{12345};
+    const big_int            negated   = -magnitude;
+    ASSERT_NE(magnitude, negated);
+    EXPECT_NE(h(magnitude), h(negated));
+}
+
+TEST(Hash, SignDistinguishesAcrossInplaceBits) {
+    // The sign-aware hash must agree across inplace_bits parameterizations,
+    // both for positive and for negative values.
+    const basic_big_int<64>  pos_64{42};
+    const basic_big_int<256> pos_256{42};
+    const basic_big_int<64>  neg_64  = -pos_64;
+    const basic_big_int<256> neg_256 = -pos_256;
+
+    EXPECT_EQ(std::hash<basic_big_int<64>>{}(pos_64), std::hash<basic_big_int<256>>{}(pos_256));
+    EXPECT_EQ(std::hash<basic_big_int<64>>{}(neg_64), std::hash<basic_big_int<256>>{}(neg_256));
+    EXPECT_NE(std::hash<basic_big_int<64>>{}(pos_64), std::hash<basic_big_int<64>>{}(neg_64));
+}
+
+TEST(Hash, NegatingTwiceRestoresHash) {
+    const std::hash<big_int> h{};
+    const big_int            x = (big_int{1} << 100) + big_int{7};
+    const std::size_t        original = h(x);
+    const big_int            negated = -x;
+    EXPECT_NE(original, h(negated));
+    EXPECT_EQ(original, h(-negated));
 }
 
 TEST(Hash, UnorderedMapBigIntKey) {
