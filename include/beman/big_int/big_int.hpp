@@ -18,11 +18,12 @@
 #include <span>
 #include <string>
 #include <utility>
+#include <type_traits>
+#include <memory_resource>
 
 #if __has_include(<stdfloat>)
     #include <stdfloat>
 #endif
-#include <type_traits>
 
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
@@ -3205,6 +3206,15 @@ template <typename Generator>
 
 // Standard public alias for defaulted type
 using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
+
+namespace pmr {
+
+template <std::size_t b>
+using basic_big_int = beman::big_int::basic_big_int<b, std::pmr::polymorphic_allocator<uint_multiprecision_t>>;
+
+using big_int = basic_big_int<64>;
+
+} // namespace pmr
 
 // [big.int.literal]
 namespace detail {
