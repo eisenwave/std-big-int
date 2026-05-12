@@ -650,9 +650,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         // such as `std::pmr::polymorphic_allocator` have a deleted copy/move
         // assignment operator, so the `m_alloc = ...` lines must be guarded by
         // `propagate_on_container_*_assignment` rather than running unconditionally.
-        constexpr bool propagate_alloc =
-            is_move ? alloc_traits::propagate_on_container_move_assignment::value
-                    : alloc_traits::propagate_on_container_copy_assignment::value;
+        constexpr bool propagate_alloc = is_move ? alloc_traits::propagate_on_container_move_assignment::value
+                                                 : alloc_traits::propagate_on_container_copy_assignment::value;
 
         if (needed <= eff_cap) {
             // Fast path: current buffer is already big enough
