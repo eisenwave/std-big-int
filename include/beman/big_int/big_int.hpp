@@ -17,6 +17,7 @@
 #include <ranges>
 #include <span>
 #include <string>
+#include <utility>
 
 #if __has_include(<stdfloat>)
     #include <stdfloat>
@@ -28,6 +29,7 @@
 #include <beman/big_int/detail/floats.hpp>
 #include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
+#include <beman/big_int/detail/siphash.hpp>
 
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds") // This causes way too many problems.
@@ -272,6 +274,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     template <size_t b, class A>
     friend constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int);
+
+    friend struct ::std::hash<basic_big_int>;
 
   private:
     using alloc_traits = std::allocator_traits<Allocator>;
@@ -3975,7 +3979,14 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 } // namespace literals
 } // namespace beman::big_int
 
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
+// [big.int.hash], hash support
+template <std::size_t b, class A>
+struct std::hash<beman::big_int::basic_big_int<b, A>> {
+
+    std::size_t operator()(const beman::big_int::basic_big_int<b, A>& x) const noexcept {
+        return beman::big_int::detail::siphash(x.representation(), x.is_negative());
+    }
+};
 
 // A convenience macro rather than calling a stateless lambda
 #define BEMAN_BIG_INT_COPY_TO_RUNTIME(...) \
