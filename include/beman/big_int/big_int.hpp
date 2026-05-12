@@ -3984,7 +3984,6 @@ struct std::hash<beman::big_int::basic_big_int<b, A>> {
     std::size_t operator()(const beman::big_int::basic_big_int<b, A>& x) const noexcept {
         return beman::big_int::detail::siphash(x.representation());
     }
-
 };
 
 // A convenience macro rather than calling a stateless lambda

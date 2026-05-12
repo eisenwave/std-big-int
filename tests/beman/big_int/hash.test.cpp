@@ -40,8 +40,7 @@ static_assert(std::is_nothrow_invocable_r_v<std::size_t, std::hash<big_int>, con
 static_assert(std::is_default_constructible_v<std::hash<basic_big_int<32>>>);
 static_assert(std::is_default_constructible_v<std::hash<basic_big_int<256>>>);
 static_assert(std::is_default_constructible_v<std::hash<basic_big_int<1024>>>);
-static_assert(
-    std::is_nothrow_invocable_r_v<std::size_t, std::hash<basic_big_int<256>>, const basic_big_int<256>&>);
+static_assert(std::is_nothrow_invocable_r_v<std::size_t, std::hash<basic_big_int<256>>, const basic_big_int<256>&>);
 
 // ----- Determinism: hashing the same value twice yields the same hash -----
 
@@ -91,7 +90,7 @@ TEST(Hash, EqualValuesFromCopy) {
 
 TEST(Hash, EqualValuesAfterMove) {
     const std::hash<big_int> h{};
-    big_int                  a = 0xDEAD'BEEF'CAFE'BABE'1234'5678'90AB'CDEF_n;
+    big_int                  a        = 0xDEAD'BEEF'CAFE'BABE'1234'5678'90AB'CDEF_n;
     const std::size_t        expected = h(a);
     const big_int            b{std::move(a)};
     EXPECT_EQ(h(b), expected);
@@ -113,7 +112,7 @@ TEST(Hash, EqualValuesAfterArithmetic) {
 
 TEST(Hash, EqualMultiLimbAfterArithmetic) {
     const std::hash<big_int> h{};
-    const big_int            big = 1_n << 200;
+    const big_int            big        = 1_n << 200;
     const big_int            also_big_a = big + big_int{0};
     const big_int            also_big_b = (big_int{1} << 199) * big_int{2};
     ASSERT_EQ(big, also_big_a);
@@ -169,9 +168,9 @@ TEST(Hash, DistinctValuesFromOneToTwoFiftySix) {
 TEST(Hash, DistinctMultiLimbValues) {
     const std::hash<big_int> h{};
     const big_int            base = big_int{1} << 200;
-    const big_int            a = base + big_int{1};
-    const big_int            b = base + big_int{2};
-    const big_int            c = (big_int{1} << 201) + big_int{1};
+    const big_int            a    = base + big_int{1};
+    const big_int            b    = base + big_int{2};
+    const big_int            c    = (big_int{1} << 201) + big_int{1};
     EXPECT_NE(h(a), h(b));
     EXPECT_NE(h(a), h(c));
     EXPECT_NE(h(b), h(c));
@@ -280,9 +279,9 @@ TEST(Hash, UnorderedMapBigIntKey) {
     std::unordered_map<big_int, int> m;
     const big_int                    k1 = 10'000'000'000'000'000'000'000_n;
     const big_int                    k2 = 20'000'000'000'000'000'000'000_n;
-    m[k1] = 1;
-    m[k2] = 2;
-    m[k1] = 11; // overwrite
+    m[k1]                               = 1;
+    m[k2]                               = 2;
+    m[k1]                               = 11; // overwrite
     EXPECT_EQ(m.size(), 2U);
     EXPECT_EQ(m.at(k1), 11);
     EXPECT_EQ(m.at(k2), 2);

@@ -34,7 +34,8 @@ constexpr void sipround(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2,
     v2 = std::rotl(v2, 32);
 }
 
-constexpr void compress(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2, std::uint64_t& v3, const std::uint64_t m) {
+constexpr void
+compress(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2, std::uint64_t& v3, const std::uint64_t m) {
     v3 ^= m;
 
     sipround(v0, v1, v2, v3);
@@ -47,12 +48,11 @@ constexpr void compress(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2,
 
 constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs) {
 
-    using impl::sipround;
     using impl::compress;
+    using impl::sipround;
 
     constexpr auto k0 = 0x0706050403020100ULL;
     constexpr auto k1 = 0x0f0e0d0c0b0a0908ULL;
-    
     auto v0 = 0x736f6d6570736575ULL ^ k0;
     auto v1 = 0x646f72616e646f6dULL ^ k1;
     auto v2 = 0x6c7967656e657261ULL ^ k0;
