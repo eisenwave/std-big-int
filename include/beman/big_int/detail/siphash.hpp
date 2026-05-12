@@ -46,7 +46,7 @@ compress(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2, std::uint64_t&
 
 } // namespace impl
 
-constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs) {
+constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs, const bool sign) {
 
     using impl::compress;
     using impl::sipround;
@@ -58,6 +58,11 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
     std::uint64_t v1 = 0x646f72616e646f6dULL ^ k1;
     std::uint64_t v2 = 0x6c7967656e657261ULL ^ k0;
     std::uint64_t v3 = 0x7465646279746573ULL ^ k1;
+
+    // Fold the sign into the initial state so it propagates through every round
+    if (sign) {
+        v3 ^= std::numeric_limits<std::uint64_t>::max();
+    }
 
     const auto byte_len = limbs.size() * sizeof(uint_multiprecision_t);
 
