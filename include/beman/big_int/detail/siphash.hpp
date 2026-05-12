@@ -81,8 +81,7 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
         // Pack pairs of uint32_t into uint64_t words
         const auto pairs = limbs.size() / 2;
         for (std::size_t i = 0; i < pairs; ++i) {
-            auto m = static_cast<std::uint64_t>(limbs[i * 2]) |
-                     (static_cast<std::uint64_t>(limbs[i * 2 + 1]) << 32);
+            auto m = static_cast<std::uint64_t>(limbs[i * 2]) | (static_cast<std::uint64_t>(limbs[i * 2 + 1]) << 32);
             s      = compress(s, m);
         }
         // Odd trailing uint_multiprecision_t folds into the final block
