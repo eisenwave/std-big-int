@@ -12,6 +12,8 @@
 
 namespace beman::big_int::detail {
 
+namespace impl {
+
 constexpr void sipround(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2, std::uint64_t& v3) {
     v0 += v1;
     v1 = std::rotl(v1, 13);
@@ -41,7 +43,12 @@ constexpr void compress(std::uint64_t& v0, std::uint64_t& v1, std::uint64_t& v2,
     v0 ^= m;
 }
 
-constexpr std::uint64_t siphash(const std::span<const uint_multiprecision_t> limbs) {
+} // namespace impl
+
+constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs) {
+
+    using impl::sipround;
+    using impl::compress;
 
     constexpr auto k0 = 0x0706050403020100ULL;
     constexpr auto k1 = 0x0f0e0d0c0b0a0908ULL;
@@ -84,7 +91,13 @@ constexpr std::uint64_t siphash(const std::span<const uint_multiprecision_t> lim
     sipround(v0, v1, v2, v3);
     sipround(v0, v1, v2, v3);
 
-    return v0 ^ v1 ^ v2 ^ v3;
+    const auto h = v0 ^ v1 ^ v2 ^ v3;
+
+    if constexpr (sizeof(std::size_t) == sizeof(std::uint64_t)) {
+        return h;
+    } else {
+        return static_cast<std::size_t>(h ^ (h >> 32U));
+    }
 }
 
 } // namespace beman::big_int::detail
