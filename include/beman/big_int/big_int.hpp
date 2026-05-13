@@ -649,7 +649,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         // such as `std::pmr::polymorphic_allocator` have a deleted copy/move
         // assignment operator, so any `m_alloc = ...` must be guarded by
         // `propagate_on_container_*_assignment`. The relevant trait is picked
-        // based on `Src`'s value category, and `std::forward_like<Src>` then
+        // based on `Src`'s value category, and `std::forward<Src>` then
         // produces an rvalue or lvalue allocator to match -- so move- vs
         // copy-assign of `m_alloc` does not need to be spelled out separately.
         constexpr bool propagate_alloc = std::is_lvalue_reference_v<Src>
@@ -661,7 +661,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             const auto old_count = limb_count();
             m_size_and_sign      = src.m_size_and_sign;
             if constexpr (propagate_alloc) {
-                m_alloc = std::forward_like<Src>(src.m_alloc);
+                m_alloc = std::forward<Src>(src).m_alloc;
             }
             limb_type* const       dst_limbs = limb_ptr();
             const limb_type* const src_limbs = src.limb_ptr();
@@ -687,7 +687,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // Both src and the requested headroom fit inline. No buffer to
             // adopt or allocate; just propagate (if applicable) and copy limbs.
             if constexpr (propagate_alloc) {
-                m_alloc = std::forward_like<Src>(src.m_alloc);
+                m_alloc = std::forward<Src>(src).m_alloc;
             }
             m_capacity = 0;
             for (std::size_t i = 0; i < inplace_capacity; ++i) {
@@ -704,7 +704,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             if (!src.is_representation_inplace()) {
                 if constexpr (propagate_alloc || alloc_traits::is_always_equal::value) {
                     if constexpr (propagate_alloc) {
-                        m_alloc = std::forward_like<Src>(src.m_alloc);
+                        m_alloc = std::forward<Src>(src).m_alloc;
                     }
                     m_capacity             = src.m_capacity;
                     m_storage.data         = src.m_storage.data;
@@ -724,7 +724,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
 
         if constexpr (propagate_alloc) {
-            m_alloc = std::forward_like<Src>(src.m_alloc);
+            m_alloc = std::forward<Src>(src).m_alloc;
         }
 
         // Fall back to a fresh allocation of `needed` limbs.
