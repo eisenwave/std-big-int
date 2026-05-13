@@ -265,7 +265,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
 // ---------------------------------------------------------------------------
 
 // In-place tmp[0..size) += addend; returns new size (may grow by 1).
-constexpr std::size_t add_into_tmp(const std::span<uint_multiprecision_t>       tmp,
+[[nodiscard]] constexpr std::size_t add_into_tmp(const std::span<uint_multiprecision_t>       tmp,
                                    const std::size_t                            size,
                                    const std::span<const uint_multiprecision_t> addend) noexcept {
     if (addend.empty()) {
@@ -289,7 +289,8 @@ constexpr std::size_t add_into_tmp(const std::span<uint_multiprecision_t>       
 // In-place tmp[0..size) <<= 1; returns new size (may grow by 1).
 // Pass size == tmp.size() to shift the full span; the carry-branch assertion
 // then enforces that the shift did not overflow.
-constexpr std::size_t shift_left_one(const std::span<uint_multiprecision_t> tmp, std::size_t size) noexcept {
+[[nodiscard]] constexpr std::size_t shift_left_one(const std::span<uint_multiprecision_t> tmp,
+                                                   std::size_t                            size) noexcept {
     if (size == 0) {
         return 0;
     }
@@ -312,7 +313,7 @@ constexpr std::size_t shift_left_one(const std::span<uint_multiprecision_t> tmp,
 }
 
 // In-place tmp >>= 1; returns the dropped low bit (caller asserts == 0 for exact div).
-constexpr uint_multiprecision_t shift_right_one(const std::span<uint_multiprecision_t> tmp) noexcept {
+[[nodiscard]] constexpr uint_multiprecision_t shift_right_one(const std::span<uint_multiprecision_t> tmp) noexcept {
     if (tmp.empty()) {
         return 0;
     }
@@ -1017,8 +1018,10 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t> resul
     // Step 22: tmp_double = D1; vm1 *= 4; vm1 += tmp_double  (-> 5*D1).
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(vm1_view, tmp_double.begin());
-    shift_left_one(vm1, vm1.size()); // 2*D1
-    shift_left_one(vm1, vm1.size()); // 4*D1
+    [[maybe_unused]] const auto sz_2D1 = shift_left_one(vm1, vm1.size()); // 2*D1
+    BEMAN_BIG_INT_DEBUG_ASSERT(sz_2D1 == vm1.size());
+    [[maybe_unused]] const auto sz_4D1 = shift_left_one(vm1, vm1.size()); // 4*D1
+    BEMAN_BIG_INT_DEBUG_ASSERT(sz_4D1 == vm1.size());
     {
         [[maybe_unused]] const bool carry = add_unsigned_spans(vm1, vm1_view, td_view); // 5*D1
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
