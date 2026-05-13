@@ -20,8 +20,13 @@ namespace beman::big_int::detail {
 // Directly from Boost, and reconfirmed as correct
 inline constexpr std::size_t karatsuba_cutoff = 40;
 
-// Heuristic estimate of scratch space needed for Karatsuba multiplication
-// Directly from Boost
+// Heuristic estimate of scratch space needed for Karatsuba multiplication.
+// One Karatsuba level uses ~2*s limbs (t1=2n+2, t2=t3=n+1 with n=s/2+1). The
+// geometric sum over self-recursion converges to 4*s as the asymptotic worst
+// case; empirically (probed via scratch_allocator high-water marks on sizes
+// 40-4000 limbs in scratch_peak_bench) the actual peak/s ratio tops out at
+// ~3.997. 5*s leaves ~25% safety margin and matches the same generous-but-not-
+// wasteful ratio used by the Toom-Cook variants.
 constexpr std::size_t karatsuba_storage_size(const std::size_t s) noexcept { return 5 * s; }
 
 // Maximum number of scratch limbs we're willing to put on the stack.
@@ -350,8 +355,13 @@ constexpr void add_shifted(const std::span<uint_multiprecision_t>       result,
 inline constexpr std::size_t toom_cook_3_cutoff = 550;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
-// Includes space for karatsuba fallback plan
-constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { return 6 * s; }
+// One Toom-3 level uses 8k+10 limbs (~2.67*s where k = ceil(s/3)). The
+// geometric sum over self-recursion converges to (8/3)*(3/2)*s = 4*s as the
+// asymptotic worst case; empirically (probed via scratch_allocator high-water
+// marks on sizes 550-80000 limbs in scratch_peak_bench) the actual peak/s
+// ratio tops out at ~4.0016. 5*s leaves ~25% safety margin and matches the
+// same generous-but-not-wasteful ratio used by Karatsuba and Toom-4.
+constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { return 5 * s; }
 
 // ---------------------------------------------------------------------------
 // Recursive Toom-Cook 3-Way multiplication (Bodrato variant).
@@ -579,11 +589,12 @@ inline constexpr std::size_t toom_cook_4_cutoff = 1400;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 4 multiplication.
 // One Toom-4 level uses 14k+16 limbs (~3.5*s where k = ceil(s/4)). The geometric
-// sum over self-recursion converges to 14/3*s ~= 4.67*s as the asymptotic worst
-// case; empirically (probed via scratch_allocator high-water marks on sizes
-// 4500-80000 limbs) the actual peak ranges 4.50-4.66*s. 6*s leaves ~25-30%
-// safety margin and matches the same generous-but-not-wasteful ratio the older
-// algorithms use.
+// sum over self-recursion converges to (14/3)*s ~= 4.67*s as the asymptotic
+// worst case; empirically (probed via scratch_allocator high-water marks on
+// sizes 1400-80000 limbs in scratch_peak_bench) the actual peak/s ratio ranges
+// 4.46-4.66 (climbing monotonically toward the asymptote). 6*s leaves ~28%
+// safety margin at the worst observed point and matches the same generous-but-
+// not-wasteful ratio used by the smaller-radix algorithms.
 constexpr std::size_t toom_cook_4_storage_size(const std::size_t s) noexcept { return 6 * s; }
 
 // ---------------------------------------------------------------------------
