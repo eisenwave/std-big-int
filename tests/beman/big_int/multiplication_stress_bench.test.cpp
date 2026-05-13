@@ -131,6 +131,23 @@ double run_toom_cook_3_at(const std::size_t limbs, const unsigned trials) {
                              });
 }
 
+double run_toom_cook_4_at(const std::size_t limbs, const unsigned trials) {
+    // cutoff_override=1 forces Toom-4 to run at any input size that clears the
+    // 3*k correctness gate (small inputs still fall through). Recursive sub-products
+    // use the default cutoff so they fall back to Toom-3 / Karatsuba / schoolbook
+    // as they would in production.
+    return measure_algorithm(limbs,
+                             trials,
+                             ::beman::big_int::detail::toom_cook_4_storage_size(limbs),
+                             [](const std::span<uint_t>       r,
+                                const std::span<const uint_t> a,
+                                const std::span<const uint_t> b,
+                                scratch_for_test&             s) {
+                                 ::beman::big_int::detail::multiply_toom_cook_4(
+                                     r.first(a.size() + b.size()), a, b, s, std::size_t{1});
+                             });
+}
+
 // Registry of algorithms to sweep. Each entry constrains the sweep to a
 // reasonable range: too small and the algorithm's own internal cutoff just
 // falls back to the previous tier; too large and a single multiplication
@@ -145,19 +162,17 @@ struct algorithm_runner {
 constexpr algorithm_runner algorithms[] = {
     {"schoolbook", 2, 200, run_long_at},
     {"karatsuba", 4, 2000, run_karatsuba_at},
-    {"toom-cook-3", 800, 5000, run_toom_cook_3_at},
-    // Future additions, e.g.:
-    // {"toom-cook-4", 2000, 10000, run_toom_cook_4_at},
-    // {"toom-cook-5", 5000, 20000, run_toom_cook_5_at},
+    {"toom-cook-3", 300, 10000, run_toom_cook_3_at},
+    {"toom-cook-4", 300, 30000, run_toom_cook_4_at},
 };
 
 // Limb counts to sample. Dense coverage at the low end for the
 // schoolbook -> Karatsuba crossover, dense in the middle for the
 // Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
-constexpr std::size_t sweep_limbs[] = {
-    2,   4,   6,   8,   10,  12,  14,  16,  20,  24,  28,  32,  36,   40,   48,   56,   64,   72,   80,   96,
-    112, 128, 144, 160, 192, 224, 256, 320, 400, 500, 640, 800, 1000, 1280, 1600, 2000, 2500, 3200, 4000, 5000,
-};
+constexpr std::size_t sweep_limbs[] = {2,    4,    6,    8,    10,   12,   14,   16,   20,   24,    28,    32,   36,
+                                       40,   48,   56,   64,   72,   80,   96,   112,  128,  144,   160,   192,  224,
+                                       256,  300,  400,  500,  550,  600,  700,  800,  900,  1000,  1100,  1200, 1300,
+                                       1400, 1600, 2000, 2500, 3200, 4000, 5000, 6000, 8000, 10000, 15000, 30000};
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
 // multiplication grows. Adjust if a machine is much faster/slower than the
@@ -181,14 +196,14 @@ constexpr std::size_t sweep_limbs[] = {
     if (limbs <= 256) {
         return 500U;
     }
-    if (limbs <= 512) {
+    if (limbs <= 3000) {
         return 100U;
     }
-    if (limbs <= 1024) {
+    if (limbs <= 20'000) {
         return 30U;
     }
-    if (limbs <= 2000) {
-        return 10U;
+    if (limbs <= 100'000) {
+        return 5U;
     }
     return 3U;
 }
