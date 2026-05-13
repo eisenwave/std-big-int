@@ -6,6 +6,8 @@
 
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
+#include <beman/big_int/detail/span_ops.hpp>
+#include <beman/big_int/detail/scratch_allocator.hpp>
 
 #include <algorithm>
 #include <compare>
@@ -25,190 +27,6 @@ constexpr std::size_t karatsuba_storage_size(const std::size_t s) noexcept { ret
 // Maximum number of scratch limbs we're willing to put on the stack.
 // Directly from Boost
 inline constexpr std::size_t karatsuba_stack_threshold = 300;
-
-// Scratchpad using the provided allocator from basic_big_int
-// This is a bump allocator using LIFO storage
-//
-// Karatsuba recursion allocates temporaries from this,
-// then "deallocates" after each level returns so sibling branches reuse the same memory.
-// This deallocation is simply moving the pointer back
-BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
-
-template <class Allocator>
-struct scratch_allocator {
-    using alloc_traits = std::allocator_traits<Allocator>;
-    using pointer      = typename alloc_traits::pointer;
-
-    BEMAN_BIG_INT_NO_UNIQUE_ADDRESS Allocator m_alloc;
-    pointer                                   m_base;
-    std::size_t                               m_capacity;
-    std::size_t                               m_offset = 0;
-    bool                                      m_owns;
-
-    // Wrap an existing stack buffer — no ownership.
-    constexpr scratch_allocator(pointer buf, const std::size_t cap, const Allocator& alloc) noexcept
-        : m_alloc(alloc), m_base(buf), m_capacity(cap), m_owns(false) {}
-
-    // Heap-allocate at least `cap` limbs using the provided allocator.
-    constexpr scratch_allocator(std::size_t cap, const Allocator& alloc)
-        : m_alloc(alloc), m_base(nullptr), m_capacity(0), m_owns(true) {
-#if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
-        if constexpr (traits_has_allocate_at_least<alloc_traits, Allocator>) {
-            auto result = alloc_traits::allocate_at_least(m_alloc, cap);
-            m_base      = result.ptr;
-            m_capacity  = result.count;
-        } else {
-            m_base     = alloc_traits::allocate(m_alloc, cap);
-            m_capacity = cap;
-        }
-#else
-        m_base     = alloc_traits::allocate(m_alloc, cap);
-        m_capacity = cap;
-#endif
-    }
-
-    constexpr ~scratch_allocator() {
-        if (m_owns) {
-            alloc_traits::deallocate(m_alloc, m_base, m_capacity);
-        }
-    }
-
-    scratch_allocator(const scratch_allocator&)            = delete;
-    scratch_allocator& operator=(const scratch_allocator&) = delete;
-
-    // Bump-allocate `n` limbs from the workspace, returned as a mutable span.
-    constexpr std::span<uint_multiprecision_t> allocate(const std::size_t n) noexcept {
-        BEMAN_BIG_INT_DEBUG_ASSERT(m_offset + n <= m_capacity);
-        auto* p = std::to_address(m_base) + m_offset;
-        m_offset += n;
-        return {p, n};
-    }
-
-    // LIFO release of the last `n` limbs so sibling branches can reuse them.
-    constexpr void deallocate(const std::size_t n) noexcept {
-        BEMAN_BIG_INT_DEBUG_ASSERT(n <= m_offset);
-        m_offset -= n;
-    }
-};
-
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
-
-// Trim leading zero limbs returning the effective size
-constexpr std::size_t trimmed_size(const std::span<const uint_multiprecision_t> s) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(!s.empty());
-    std::size_t n = s.size();
-    while (n > 1 && s[n - 1] == 0) {
-        --n;
-    }
-    return n;
-}
-
-// Returns true if all limbs in the span are zero
-constexpr bool is_span_zero(const std::span<const uint_multiprecision_t> s) noexcept {
-    return std::ranges::all_of(s, [](const uint_multiprecision_t limb) { return limb == 0; });
-}
-
-// ---------------------------------------------------------------------------
-// Three-way compare of two little-endian unsigned spans.
-// Operands need not be trimmed: trailing zero limbs on either side are
-// treated as insignificant.
-// ---------------------------------------------------------------------------
-[[nodiscard]] constexpr std::strong_ordering
-compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
-                       const std::span<const uint_multiprecision_t> b) noexcept {
-    const std::size_t na = a.size();
-    const std::size_t nb = b.size();
-    const std::size_t n  = std::max(na, nb);
-    for (std::size_t i = n; i-- > 0;) {
-        const auto ai = i < na ? a[i] : uint_multiprecision_t{0};
-        const auto bi = i < nb ? b[i] : uint_multiprecision_t{0};
-        if (ai != bi) {
-            return ai < bi ? std::strong_ordering::less : std::strong_ordering::greater;
-        }
-    }
-    return std::strong_ordering::equal;
-}
-
-// ---------------------------------------------------------------------------
-// Unsigned span addition: result = a + b
-// `result.size()` must be >= max(a.size(), b.size()).
-// `result` may alias `a`. Returns true if there is a carry out.
-// ---------------------------------------------------------------------------
-constexpr bool add_unsigned_spans(const std::span<uint_multiprecision_t>       result,
-                                  const std::span<const uint_multiprecision_t> a,
-                                  const std::span<const uint_multiprecision_t> b) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= std::max(a.size(), b.size()));
-    bool carry = false;
-    for (std::size_t i = 0; i < result.size(); ++i) {
-        const auto ai            = i < a.size() ? a[i] : uint_multiprecision_t{0};
-        const auto bi            = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [r_value, c1] = carrying_add(ai, bi, carry);
-        result[i]                = r_value;
-        carry                    = c1;
-    }
-    return carry;
-}
-
-// ---------------------------------------------------------------------------
-// Unsigned span subtraction: result = a - b
-// Requires |a| >= |b|. `result` may alias `a`.
-// Returns the trimmed number of significant result limbs.
-// ---------------------------------------------------------------------------
-constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecision_t>       result,
-                                              const std::span<const uint_multiprecision_t> a,
-                                              const std::span<const uint_multiprecision_t> b) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
-    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b.size());
-
-    bool borrow = false;
-    for (std::size_t i = 0; i < a.size(); ++i) {
-        const auto ai                  = a[i];
-        const auto bi                  = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [r_value, r_borrow] = borrowing_sub(ai, bi, borrow);
-        result[i]                      = r_value;
-        borrow                         = r_borrow;
-    }
-
-    BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
-    return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), a.size()});
-}
-
-// ---------------------------------------------------------------------------
-// Signed span subtraction: writes |a - b| into result, returns its size and
-// whether the result is negative (i.e. b > a, so result holds b - a).
-// `result` may alias `a` or `b`. Used by Toom-Cook 3 to evaluate at x = -1.
-// ---------------------------------------------------------------------------
-BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
-
-struct signed_sub_result {
-    std::size_t size;
-    bool        negative;
-};
-
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
-
-constexpr signed_sub_result subtract_unsigned_spans_signed(const std::span<uint_multiprecision_t>       result,
-                                                           const std::span<const uint_multiprecision_t> a,
-                                                           const std::span<const uint_multiprecision_t> b) noexcept {
-    // Trim before comparing so the size relationship matches the value relationship,
-    // satisfying subtract_unsigned_spans's a.size() >= b.size() invariant.
-    const std::size_t a_trim = a.empty() ? 0 : trimmed_size(a);
-    const std::size_t b_trim = b.empty() ? 0 : trimmed_size(b);
-    const auto        a_view = a.first(a_trim);
-    const auto        b_view = b.first(b_trim);
-
-    if (compare_unsigned_spans(a_view, b_view) != std::strong_ordering::less) {
-        BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a_trim);
-        if (a_trim == 0) {
-            return {0, false};
-        }
-        return {subtract_unsigned_spans(result.first(a_trim), a_view, b_view), false};
-    }
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= b_trim);
-    return {subtract_unsigned_spans(result.first(b_trim), b_view, a_view), true};
-}
 
 // ---------------------------------------------------------------------------
 // Single-limb short division.
@@ -317,12 +135,12 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
                                   scratch_allocator<Allocator>&          scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size(a) + trimmed_size(b));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a) + trimmed_size_span(b));
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 
-    a = a.first(trimmed_size(a));
-    b = b.first(trimmed_size(b));
+    a = a.first(trimmed_size_span(a));
+    b = b.first(trimmed_size_span(b));
 
     // First, check if we have enough limbs to justify karatsuba
     if (a.size() < karatsuba_cutoff || b.size() < karatsuba_cutoff) {
@@ -369,7 +187,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     // Compute result_low = a_l * b_l
     multiply_karatsuba(result_low, a_l, b_l, scratch);
     const std::size_t result_low_size =
-        trimmed_size(std::span<const uint_multiprecision_t>{result_low.data(), a_l.size() + b_l.size()});
+        trimmed_size_span(std::span<const uint_multiprecision_t>{result_low.data(), a_l.size() + b_l.size()});
 
     // Zero unused limbs in result_low region
     std::ranges::fill(result_low.subspan(result_low_size), uint_multiprecision_t{0});
@@ -380,7 +198,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
             multiply_karatsuba(result_high, a_h, b_h, scratch);
 
             const std::size_t result_high_size =
-                trimmed_size(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
+                trimmed_size_span(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
 
             // Zero unused limbs in result_high region
             std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
@@ -408,12 +226,12 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     const auto t2_span = std::span<const uint_multiprecision_t>{t2.data(), t2_size};
     const auto t3_span = std::span<const uint_multiprecision_t>{t3.data(), t3_size};
     multiply_karatsuba(t1, t2_span, t3_span, scratch);
-    std::size_t t1_size = trimmed_size(std::span<const uint_multiprecision_t>{t1.data(), t2_size + t3_size});
+    std::size_t t1_size = trimmed_size_span(std::span<const uint_multiprecision_t>{t1.data(), t2_size + t3_size});
 
     // t1 -= result_high (a_h * b_h)
     if (!result_high.empty()) {
         const std::size_t rh_size =
-            trimmed_size(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
+            trimmed_size_span(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
         t1_size = subtract_unsigned_spans(t1.first(t1_size),
                                           std::span<const uint_multiprecision_t>{t1.data(), t1_size},
                                           std::span<const uint_multiprecision_t>{result_high.data(), rh_size});
@@ -473,12 +291,12 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
                                     scratch_allocator<Allocator>&          scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size(a) + trimmed_size(b));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a) + trimmed_size_span(b));
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 
-    a = a.first(trimmed_size(a));
-    b = b.first(trimmed_size(b));
+    a = a.first(trimmed_size_span(a));
+    b = b.first(trimmed_size_span(b));
 
     // Partition at k = ceil(max(an, bn) / 3).
     const std::size_t min_size = std::min(a.size(), b.size());
@@ -750,8 +568,8 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 
-    a = a.first(trimmed_size(a));
-    b = b.first(trimmed_size(b));
+    a = a.first(trimmed_size_span(a));
+    b = b.first(trimmed_size_span(b));
 
     // Trivial case, use single-limb shortcuts
     if (a.size() == 1 && b.size() == 1) {
@@ -778,7 +596,7 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
 
             scratch_allocator<Allocator> scratch(storage_size, alloc);
             multiply_toom_cook_3(result.first(result_total), a, b, scratch);
-            return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), result_total});
+            return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
         }
         if (a.size() >= karatsuba_cutoff && b.size() >= karatsuba_cutoff) {
             const std::size_t s            = std::max(a.size(), b.size());
@@ -793,13 +611,13 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
                 scratch_allocator<Allocator> scratch(storage_size, alloc);
                 multiply_karatsuba(result.first(result_total), a, b, scratch);
             }
-            return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), result_total});
+            return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
         }
     }
 
     // Long multiplication fallback
     multiply_long(result, a, b);
-    return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
+    return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
 
 } // namespace beman::big_int::detail
