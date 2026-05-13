@@ -345,8 +345,8 @@ constexpr void add_shifted(const std::span<uint_multiprecision_t>       result,
 }
 
 // Minimum number of limbs for Toom-Cook 3 to be worthwhile.
-// Toom-Cook 3 first beats Karatsuba around 800 limbs on Apple Silicon.
-inline constexpr std::size_t toom_cook_3_cutoff = 800;
+// See multiplication_stress_bench for tuning
+inline constexpr std::size_t toom_cook_3_cutoff = 550;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
 // Includes space for karatsuba fallback plan
@@ -574,7 +574,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
 
 // Minimum number of limbs for Toom-Cook 4 to be worthwhile.
 // Empirically tuned on Apple Silicon via multiplication_stress_bench
-inline constexpr std::size_t toom_cook_4_cutoff = 4500;
+inline constexpr std::size_t toom_cook_4_cutoff = 1400;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 4 multiplication.
 // One Toom-4 level uses 14k+16 limbs (~3.5*s where k = ceil(s/4)). The geometric
