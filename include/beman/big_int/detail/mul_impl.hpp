@@ -266,8 +266,8 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t>       r
 
 // In-place tmp[0..size) += addend; returns new size (may grow by 1).
 [[nodiscard]] constexpr std::size_t add_into_tmp(const std::span<uint_multiprecision_t>       tmp,
-                                   const std::size_t                            size,
-                                   const std::span<const uint_multiprecision_t> addend) noexcept {
+                                                 const std::size_t                            size,
+                                                 const std::span<const uint_multiprecision_t> addend) noexcept {
     if (addend.empty()) {
         return size;
     }
