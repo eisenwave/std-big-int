@@ -40,8 +40,7 @@ and in our example $100!={\Gamma(101)}{\approx}9.3326215{\times}10^{157}$.
 ## Fibonacci
 
 In [fibonacci.cpp](./fibonacci.cpp), we compute and verify
-the $10,000^{th}$ Fibonacci number. The number is quite long when
-printed out.
+the $10,000^{th}$ Fibonacci number.
 
 Fibonacci numbers are defined by the recursion
 
@@ -60,8 +59,9 @@ F_{n}\sim\dfrac{{\varphi}^{n}}{\sqrt{5}}{\text{,}}
 $$
 
 where ${\varphi}{\approx}1.6180340{\ldots}$ is the golden ratio.
-The approximate value of the $10,000^{th}$ Fibonacci number
-is $F_{10,000}{\approx}3.3644764{\ldots}{\times}{10^{2089}}.
+The number is quite long when printed out. In fact, the approximate
+value of the $10,000^{th}$ Fibonacci number is
+$F_{10,000}{\approx}3.3644764{\ldots}{\times}{10^{2089}}$.
 
 ## Roots
 
