@@ -7,6 +7,7 @@
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
+#include <beman/big_int/detail/scratch_allocator.hpp>
 
 #include <algorithm>
 #include <compare>

@@ -5,6 +5,7 @@
 #define BEMAN_BIG_INT_SPAN_OPS_HPP
 
 #include <beman/big_int/detail/config.hpp>
+#include <span>
 
 namespace beman::big_int::detail {
 
