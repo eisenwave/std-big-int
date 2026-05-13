@@ -350,7 +350,7 @@ inline constexpr std::size_t toom_cook_3_cutoff = 800;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
 // Includes space for karatsuba fallback plan
-constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { return 8 * s; }
+constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { return 6 * s; }
 
 // ---------------------------------------------------------------------------
 // Recursive Toom-Cook 3-Way multiplication (Bodrato variant).
