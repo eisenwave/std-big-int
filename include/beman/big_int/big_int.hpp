@@ -707,15 +707,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // type is always-equal (e.g. std::allocator), or the two
             // allocators compare equal at runtime.
             if (!src.is_representation_inplace()) {
-                const bool can_steal = []() {
-                    if constexpr (propagate_alloc || alloc_traits::is_always_equal::value) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }();
-                const bool steal = can_steal || (m_alloc == src.m_alloc);
-                if (steal) {
+                if constexpr (propagate_alloc || alloc_traits::is_always_equal::value) {
                     if constexpr (propagate_alloc) {
                         m_alloc = std::move(src.m_alloc);
                     }
