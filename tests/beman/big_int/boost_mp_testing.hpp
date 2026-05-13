@@ -178,8 +178,12 @@ template <class UnaryOp>
 // that the sequence is deterministic across runs.
 // The RNG state advances on every call and is shared across all callers of this function.
 [[nodiscard]] inline std::string random_big_int(const std::size_t bits, const bool negative = false) {
+    static typename std::mt19937_64::result_type rng_seed{42};
+
     // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp) - deterministic seed is intentional for test reproducibility.
-    static std::mt19937_64 rng{42};
+    std::mt19937_64 rng{rng_seed};
+    ++rng_seed;
+
     if (bits == 0) {
         return std::string{"0"};
     }
