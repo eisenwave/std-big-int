@@ -135,12 +135,12 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
                                   scratch_allocator<Allocator>&          scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size(a) + trimmed_size(b));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a) + trimmed_size_span(b));
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 
-    a = a.first(trimmed_size(a));
-    b = b.first(trimmed_size(b));
+    a = a.first(trimmed_size_span(a));
+    b = b.first(trimmed_size_span(b));
 
     // First, check if we have enough limbs to justify karatsuba
     if (a.size() < karatsuba_cutoff || b.size() < karatsuba_cutoff) {
@@ -187,7 +187,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     // Compute result_low = a_l * b_l
     multiply_karatsuba(result_low, a_l, b_l, scratch);
     const std::size_t result_low_size =
-        trimmed_size(std::span<const uint_multiprecision_t>{result_low.data(), a_l.size() + b_l.size()});
+        trimmed_size_span(std::span<const uint_multiprecision_t>{result_low.data(), a_l.size() + b_l.size()});
 
     // Zero unused limbs in result_low region
     std::ranges::fill(result_low.subspan(result_low_size), uint_multiprecision_t{0});
@@ -198,7 +198,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
             multiply_karatsuba(result_high, a_h, b_h, scratch);
 
             const std::size_t result_high_size =
-                trimmed_size(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
+                trimmed_size_span(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
 
             // Zero unused limbs in result_high region
             std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
@@ -231,7 +231,7 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
     // t1 -= result_high (a_h * b_h)
     if (!result_high.empty()) {
         const std::size_t rh_size =
-            trimmed_size(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
+            trimmed_size_span(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
         t1_size = subtract_unsigned_spans(t1.first(t1_size),
                                           std::span<const uint_multiprecision_t>{t1.data(), t1_size},
                                           std::span<const uint_multiprecision_t>{result_high.data(), rh_size});
@@ -291,12 +291,12 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> resul
                                     scratch_allocator<Allocator>&          scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size(a) + trimmed_size(b));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a) + trimmed_size_span(b));
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 
-    a = a.first(trimmed_size(a));
-    b = b.first(trimmed_size(b));
+    a = a.first(trimmed_size_span(a));
+    b = b.first(trimmed_size_span(b));
 
     // Partition at k = ceil(max(an, bn) / 3).
     const std::size_t min_size = std::min(a.size(), b.size());
@@ -568,8 +568,8 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
 
-    a = a.first(trimmed_size(a));
-    b = b.first(trimmed_size(b));
+    a = a.first(trimmed_size_span(a));
+    b = b.first(trimmed_size_span(b));
 
     // Trivial case, use single-limb shortcuts
     if (a.size() == 1 && b.size() == 1) {
@@ -596,7 +596,7 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
 
             scratch_allocator<Allocator> scratch(storage_size, alloc);
             multiply_toom_cook_3(result.first(result_total), a, b, scratch);
-            return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), result_total});
+            return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
         }
         if (a.size() >= karatsuba_cutoff && b.size() >= karatsuba_cutoff) {
             const std::size_t s            = std::max(a.size(), b.size());
@@ -611,13 +611,13 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> r
                 scratch_allocator<Allocator> scratch(storage_size, alloc);
                 multiply_karatsuba(result.first(result_total), a, b, scratch);
             }
-            return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), result_total});
+            return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
         }
     }
 
     // Long multiplication fallback
     multiply_long(result, a, b);
-    return trimmed_size(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
+    return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
 
 } // namespace beman::big_int::detail
