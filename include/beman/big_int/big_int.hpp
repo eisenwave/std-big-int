@@ -2453,8 +2453,8 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
                                                   const bool                                             a_neg,
                                                   const std::span<const uint_multiprecision_t, extent_b> b_span,
                                                   const bool                                             b_neg) {
-    const auto a_trimmed = a.first(detail::trimmed_size(a));
-    const auto b_trimmed = b_span.first(detail::trimmed_size(b_span));
+    const auto a_trimmed = a.first(detail::trimmed_size_span(a));
+    const auto b_trimmed = b_span.first(detail::trimmed_size_span(b_span));
 
     // Zero * anything = positive 0
     if (detail::is_span_zero(a_trimmed) || detail::is_span_zero(b_trimmed)) {
@@ -2683,7 +2683,7 @@ basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision
     BEMAN_BIG_INT_ASSERT(divisor != 0);
 
     const bool want_quotient = op != detail::division_op::rem;
-    const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
+    const auto dividend_trim = dividend.first(detail::trimmed_size_span(dividend));
     const bool result_neg    = want_quotient ? (dividend_neg != divisor_neg) : dividend_neg;
 
     if (detail::is_span_zero(dividend_trim)) {
@@ -2710,7 +2710,7 @@ basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision
 
     if (want_quotient) {
         const std::size_t qsize =
-            detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), dividend_trim.size()});
+            detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), dividend_trim.size()});
         unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
     } else {
         limb_ptr()[0] = remainder;
@@ -2755,8 +2755,8 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
                                                 const std::span<const uint_multiprecision_t, extent_b> divisor,
                                                 const bool                                             divisor_neg,
                                                 const detail::division_op op) -> basic_big_int {
-    const auto dividend_trim = dividend.first(detail::trimmed_size(dividend));
-    const auto divisor_trim  = divisor.first(detail::trimmed_size(divisor));
+    const auto dividend_trim = dividend.first(detail::trimmed_size_span(dividend));
+    const auto divisor_trim  = divisor.first(detail::trimmed_size_span(divisor));
 
     BEMAN_BIG_INT_ASSERT(!detail::is_span_zero(divisor_trim));
 
@@ -2821,7 +2821,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         detail::divide_unsigned(
             std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, rem_span, dividend_trim, divisor_trim, scratch);
 
-        const std::size_t qsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
+        const std::size_t qsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
         unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
         unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
         if (op == detail::division_op::div) {
@@ -2845,7 +2845,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     detail::divide_unsigned(
         quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
 
-    const std::size_t rsize = detail::trimmed_size(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
+    const std::size_t rsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
     unchecked_set_limb_count(static_cast<std::uint32_t>(rsize));
     unchecked_set_sign(dividend_neg && !unchecked_is_magnitude_zero());
     return {};
@@ -2961,7 +2961,7 @@ constexpr auto basic_big_int<b, A>::operator/=(T&& rhs) -> basic_big_int&
         }
     } else {
         const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
-        if (detail::trimmed_size(rhs_limbs) == 1) {
+        if (detail::trimmed_size_span(rhs_limbs) == 1) {
             static_cast<void>(
                 divmod_in_place_short(rhs_limbs[0], detail::integer_signbit(rhs), detail::division_op::div));
         } else {
@@ -3004,7 +3004,7 @@ constexpr auto basic_big_int<b, A>::operator%=(T&& rhs) -> basic_big_int&
         }
     } else {
         const auto rhs_limbs = detail::to_limbs(detail::uabs(rhs));
-        if (detail::trimmed_size(rhs_limbs) == 1) {
+        if (detail::trimmed_size_span(rhs_limbs) == 1) {
             static_cast<void>(
                 divmod_in_place_short(rhs_limbs[0], detail::integer_signbit(rhs), detail::division_op::rem));
         } else {

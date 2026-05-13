@@ -5,8 +5,8 @@
 #define BEMAN_BIG_INT_DIV_IMPL_HPP
 
 #include <beman/big_int/detail/config.hpp>
-#include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
+#include <beman/big_int/detail/span_ops.hpp>
 
 #include <algorithm>
 #include <compare>
@@ -23,31 +23,6 @@ enum class division_op : unsigned char {
     // Compute quotient and remainder simultaneously.
     div_rem,
 };
-
-// ---------------------------------------------------------------------------
-// In-place +1 on a little-endian unsigned span. Returns true on carry out.
-// ---------------------------------------------------------------------------
-[[nodiscard]] constexpr bool increment_span(const std::span<uint_multiprecision_t> s) noexcept {
-    for (auto& limb : s) {
-        if (++limb != 0) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// ---------------------------------------------------------------------------
-// In-place -1 on a little-endian unsigned span. Returns true on borrow out
-// (i.e. the span was all zero on entry).
-// ---------------------------------------------------------------------------
-[[nodiscard]] constexpr bool decrement_span(const std::span<uint_multiprecision_t> s) noexcept {
-    for (auto& limb : s) {
-        if (limb-- != 0) {
-            return false;
-        }
-    }
-    return true;
-}
 
 // ---------------------------------------------------------------------------
 // Multi-limb long division (Boost hybrid).
