@@ -28,15 +28,15 @@ struct scratch_allocator {
     std::size_t                               m_capacity;
     std::size_t                               m_offset = 0;
 
-    #ifdef BEMAN_BIG_INT_INSTRUMENT
+#ifdef BEMAN_BIG_INT_INSTRUMENT
     // Running high-water mark of `m_offset` across the lifetime of this allocator.
     // Used by tests/benchmarks to size _storage_size heuristics; cost is one
     // compare-and-store per allocate(), which is amortized over a whole recursive
     // multiplication or division and so is well below measurement noise.
     std::size_t m_peak = 0;
-    #endif
+#endif
 
-    bool        m_owns;
+    bool m_owns;
 
     // Wrap an existing stack buffer — no ownership.
     constexpr scratch_allocator(pointer buf, const std::size_t cap, const Allocator& alloc) noexcept
@@ -75,11 +75,11 @@ struct scratch_allocator {
         auto* p = std::to_address(m_base) + m_offset;
         m_offset += n;
 
-        #ifdef BEMAN_BIG_INT_INSTRUMENT
+#ifdef BEMAN_BIG_INT_INSTRUMENT
         if (m_offset > m_peak) {
             m_peak = m_offset;
         }
-        #endif
+#endif
 
         return {p, n};
     }
@@ -90,11 +90,11 @@ struct scratch_allocator {
         m_offset -= n;
     }
 
-    #ifdef BEMAN_BIG_INT_INSTRUMENT
+#ifdef BEMAN_BIG_INT_INSTRUMENT
     // Highest value `m_offset` has reached since construction. Used to tune the
     // _storage_size heuristics in mul_impl.hpp.
     [[nodiscard]] constexpr std::size_t peak() const noexcept { return m_peak; }
-    #endif
+#endif
 };
 
 BEMAN_BIG_INT_DIAGNOSTIC_POP()

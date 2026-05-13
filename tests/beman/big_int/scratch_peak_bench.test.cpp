@@ -52,7 +52,7 @@ inline constexpr unsigned samples_per_point = 3;
 
 // Constant seed is intentional: it keeps the bench reproducible run-to-run.
 // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp)
-static std::mt19937_64 rng{0xC0FFEEULL};
+static std::mt19937_64                       rng{0xC0FFEEULL};
 static std::uniform_int_distribution<uint_t> dist;
 
 inline void fill_random(const std::span<uint_t> dest) {
@@ -148,11 +148,9 @@ constexpr algorithm_runner algorithms[] = {
 };
 
 constexpr std::size_t sweep_limbs[] = {
-    40,    48,    56,    64,   72,   80,   96,   112,  128,  144,  160,  192,
-    224,   256,   300,   400,  500,  550,  600,  700,  800,  900,  1000, 1100,
-    1200,  1300,  1400,  1600, 2000, 2500, 3000, 3500, 4000, 5000, 6000, 7000,
-    8000,  10000, 12000, 15000, 18000, 20000, 25000, 30000, 40000, 50000, 60000,
-    80000,
+    40,   48,   56,   64,   72,   80,    96,    112,   128,   144,   160,   192,   224,   256,   300,   400,
+    500,  550,  600,  700,  800,  900,   1000,  1100,  1200,  1300,  1400,  1600,  2000,  2500,  3000,  3500,
+    4000, 5000, 6000, 7000, 8000, 10000, 12000, 15000, 18000, 20000, 25000, 30000, 40000, 50000, 60000, 80000,
 };
 
 void run_sweep() {
