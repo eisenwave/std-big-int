@@ -169,11 +169,10 @@ constexpr algorithm_runner algorithms[] = {
 // Limb counts to sample. Dense coverage at the low end for the
 // schoolbook -> Karatsuba crossover, dense in the middle for the
 // Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
-constexpr std::size_t sweep_limbs[] = {
-    2,   4,   6,   8,   10,  12,  14,  16,  20,  24,  28,  32,  36,   40,   48,   56,   64,   72,   80,   96,
-    112, 128, 144, 160, 192, 224, 256, 300, 400, 500, 550, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1600, 2000, 2500, 3200, 4000, 5000,
-    6000, 8000, 10000, 15000, 30000
-};
+constexpr std::size_t sweep_limbs[] = {2,    4,    6,    8,    10,   12,   14,   16,   20,   24,    28,    32,   36,
+                                       40,   48,   56,   64,   72,   80,   96,   112,  128,  144,   160,   192,  224,
+                                       256,  300,  400,  500,  550,  600,  700,  800,  900,  1000,  1100,  1200, 1300,
+                                       1400, 1600, 2000, 2500, 3200, 4000, 5000, 6000, 8000, 10000, 15000, 30000};
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
 // multiplication grows. Adjust if a machine is much faster/slower than the
