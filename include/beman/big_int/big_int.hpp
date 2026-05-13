@@ -3256,7 +3256,7 @@ namespace pmr {
 template <std::size_t b>
 using basic_big_int = beman::big_int::basic_big_int<b, std::pmr::polymorphic_allocator<uint_multiprecision_t>>;
 
-using big_int = basic_big_int<64>;
+using big_int = basic_big_int<beman::big_int::big_int::inplace_bits>;
 
 } // namespace pmr
 
