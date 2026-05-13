@@ -129,18 +129,18 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
 // `scratch` provides pre-allocated workspace for temporaries.
 // ---------------------------------------------------------------------------
 template <class Allocator>
-constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t> result,
-                                  std::span<const uint_multiprecision_t> a,
-                                  std::span<const uint_multiprecision_t> b,
-                                  scratch_allocator<Allocator>&          scratch) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a) + trimmed_size_span(b));
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
+constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
+                                  const std::span<const uint_multiprecision_t> a_untrimmed,
+                                  const std::span<const uint_multiprecision_t> b_untrimmed,
+                                  scratch_allocator<Allocator>&                scratch) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a_untrimmed.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b_untrimmed.data());
 
-    a = a.first(trimmed_size_span(a));
-    b = b.first(trimmed_size_span(b));
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+    const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
 
     // First, check if we have enough limbs to justify karatsuba
     if (a.size() < karatsuba_cutoff || b.size() < karatsuba_cutoff) {
@@ -371,18 +371,18 @@ constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { r
 // `scratch` provides pre-allocated workspace for temporaries.
 // ---------------------------------------------------------------------------
 template <class Allocator>
-constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t> result,
-                                    std::span<const uint_multiprecision_t> a,
-                                    std::span<const uint_multiprecision_t> b,
-                                    scratch_allocator<Allocator>&          scratch) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a) + trimmed_size_span(b));
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
+constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
+                                    const std::span<const uint_multiprecision_t> a_untrimmed,
+                                    const std::span<const uint_multiprecision_t> b_untrimmed,
+                                    scratch_allocator<Allocator>&                scratch) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a_untrimmed.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b_untrimmed.data());
 
-    a = a.first(trimmed_size_span(a));
-    b = b.first(trimmed_size_span(b));
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+    const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
 
     // Partition at k = ceil(max(an, bn) / 3).
     const std::size_t min_size = std::min(a.size(), b.size());
@@ -608,19 +608,19 @@ constexpr std::size_t toom_cook_4_storage_size(const std::size_t s) noexcept { r
 // the default cutoff applies. Recursive sub-product calls always use the default.
 // ---------------------------------------------------------------------------
 template <class Allocator>
-constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t> result,
-                                    std::span<const uint_multiprecision_t> a,
-                                    std::span<const uint_multiprecision_t> b,
-                                    scratch_allocator<Allocator>&          scratch,
-                                    const std::size_t                      cutoff_override = 0) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a) + trimmed_size_span(b));
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
+constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
+                                    const std::span<const uint_multiprecision_t> a_untrimmed,
+                                    const std::span<const uint_multiprecision_t> b_untrimmed,
+                                    scratch_allocator<Allocator>&                scratch,
+                                    const std::size_t                            cutoff_override = 0) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a_untrimmed.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b_untrimmed.data());
 
-    a = a.first(trimmed_size_span(a));
-    b = b.first(trimmed_size_span(b));
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+    const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
 
     // Partition at k = ceil(max(an, bn) / 4).
     const std::size_t min_size         = std::min(a.size(), b.size());
@@ -1074,18 +1074,18 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t> resul
 // Returns the number of significant result limbs (trimmed).
 // ---------------------------------------------------------------------------
 template <class Allocator>
-constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t> result,
-                                        std::span<const uint_multiprecision_t> a,
-                                        std::span<const uint_multiprecision_t> b,
-                                        Allocator&                             alloc) {
-    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + b.size());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
-    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
+constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>       result,
+                                        const std::span<const uint_multiprecision_t> a_untrimmed,
+                                        const std::span<const uint_multiprecision_t> b_untrimmed,
+                                        Allocator&                                   alloc) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a_untrimmed.size() + b_untrimmed.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a_untrimmed.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b_untrimmed.data());
 
-    a = a.first(trimmed_size_span(a));
-    b = b.first(trimmed_size_span(b));
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+    const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
 
     // Trivial case, use single-limb shortcuts
     if (a.size() == 1 && b.size() == 1) {
