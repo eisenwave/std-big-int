@@ -641,28 +641,27 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             return;
         }
 
-        constexpr bool    is_move   = !std::is_lvalue_reference_v<Src>;
         const std::size_t src_count = src.limb_count();
         const std::size_t needed    = src_count + extra_space;
         const std::size_t eff_cap   = is_representation_inplace() ? inplace_capacity : m_capacity;
 
         // Allocator propagation follows `std::allocator_traits`. Stateful allocators
         // such as `std::pmr::polymorphic_allocator` have a deleted copy/move
-        // assignment operator, so the `m_alloc = ...` lines must be guarded by
-        // `propagate_on_container_*_assignment` rather than running unconditionally.
-        constexpr bool propagate_alloc = is_move ? alloc_traits::propagate_on_container_move_assignment::value
-                                                 : alloc_traits::propagate_on_container_copy_assignment::value;
+        // assignment operator, so any `m_alloc = ...` must be guarded by
+        // `propagate_on_container_*_assignment`. The relevant trait is picked
+        // based on `Src`'s value category, and `std::forward_like<Src>` then
+        // produces an rvalue or lvalue allocator to match -- so move- vs
+        // copy-assign of `m_alloc` does not need to be spelled out separately.
+        constexpr bool propagate_alloc = std::is_lvalue_reference_v<Src>
+                                             ? alloc_traits::propagate_on_container_copy_assignment::value
+                                             : alloc_traits::propagate_on_container_move_assignment::value;
 
         if (needed <= eff_cap) {
             // Fast path: current buffer is already big enough
             const auto old_count = limb_count();
             m_size_and_sign      = src.m_size_and_sign;
             if constexpr (propagate_alloc) {
-                if constexpr (is_move) {
-                    m_alloc = std::move(src.m_alloc);
-                } else {
-                    m_alloc = src.m_alloc;
-                }
+                m_alloc = std::forward_like<Src>(src.m_alloc);
             }
             limb_type* const       dst_limbs = limb_ptr();
             const limb_type* const src_limbs = src.limb_ptr();
@@ -688,11 +687,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // Both src and the requested headroom fit inline. No buffer to
             // adopt or allocate; just propagate (if applicable) and copy limbs.
             if constexpr (propagate_alloc) {
-                if constexpr (is_move) {
-                    m_alloc = std::move(src.m_alloc);
-                } else {
-                    m_alloc = src.m_alloc;
-                }
+                m_alloc = std::forward_like<Src>(src.m_alloc);
             }
             m_capacity = 0;
             for (std::size_t i = 0; i < inplace_capacity; ++i) {
@@ -701,7 +696,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             return;
         }
 
-        if constexpr (is_move) {
+        if constexpr (!std::is_lvalue_reference_v<Src>) {
             // For a heap `src`, adopt its pointer when the allocators are
             // compatible -- i.e., we are propagating from src, the allocator
             // type is always-equal (e.g. std::allocator), or the two
@@ -709,7 +704,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             if (!src.is_representation_inplace()) {
                 if constexpr (propagate_alloc || alloc_traits::is_always_equal::value) {
                     if constexpr (propagate_alloc) {
-                        m_alloc = std::move(src.m_alloc);
+                        m_alloc = std::forward_like<Src>(src.m_alloc);
                     }
                     m_capacity             = src.m_capacity;
                     m_storage.data         = src.m_storage.data;
@@ -729,11 +724,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
 
         if constexpr (propagate_alloc) {
-            if constexpr (is_move) {
-                m_alloc = std::move(src.m_alloc);
-            } else {
-                m_alloc = src.m_alloc;
-            }
+            m_alloc = std::forward_like<Src>(src.m_alloc);
         }
 
         // Fall back to a fresh allocation of `needed` limbs.
