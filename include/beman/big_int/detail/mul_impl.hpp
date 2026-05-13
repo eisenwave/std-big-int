@@ -701,9 +701,10 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t> resul
     std::ranges::copy(a1, tmpb.begin());
     std::size_t aux_size = a1.size();
     aux_size             = add_into_tmp(tmpb, aux_size, a3);
-    const auto sub_a_m1  = subtract_unsigned_spans_signed(tmpa,
-                                                        std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                                        std::span<const uint_multiprecision_t>{tmpb.data(), aux_size});
+    const auto sub_a_m1 =
+        subtract_unsigned_spans_signed(tmpa,
+                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                       std::span<const uint_multiprecision_t>{tmpb.data(), aux_size});
     tmpa_size            = sub_a_m1.size;
     const bool sign_a_m1 = sub_a_m1.negative;
 
@@ -712,11 +713,12 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t> resul
     tmpb_size = add_into_tmp(tmpb, tmpb_size, b2);
     // tmpa now holds (a0 + a2) - (a1 + a3); reuse tail of vm1 as a scratch slot for (b1 + b3).
     std::ranges::copy(b1, vm1.begin());
-    aux_size            = b1.size();
-    aux_size            = add_into_tmp(vm1, aux_size, b3);
-    const auto sub_b_m1 = subtract_unsigned_spans_signed(tmpb,
-                                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
-                                                        std::span<const uint_multiprecision_t>{vm1.data(), aux_size});
+    aux_size = b1.size();
+    aux_size = add_into_tmp(vm1, aux_size, b3);
+    const auto sub_b_m1 =
+        subtract_unsigned_spans_signed(tmpb,
+                                       std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
+                                       std::span<const uint_multiprecision_t>{vm1.data(), aux_size});
     tmpb_size            = sub_b_m1.size;
     const bool sign_b_m1 = sub_b_m1.negative;
     const bool sign_vm1  = sign_a_m1 ^ sign_b_m1;
@@ -771,9 +773,10 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t> resul
     // tmpb holds 8*a3 + a1; we still need 2*a1, which is (8*a3 + a1) + a1 = 8*a3 + 2*a1.
     aux_size = add_into_tmp(tmpb, aux_size, a1);
 
-    const auto sub_a_m2  = subtract_unsigned_spans_signed(tmpa,
-                                                        std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                                        std::span<const uint_multiprecision_t>{tmpb.data(), aux_size});
+    const auto sub_a_m2 =
+        subtract_unsigned_spans_signed(tmpa,
+                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                       std::span<const uint_multiprecision_t>{tmpb.data(), aux_size});
     tmpa_size            = sub_a_m2.size;
     const bool sign_a_m2 = sub_a_m2.negative;
 
@@ -792,9 +795,10 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t> resul
     aux_size = add_into_tmp(vm2, aux_size, b1);
     aux_size = add_into_tmp(vm2, aux_size, b1);
 
-    const auto sub_b_m2  = subtract_unsigned_spans_signed(tmpb,
-                                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
-                                                        std::span<const uint_multiprecision_t>{vm2.data(), aux_size});
+    const auto sub_b_m2 =
+        subtract_unsigned_spans_signed(tmpb,
+                                       std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
+                                       std::span<const uint_multiprecision_t>{vm2.data(), aux_size});
     tmpb_size            = sub_b_m2.size;
     const bool sign_b_m2 = sub_b_m2.negative;
     const bool sign_vm2  = sign_a_m2 ^ sign_b_m2;

@@ -136,16 +136,16 @@ double run_toom_cook_4_at(const std::size_t limbs, const unsigned trials) {
     // 3*k correctness gate (small inputs still fall through). Recursive sub-products
     // use the default cutoff so they fall back to Toom-3 / Karatsuba / schoolbook
     // as they would in production.
-    return measure_algorithm(
-        limbs,
-        trials,
-        ::beman::big_int::detail::toom_cook_4_storage_size(limbs),
-        [](const std::span<uint_t>       r,
-           const std::span<const uint_t> a,
-           const std::span<const uint_t> b,
-           scratch_for_test&             s) {
-            ::beman::big_int::detail::multiply_toom_cook_4(r.first(a.size() + b.size()), a, b, s, std::size_t{1});
-        });
+    return measure_algorithm(limbs,
+                             trials,
+                             ::beman::big_int::detail::toom_cook_4_storage_size(limbs),
+                             [](const std::span<uint_t>       r,
+                                const std::span<const uint_t> a,
+                                const std::span<const uint_t> b,
+                                scratch_for_test&             s) {
+                                 ::beman::big_int::detail::multiply_toom_cook_4(
+                                     r.first(a.size() + b.size()), a, b, s, std::size_t{1});
+                             });
 }
 
 // Registry of algorithms to sweep. Each entry constrains the sweep to a
