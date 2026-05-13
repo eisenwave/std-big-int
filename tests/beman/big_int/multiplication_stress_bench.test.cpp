@@ -162,10 +162,8 @@ struct algorithm_runner {
 constexpr algorithm_runner algorithms[] = {
     {"schoolbook", 2, 200, run_long_at},
     {"karatsuba", 4, 2000, run_karatsuba_at},
-    {"toom-cook-3", 800, 5000, run_toom_cook_3_at},
-    // Future additions, e.g.:
-    // {"toom-cook-4", 2000, 10000, run_toom_cook_4_at},
-    // {"toom-cook-5", 5000, 20000, run_toom_cook_5_at},
+    {"toom-cook-3", 300, 10000, run_toom_cook_3_at},
+    {"toom-cook-4", 300, 30000, run_toom_cook_4_at},
 };
 
 // Limb counts to sample. Dense coverage at the low end for the
@@ -173,7 +171,8 @@ constexpr algorithm_runner algorithms[] = {
 // Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
 constexpr std::size_t sweep_limbs[] = {
     2,   4,   6,   8,   10,  12,  14,  16,  20,  24,  28,  32,  36,   40,   48,   56,   64,   72,   80,   96,
-    112, 128, 144, 160, 192, 224, 256, 320, 400, 500, 640, 800, 1000, 1280, 1600, 2000, 2500, 3200, 4000, 5000,
+    112, 128, 144, 160, 192, 224, 256, 300, 400, 500, 550, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1600, 2000, 2500, 3200, 4000, 5000,
+    6000, 8000, 10000, 15000, 30000
 };
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
@@ -198,19 +197,13 @@ constexpr std::size_t sweep_limbs[] = {
     if (limbs <= 256) {
         return 500U;
     }
-    if (limbs <= 512) {
+    if (limbs <= 3000) {
         return 100U;
     }
-    if (limbs <= 1024) {
+    if (limbs <= 20'000) {
         return 30U;
     }
-    if (limbs <= 2000) {
-        return 15U;
-    }
-    if (limbs <= 5000) {
-        return 10U;
-    }
-    if (limbs <= 7000) {
+    if (limbs <= 100'000) {
         return 5U;
     }
     return 3U;
