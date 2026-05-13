@@ -131,6 +131,23 @@ double run_toom_cook_3_at(const std::size_t limbs, const unsigned trials) {
                              });
 }
 
+double run_toom_cook_4_at(const std::size_t limbs, const unsigned trials) {
+    // cutoff_override=1 forces Toom-4 to run at any input size that clears the
+    // 3*k correctness gate (small inputs still fall through). Recursive sub-products
+    // use the default cutoff so they fall back to Toom-3 / Karatsuba / schoolbook
+    // as they would in production.
+    return measure_algorithm(
+        limbs,
+        trials,
+        ::beman::big_int::detail::toom_cook_4_storage_size(limbs),
+        [](const std::span<uint_t>       r,
+           const std::span<const uint_t> a,
+           const std::span<const uint_t> b,
+           scratch_for_test&             s) {
+            ::beman::big_int::detail::multiply_toom_cook_4(r.first(a.size() + b.size()), a, b, s, std::size_t{1});
+        });
+}
+
 // Registry of algorithms to sweep. Each entry constrains the sweep to a
 // reasonable range: too small and the algorithm's own internal cutoff just
 // falls back to the previous tier; too large and a single multiplication
@@ -188,7 +205,13 @@ constexpr std::size_t sweep_limbs[] = {
         return 30U;
     }
     if (limbs <= 2000) {
+        return 15U;
+    }
+    if (limbs <= 5000) {
         return 10U;
+    }
+    if (limbs <= 7000) {
+        return 5U;
     }
     return 3U;
 }
