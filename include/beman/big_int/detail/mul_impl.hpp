@@ -54,9 +54,14 @@ struct scratch_allocator {
     constexpr scratch_allocator(std::size_t cap, const Allocator& alloc)
         : m_alloc(alloc), m_base(nullptr), m_capacity(0), m_owns(true) {
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
-        auto result = alloc_traits::allocate_at_least(m_alloc, cap);
-        m_base      = result.ptr;
-        m_capacity  = result.count;
+        if constexpr (traits_has_allocate_at_least<alloc_traits, Allocator>) {
+            auto result = alloc_traits::allocate_at_least(m_alloc, cap);
+            m_base      = result.ptr;
+            m_capacity  = result.count;
+        } else {
+            m_base     = alloc_traits::allocate(m_alloc, cap);
+            m_capacity = cap;
+        }
 #else
         m_base     = alloc_traits::allocate(m_alloc, cap);
         m_capacity = cap;

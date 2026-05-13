@@ -425,6 +425,27 @@ inline constexpr std::size_t width_v = width<T>::value;
 
 } // namespace beman::big_int::detail
 
+// Allocator trait detection ===================================================
+
+// `<memory>` defines `__cpp_lib_allocate_at_least`
+#include <memory>
+
+#if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
+
+namespace beman::big_int::detail {
+
+// The C++23 feature-test macro can be set even when a particular allocator's
+// `std::allocator_traits` doesn't actually expose `allocate_at_least`
+// Example: libstdc++ pmr allocator
+template <class Traits, class Alloc>
+concept traits_has_allocate_at_least = requires(Alloc& a, typename Traits::size_type n) {
+    { Traits::allocate_at_least(a, n) };
+};
+
+} // namespace beman::big_int::detail
+
+#endif // __cpp_lib_allocate_at_least
+
 // Trivial ABI =================================================================
 
 #if defined(BEMAN_BIG_INT_CLANG)
