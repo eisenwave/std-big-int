@@ -25,9 +25,20 @@ It may also find use as a minimal and modern  C++ project structure.
 
 ## Usage
 
-TODO
-
 Full runnable examples can be found in [`examples/`](examples/).
+These exhibit many features of `beman.big_int`, showing the convenience
+and efficiency of this type.
+
+The examples progress from introductory to medium levels.
+They are intended to portray the power, efficiency and ease-of-use
+of `beman.big_int`. The aggregate type specifically behaves
+very much like a built-in integral type. This makes it possible to use
+`beman.big_int` essentially seammlessly with detailed algorithms,
+built-in types, and visualization features such as output-streaming
+and string representation. Efficient move-semantics ensure that intuitive
+and easy-to-read code remains performant.
+
+TODO: `constexpr`-ness.
 
 ## Dependencies
 

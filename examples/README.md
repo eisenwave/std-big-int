@@ -26,7 +26,7 @@ $$
 n!\sim\sqrt{2 {\pi} n}\left(\dfrac{n}{e}\right)^{n}{\text{,}}
 $$
 
-where $e{\approx}2.7182818$ is Euler's constant.
+where $e{\approx}2.7182818{\ldots}$ is Euler's constant.
 
 The factorial can be extended to the real-valued gamma function
 ${\Gamma}(x)$ (and more generally the complex-valued one) via
@@ -40,7 +40,8 @@ and in our example $100!={\Gamma(101)}{\approx}9.3326215{\times}10^{157}$.
 ## Fibonacci
 
 In [fibonacci.cpp](./fibonacci.cpp), we compute and verify
-the $1,000^{th}$ Fibonacci number.
+the $10,000^{th}$ Fibonacci number. The number is quite long when
+printed out.
 
 Fibonacci numbers are defined by the recursion
 
@@ -58,7 +59,9 @@ $$
 F_{n}\sim\dfrac{{\varphi}^{n}}{\sqrt{5}}{\text{,}}
 $$
 
-where ${\varphi}{\approx}1.6180340$ is the golden ratio.
+where ${\varphi}{\approx}1.6180340{\ldots}$ is the golden ratio.
+The approximate value of the $10,000^{th}$ Fibonacci number
+is $F_{10,000}{\approx}3.3644764{\ldots}{\times}{10^{2089}}.
 
 ## Roots
 
