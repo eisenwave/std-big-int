@@ -36,9 +36,9 @@ option(
 # for find of beman-install-library
 include(infra/cmake/beman-install-library.cmake)
 
-add_library(beman.big_int INTERFACE)
+add_library(beman.big_int STATIC)
 add_library(beman::big_int ALIAS beman.big_int)
-target_compile_features(beman.big_int INTERFACE cxx_std_23)
+target_compile_features(beman.big_int PUBLIC cxx_std_23)
 
 target_sources(
     beman.big_int
@@ -51,6 +51,7 @@ set_target_properties(
 )
 
 add_subdirectory(include/beman/big_int)
+add_subdirectory(src)
 
 beman_install_library(beman.big_int TARGETS beman.big_int)
 
