@@ -13,6 +13,7 @@ This is not intended to be a highly optimized ECDSA implementation, but
 rather provide an overall performance indication due to the wide range of binary
 and unary operations, and allocations used within it. The test is timed.
 Runs with `beman.big_int` and `boost.gmp_int` are compared.
+The code for this comparison can be found in [./elliptic_ecc.perf.cpp](./elliptic_ecc.perf.cpp).
 
 | integer type     | time [s]   |
 |------------------|------------|
@@ -108,7 +109,8 @@ two big integers produces a result having double the width of its operands.
 
 GMP is written in hand-coded assembly in its hot-spots and is known as the _industry_ _standard_
 of performance. The relative multiplication timing of `beman.big_int` compared with `gmp_int`
-is quite respectable, considering its C++, portable design.
+is quite respectable, considering its C++, portable design. The code used for this comparison
+can be found in [mul_big_int_vs_gmp.perf.cpp](./mul_big_int_vs_gmp.perf.cpp).
 
 (1) At the moment, `big_int` does not support FFT multiplication so `gmp_int`
 really pulls ahead at very high digit counts.
