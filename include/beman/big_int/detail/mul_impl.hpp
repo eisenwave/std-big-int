@@ -965,8 +965,7 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(vinf_view, tmp_double.begin());
     std::size_t td_size = vinf_view.size();
-    td_size             = shift_left_one(tmp_double, td_size); //  2*c6
-    td_size             = shift_left_one(tmp_double, td_size); //  4*c6
+    td_size             = shift_left_n(tmp_double, td_size, 2u);
     subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     td_size = shift_left_n(tmp_double, td_size, 2u);
     subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
