@@ -18,11 +18,11 @@ Various runs use limb counts to emphasize crossover points such as the limb-cuto
 where Karatsuba --> Toom-Cook. Additional runs use higher limb counts, landing directly
 in one of the ranges of testing an algoritm's complexity in as much of an isolated
 way as possible. The runs involve quite high limb counts. By manipulating the constant-programmed
-cutoffs, some indivicual measurements were performed to temporarily exclude certain algoritms,
+cutoffs, some indivicual measurements were performed to temporarily exclude certain algorithms,
 then successively add, for instance, schoolbook only, then Karatsuba only and then
 Karatsuba + Toom-Cook 3, and so forth.
 
-- All the runs were numercially correct.
+- All the runs were numerically correct.
 - We see that right around 800 limbs, Toom-Cook 3 starts becoming advantageous.
 - For larger limb counts, Toom-Cook 3 and 4 become quite beneficial.
 
