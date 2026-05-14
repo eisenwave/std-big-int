@@ -2256,7 +2256,7 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
         return multiply_single_limb(result, a, b[0]);
     }
 
-    // Use Toom-Cook 3 above its cutoff, Karatsuba above its cutoff, and schoolbook below.
+    // Choose algorithm to use based off the tuned cutoffs
     // Avoid these at compile time because the recursion depth could blow up consteval limits;
     // long multiplication works just fine in that case.
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
