@@ -1,0 +1,4 @@
+[codespell]
+# Proper nouns / algorithm names codespell would otherwise mis-flag.
+# - toom: Andrei Toom (Toom-Cook multiplication algorithm) -> not "tomb".
+ignore-words-list = toom
