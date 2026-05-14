@@ -10,8 +10,8 @@ stopwatch just before and after the multiplication operation, summing and averag
 
 TODO: Follow the evolution of high-order multiplication and add relevant content accordingly.
 
-TODO: Provide detailed measurements (with a table) comparing the multiplication performances
-of `big_int` and that of GMP. The relative information below is good. But a measurement-based
+TODO: Provide detailed measurements (with a table) comparing the multiplication performance
+of `big_int` with that of GMP. The relative information below is good. But a measurement-based
 comparison with the _industry_ _standard_ of performance will also be useful.
 
 Various runs use limb counts to emphasize crossover points such as the limb-cutoff
@@ -26,13 +26,13 @@ Karatsuba + Toom-Cook 3, and so forth.
 - We see that right around 800 limbs, Toom-Cook 3 starts becoming advantageous.
 - For larger limb counts, Toom-Cook 3 and 4 become quite beneficial.
 
-| limbs          | schoolbook            |  with Karatsuba          | with Kara and Toom-Cook 3     | with Kara and Toom-Cook 3 and 4 |
-|----------------|---------------------- |--------------------------|-------------------------------|---------------------------------|
-| 700-1,400      |   1,270us  per mul    |  380us    per mul        |   370us   per mul             | ---     |
-| 6,000-8,000    |   ---                 |  8,220us  per mul        |   6,240us  per mul            | ---     |
-| 10,000-12,000  |   ---                 |  15,700us per mul        |  11,800us per mul             | ---     |
-| 21,000-23,000  |   ---                 |  ---                     |  33,100us per mul             |  27,800us per mul |
-| 43,000-45,000  |   ---                 |  ---                     |  ---                          |  72,300us per mul |
+| 64-bit limbs   | binary digit width   | schoolbook            |  with Karatsuba          | with Kara and Toom-Cook 3     | with Kara and Toom-Cook 3 and 4 |
+|----------------|----------------------|---------------------- |--------------------------|-------------------------------|---------------------------------|
+| 700-1,400      | 44,800-89,600        |   1,270us  per mul    |  380us    per mul        |   370us   per mul             | ---     |
+| 6,000-8,000    | 384,000-512,000      |   ---                 |  8,220us  per mul        |   6,240us  per mul            | ---     |
+| 10,000-12,000  | 640,000-768,000      |   ---                 |  15,700us per mul        |  11,800us per mul             | ---     |
+| 21,000-23,000  | 1,344,000-1,472,000  |   ---                 |  ---                     |  33,100us per mul             |  27,800us per mul |
+| 43,000-45,000  | 2,752,000-2,880,000  |   ---                 |  ---                     |  ---                          |  72,300us per mul |
 
 ### Toom-Cook 3 computational complexity
 From the final two Toom-Cook 3 points, we seek the order of complexity, $x$
