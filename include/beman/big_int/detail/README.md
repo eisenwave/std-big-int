@@ -1,11 +1,14 @@
 ## Performance Measurements
 
+Performance testing `big_int` binary operations uses various control mechanisms, such as
+a computer algebra system (for numerical correctness check).
+When measuring, localize the time of `big_int` multiplication only, running a chrono
+stopwatch just before and after the multiplication operation, summing and averaging the times.
+
+
 ### Multiplication
 
-Performance testing `big_int` multiplication versus a computer algebra system (for numerical correctness check).
-
-First off, we localize the time of `big_int` multiplication only, running a chrono
-stopwatch just before and after the multiplication operation, summing and averaging the times.
+TODO: Follow the evolution of high-order multiplication and add relevant content accordingly.
 
 Various runs use limb counts to emphasize crossover points such as the limb-cutoff
 where Karatsuba --> Toom-Cook. Additional runs use higher limb counts, landing directly
@@ -68,3 +71,11 @@ $$
 $$
 
 in good agreement with the measurement.
+
+### Division
+
+TODO: Follow the progress of sub-quadratic division.
+
+### Base-conversion
+
+TODO: Follow the progress of sub-quadratic base-change.
