@@ -102,14 +102,14 @@ two big integers produces a result having double the width of its operands.
 The time and the relative time compared with the best time (see the square brackets)
 are shown for each big integer type at each digit setting.
 
-| 64-bit limbs   | approx base-10 digits | us per mul  `big_int` | us per mul  `cpp_int` | us per mul  `gmp_int` |
-|----------------|-----------------------|-----------------------|-----------------------|-----------------------|
-| 128            | 2,500                 |   9.2   [2.1]         |   8.6   [1.0]         |   4.3   [1.0]         |
-| 512            | 9,900                 |   84    [2.9]         |   79    [2.7]         |   29    [1.0]         |
-| 1,024          | 20,000                |   200   [2.6]         |   230   [3.0]         |   77    [1.0]         |
-| 2,048          | 39,000                |   700   [3.5]         |   710   [3.6]         |   200   [1.0]         |
-| 8,192          | 160,000               |   4,700 [3.6]         |   6,400 [4.9](2)      |   1,300 [1.0]         |
-| 32,768         | 631,000               |  30,000 [5.1](1)      |  58,000 [9.8]         |   5,900 [1.0]         |
+| 64-bit limbs   | approx base-10 digits | us per mul  `big_int`  | us per mul  `cpp_int`  | us per mul  `gmp_int` |
+|----------------|-----------------------|------------------------|------------------------|-----------------------|
+| 128            | 2,500                 |   9.2   [2.1]          |   8.6   [1.0]          |   4.3   [1.0]         |
+| 512            | 9,900                 |   84    [2.9]          |   79    [2.7]          |   29    [1.0]         |
+| 1,024          | 20,000                |   200   [2.6]          |   230   [3.0]          |   77    [1.0]         |
+| 2,048          | 39,000                |   700   [3.5]          |   710   [3.6]          |   200   [1.0]         |
+| 8,192          | 160,000               |   4,700 [3.6]          |   6,400 [4.9], see (2) |   1,300 [1.0]         |
+| 32,768         | 631,000               |  30,000 [5.1], see (1) |  58,000 [9.8]          |   5,900 [1.0]         |
 
 GMP is written in hand-coded assembly in its hot-spots and is known as the _industry_ _standard_
 of performance. The relative multiplication timing of `beman.big_int` compared with `gmp_int`
