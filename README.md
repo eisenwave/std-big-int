@@ -25,9 +25,54 @@ It may also find use as a minimal and modern  C++ project structure.
 
 ## Usage
 
-TODO
-
 Full runnable examples can be found in [`examples/`](examples/).
+These exhibit many features of `beman.big_int`, showing the convenience
+and efficiency of this type.
+
+The examples progress from introductory to medium levels.
+They are intended to portray the power, efficiency and ease-of-use
+of `beman.big_int`. The aggregate type specifically behaves
+very much like a built-in integral type. This makes it possible to use
+`beman.big_int` essentially seammlessly with detailed algorithms,
+built-in types, and visualization features such as output-streaming
+and string representation. Efficient move-semantics ensure that intuitive
+and easy-to-read code remains performant.
+
+TODO: `constexpr`-ness.
+
+The straightforward example below shows usage of `beman.big_int`. The code snippet
+computes and verifies the value of $100!$ in its full, pure-integral, non-truncated form.
+
+```c++
+#include <beman/big_int/big_int.hpp>
+
+#include <iomanip>
+#include <iostream>
+
+template <class BigIntType>
+constexpr auto factorial(unsigned int n) -> BigIntType {
+    return (n <= 1) ? 1 : n * factorial<BigIntType>(n - 1);
+}
+
+auto main() -> int {
+    using beman::big_int::big_int;
+
+    // Compute the 100th Factorial number.
+    const big_int fact_100{factorial<big_int>(100)};
+
+    using namespace beman::big_int::literals;
+
+    const big_int bn_ctrl{
+        93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000_n};
+
+    const bool result_is_ok{fact_100 == bn_ctrl};
+
+    std::cout << "fact_100:\n"
+              << to_string(fact_100) << "\n\nresult_is_ok: " << std::boolalpha << result_is_ok << std::endl;
+
+    return result_is_ok ? 0 : -1;
+}
+```
 
 ## Dependencies
 

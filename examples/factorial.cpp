@@ -4,7 +4,6 @@
 
 #include <iomanip>
 #include <iostream>
-#include <string>
 
 template <class BigIntType>
 constexpr auto factorial(unsigned int n) -> BigIntType {
@@ -17,15 +16,15 @@ auto main() -> int {
     // Compute the 100th Factorial number.
     const big_int fact_100{factorial<big_int>(100)};
 
-    const std::string str_fact_100{to_string(fact_100)};
+    using namespace beman::big_int::literals;
 
-    const std::string str_ctrl{"9332621544394415268169923885626670049071596826438162146859296389"
-                               "5217599993229915608941463976156518286253697920827223758251185210"
-                               "916864000000000000000000000000"};
+    const big_int bn_ctrl{
+        93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000_n};
 
-    const bool result_is_ok{str_fact_100 == str_ctrl};
+    const bool result_is_ok{fact_100 == bn_ctrl};
 
-    std::cout << "fact_100:\n" << str_fact_100 << "\n\nresult_is_ok:\n" << std::boolalpha << result_is_ok << std::endl;
+    std::cout << "fact_100:\n"
+              << to_string(fact_100) << "\n\nresult_is_ok: " << std::boolalpha << result_is_ok << std::endl;
 
     return result_is_ok ? 0 : -1;
 }
