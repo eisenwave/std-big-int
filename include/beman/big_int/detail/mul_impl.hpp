@@ -328,21 +328,34 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t>       r
     return shift_left_n(tmp, size, 1u);
 }
 
-// In-place tmp >>= 1; returns the dropped low bit (caller asserts == 0 for exact div).
-[[nodiscard]] constexpr uint_multiprecision_t shift_right_one(const std::span<uint_multiprecision_t> tmp) noexcept {
-    if (tmp.empty()) {
+// In-place tmp >>= n (0 < n < limb_width); returns the dropped low n bits packed
+// as a single value (caller asserts == 0 for exact division by 2^n).
+// Single-pass equivalent of n chained shift_right_one calls.
+[[nodiscard]] constexpr uint_multiprecision_t shift_right_n(const std::span<uint_multiprecision_t> tmp,
+                                                            const unsigned                         n) noexcept {
+    if (tmp.empty() || n == 0) {
         return 0;
     }
 
-    const uint_multiprecision_t rem  = tmp[0] & uint_multiprecision_t{1};
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(n < local_limb_bits);
+
+    const uint_multiprecision_t mask = (uint_multiprecision_t{1} << n) - uint_multiprecision_t{1};
+    const uint_multiprecision_t rem  = tmp[0] & mask;
     uint_multiprecision_t       high = 0;
     for (std::size_t i = tmp.size(); i-- > 0;) {
         const auto limb = tmp[i];
-        tmp[i]          = funnel_shr(wide<uint_multiprecision_t>{.low_bits = limb, .high_bits = high}, 1u);
+        tmp[i]          = funnel_shr(wide<uint_multiprecision_t>{.low_bits = limb, .high_bits = high}, n);
         high            = limb;
     }
 
     return rem;
+}
+
+// In-place tmp >>= 1; returns the dropped low bit (caller asserts == 0 for exact div).
+// Thin wrapper around shift_right_n for the common single-bit halving case.
+[[nodiscard]] constexpr uint_multiprecision_t shift_right_one(const std::span<uint_multiprecision_t> tmp) noexcept {
+    return shift_right_n(tmp, 1u);
 }
 
 // In-place result[shift..) += src; asserts no carry out of the result span.
@@ -783,15 +796,12 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     // Build positive = a0 + 4*a2 in tmpa, negative = 2*a1 + 8*a3 in tmpb, then signed-sub.
     std::ranges::copy(a2, tmpa.begin());
     tmpa_size = a2.size();
-    tmpa_size = shift_left_one(tmpa, tmpa_size); // 2*a2
-    tmpa_size = shift_left_one(tmpa, tmpa_size); // 4*a2
+    tmpa_size = shift_left_n(tmpa, tmpa_size, 2u);
     tmpa_size = add_into_tmp(tmpa, tmpa_size, a0);
 
     std::ranges::copy(a3, tmpb.begin());
     aux_size = a3.size();
-    aux_size = shift_left_one(tmpb, aux_size); // 2*a3
-    aux_size = shift_left_one(tmpb, aux_size); // 4*a3
-    aux_size = shift_left_one(tmpb, aux_size); // 8*a3
+    aux_size = shift_left_n(tmpb, aux_size, 3u);
     aux_size = add_into_tmp(tmpb, aux_size, a1);
     // tmpb holds 8*a3 + a1; we still need 2*a1, which is (8*a3 + a1) + a1 = 8*a3 + 2*a1.
     aux_size = add_into_tmp(tmpb, aux_size, a1);
@@ -805,16 +815,13 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
 
     std::ranges::copy(b2, tmpb.begin());
     tmpb_size = b2.size();
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
+    tmpb_size = shift_left_n(tmpb, tmpb_size, 2u);
     tmpb_size = add_into_tmp(tmpb, tmpb_size, b0);
 
     // Use vm2 as a scratch slot for 8*b3 + 2*b1.
     std::ranges::copy(b3, vm2.begin());
     aux_size = b3.size();
-    aux_size = shift_left_one(vm2, aux_size);
-    aux_size = shift_left_one(vm2, aux_size);
-    aux_size = shift_left_one(vm2, aux_size);
+    aux_size = shift_left_n(vm2, aux_size, 3u);
     aux_size = add_into_tmp(vm2, aux_size, b1);
     aux_size = add_into_tmp(vm2, aux_size, b1);
 
@@ -961,18 +968,13 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     td_size             = shift_left_one(tmp_double, td_size); //  2*c6
     td_size             = shift_left_one(tmp_double, td_size); //  4*c6
     subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
-    td_size = shift_left_one(tmp_double, td_size); //  8*c6
-    td_size = shift_left_one(tmp_double, td_size); // 16*c6
+    td_size = shift_left_n(tmp_double, td_size, 2u);
     subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     // After Step 10: v2 = 4c4.
 
     // Step 11: v2 /= 4 (two halvings).  v2 = c4.
     {
-        [[maybe_unused]] const auto rem = shift_right_one(v2);
-        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
-    }
-    {
-        [[maybe_unused]] const auto rem = shift_right_one(v2);
+        [[maybe_unused]] const auto rem = shift_right_n(v2, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -985,26 +987,21 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(v0_view, tmp_double.begin());
     td_size = trimmed_size_span(v0_view);
-    for (int i = 0; i < 6; ++i) {
-        td_size = shift_left_one(tmp_double, td_size);
-    }
+    td_size = shift_left_n(tmp_double, td_size, 6u);
     subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
 
     // Step 14: vh -= 16*c2 (c2 lives in v1 now).
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(v1_view, tmp_double.begin());
     td_size = trimmed_size_span(v1_view);
-    for (int i = 0; i < 4; ++i) {
-        td_size = shift_left_one(tmp_double, td_size);
-    }
+    td_size = shift_left_n(tmp_double, td_size, 4u);
     subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
 
     // Step 15: vh -= 4*c4 (c4 lives in v2 now).
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(v2_view, tmp_double.begin());
     td_size = trimmed_size_span(v2_view);
-    td_size = shift_left_one(tmp_double, td_size);
-    td_size = shift_left_one(tmp_double, td_size);
+    td_size = shift_left_n(tmp_double, td_size, 2u);
     subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
 
     // Step 16: vh -= c6.
