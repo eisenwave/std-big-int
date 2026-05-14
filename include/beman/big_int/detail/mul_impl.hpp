@@ -1128,7 +1128,7 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     scratch.deallocate(total_scratch);
 }
 
-// TODO(mborland) : Tune this value
+// See tests/beman/big_int/perf crossover_speedup.png
 inline constexpr std::size_t toom_cook_6_5_cutoff = 3000;
 
 // TODO(mborland) : Tune this value
