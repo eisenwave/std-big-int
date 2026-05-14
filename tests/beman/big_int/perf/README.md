@@ -114,7 +114,7 @@ are shown for each big integer type at each digit setting.
 GMP is written in hand-coded assembly in its hot-spots and is known as the _industry_ _standard_
 of performance. The relative multiplication timing of `beman.big_int` compared with `gmp_int`
 is quite respectable, considering its C++, portable design. The code used for this comparison
-can be found in [mul_big_int_vs_gmp.perf.cpp](./mul_big_int_vs_gmp.perf.cpp).
+can be found in [mul_big_int_vs_gmp_cpp.perf.cpp](./mul_big_int_vs_gmp_cpp.perf.cpp).
 
 (1) At the moment, `big_int` does not support FFT multiplication so `gmp_int`
 really pulls ahead at very high digit counts.
