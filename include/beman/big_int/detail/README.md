@@ -10,6 +10,10 @@ stopwatch just before and after the multiplication operation, summing and averag
 
 TODO: Follow the evolution of high-order multiplication and add relevant content accordingly.
 
+TODO: Provide detailed measurements (with a table) comparing the multiplication performances
+of `big_int` and that of GMP. The relative information below is good. But a measurement-based
+comparison with the _industry_ _standard_ of performance will also be useful.
+
 Various runs use limb counts to emphasize crossover points such as the limb-cutoff
 where Karatsuba --> Toom-Cook. Additional runs use higher limb counts, landing directly
 in one of the ranges of testing an algoritm's complexity in as much of an isolated
