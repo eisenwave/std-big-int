@@ -80,13 +80,17 @@ of `big_int` with that of GMP (wrapped by `boost.gmp_int`) are presented.
 |----------------|-------------------------|------------------------|------------------------|-----------|
 | 128            | 2,500                   |   9.2                  |   4.3                  |   2.1     |
 | 512            | 9,900                   |   84                   |   29                   |   2.9     |
-| 1024           | 20,000                  |   200                  |   77                   |   2.6     |
-| 2048           | 39,000                  |   680                  |   200                  |   3.4     |
-| 8192           | 160,000                 |   5,000                |   1,300                |   3.8     |
+| 1,024          | 20,000                  |   200                  |   77                   |   2.6     |
+| 2,048          | 39,000                  |   680                  |   200                  |   3.4     |
+| 8,192          | 160,000                 |   5,000                |   1,300                |   3.8     |
+| 32,768         | 631,000                 |  38,000                |   5,700                |   6.7(1)  |
 
 GMP is written in hand-coded assembly in its hot-spots and is known as the _industry_ _standard_
 of performance. The relative multiplication timing of `beman.big_int` compared with `gmp_int`
 is quite respectable, considering its C++, portable design.
+
+(1) At the moment, `big_int` does not support FFT multiplication so `gmp_int`
+really pulls ahead at very high digit counts.
 
 ## Division
 

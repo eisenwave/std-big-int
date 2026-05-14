@@ -75,33 +75,11 @@ using str_pair_type = std::pair<std::string, std::string>;
 
 using random_engine_length_type = std::minstd_rand;
 
-random_engine_length_type generator_bits_length{
-    static_cast<typename random_engine_length_type::result_type>(std::random_device{}())};
+auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, std::string>;
 
-inline constexpr std::size_t limb_bits{
-    static_cast<std::size_t>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
-
-std::uniform_int_distribution distribution_bits_length{std::size_t{8192U} * static_cast<std::size_t>(limb_bits),
-                                                       std::size_t{8192U} * static_cast<std::size_t>(limb_bits)};
-
-auto get_hex_string_pair() -> std::pair<std::string, std::string>;
-
-auto get_hex_string_pair() -> std::pair<std::string, std::string> {
-    std::size_t len_a_in_bits{};
-    std::size_t len_b_in_bits{};
-
-    static unsigned seed_prescalar{};
-
-    // On a pre-defined schedule, seed the random length generator with fixed values.
-    if ((++seed_prescalar % 128U) == 0U) {
-        detail::generator_bits_length.seed(std::random_device{}());
-    }
-
-    len_a_in_bits = detail::distribution_bits_length(detail::generator_bits_length);
-    len_b_in_bits = detail::distribution_bits_length(detail::generator_bits_length);
-
-    const std::string str_a{bmp::random_big_int(len_a_in_bits)};
-    const std::string str_b{bmp::random_big_int(len_b_in_bits)};
+auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, std::string> {
+    const std::string str_a{bmp::random_big_int(len_in_bits)};
+    const std::string str_b{bmp::random_big_int(len_in_bits)};
 
     return {str_a, str_b};
 }
@@ -138,8 +116,13 @@ auto main() -> int {
     std::uint64_t elapsed_total_muls_bn{};
     std::uint64_t elapsed_total_muls_gm{};
 
+    constexpr unsigned limb_bits{
+        static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
+
+    constexpr unsigned length_in_bits{128U * limb_bits};
+
     for (; ((trial < max_trial) && result_total_is_ok); ++trial) {
-        const local::detail::str_pair_type str_pair{local::detail::get_hex_string_pair()};
+        const local::detail::str_pair_type str_pair{local::detail::get_hex_string_pair(length_in_bits)};
 
         // Make commands like the following:
 
