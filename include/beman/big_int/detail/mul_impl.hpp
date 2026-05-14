@@ -295,9 +295,8 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t>       r
 // Pass size == tmp.size() to shift the full span; the carry-branch assertion
 // then enforces that the shift did not overflow.
 // Single-pass equivalent of n chained shift_left_one calls.
-[[nodiscard]] constexpr std::size_t shift_left_n(const std::span<uint_multiprecision_t> tmp,
-                                                 std::size_t                            size,
-                                                 const unsigned                         n) noexcept {
+[[nodiscard]] constexpr std::size_t
+shift_left_n(const std::span<uint_multiprecision_t> tmp, std::size_t size, const unsigned n) noexcept {
     if (size == 0 || n == 0) {
         return size;
     }
@@ -1143,7 +1142,6 @@ inline constexpr std::size_t toom_cook_6_5_cutoff = 3000;
 // generous-but-not-wasteful ratio used by the smaller-radix algorithms.
 constexpr std::size_t toom_cook_6_5_storage_size(const std::size_t s) noexcept { return 6 * s; }
 
-
 // ---------------------------------------------------------------------------
 // Recursive Toom-Cook 6.5 ("Toom 6'n'half") multiplication (Bodrato variant).
 // Reference: Bodrato, "High degree Toom'n'half for balanced and unbalanced
@@ -1210,28 +1208,26 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
 
     // Split span a into six pieces of size k (a5 may be partial).
     const auto a0 = a.first(std::min(k, a.size()));
-    const auto a1 =
-        a.size() > k ? a.subspan(k, std::min(k, a.size() - k)) : std::span<const uint_multiprecision_t>{};
-    const auto a2 = a.size() > 2 * k ? a.subspan(2 * k, std::min(k, a.size() - 2 * k))
-                                     : std::span<const uint_multiprecision_t>{};
-    const auto a3 = a.size() > 3 * k ? a.subspan(3 * k, std::min(k, a.size() - 3 * k))
-                                     : std::span<const uint_multiprecision_t>{};
-    const auto a4 = a.size() > 4 * k ? a.subspan(4 * k, std::min(k, a.size() - 4 * k))
-                                     : std::span<const uint_multiprecision_t>{};
+    const auto a1 = a.size() > k ? a.subspan(k, std::min(k, a.size() - k)) : std::span<const uint_multiprecision_t>{};
+    const auto a2 =
+        a.size() > 2 * k ? a.subspan(2 * k, std::min(k, a.size() - 2 * k)) : std::span<const uint_multiprecision_t>{};
+    const auto a3 =
+        a.size() > 3 * k ? a.subspan(3 * k, std::min(k, a.size() - 3 * k)) : std::span<const uint_multiprecision_t>{};
+    const auto a4 =
+        a.size() > 4 * k ? a.subspan(4 * k, std::min(k, a.size() - 4 * k)) : std::span<const uint_multiprecision_t>{};
     const auto a5 = a.size() > 5 * k ? a.subspan(5 * k) : std::span<const uint_multiprecision_t>{};
 
     // Split b into up to seven pieces of size k (b5, b6 may be partial; b6 may be empty).
     const auto b0 = b.first(std::min(k, b.size()));
-    const auto b1 =
-        b.size() > k ? b.subspan(k, std::min(k, b.size() - k)) : std::span<const uint_multiprecision_t>{};
-    const auto b2 = b.size() > 2 * k ? b.subspan(2 * k, std::min(k, b.size() - 2 * k))
-                                     : std::span<const uint_multiprecision_t>{};
-    const auto b3 = b.size() > 3 * k ? b.subspan(3 * k, std::min(k, b.size() - 3 * k))
-                                     : std::span<const uint_multiprecision_t>{};
-    const auto b4 = b.size() > 4 * k ? b.subspan(4 * k, std::min(k, b.size() - 4 * k))
-                                     : std::span<const uint_multiprecision_t>{};
-    const auto b5 = b.size() > 5 * k ? b.subspan(5 * k, std::min(k, b.size() - 5 * k))
-                                     : std::span<const uint_multiprecision_t>{};
+    const auto b1 = b.size() > k ? b.subspan(k, std::min(k, b.size() - k)) : std::span<const uint_multiprecision_t>{};
+    const auto b2 =
+        b.size() > 2 * k ? b.subspan(2 * k, std::min(k, b.size() - 2 * k)) : std::span<const uint_multiprecision_t>{};
+    const auto b3 =
+        b.size() > 3 * k ? b.subspan(3 * k, std::min(k, b.size() - 3 * k)) : std::span<const uint_multiprecision_t>{};
+    const auto b4 =
+        b.size() > 4 * k ? b.subspan(4 * k, std::min(k, b.size() - 4 * k)) : std::span<const uint_multiprecision_t>{};
+    const auto b5 =
+        b.size() > 5 * k ? b.subspan(5 * k, std::min(k, b.size() - 5 * k)) : std::span<const uint_multiprecision_t>{};
     const auto b6 = b.size() > 6 * k ? b.subspan(6 * k) : std::span<const uint_multiprecision_t>{};
 
     // Carve scratch:
@@ -1713,7 +1709,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     tmpb_size            = sub_b_mq.size;
     const bool sign_b_mq = sub_b_mq.negative;
     // Same convention as vmh: signed tmpa*tmpb = 4194304*r(-1/4), no flip needed.
-    const bool sign_vmq  = sign_a_mq ^ sign_b_mq;
+    const bool sign_vmq = sign_a_mq ^ sign_b_mq;
 
     std::ranges::fill(vmq, uint_multiprecision_t{0});
     if (tmpa_size != 0 && tmpb_size != 0) {
@@ -1869,7 +1865,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(v0_view, tmp_double.begin());
     std::size_t td_size = trimmed_size_span(v0_view);
-    td_size = shift_left_n(tmp_double, td_size, 11u);
+    td_size             = shift_left_n(tmp_double, td_size, 11u);
     subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     {
         [[maybe_unused]] const auto rem = shift_right_one(vh);
@@ -1935,7 +1931,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     {
         // vm4 *= 16.
         std::size_t s = trimmed_size_span(vm4_view);
-        s = shift_left_n(vm4, s, 4u);
+        s             = shift_left_n(vm4, s, 4u);
         BEMAN_BIG_INT_DEBUG_ASSERT(s <= vm4.size());
     }
 
@@ -1957,12 +1953,12 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     // a=row-of-ones buffer, b/c=row-2/row-4 buffers, d=row-h buffer, e=row-q buffer).
     // After return, a holds the middle coeff, b holds |d_inner| with returned sign_d_inner,
     // c holds |d_outer| with returned sign_d_outer, d holds s_inner, e holds s_outer.
-    const auto solve_subsystem = [&](std::span<uint_multiprecision_t> a_buf,
-                                     std::span<uint_multiprecision_t> b_buf,
-                                     std::span<uint_multiprecision_t> c_buf,
-                                     std::span<uint_multiprecision_t> d_buf,
-                                     std::span<uint_multiprecision_t> e_buf) constexpr noexcept
-                                       -> std::pair<bool, bool> {
+    const auto solve_subsystem =
+        [&](std::span<uint_multiprecision_t> a_buf,
+            std::span<uint_multiprecision_t> b_buf,
+            std::span<uint_multiprecision_t> c_buf,
+            std::span<uint_multiprecision_t> d_buf,
+            std::span<uint_multiprecision_t> e_buf) constexpr noexcept -> std::pair<bool, bool> {
         const auto a_v = std::span<const uint_multiprecision_t>{a_buf};
         const auto b_v = std::span<const uint_multiprecision_t>{b_buf};
         const auto c_v = std::span<const uint_multiprecision_t>{c_buf};
@@ -2021,9 +2017,8 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         // Eliminate s_inner from e_buf: e_buf -= 400 * d_buf.
         // (Trim to satisfy multiply_single_limb's `result.size() >= a.size() + 1` precondition.)
         {
-            const auto d_trim = d_v.first(trimmed_size_span(d_v));
-            [[maybe_unused]] const auto m400 =
-                multiply_single_limb(tmp_double, d_trim, uint_multiprecision_t{400});
+            const auto                  d_trim = d_v.first(trimmed_size_span(d_v));
+            [[maybe_unused]] const auto m400   = multiply_single_limb(tmp_double, d_trim, uint_multiprecision_t{400});
             subtract_unsigned_spans(e_buf, e_v, std::span<const uint_multiprecision_t>{tmp_double.data(), m400});
         }
         // e_buf = 680400 * s_o.
@@ -2035,9 +2030,8 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
 
         // Recover s_inner: d_buf = 900*s_o + 144*s_i -> d_buf -= 900*s_o; d_buf /= 144.
         {
-            const auto e_trim = e_v.first(trimmed_size_span(e_v));
-            [[maybe_unused]] const auto m900 =
-                multiply_single_limb(tmp_double, e_trim, uint_multiprecision_t{900});
+            const auto                  e_trim = e_v.first(trimmed_size_span(e_v));
+            [[maybe_unused]] const auto m900   = multiply_single_limb(tmp_double, e_trim, uint_multiprecision_t{900});
             subtract_unsigned_spans(d_buf, d_v, std::span<const uint_multiprecision_t>{tmp_double.data(), m900});
         }
         {
@@ -2062,10 +2056,9 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         //
         // Implementation: compute 272*|b| into tmp_double. Then combine with |c| based on sign relations.
 
-        const auto b_diff_trim = b_v.first(trimmed_size_span(b_v));
-        [[maybe_unused]] const auto m272 =
-            multiply_single_limb(tmp_double, b_diff_trim, uint_multiprecision_t{272});
-        const auto td272 = std::span<const uint_multiprecision_t>{tmp_double.data(), m272};
+        const auto                  b_diff_trim = b_v.first(trimmed_size_span(b_v));
+        [[maybe_unused]] const auto m272  = multiply_single_limb(tmp_double, b_diff_trim, uint_multiprecision_t{272});
+        const auto                  td272 = std::span<const uint_multiprecision_t>{tmp_double.data(), m272};
         // X_signed = (sign_D2 ? -272|b| : +272|b|) - (sign_D4 ? -|c| : +|c|)
         //          = sign_D2 ? (-272|b| - (sign_D4 ? -|c| : +|c|)) : (272|b| - (sign_D4 ? -|c| : +|c|))
         // Cases:
@@ -2087,8 +2080,8 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         // c_buf now holds |X|; X_signed = 771120 * d_outer; therefore
         // sign of d_outer = sign_X (771120 > 0); magnitude |d_outer| = |X|/771120.
         {
-            [[maybe_unused]] const auto rem =
-                divide_unsigned_short(c_buf, std::span<const uint_multiprecision_t>{c_buf}, uint_multiprecision_t{771120});
+            [[maybe_unused]] const auto rem = divide_unsigned_short(
+                c_buf, std::span<const uint_multiprecision_t>{c_buf}, uint_multiprecision_t{771120});
             BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
         }
         const bool sign_d_outer = sign_X;
@@ -2098,11 +2091,10 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         //   240 * d_inner_signed = (-D_2) - 1020 * d_outer
         //                        = -(sign_D2 ? -|b| : +|b|) - 1020 * (sign_d_outer ? -|c| : +|c|)
         // Compute 1020 * |c| into tmp_double, sign = sign_d_outer.
-        const auto c_buf_view = std::span<const uint_multiprecision_t>{c_buf};
-        const auto c_trim     = c_buf_view.first(trimmed_size_span(c_buf_view));
-        [[maybe_unused]] const auto m1020 =
-            multiply_single_limb(tmp_double, c_trim, uint_multiprecision_t{1020});
-        const auto td1020 = std::span<const uint_multiprecision_t>{tmp_double.data(), m1020};
+        const auto                  c_buf_view = std::span<const uint_multiprecision_t>{c_buf};
+        const auto                  c_trim     = c_buf_view.first(trimmed_size_span(c_buf_view));
+        [[maybe_unused]] const auto m1020      = multiply_single_limb(tmp_double, c_trim, uint_multiprecision_t{1020});
+        const auto                  td1020     = std::span<const uint_multiprecision_t>{tmp_double.data(), m1020};
         // -D_2 has sign !sign_D2. So we compute (-D_2) + (-(1020*d_outer)) signed-result.
         // = (-D_2) - 1020*d_outer signed.
         // sign of -D_2 = !sign_D2 (we ADD its magnitude to nothing yet; first put it).
@@ -2123,8 +2115,8 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         }
         // Y = 240 * d_inner. Therefore |d_inner| = |Y|/240, sign_d_inner = sign_Y.
         {
-            [[maybe_unused]] const auto rem =
-                divide_unsigned_short(b_buf, std::span<const uint_multiprecision_t>{b_buf}, uint_multiprecision_t{240});
+            [[maybe_unused]] const auto rem = divide_unsigned_short(
+                b_buf, std::span<const uint_multiprecision_t>{b_buf}, uint_multiprecision_t{240});
             BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
         }
         const bool sign_d_inner = sign_Y;
@@ -2168,31 +2160,39 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     // The minus computation overwrites the destination, and it reads s_view (separate). So aliasing
     // s_view with one of the destinations is OK as long as the minus computation finishes before
     // any subsequent read of s_view. Since recover_pair does minus first then copies plus, OK.
-    recover_pair(v4, vq,
-                 std::span<const uint_multiprecision_t>{vq},   // s_outer
-                 std::span<const uint_multiprecision_t>{v4},   // |d_outer|
-                 sign_d_outer_e, tmp_double);
+    recover_pair(v4,
+                 vq,
+                 std::span<const uint_multiprecision_t>{vq}, // s_outer
+                 std::span<const uint_multiprecision_t>{v4}, // |d_outer|
+                 sign_d_outer_e,
+                 tmp_double);
     // After: v4 = c2, vq = c10.
 
     // Even inner pair: s_inner in vh, d_inner in v2 (sign_d_inner_e), lower = c4, higher = c8.
-    recover_pair(v2, vh,
+    recover_pair(v2,
+                 vh,
                  std::span<const uint_multiprecision_t>{vh},
                  std::span<const uint_multiprecision_t>{v2},
-                 sign_d_inner_e, tmp_double);
+                 sign_d_inner_e,
+                 tmp_double);
     // After: v2 = c4, vh = c8.
 
     // Odd outer pair: s_outer in vmq, d_outer in vm4 (sign_d_outer_o), lower = c1, higher = c9.
-    recover_pair(vm4, vmq,
+    recover_pair(vm4,
+                 vmq,
                  std::span<const uint_multiprecision_t>{vmq},
                  std::span<const uint_multiprecision_t>{vm4},
-                 sign_d_outer_o, tmp_double);
+                 sign_d_outer_o,
+                 tmp_double);
     // After: vm4 = c1, vmq = c9.
 
     // Odd inner pair: s_inner in vmh, d_inner in vm2 (sign_d_inner_o), lower = c3, higher = c7.
-    recover_pair(vm2, vmh,
+    recover_pair(vm2,
+                 vmh,
                  std::span<const uint_multiprecision_t>{vmh},
                  std::span<const uint_multiprecision_t>{vm2},
-                 sign_d_inner_o, tmp_double);
+                 sign_d_inner_o,
+                 tmp_double);
     // After: vm2 = c3, vmh = c7.
 
     // -- Recompose: place each c_i at offset i*k in result. c0 (in result[0..2k))
