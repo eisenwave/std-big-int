@@ -291,30 +291,41 @@ constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t>       r
     return new_size;
 }
 
-// In-place tmp[0..size) <<= 1; returns new size (may grow by 1).
+// In-place tmp[0..size) <<= n (0 < n < limb_width); returns new size (may grow by 1).
 // Pass size == tmp.size() to shift the full span; the carry-branch assertion
 // then enforces that the shift did not overflow.
-[[nodiscard]] constexpr std::size_t shift_left_one(const std::span<uint_multiprecision_t> tmp,
-                                                   std::size_t                            size) noexcept {
-    if (size == 0) {
-        return 0;
+// Single-pass equivalent of n chained shift_left_one calls.
+[[nodiscard]] constexpr std::size_t shift_left_n(const std::span<uint_multiprecision_t> tmp,
+                                                 std::size_t                            size,
+                                                 const unsigned                         n) noexcept {
+    if (size == 0 || n == 0) {
+        return size;
     }
 
-    BEMAN_BIG_INT_DEBUG_ASSERT(size <= tmp.size());
     constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
-    uint_multiprecision_t prev            = 0;
+    BEMAN_BIG_INT_DEBUG_ASSERT(size <= tmp.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(n < local_limb_bits);
+
+    uint_multiprecision_t prev = 0;
     for (std::size_t i = 0; i < size; ++i) {
         const auto limb = tmp[i];
-        tmp[i]          = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = limb}, 1u);
+        tmp[i]          = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = limb}, n);
         prev            = limb;
     }
 
-    if (const auto carry = prev >> (local_limb_bits - 1)) {
+    if (const auto carry = prev >> (local_limb_bits - n)) {
         BEMAN_BIG_INT_DEBUG_ASSERT(size < tmp.size());
         tmp[size++] = carry;
     }
 
     return size;
+}
+
+// In-place tmp[0..size) <<= 1; returns new size (may grow by 1). Thin wrapper
+// around shift_left_n for the common single-bit Horner-style shift.
+[[nodiscard]] constexpr std::size_t shift_left_one(const std::span<uint_multiprecision_t> tmp,
+                                                   const std::size_t                      size) noexcept {
+    return shift_left_n(tmp, size, 1u);
 }
 
 // In-place tmp >>= 1; returns the dropped low bit (caller asserts == 0 for exact div).
