@@ -1,5 +1,24 @@
 # Performance Measurements
 
+## Simulated real-world case ECDSA sign/verify in elliptic curve space
+
+One of our tests provides an intuitive view on elliptic-curve algebra
+using big integer mathematics in the curved space. It depicts a well-known
+cryptographic key-gen/sign/verify method ($256$-bit ECDSA, secp256k1).
+This provides an overall performance indication using modest integer widths.
+The test performs round-trip key generation, sign and verify with one
+trial using random (but pre-defined) seeds, and $32$ trials using random seeds.
+
+This is not intended to be a highly optimized ECDSA implementation, but
+rather provide an overall performance indication due to the wide range of binary
+and unary operations, and allocations used within it. The test is timed.
+Runs with `beman.big_int` and `boost.gmp_int` are compared.
+
+| integer type     | time [s]   |
+|------------------|------------|
+| `beman.big_int`  | 2.0        |
+| `boost.gmp_int`  | 1.6        |
+
 ## Multiplication
 
 When measuring, localize the time of `big_int` multiplication only, running a chrono
@@ -75,6 +94,8 @@ in good agreement with the measurement.
 
 Detailed measurements (with a table) comparing the multiplication performance
 of `big_int` with that of GMP (wrapped by `boost.gmp_int`) are presented.
+The result of multiplication adds the widths of its operands. So multiplying
+two big integers produces a result having double the width of its operands.
 
 | 64-bit limbs   | approx base-10 digits   | us per mul  `big_int`  | us per mul  `gmp_int`  | relative  |
 |----------------|-------------------------|------------------------|------------------------|-----------|
@@ -99,22 +120,3 @@ TODO: Follow the progress of sub-quadratic division.
 ## Base-conversion
 
 TODO: Follow the progress of sub-quadratic base-change.
-
-## Real-world case ECDSA sign/verify in elliptic curve space
-
-One of our tests provides an intuitive view on elliptic-curve algebra
-using big integer mathematics in the curved space. It depicting a well-known
-cryptographic key-gen/sign/verify method ($256$-bit ECDSA, secp256k1).
-This provides an overall performance indication using modest integer widths.
-The test performs round-trip key generation, sign and verify with one
-trial using random (but pre-defined) seeds, and $32$ trials using random seeds.
-
-This is not intended to be a highly optimized ECDSA implementation, but
-rather provide an overall performance indication due to the wide range of binary
-and unary operations, and allocations used within it. The test is timed.
-Runs with `beman.big_int` and `boost.gmp_int` are compared.
-
-| integer type     | time [s]   |
-|------------------|------------|
-| `beman.big_int`  | 2.0        |
-| `boost.gmp_int`  | 1.6        |
