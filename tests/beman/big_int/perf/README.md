@@ -95,7 +95,7 @@ in good agreement with the measurement.
 ### Compare multiplication timing `beman.big_int`, `boost.gmp_int`, `boost.cpp_int`
 
 Detailed measurements (with a table) comparing the multiplication performance
-of `big_int` with that of GMP (wrapped by `boost.gmp_int`) are presented.
+of `big_int` with those of `boost.cpp_int` and GMP (wrapped by `boost.gmp_int`) are presented.
 The result of multiplication adds the widths of its operands. So multiplying
 two big integers produces a result having double the width of its operands.
 
