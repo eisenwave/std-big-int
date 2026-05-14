@@ -1131,8 +1131,17 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
 // See tests/beman/big_int/perf crossover_speedup.png
 inline constexpr std::size_t toom_cook_6_5_cutoff = 3000;
 
-// TODO(mborland) : Tune this value
-constexpr std::size_t toom_cook_6_5_storage_size(const std::size_t s) noexcept { return 7 * s; }
+// Heuristic estimate of scratch space needed for Toom-Cook 6.5 multiplication.
+// One Toom-6.5 level uses 24k+26 limbs (~4*s where k = ceil(min/6)) for ten
+// scratch products + two evaluation buffers + one tmp_double. The recursive
+// child enters Toom-Cook 4 on pieces of size ~s/6, contributing roughly
+// (Toom-4 asymptote)/6 ~= 4.67/6 ~= 0.78*s; the combined asymptote is
+// ~4.78*s. Empirically (probed via scratch_allocator high-water marks on
+// sizes 3000-80000 limbs in scratch_peak_bench) the actual peak/s ratio
+// ranges 4.65-4.79 (climbing monotonically toward the asymptote). 6*s leaves
+// ~25% safety margin at the worst observed point and matches the same
+// generous-but-not-wasteful ratio used by the smaller-radix algorithms.
+constexpr std::size_t toom_cook_6_5_storage_size(const std::size_t s) noexcept { return 6 * s; }
 
 
 // ---------------------------------------------------------------------------
