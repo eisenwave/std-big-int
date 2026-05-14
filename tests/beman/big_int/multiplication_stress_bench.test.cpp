@@ -276,7 +276,6 @@ void run_sweep() {
 
 } // namespace local
 
-#define BEMAN_BIG_INT_RUN_BENCHMARKS
 TEST(Multiplication, MultiplicationStressBench) {
 #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     local::run_sweep();
