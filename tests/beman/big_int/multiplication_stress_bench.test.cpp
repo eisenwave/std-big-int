@@ -184,46 +184,78 @@ constexpr algorithm_runner algorithms[] = {
 };
 
 // Limb counts to sample. Dense coverage at the low end for the
-// schoolbook -> Karatsuba crossover, dense in the middle for the
-// Karatsuba -> Toom-Cook 3 crossover, then a coarser tail.
-constexpr std::size_t sweep_limbs[] = {2,    4,     6,     8,     10,    12,   14,    16,    20,    24,    28,
-                                       32,   36,    40,    48,    56,    64,   72,    80,    96,    112,   128,
-                                       144,  160,   192,   224,   256,   300,  400,   500,   550,   600,   700,
-                                       800,  900,   1000,  1100,  1200,  1300, 1400,  1600,  2000,  2500,  3000,
-                                       3200, 4000,  5000,  6000,  8000,  10000, 15000, 20000, 30000, 50000, 80000};
+// schoolbook -> Karatsuba crossover; extra-dense in the 1200-2400 zone for
+// the Toom-3 -> Toom-4 crossover and in the 2500-4500 zone for the
+// Toom-4 -> Toom-6.5 crossover, where measurement noise can produce false
+// first-crossings; then a coarser tail to verify asymptotic behaviour.
+constexpr std::size_t sweep_limbs[] = {
+    // Schoolbook / Karatsuba region (dense, fast).
+    2,    4,    6,    8,    10,   12,   14,   16,   20,   24,   28,
+    32,   36,   40,   48,   56,   64,   72,   80,   96,   112,  128,
+    144,  160,  192,  224,  256,
+    // Karatsuba ramp.
+    300,  400,  500,  550,  600,  650,  700,  750,
+    // Toom-3 region.
+    800,  900,  1000, 1100, 1200, 1300, 1400,
+    // Toom-3 -> Toom-4 transition (cutoff 1400; densify to resolve the dip).
+    1500, 1600, 1700, 1800, 1900, 2000, 2100, 2200, 2400,
+    // Toom-4 region.
+    2500, 2700, 2900,
+    // Toom-4 -> Toom-6.5 transition (cutoff 3000; densify likewise).
+    3000, 3100, 3300, 3500, 3700, 4000, 4500,
+    // Asymptotic tail.
+    5000, 6000, 7500, 10000, 15000, 20000, 30000, 50000, 80000,
+};
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
-// multiplication grows. Adjust if a machine is much faster/slower than the
-// development baseline.
+// multiplication grows. Higher counts in the 1000-5000 range smooth out the
+// noise at the Toom-3/Toom-4 and Toom-4/Toom-6.5 crossover zones so the
+// first crossing on the speedup curve is genuine, not a measurement artifact.
+// Adjust if a machine is much faster/slower than the development baseline.
 [[nodiscard]] constexpr unsigned choose_trials(const std::size_t limbs) noexcept {
     if (limbs <= 8) {
-        return 200000U;
+        return 300'000U;
     }
     if (limbs <= 16) {
-        return 100000U;
+        return 150'000U;
     }
     if (limbs <= 32) {
-        return 30000U;
+        return 50'000U;
     }
     if (limbs <= 64) {
-        return 10000U;
+        return 15'000U;
     }
     if (limbs <= 128) {
-        return 2000U;
+        return 4'000U;
     }
     if (limbs <= 256) {
-        return 500U;
+        return 1'500U;
     }
-    if (limbs <= 3000) {
-        return 100U;
+    if (limbs <= 500) {
+        return 700U;
+    }
+    if (limbs <= 1'000) {
+        return 400U;
+    }
+    if (limbs <= 2'000) {
+        return 250U;
+    }
+    if (limbs <= 3'500) {
+        return 150U;
+    }
+    if (limbs <= 5'000) {
+        return 80U;
+    }
+    if (limbs <= 10'000) {
+        return 40U;
     }
     if (limbs <= 20'000) {
-        return 30U;
+        return 20U;
     }
-    if (limbs <= 100'000) {
-        return 5U;
+    if (limbs <= 50'000) {
+        return 8U;
     }
-    return 3U;
+    return 4U;
 }
 
 void run_sweep() {
@@ -244,6 +276,7 @@ void run_sweep() {
 
 } // namespace local
 
+#define BEMAN_BIG_INT_RUN_BENCHMARKS
 TEST(Multiplication, MultiplicationStressBench) {
 #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     local::run_sweep();
