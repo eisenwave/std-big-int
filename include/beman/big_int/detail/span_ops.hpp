@@ -119,6 +119,119 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
 }
 
 // ---------------------------------------------------------------------------
+// Fused (a + b) >> n into result in a single pass. Returns the dropped low n
+// bits (caller asserts == 0 for exact division by 2^n). Asserts no carry-out
+// from the sum. `result` may alias `a` or `b`.
+// 0 <= n < limb_width.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t
+add_unsigned_spans_and_shift_right_n(const std::span<uint_multiprecision_t>       result,
+                                     const std::span<const uint_multiprecision_t> a,
+                                     const std::span<const uint_multiprecision_t> b,
+                                     const unsigned                               n) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= std::max(a.size(), b.size()));
+
+    if (n == 0) {
+        const bool carry = add_unsigned_spans(result, a, b);
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+        return 0;
+    }
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(n < local_limb_bits);
+
+    if (result.empty()) {
+        return 0;
+    }
+
+    // Compute sum[0] separately so we can capture the dropped low bits.
+    const auto a0     = !a.empty() ? a[0] : uint_multiprecision_t{0};
+    const auto b0     = !b.empty() ? b[0] : uint_multiprecision_t{0};
+    auto [s_prev, c0] = carrying_add(a0, b0);
+    bool carry        = c0;
+
+    const uint_multiprecision_t mask = (uint_multiprecision_t{1} << n) - uint_multiprecision_t{1};
+    const uint_multiprecision_t rem  = s_prev & mask;
+
+    // Each iteration computes sum[i] then writes the shifted result[i-1] by
+    // funnel-shifting (sum[i-1], sum[i]) right by n. Reads at index i happen
+    // before the write at i-1, so result may safely alias a or b.
+    for (std::size_t i = 1; i < result.size(); ++i) {
+        const auto ai           = i < a.size() ? a[i] : uint_multiprecision_t{0};
+        const auto bi           = i < b.size() ? b[i] : uint_multiprecision_t{0};
+        const auto [s_curr, ci] = carrying_add(ai, bi, carry);
+        carry                   = ci;
+        result[i - 1]           = funnel_shr(wide<uint_multiprecision_t>{.low_bits = s_prev, .high_bits = s_curr}, n);
+        s_prev                  = s_curr;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+    result[result.size() - 1] = s_prev >> n;
+    return rem;
+}
+
+[[nodiscard]] constexpr uint_multiprecision_t
+add_unsigned_spans_and_shift_right_one(const std::span<uint_multiprecision_t>       result,
+                                       const std::span<const uint_multiprecision_t> a,
+                                       const std::span<const uint_multiprecision_t> b) noexcept {
+    return add_unsigned_spans_and_shift_right_n(result, a, b, 1u);
+}
+
+// ---------------------------------------------------------------------------
+// Fused (a - b) >> n into result in a single pass. Returns the dropped low n
+// bits. Requires |a| >= |b|. `result` may alias `a` or `b`.
+// 0 <= n < limb_width.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t
+subtract_unsigned_spans_and_shift_right_n(const std::span<uint_multiprecision_t>       result,
+                                          const std::span<const uint_multiprecision_t> a,
+                                          const std::span<const uint_multiprecision_t> b,
+                                          const unsigned                               n) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b.size());
+
+    if (n == 0) {
+        subtract_unsigned_spans(result, a, b);
+        return 0;
+    }
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(n < local_limb_bits);
+
+    if (result.empty()) {
+        return 0;
+    }
+
+    const auto a0      = !a.empty() ? a[0] : uint_multiprecision_t{0};
+    const auto b0      = !b.empty() ? b[0] : uint_multiprecision_t{0};
+    auto [d_prev, bo0] = borrowing_sub(a0, b0);
+    bool borrow        = bo0;
+
+    const uint_multiprecision_t mask = (uint_multiprecision_t{1} << n) - uint_multiprecision_t{1};
+    const uint_multiprecision_t rem  = d_prev & mask;
+
+    for (std::size_t i = 1; i < result.size(); ++i) {
+        const auto ai           = i < a.size() ? a[i] : uint_multiprecision_t{0};
+        const auto bi           = i < b.size() ? b[i] : uint_multiprecision_t{0};
+        const auto [d_curr, boi] = borrowing_sub(ai, bi, borrow);
+        borrow                   = boi;
+        result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);
+        d_prev                   = d_curr;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+    result[result.size() - 1] = d_prev >> n;
+    return rem;
+}
+
+[[nodiscard]] constexpr uint_multiprecision_t
+subtract_unsigned_spans_and_shift_right_one(const std::span<uint_multiprecision_t>       result,
+                                            const std::span<const uint_multiprecision_t> a,
+                                            const std::span<const uint_multiprecision_t> b) noexcept {
+    return subtract_unsigned_spans_and_shift_right_n(result, a, b, 1u);
+}
+
+// ---------------------------------------------------------------------------
 // Signed span subtraction: writes |a - b| into result, returns its size and
 // whether the result is negative (i.e. b > a, so result holds b - a).
 // `result` may alias `a` or `b`. Used by Toom-Cook 3 to evaluate at x = -1.
