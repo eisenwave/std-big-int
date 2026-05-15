@@ -3,6 +3,7 @@
 
 #include <beman/big_int/big_int.hpp>
 #include <boost/multiprecision/gmp.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 
 #include <chrono>
 #include <iomanip>
@@ -88,6 +89,7 @@ auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, s
 
 using beman::big_int::big_int;
 using gmp_int = boost::multiprecision::number<boost::multiprecision::gmp_int, boost::multiprecision::et_off>;
+using cpp_int = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
 
 auto to_hex_string_bn(big_int value_to_convert) -> std::string {
     // Calculate the hex-expected string length and also align to 16.
@@ -110,16 +112,17 @@ auto to_hex_string_bn(big_int value_to_convert) -> std::string {
 auto main() -> int {
     auto result_total_is_ok = true;
 
-    constexpr auto max_trial = static_cast<std::uint32_t>(UINT32_C(0x8000));
+    constexpr auto max_trial = static_cast<std::uint32_t>(UINT32_C(0x4000));
     auto           trial     = static_cast<std::uint32_t>(UINT32_C(0));
 
     std::uint64_t elapsed_total_muls_bn{};
     std::uint64_t elapsed_total_muls_gm{};
+    std::uint64_t elapsed_total_muls_cp{};
 
     constexpr unsigned limb_bits{
         static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    constexpr unsigned length_in_bits{128U * limb_bits};
+    constexpr unsigned length_in_bits{512U * limb_bits};
 
     for (; ((trial < max_trial) && result_total_is_ok); ++trial) {
         const local::detail::str_pair_type str_pair{local::detail::get_hex_string_pair(length_in_bits)};
@@ -139,6 +142,9 @@ auto main() -> int {
 
         local::gmp_int gm_a{"0x" + str_pair.first};
         local::gmp_int gm_b{"0x" + str_pair.second};
+
+        local::cpp_int cp_a{"0x" + str_pair.first};
+        local::cpp_int cp_b{"0x" + str_pair.second};
 
         {
             const auto start{std::chrono::high_resolution_clock::now()};
@@ -165,6 +171,18 @@ auto main() -> int {
         }
 
         {
+            const auto start{std::chrono::high_resolution_clock::now()};
+
+            const local::cpp_int mul_result = cp_a * cp_b;
+
+            const auto stop{std::chrono::high_resolution_clock::now()};
+
+            const auto elapsed_one_mul{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
+
+            elapsed_total_muls_cp = elapsed_total_muls_cp + static_cast<std::uint64_t>(elapsed_one_mul);
+        }
+
+        {
             if ((trial > 0U) && ((trial % 32U) == UINT32_C(0))) {
                 const double average_mul_time_us_bn =
                     (static_cast<double>(elapsed_total_muls_bn) / static_cast<double>(trial)) / 1000.0;
@@ -186,6 +204,18 @@ auto main() -> int {
 
                     strm << "trial: " << trial << ", average_mul_time_us_gm: " << std::setprecision(1) << std::fixed
                          << average_mul_time_us_gm;
+
+                    std::cout << strm.str() << std::endl;
+                }
+
+                const double average_mul_time_us_cp =
+                    (static_cast<double>(elapsed_total_muls_cp) / static_cast<double>(trial)) / 1000.0;
+
+                {
+                    std::stringstream strm{};
+
+                    strm << "trial: " << trial << ", average_mul_time_us_cp: " << std::setprecision(1) << std::fixed
+                         << average_mul_time_us_cp;
 
                     std::cout << strm.str() << std::endl;
                 }

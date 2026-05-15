@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: BSL-1.0
 //
 // Probes the scratch_allocator high-water mark for each allocating
-// multiplication algorithm (Karatsuba, Toom-Cook 3, Toom-Cook 4) across a
-// range of operand sizes. Drives tuning of the *_storage_size heuristics in
-// mul_impl.hpp: pick the smallest multiplier that comfortably covers the
-// observed peak/s ratio across the algorithm's full active range.
+// multiplication algorithm (Karatsuba, Toom-Cook 3, Toom-Cook 4, Toom-Cook
+// 6.5) across a range of operand sizes. Drives tuning of the *_storage_size
+// heuristics in mul_impl.hpp: pick the smallest multiplier that comfortably
+// covers the observed peak/s ratio across the algorithm's full active range.
 //
 // Disabled by default. To run:
 //   cmake --preset appleclang-release -DBEMAN_BIG_INT_RUN_BENCHMARKS=ON
@@ -131,6 +131,17 @@ std::size_t peak_toom_cook_4_at(const std::size_t limbs) {
                         });
 }
 
+std::size_t peak_toom_cook_6_5_at(const std::size_t limbs) {
+    return measure_peak(limbs,
+                        [](const std::span<uint_t>       r,
+                           const std::span<const uint_t> a,
+                           const std::span<const uint_t> b,
+                           scratch_for_test&             s) {
+                            ::beman::big_int::detail::multiply_toom_cook_6_5(
+                                r.first(a.size() + b.size()), a, b, s, std::size_t{1});
+                        });
+}
+
 struct algorithm_runner {
     std::string_view name;
     std::size_t      min_limbs;
@@ -145,6 +156,7 @@ constexpr algorithm_runner algorithms[] = {
     {"karatsuba", 40, 4000, peak_karatsuba_at},
     {"toom-cook-3", 550, 80000, peak_toom_cook_3_at},
     {"toom-cook-4", 1400, 80000, peak_toom_cook_4_at},
+    {"toom-cook-6.5", 3000, 80000, peak_toom_cook_6_5_at},
 };
 
 constexpr std::size_t sweep_limbs[] = {

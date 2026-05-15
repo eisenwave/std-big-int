@@ -1,0 +1,19 @@
+Multiplication algorithm crossover summary
+==================================================
+
+Empirical complexity (log-log slope of upper-half data)
+--------------------------------------------------
+algorithm        empirical   theoretical
+schoolbook           2.132         2.000
+karatsuba            1.646         1.585
+toom-cook-3          1.501         1.465
+toom-cook-4          1.460         1.404
+toom-cook-6.5        1.401         1.328
+
+Crossover points (first limb count where right is faster than left)
+--------------------------------------------------
+left            -> right              crossover
+schoolbook      -> karatsuba           11 limbs
+karatsuba       -> toom-cook-3        300 limbs
+toom-cook-3     -> toom-cook-4        438 limbs
+toom-cook-4     -> toom-cook-6.5     1088 limbs
