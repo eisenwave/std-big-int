@@ -70,11 +70,10 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
 // `result` must NOT alias `a` or `b`.
 // `scratch` provides pre-allocated workspace for temporaries.
 // ---------------------------------------------------------------------------
-template <class Allocator>
 constexpr void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
                                   const std::span<const uint_multiprecision_t> a_untrimmed,
                                   const std::span<const uint_multiprecision_t> b_untrimmed,
-                                  scratch_allocator<Allocator>&                scratch) noexcept {
+                                  scratch_allocator_base&                scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
@@ -383,11 +382,10 @@ constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { r
 // `result` must NOT alias `a` or `b`.
 // `scratch` provides pre-allocated workspace for temporaries.
 // ---------------------------------------------------------------------------
-template <class Allocator>
 constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                                     const std::span<const uint_multiprecision_t> a_untrimmed,
                                     const std::span<const uint_multiprecision_t> b_untrimmed,
-                                    scratch_allocator<Allocator>&                scratch) noexcept {
+                                    scratch_allocator_base&                scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
@@ -622,11 +620,10 @@ constexpr std::size_t toom_cook_4_storage_size(const std::size_t s) noexcept { r
 // `toom_cook_4_cutoff` for this call only. Production callers should omit it so
 // the default cutoff applies. Recursive sub-product calls always use the default.
 // ---------------------------------------------------------------------------
-template <class Allocator>
 constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
                                     const std::span<const uint_multiprecision_t> a_untrimmed,
                                     const std::span<const uint_multiprecision_t> b_untrimmed,
-                                    scratch_allocator<Allocator>&                scratch,
+                                    scratch_allocator_base&                scratch,
                                     const std::size_t                            cutoff_override = 0) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
@@ -1116,11 +1113,10 @@ struct subsystem_signs {
 // so the default cutoff applies. Recursive sub-product calls always use the
 // default.
 // ---------------------------------------------------------------------------
-template <class Allocator>
 constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
                                       const std::span<const uint_multiprecision_t> a_untrimmed,
                                       const std::span<const uint_multiprecision_t> b_untrimmed,
-                                      scratch_allocator<Allocator>&                scratch,
+                                      scratch_allocator_base&                scratch,
                                       const std::size_t                            cutoff_override = 0) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
