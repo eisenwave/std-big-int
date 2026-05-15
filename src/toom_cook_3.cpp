@@ -64,15 +64,8 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     }
 
     // ---- Evaluate at x = 1: tmpa = a0 + a1 + a2; tmpb = b0 + b1 + b2 ----
-    std::ranges::copy(a0, tmpa.begin());
-    std::size_t tmpa_size = a0.size();
-    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a1);
-    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a2);
-
-    std::ranges::copy(b0, tmpb.begin());
-    std::size_t tmpb_size = b0.size();
-    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b2);
+    std::size_t tmpa_size = add_many_into_tmp(tmpa, {a0, a1, a2});
+    std::size_t tmpb_size = add_many_into_tmp(tmpb, {b0, b1, b2});
 
     // v1 = tmpa * tmpb
     std::ranges::fill(v1, uint_multiprecision_t{0});
@@ -82,17 +75,13 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                          scratch);
 
     // ---- Evaluate at x = -1: tmpa = (a0 + a2) - a1 (signed); tmpb similarly ----
-    std::ranges::copy(a0, tmpa.begin());
-    tmpa_size = a0.size();
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a2);
+    tmpa_size = add_many_into_tmp(tmpa, {a0, a2});
     const auto sub_a =
         subtract_unsigned_spans_signed(tmpa, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, a1);
     tmpa_size         = sub_a.size;
     const bool sign_a = sub_a.negative;
 
-    std::ranges::copy(b0, tmpb.begin());
-    tmpb_size = b0.size();
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b2);
+    tmpb_size = add_many_into_tmp(tmpb, {b0, b2});
     const auto sub_b =
         subtract_unsigned_spans_signed(tmpb, std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, b1);
     tmpb_size         = sub_b.size;
@@ -113,19 +102,8 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     }
 
     // ---- Evaluate at x = 2: tmpa = 4*a2 + 2*a1 + a0 (Horner: ((a2<<1)+a1)<<1+a0); tmpb similarly ----
-    std::ranges::copy(a2, tmpa.begin());
-    tmpa_size = a2.size();
-    tmpa_size = shift_left_one(tmpa, tmpa_size);   // 2*a2
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a1); // 2*a2 + a1
-    tmpa_size = shift_left_one(tmpa, tmpa_size);   // 4*a2 + 2*a1
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a0); // 4*a2 + 2*a1 + a0
-
-    std::ranges::copy(b2, tmpb.begin());
-    tmpb_size = b2.size();
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b0);
+    tmpa_size = horner_eval_into_tmp(tmpa, {a2, a1, a0}, 1u);
+    tmpb_size = horner_eval_into_tmp(tmpb, {b2, b1, b0}, 1u);
 
     // v2 = p(2) * q(2)
     std::ranges::fill(v2, uint_multiprecision_t{0});

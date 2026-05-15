@@ -6,6 +6,7 @@
 
 #include <beman/big_int/detail/config.hpp>
 #include <algorithm>
+#include <initializer_list>
 #include <ranges>
 #include <utility>
 #include <span>
@@ -277,6 +278,46 @@ shift_left_n(const std::span<uint_multiprecision_t> tmp, std::size_t size, const
 [[nodiscard]] constexpr std::size_t shift_left_one(const std::span<uint_multiprecision_t> tmp,
                                                    const std::size_t                      size) noexcept {
     return shift_left_n(tmp, size, 1u);
+}
+
+// In-place tmp <- addends[0] + addends[1] + ... + addends[N-1]; returns new size.
+// Equivalent to copying the first addend into tmp and chaining add_into_tmp for
+// the rest. addends.size() == 0 is allowed and returns 0. Empty addends after
+// the first are tolerated (treated as zero by add_into_tmp).
+[[nodiscard]] constexpr std::size_t
+add_many_into_tmp(const std::span<uint_multiprecision_t>                              tmp,
+                  const std::initializer_list<std::span<const uint_multiprecision_t>> addends) noexcept {
+    if (addends.size() == 0) {
+        return 0;
+    }
+    auto it = addends.begin();
+    std::ranges::copy(*it, tmp.begin());
+    std::size_t size = it->size();
+    for (++it; it != addends.end(); ++it) {
+        size = add_into_tmp(tmp, size, *it);
+    }
+    return size;
+}
+
+// In-place tmp <- ((...((coeffs[0] << shift) + coeffs[1]) << shift) + ... ) + coeffs[N-1];
+// returns new size. Evaluates a polynomial with MSB-first coefficients at x = 2^shift
+// via Horner's method. Single-pass equivalent of chained (shift_left_n, add_into_tmp)
+// pairs that recur throughout the Toom-Cook evaluation phases.
+[[nodiscard]] constexpr std::size_t
+horner_eval_into_tmp(const std::span<uint_multiprecision_t>                              tmp,
+                     const std::initializer_list<std::span<const uint_multiprecision_t>> coeffs,
+                     const unsigned                                                      shift) noexcept {
+    if (coeffs.size() == 0) {
+        return 0;
+    }
+    auto it = coeffs.begin();
+    std::ranges::copy(*it, tmp.begin());
+    std::size_t size = it->size();
+    for (++it; it != coeffs.end(); ++it) {
+        size = shift_left_n(tmp, size, shift);
+        size = add_into_tmp(tmp, size, *it);
+    }
+    return size;
 }
 
 // In-place tmp >>= n (0 < n < limb_width); returns the dropped low n bits packed
