@@ -429,25 +429,32 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     subtract_unsigned_spans(v2, v2_view, v0_view);
     subtract_unsigned_spans(v4, v4_view, v0_view);
 
-    // vh -= 2048*c0; vh /= 2.
+    // vh = (vh - 2048*c0) / 2.
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(v0_view, tmp_double.begin());
     std::size_t td_size = trimmed_size_span(v0_view);
     td_size             = shift_left_n(tmp_double, td_size, 11u);
-    subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     {
-        const auto rem = shift_right_one(vh);
+        const auto rem =
+            subtract_unsigned_spans_and_shift_right_one(vh,
+                                                        vh_view,
+                                                        std::span<const uint_multiprecision_t>{tmp_double.data(),
+                                                                                               td_size});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
-    // vq -= 4194304*c0; vq /= 4.
+    // vq = (vq - 4194304*c0) / 4.
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(v0_view, tmp_double.begin());
     td_size = trimmed_size_span(v0_view);
     td_size = shift_left_n(tmp_double, td_size, 22u);
-    subtract_unsigned_spans(vq, vq_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     {
-        const auto rem = shift_right_n(vq, 2u);
+        const auto rem =
+            subtract_unsigned_spans_and_shift_right_n(vq,
+                                                      vq_view,
+                                                      std::span<const uint_multiprecision_t>{tmp_double.data(),
+                                                                                             td_size},
+                                                      2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -469,17 +476,15 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     td_size = shift_left_n(tmp_double, td_size, 20u);
     subtract_unsigned_spans(vm4, vm4_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
 
-    // vmh -= c11; vmh /= 4.
-    subtract_unsigned_spans(vmh, vmh_view, vinf_view);
+    // vmh = (vmh - c11) / 4.
     {
-        const auto rem = shift_right_n(vmh, 2u);
+        const auto rem = subtract_unsigned_spans_and_shift_right_n(vmh, vmh_view, vinf_view, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
-    // vmq -= c11; vmq /= 16.
-    subtract_unsigned_spans(vmq, vmq_view, vinf_view);
+    // vmq = (vmq - c11) / 16.
     {
-        const auto rem = shift_right_n(vmq, 4u);
+        const auto rem = subtract_unsigned_spans_and_shift_right_n(vmq, vmq_view, vinf_view, 4u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 

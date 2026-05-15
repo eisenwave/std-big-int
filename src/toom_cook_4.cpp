@@ -240,8 +240,9 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     // Step 9: v2 -= v1.  v2 = 4c4 + 21c6.
     subtract_unsigned_spans(v2, v2_view, v1_view);
 
-    // Step 10: subtract 21*c6 from v2 using tmp_double for the doublings.
-    //   v2 -= 1*c6, then v2 -= 4*c6, then v2 -= 16*c6.  Total subtracted = 21*c6.
+    // Step 10-11: subtract 21*c6 from v2 using tmp_double for the doublings, then
+    // halve twice in one fused pass.
+    //   v2 -= 1*c6, then v2 -= 4*c6, then v2 = (v2 - 16*c6) / 4.  Net: v2 = c4.
     subtract_unsigned_spans(v2, v2_view, vinf_view);
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(vinf_view, tmp_double.begin());
@@ -249,12 +250,13 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     td_size             = shift_left_n(tmp_double, td_size, 2u);
     subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     td_size = shift_left_n(tmp_double, td_size, 2u);
-    subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
-    // After Step 10: v2 = 4c4.
-
-    // Step 11: v2 /= 4 (two halvings).  v2 = c4.
     {
-        const auto rem = shift_right_n(v2, 2u);
+        const auto rem =
+            subtract_unsigned_spans_and_shift_right_n(v2,
+                                                      v2_view,
+                                                      std::span<const uint_multiprecision_t>{tmp_double.data(),
+                                                                                             td_size},
+                                                      2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 

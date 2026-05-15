@@ -128,7 +128,6 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     const auto vm1_view  = std::span<const uint_multiprecision_t>{vm1};
     const auto v2_view   = std::span<const uint_multiprecision_t>{v2};
 
-    // TODO(mborland) : Another instance of repetitive operations
     // Step 1: v2 <- (v2 - vm1) / 3 (sign-aware: add if vm1 was negative).
     sign_vm1 ? add_unsigned_spans_no_carry(v2, v2_view, vm1_view)
              : subtract_unsigned_spans_no_borrow(v2, v2_view, vm1_view);
