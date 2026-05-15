@@ -150,6 +150,69 @@ constexpr signed_sub_result subtract_unsigned_spans_signed(const std::span<uint_
     return {subtract_unsigned_spans(result.first(b_trim), b_view, a_view), true};
 }
 
+// ---------------------------------------------------------------------------
+// Single-limb short division.
+// `quotient[i]` := floor(([remainder, dividend[i]] as two limbs) / divisor)
+// scanning from the top limb down.
+// Returns the scalar remainder.
+// `quotient` and `dividend` may be the same range (i.e. alias each other),
+// but `quotient` may not be a strict subrange of `dividend`.
+//
+// Preconditions:
+//   - divisor != 0
+//   - quotient.size() >= dividend.size()
+//   - dividend.size() >= 1
+//   - quotient may alias dividend (we read dividend[i] before writing
+//     quotient[i]; subsequent iterations touch strictly lower indices).
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t
+divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
+                      const std::span<const uint_multiprecision_t> dividend,
+                      const uint_multiprecision_t                  divisor) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
+
+    uint_multiprecision_t remainder = 0;
+    for (std::size_t i = dividend.size(); i-- > 0;) {
+        // narrowing_div requires x.high_bits < y; the previous remainder was
+        // taken mod divisor, so this invariant holds (and 0 < divisor on the
+        // first iteration).
+        const wide<uint_multiprecision_t> num{.low_bits = dividend[i], .high_bits = remainder};
+        const auto [q, r] = narrowing_div(num, divisor);
+        quotient[i]       = q;
+        remainder         = r;
+    }
+    return remainder;
+}
+
+// ---------------------------------------------------------------------------
+// Multiply a multi-limb number `a` by a single limb `val`.
+// `result` must have space for `a.size() + 1` limbs and must NOT alias `a`.
+// Returns the number of significant result limbs.
+// ---------------------------------------------------------------------------
+constexpr std::size_t multiply_single_limb(const std::span<uint_multiprecision_t>       result,
+                                           const std::span<const uint_multiprecision_t> a,
+                                           const uint_multiprecision_t                  val) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
+
+    uint_multiprecision_t carry = 0;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        const auto [lo, hi] = widening_mul(a[i], val);
+        const auto [s1, c1] = carrying_add(lo, carry);
+        result[i]           = s1;
+        carry               = hi + static_cast<uint_multiprecision_t>(c1);
+    }
+
+    if (carry != 0) {
+        result[a.size()] = carry;
+        return a.size() + 1;
+    }
+
+    return a.size();
+}
+
 } // namespace beman::big_int::detail
 
 #endif // BEMAN_BIG_INT_SPAN_OPS_HPP
