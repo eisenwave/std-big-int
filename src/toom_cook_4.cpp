@@ -95,7 +95,7 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
 
     tmpb_size = add_many_into_tmp(tmpb, {b0, b2});
     // tmpa now holds (a0 + a2) - (a1 + a3); reuse tail of vm1 as a scratch slot for (b1 + b3).
-    aux_size            = add_many_into_tmp(vm1, {b1, b3});
+    aux_size = add_many_into_tmp(vm1, {b1, b3});
     const auto sub_b_m1 =
         subtract_unsigned_spans_signed(tmpb,
                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
@@ -251,12 +251,8 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     td_size = shift_left_n(tmp_double, td_size, 2u);
     {
-        const auto rem =
-            subtract_unsigned_spans_and_shift_right_n(v2,
-                                                      v2_view,
-                                                      std::span<const uint_multiprecision_t>{tmp_double.data(),
-                                                                                             td_size},
-                                                      2u);
+        const auto rem = subtract_unsigned_spans_and_shift_right_n(
+            v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size}, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 

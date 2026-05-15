@@ -229,8 +229,8 @@ subtract_unsigned_spans_and_shift_right_n(const std::span<uint_multiprecision_t>
     const uint_multiprecision_t rem  = d_prev & mask;
 
     for (std::size_t i = 1; i < result.size(); ++i) {
-        const auto ai           = i < a.size() ? a[i] : uint_multiprecision_t{0};
-        const auto bi           = i < b.size() ? b[i] : uint_multiprecision_t{0};
+        const auto ai            = i < a.size() ? a[i] : uint_multiprecision_t{0};
+        const auto bi            = i < b.size() ? b[i] : uint_multiprecision_t{0};
         const auto [d_curr, boi] = borrowing_sub(ai, bi, borrow);
         borrow                   = boi;
         result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);

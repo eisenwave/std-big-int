@@ -114,7 +114,7 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     //   tmpa = (a0+a2+a4) - (a1+a3+a5);  tmpb = (b0+b2+b4+b6) - (b1+b3+b5). ----
     tmpa_size = add_many_into_tmp(tmpa, {a0, a2, a4});
     // Use vm1 (currently zero) as scratch to hold (a1+a3+a5).
-    aux_size            = add_many_into_tmp(vm1, {a1, a3, a5});
+    aux_size = add_many_into_tmp(vm1, {a1, a3, a5});
     const auto sub_a_m1 =
         subtract_unsigned_spans_signed(tmpa,
                                        std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
@@ -124,7 +124,7 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
 
     tmpb_size = add_many_into_tmp(tmpb, {b0, b2, b4, b6});
     // Reuse vm1 as scratch for (b1+b3+b5).
-    aux_size            = add_many_into_tmp(vm1, {b1, b3, b5});
+    aux_size = add_many_into_tmp(vm1, {b1, b3, b5});
     const auto sub_b_m1 =
         subtract_unsigned_spans_signed(tmpb,
                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
@@ -157,8 +157,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     //   tmpb = (b0+4b2+16b4+64b6) - (2b1+8b3+32b5). ----
     tmpa_size = horner_eval_into_tmp(tmpa, {a4, a2, a0}, 2u);
     // negative part 2a1+8a3+32a5 into vm2 (currently zero).
-    aux_size            = horner_eval_into_tmp(vm2, {a5, a3, a1}, 2u);
-    aux_size            = shift_left_one(vm2, aux_size);
+    aux_size = horner_eval_into_tmp(vm2, {a5, a3, a1}, 2u);
+    aux_size = shift_left_one(vm2, aux_size);
     const auto sub_a_m2 =
         subtract_unsigned_spans_signed(tmpa,
                                        std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
@@ -169,8 +169,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     // b-side: positive part b0+4b2+16b4+64b6 into tmpb.
     tmpb_size = horner_eval_into_tmp(tmpb, {b6, b4, b2, b0}, 2u);
     // negative part 2b1+8b3+32b5 into vm2 (reusing as scratch).
-    aux_size            = horner_eval_into_tmp(vm2, {b5, b3, b1}, 2u);
-    aux_size            = shift_left_one(vm2, aux_size);
+    aux_size = horner_eval_into_tmp(vm2, {b5, b3, b1}, 2u);
+    aux_size = shift_left_one(vm2, aux_size);
     const auto sub_b_m2 =
         subtract_unsigned_spans_signed(tmpb,
                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
@@ -203,8 +203,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     //   tmpb = (b0+16b2+256b4+4096b6) - (4b1+64b3+1024b5). ----
     tmpa_size = horner_eval_into_tmp(tmpa, {a4, a2, a0}, 4u);
     // negative part 4a1+64a3+1024a5 into vm4.
-    aux_size            = horner_eval_into_tmp(vm4, {a5, a3, a1}, 4u);
-    aux_size            = shift_left_n(vm4, aux_size, 2u);
+    aux_size = horner_eval_into_tmp(vm4, {a5, a3, a1}, 4u);
+    aux_size = shift_left_n(vm4, aux_size, 2u);
     const auto sub_a_m4 =
         subtract_unsigned_spans_signed(tmpa,
                                        std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
@@ -214,8 +214,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
 
     tmpb_size = horner_eval_into_tmp(tmpb, {b6, b4, b2, b0}, 4u);
     // negative part 4b1+64b3+1024b5 into vm4 (reusing).
-    aux_size            = horner_eval_into_tmp(vm4, {b5, b3, b1}, 4u);
-    aux_size            = shift_left_n(vm4, aux_size, 2u);
+    aux_size = horner_eval_into_tmp(vm4, {b5, b3, b1}, 4u);
+    aux_size = shift_left_n(vm4, aux_size, 2u);
     const auto sub_b_m4 =
         subtract_unsigned_spans_signed(tmpb,
                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
@@ -254,7 +254,7 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     tmpa_size = shift_left_one(tmpa, tmpa_size);
     // tmpa = 32a0+8a2+2a4
     // negative: 16a1+4a3+a5 in vmh.
-    aux_size            = horner_eval_into_tmp(vmh, {a1, a3, a5}, 2u);
+    aux_size = horner_eval_into_tmp(vmh, {a1, a3, a5}, 2u);
     const auto sub_a_mh =
         subtract_unsigned_spans_signed(tmpa,
                                        std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
@@ -264,8 +264,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
 
     tmpb_size = horner_eval_into_tmp(tmpb, {b0, b2, b4, b6}, 2u);
     // negative: 32b1+8b3+2b5 in vmh (reusing).
-    aux_size            = horner_eval_into_tmp(vmh, {b1, b3, b5}, 2u);
-    aux_size            = shift_left_one(vmh, aux_size);
+    aux_size = horner_eval_into_tmp(vmh, {b1, b3, b5}, 2u);
+    aux_size = shift_left_one(vmh, aux_size);
     const auto sub_b_mh =
         subtract_unsigned_spans_signed(tmpb,
                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
@@ -435,11 +435,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     std::size_t td_size = trimmed_size_span(v0_view);
     td_size             = shift_left_n(tmp_double, td_size, 11u);
     {
-        const auto rem =
-            subtract_unsigned_spans_and_shift_right_one(vh,
-                                                        vh_view,
-                                                        std::span<const uint_multiprecision_t>{tmp_double.data(),
-                                                                                               td_size});
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(
+            vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -449,12 +446,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     td_size = trimmed_size_span(v0_view);
     td_size = shift_left_n(tmp_double, td_size, 22u);
     {
-        const auto rem =
-            subtract_unsigned_spans_and_shift_right_n(vq,
-                                                      vq_view,
-                                                      std::span<const uint_multiprecision_t>{tmp_double.data(),
-                                                                                             td_size},
-                                                      2u);
+        const auto rem = subtract_unsigned_spans_and_shift_right_n(
+            vq, vq_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size}, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -780,18 +773,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     //   c8  in vh  -> offset  8*k
     //   c9  in vmq -> offset  9*k
     //   c10 in vq  -> offset 10*k
-    recompose(result,
-              k,
-              {vm4_view,
-               v4_view,
-               vm2_view,
-               v2_view,
-               vm1_view,
-               v1_view,
-               vmh_view,
-               vh_view,
-               vmq_view,
-               vq_view});
+    recompose(
+        result, k, {vm4_view, v4_view, vm2_view, v2_view, vm1_view, v1_view, vmh_view, vh_view, vmq_view, vq_view});
 
     // Release scratch back to the bump pool for sibling reuse.
     scratch.deallocate(total_scratch);
