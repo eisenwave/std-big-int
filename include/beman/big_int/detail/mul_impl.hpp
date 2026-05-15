@@ -393,7 +393,7 @@ constexpr void recover_pair(const std::span<uint_multiprecision_t>       lower_d
     // Stage (s + |d|) in tmp_scratch first; the subtract-into-destination step
     // below would otherwise clobber s_view / d_view if either aliases a destination.
     std::ranges::fill(tmp_scratch, uint_multiprecision_t{0});
-    [[maybe_unused]] const bool sum_carry = add_unsigned_spans(tmp_scratch, s_view, d_view);
+    const bool sum_carry = add_unsigned_spans(tmp_scratch, s_view, d_view);
     BEMAN_BIG_INT_DEBUG_ASSERT(!sum_carry);
     const std::size_t plus_size = std::max(s_view.size(), d_view.size());
     const auto        plus_span = std::span<const uint_multiprecision_t>{tmp_scratch.data(), plus_size};
@@ -402,7 +402,7 @@ constexpr void recover_pair(const std::span<uint_multiprecision_t>       lower_d
     const std::span<uint_multiprecision_t> minus_dst = sign_d ? lower_dst : higher_dst;
     subtract_unsigned_spans(minus_dst, s_view, d_view);
     {
-        [[maybe_unused]] const auto rem = shift_right_one(minus_dst);
+        const auto rem = shift_right_one(minus_dst);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -411,7 +411,7 @@ constexpr void recover_pair(const std::span<uint_multiprecision_t>       lower_d
     std::ranges::fill(plus_dst, uint_multiprecision_t{0});
     std::ranges::copy(plus_span, plus_dst.begin());
     {
-        [[maybe_unused]] const auto rem = shift_right_one(plus_dst);
+        const auto rem = shift_right_one(plus_dst);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 }
@@ -594,25 +594,25 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t>      
 
     // Step 1: v2 <- (v2 - vm1) / 3 (sign-aware: add if vm1 was negative).
     if (sign_vm1) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(v2, v2_view, vm1_view);
+        const bool carry_out = add_unsigned_spans(v2, v2_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(v2, v2_view, vm1_view);
     }
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
+        const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
     // Step 2: vm1 <- (v1 - vm1) / 2 (sign-aware). After this, vm1 is non-negative.
     if (sign_vm1) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
+        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vm1, v1_view, vm1_view);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_one(vm1);
+        const auto rem = shift_right_one(vm1);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -622,7 +622,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t>      
     // Step 4: v2 <- (v2 - v1) / 2.
     subtract_unsigned_spans(v2, v2_view, v1_view);
     {
-        [[maybe_unused]] const auto rem = shift_right_one(v2);
+        const auto rem = shift_right_one(v2);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -936,19 +936,19 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     if (sign_vm1) {
         subtract_unsigned_spans(v1, v1_view, vm1_view);
     } else {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(v1, v1_view, vm1_view);
+        const bool carry_out = add_unsigned_spans(v1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     }
     // Step 1b: v1 /= 2.
     {
-        [[maybe_unused]] const auto rem = shift_right_one(v1);
+        const auto rem = shift_right_one(v1);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 1: v1 = E1 = c0 + c2 + c4 + c6.
 
     // Step 2: vm1 <- v1 - vm1 algebraic = (v1_orig - vm1_orig)/2 = D1.
     if (sign_vm1) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
+        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vm1, v1_view, vm1_view);
@@ -959,26 +959,26 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     if (sign_vm2) {
         subtract_unsigned_spans(v2, v2_view, vm2_view);
     } else {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(v2, v2_view, vm2_view);
+        const bool carry_out = add_unsigned_spans(v2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     }
     // Step 3b: v2 /= 2.
     {
-        [[maybe_unused]] const auto rem = shift_right_one(v2);
+        const auto rem = shift_right_one(v2);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 3: v2 = E2 = c0 + 4c2 + 16c4 + 64c6.
 
     // Step 4a: vm2 <- v2 - vm2 algebraic = (v2_orig - vm2_orig)/2 = 2c1 + 8c3 + 32c5.
     if (sign_vm2) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vm2, v2_view, vm2_view);
+        const bool carry_out = add_unsigned_spans(vm2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vm2, v2_view, vm2_view);
     }
     // Step 4b: vm2 /= 2.
     {
-        [[maybe_unused]] const auto rem = shift_right_one(vm2);
+        const auto rem = shift_right_one(vm2);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 4: vm2 = D2 = c1 + 4c3 + 16c5. sign_vm2 is no longer needed.
@@ -989,7 +989,7 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     subtract_unsigned_spans(v2, v2_view, v1_view);
     // Step 6: v2 /= 3.  v2 = c2 + 5c4 + 21c6.
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
+        const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1015,7 +1015,7 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
 
     // Step 11: v2 /= 4 (two halvings).  v2 = c4.
     {
-        [[maybe_unused]] const auto rem = shift_right_n(v2, 2u);
+        const auto rem = shift_right_n(v2, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1050,7 +1050,7 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
 
     // Step 17: vh /= 2.  vh = 16c1 + 4c3 + c5 = T_odd.
     {
-        [[maybe_unused]] const auto rem = shift_right_one(vh);
+        const auto rem = shift_right_one(vh);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1065,12 +1065,12 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     subtract_unsigned_spans(vh, vh_view, vm1_view);
     // Step 20: vm2 /= 3.  vm2 = alpha = c3 + 5c5.
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(vm2, vm2_view, uint_multiprecision_t{3});
+        const auto rem = divide_unsigned_short(vm2, vm2_view, uint_multiprecision_t{3});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // Step 21: vh /= 3.  vh = beta = 5c1 + c3.
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(vh, vh_view, uint_multiprecision_t{3});
+        const auto rem = divide_unsigned_short(vh, vh_view, uint_multiprecision_t{3});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1078,12 +1078,12 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     // Step 22: tmp_double = D1; vm1 *= 4; vm1 += tmp_double  (-> 5*D1).
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(vm1_view, tmp_double.begin());
-    [[maybe_unused]] const auto sz_2D1 = shift_left_one(vm1, vm1.size()); // 2*D1
+    const auto sz_2D1 = shift_left_one(vm1, vm1.size()); // 2*D1
     BEMAN_BIG_INT_DEBUG_ASSERT(sz_2D1 == vm1.size());
-    [[maybe_unused]] const auto sz_4D1 = shift_left_one(vm1, vm1.size()); // 4*D1
+    const auto sz_4D1 = shift_left_one(vm1, vm1.size()); // 4*D1
     BEMAN_BIG_INT_DEBUG_ASSERT(sz_4D1 == vm1.size());
     {
-        [[maybe_unused]] const bool carry = add_unsigned_spans(vm1, vm1_view, td_view); // 5*D1
+        const bool carry = add_unsigned_spans(vm1, vm1_view, td_view); // 5*D1
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
     }
     // Step 23: vm1 -= alpha; vm1 -= beta.  vm1 = 3*c3.
@@ -1091,21 +1091,21 @@ constexpr void multiply_toom_cook_4(const std::span<uint_multiprecision_t>      
     subtract_unsigned_spans(vm1, vm1_view, vh_view);
     // Step 24: vm1 /= 3.  vm1 = c3.
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(vm1, vm1_view, uint_multiprecision_t{3});
+        const auto rem = divide_unsigned_short(vm1, vm1_view, uint_multiprecision_t{3});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
     // Step 25: vh -= c3 -> 5*c1; vh /= 5.  vh = c1.
     subtract_unsigned_spans(vh, vh_view, vm1_view);
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(vh, vh_view, uint_multiprecision_t{5});
+        const auto rem = divide_unsigned_short(vh, vh_view, uint_multiprecision_t{5});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
     // Step 26: vm2 -= c3 -> 5*c5; vm2 /= 5.  vm2 = c5.
     subtract_unsigned_spans(vm2, vm2_view, vm1_view);
     {
-        [[maybe_unused]] const auto rem = divide_unsigned_short(vm2, vm2_view, uint_multiprecision_t{5});
+        const auto rem = divide_unsigned_short(vm2, vm2_view, uint_multiprecision_t{5});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1753,15 +1753,15 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     if (sign_vm1) {
         subtract_unsigned_spans(v1, v1_view, vm1_view);
     } else {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(v1, v1_view, vm1_view);
+        const bool carry_out = add_unsigned_spans(v1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_one(v1);
+        const auto rem = shift_right_one(v1);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vm1) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
+        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vm1, v1_view, vm1_view);
@@ -1771,21 +1771,21 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     if (sign_vm2) {
         subtract_unsigned_spans(v2, v2_view, vm2_view);
     } else {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(v2, v2_view, vm2_view);
+        const bool carry_out = add_unsigned_spans(v2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_one(v2);
+        const auto rem = shift_right_one(v2);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vm2) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vm2, v2_view, vm2_view);
+        const bool carry_out = add_unsigned_spans(vm2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vm2, v2_view, vm2_view);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_one(vm2);
+        const auto rem = shift_right_one(vm2);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1793,21 +1793,21 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     if (sign_vm4) {
         subtract_unsigned_spans(v4, v4_view, vm4_view);
     } else {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(v4, v4_view, vm4_view);
+        const bool carry_out = add_unsigned_spans(v4, v4_view, vm4_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_one(v4);
+        const auto rem = shift_right_one(v4);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vm4) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vm4, v4_view, vm4_view);
+        const bool carry_out = add_unsigned_spans(vm4, v4_view, vm4_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vm4, v4_view, vm4_view);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_n(vm4, 2u);
+        const auto rem = shift_right_n(vm4, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1816,15 +1816,15 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     if (sign_vmh) {
         subtract_unsigned_spans(vh, vh_view, vmh_view);
     } else {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vh, vh_view, vmh_view);
+        const bool carry_out = add_unsigned_spans(vh, vh_view, vmh_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_one(vh);
+        const auto rem = shift_right_one(vh);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vmh) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vmh, vh_view, vmh_view);
+        const bool carry_out = add_unsigned_spans(vmh, vh_view, vmh_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vmh, vh_view, vmh_view);
@@ -1835,15 +1835,15 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     if (sign_vmq) {
         subtract_unsigned_spans(vq, vq_view, vmq_view);
     } else {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vq, vq_view, vmq_view);
+        const bool carry_out = add_unsigned_spans(vq, vq_view, vmq_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     }
     {
-        [[maybe_unused]] const auto rem = shift_right_one(vq);
+        const auto rem = shift_right_one(vq);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vmq) {
-        [[maybe_unused]] const bool carry_out = add_unsigned_spans(vmq, vq_view, vmq_view);
+        const bool carry_out = add_unsigned_spans(vmq, vq_view, vmq_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
     } else {
         subtract_unsigned_spans(vmq, vq_view, vmq_view);
@@ -1874,7 +1874,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     td_size             = shift_left_n(tmp_double, td_size, 11u);
     subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     {
-        [[maybe_unused]] const auto rem = shift_right_one(vh);
+        const auto rem = shift_right_one(vh);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1885,7 +1885,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     td_size = shift_left_n(tmp_double, td_size, 22u);
     subtract_unsigned_spans(vq, vq_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     {
-        [[maybe_unused]] const auto rem = shift_right_n(vq, 2u);
+        const auto rem = shift_right_n(vq, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1910,14 +1910,14 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     // vmh -= c11; vmh /= 4.
     subtract_unsigned_spans(vmh, vmh_view, vinf_view);
     {
-        [[maybe_unused]] const auto rem = shift_right_n(vmh, 2u);
+        const auto rem = shift_right_n(vmh, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
     // vmq -= c11; vmq /= 16.
     subtract_unsigned_spans(vmq, vmq_view, vinf_view);
     {
-        [[maybe_unused]] const auto rem = shift_right_n(vmq, 4u);
+        const auto rem = shift_right_n(vmq, 4u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -1978,7 +1978,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         s             = shift_left_n(tmp_double, s, 2u);
 
         // d_buf <- b + 4*d = S_2.
-        [[maybe_unused]] const bool s2_carry =
+        const bool s2_carry =
             add_unsigned_spans(d_buf, b_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
         BEMAN_BIG_INT_DEBUG_ASSERT(!s2_carry);
         // b_buf <- |b - 4*d| with sign.
@@ -1993,7 +1993,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         s = shift_left_n(tmp_double, s, 4u);
 
         // e_buf <- c + 16*e = S_4.
-        [[maybe_unused]] const bool s4_carry =
+        const bool s4_carry =
             add_unsigned_spans(e_buf, c_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
         BEMAN_BIG_INT_DEBUG_ASSERT(!s4_carry);
         // c_buf <- |c - 16*e| with sign.
@@ -2024,12 +2024,12 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         // (Trim to satisfy multiply_single_limb's `result.size() >= a.size() + 1` precondition.)
         {
             const auto                  d_trim = d_v.first(trimmed_size_span(d_v));
-            [[maybe_unused]] const auto m400   = multiply_single_limb(tmp_double, d_trim, uint_multiprecision_t{400});
+            const auto m400   = multiply_single_limb(tmp_double, d_trim, uint_multiprecision_t{400});
             subtract_unsigned_spans(e_buf, e_v, std::span<const uint_multiprecision_t>{tmp_double.data(), m400});
         }
         // e_buf = 680400 * s_o.
         {
-            [[maybe_unused]] const auto rem = divide_unsigned_short(e_buf, e_v, uint_multiprecision_t{680400});
+            const auto rem = divide_unsigned_short(e_buf, e_v, uint_multiprecision_t{680400});
             BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
         }
         // e_buf = s_o now.
@@ -2037,11 +2037,11 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         // Recover s_inner: d_buf = 900*s_o + 144*s_i -> d_buf -= 900*s_o; d_buf /= 144.
         {
             const auto                  e_trim = e_v.first(trimmed_size_span(e_v));
-            [[maybe_unused]] const auto m900   = multiply_single_limb(tmp_double, e_trim, uint_multiprecision_t{900});
+            const auto m900   = multiply_single_limb(tmp_double, e_trim, uint_multiprecision_t{900});
             subtract_unsigned_spans(d_buf, d_v, std::span<const uint_multiprecision_t>{tmp_double.data(), m900});
         }
         {
-            [[maybe_unused]] const auto rem = divide_unsigned_short(d_buf, d_v, uint_multiprecision_t{144});
+            const auto rem = divide_unsigned_short(d_buf, d_v, uint_multiprecision_t{144});
             BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
         }
         // d_buf = s_i.
@@ -2063,7 +2063,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         // Implementation: compute 272*|b| into tmp_double. Then combine with |c| based on sign relations.
 
         const auto                  b_diff_trim = b_v.first(trimmed_size_span(b_v));
-        [[maybe_unused]] const auto m272  = multiply_single_limb(tmp_double, b_diff_trim, uint_multiprecision_t{272});
+        const auto m272  = multiply_single_limb(tmp_double, b_diff_trim, uint_multiprecision_t{272});
         const auto                  td272 = std::span<const uint_multiprecision_t>{tmp_double.data(), m272};
         // X_signed = (sign_D2 ? -272|b| : +272|b|) - (sign_D4 ? -|c| : +|c|)
         //          = sign_D2 ? (-272|b| - (sign_D4 ? -|c| : +|c|)) : (272|b| - (sign_D4 ? -|c| : +|c|))
@@ -2079,14 +2079,14 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
             sign_X        = sign_D2 ^ sx.negative;
         } else {
             // Different signs: result magnitude = 272|b| + |c|; sign = sign_D2.
-            [[maybe_unused]] const bool carry = add_unsigned_spans(c_buf, td272, c_v);
+            const bool carry = add_unsigned_spans(c_buf, td272, c_v);
             BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
             sign_X = sign_D2;
         }
         // c_buf now holds |X|; X_signed = 771120 * d_outer; therefore
         // sign of d_outer = sign_X (771120 > 0); magnitude |d_outer| = |X|/771120.
         {
-            [[maybe_unused]] const auto rem = divide_unsigned_short(
+            const auto rem = divide_unsigned_short(
                 c_buf, std::span<const uint_multiprecision_t>{c_buf}, uint_multiprecision_t{771120});
             BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
         }
@@ -2099,7 +2099,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         // Compute 1020 * |c| into tmp_double, sign = sign_d_outer.
         const auto                  c_buf_view = std::span<const uint_multiprecision_t>{c_buf};
         const auto                  c_trim     = c_buf_view.first(trimmed_size_span(c_buf_view));
-        [[maybe_unused]] const auto m1020      = multiply_single_limb(tmp_double, c_trim, uint_multiprecision_t{1020});
+        const auto m1020      = multiply_single_limb(tmp_double, c_trim, uint_multiprecision_t{1020});
         const auto                  td1020     = std::span<const uint_multiprecision_t>{tmp_double.data(), m1020};
         // -D_2 has sign !sign_D2. So we compute (-D_2) + (-(1020*d_outer)) signed-result.
         // = (-D_2) - 1020*d_outer signed.
@@ -2115,13 +2115,13 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
             const auto sy = subtract_unsigned_spans_signed(b_buf, b_v, td1020);
             sign_Y        = sign_first ^ sy.negative;
         } else {
-            [[maybe_unused]] const bool carry = add_unsigned_spans(b_buf, b_v, td1020);
+            const bool carry = add_unsigned_spans(b_buf, b_v, td1020);
             BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
             sign_Y = sign_first;
         }
         // Y = 240 * d_inner. Therefore |d_inner| = |Y|/240, sign_d_inner = sign_Y.
         {
-            [[maybe_unused]] const auto rem = divide_unsigned_short(
+            const auto rem = divide_unsigned_short(
                 b_buf, std::span<const uint_multiprecision_t>{b_buf}, uint_multiprecision_t{240});
             BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
         }
