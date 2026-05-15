@@ -378,11 +378,7 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     //   result += vm2 * B^(5k)    (c5)
     // c0 and c6 are already in result.
     // Carries propagate up to result.size().
-    add_shifted(result, k, vh_view);
-    add_shifted(result, 2 * k, v1_view);
-    add_shifted(result, 3 * k, vm1_view);
-    add_shifted(result, 4 * k, v2_view);
-    add_shifted(result, 5 * k, vm2_view);
+    recompose(result, k, {vh_view, v1_view, vm1_view, v2_view, vm2_view});
 
     // Release scratch back to the bump pool for sibling reuse.
     scratch.deallocate(total_scratch);

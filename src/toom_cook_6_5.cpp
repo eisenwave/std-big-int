@@ -822,16 +822,18 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     //   c8  in vh  -> offset  8*k
     //   c9  in vmq -> offset  9*k
     //   c10 in vq  -> offset 10*k
-    add_shifted(result, 1 * k, vm4_view);
-    add_shifted(result, 2 * k, v4_view);
-    add_shifted(result, 3 * k, vm2_view);
-    add_shifted(result, 4 * k, v2_view);
-    add_shifted(result, 5 * k, vm1_view);
-    add_shifted(result, 6 * k, v1_view);
-    add_shifted(result, 7 * k, vmh_view);
-    add_shifted(result, 8 * k, vh_view);
-    add_shifted(result, 9 * k, vmq_view);
-    add_shifted(result, 10 * k, vq_view);
+    recompose(result,
+              k,
+              {vm4_view,
+               v4_view,
+               vm2_view,
+               v2_view,
+               vm1_view,
+               v1_view,
+               vmh_view,
+               vh_view,
+               vmq_view,
+               vq_view});
 
     // Release scratch back to the bump pool for sibling reuse.
     scratch.deallocate(total_scratch);

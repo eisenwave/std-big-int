@@ -178,9 +178,7 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     // c0 already at result[0..2k); c4 already at result[4k..). Add the three middle
     // coefficients with carry chains spanning to result.size() so carries can
     // propagate into the c4 region.
-    add_shifted(result, k, vm1_view);
-    add_shifted(result, 2 * k, v1_view);
-    add_shifted(result, 3 * k, v2_view);
+    recompose(result, k, {vm1_view, v1_view, v2_view});
 
     // Move bump pointer back so the next sibling recursive call reuses the same region.
     scratch.deallocate(total_scratch);

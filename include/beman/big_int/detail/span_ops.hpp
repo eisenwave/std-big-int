@@ -456,6 +456,62 @@ constexpr void add_shifted(const std::span<uint_multiprecision_t>       result,
     BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
 }
 
+// Fused multi-source variant of add_shifted with regular k-stride shifts:
+//   result[(j+1)*k .. (j+1)*k + sources[j].size()) += sources[j]  for j = 0..N-1
+// performed as a single pass over result with a multi-input carry chain.
+// Equivalent to N chained add_shifted calls but writes each result limb exactly
+// once instead of N times, which is the dominant cost when N gets large (e.g.
+// the 10-coefficient recomposition at the end of Toom-Cook 6.5). Asserts no
+// carry escapes result.
+constexpr void recompose(const std::span<uint_multiprecision_t>                              result,
+                         const std::size_t                                                   k,
+                         const std::initializer_list<std::span<const uint_multiprecision_t>> sources) noexcept {
+    if (sources.size() == 0 || k >= result.size()) {
+        return;
+    }
+
+    const auto* const src_begin = sources.begin();
+    const std::size_t n_sources = sources.size();
+
+    // [active_lo, active_hi) is the slice of `sources` whose ranges currently
+    // cover position p. As p advances, active_hi grows when sources enter and
+    // active_lo grows when sources leave; each index increments at most N times
+    // across the whole outer loop, so the inner work is O(1) amortized.
+    std::size_t active_lo = 0;
+    std::size_t active_hi = 0;
+
+    uint_multiprecision_t carry = 0;
+    for (std::size_t p = k; p < result.size(); ++p) {
+        while (active_hi < n_sources && (active_hi + 1) * k <= p) {
+            ++active_hi;
+        }
+        while (active_lo < active_hi && (active_lo + 1) * k + src_begin[active_lo].size() <= p) {
+            ++active_lo;
+        }
+
+        uint_multiprecision_t sum       = result[p];
+        uint_multiprecision_t new_carry = 0;
+
+        if (carry != 0) {
+            const auto [s, c] = carrying_add(sum, carry);
+            sum               = s;
+            new_carry         = static_cast<uint_multiprecision_t>(c);
+        }
+
+        for (std::size_t j = active_lo; j < active_hi; ++j) {
+            const std::size_t shift = (j + 1) * k;
+            const auto [s, c]       = carrying_add(sum, src_begin[j][p - shift]);
+            sum                     = s;
+            new_carry += static_cast<uint_multiprecision_t>(c);
+        }
+
+        result[p] = sum;
+        carry     = new_carry;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(carry == 0);
+}
+
 // Given s = a + b and (|a - b|, sign_d) for non-negative a and b, recover the
 // pair (a, b) and place them in (lower_dst, higher_dst):
 //   sign_d == false  =>  a >= b: lower_dst = a = (s + |d|)/2; higher_dst = b = (s - |d|)/2
