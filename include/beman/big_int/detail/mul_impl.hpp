@@ -1351,7 +1351,8 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
      * A lot of the repetition may be avoided if there was an actual array for a, rather than separate variables.
      * Then at least some of these blocks could be handled via small loop, though maybe not this one.
      *
-     * Perhaps it would already help to just fuse left-shifting and addition into a single operation using a helper lambda.
+     * Perhaps it would already help to just fuse left-shifting and addition into a single operation using a helper
+     * lambda.
      */
 
     std::ranges::copy(a5, tmpa.begin());
@@ -2031,7 +2032,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         // Eliminate s_inner from e_buf: e_buf -= 400 * d_buf.
         // (Trim to satisfy multiply_single_limb's `result.size() >= a.size() + 1` precondition.)
         {
-            const auto                  d_trim = d_v.first(trimmed_size_span(d_v));
+            const auto d_trim = d_v.first(trimmed_size_span(d_v));
             const auto m400   = multiply_single_limb(tmp_double, d_trim, uint_multiprecision_t{400});
             subtract_unsigned_spans(e_buf, e_v, std::span<const uint_multiprecision_t>{tmp_double.data(), m400});
         }
@@ -2044,7 +2045,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
 
         // Recover s_inner: d_buf = 900*s_o + 144*s_i -> d_buf -= 900*s_o; d_buf /= 144.
         {
-            const auto                  e_trim = e_v.first(trimmed_size_span(e_v));
+            const auto e_trim = e_v.first(trimmed_size_span(e_v));
             const auto m900   = multiply_single_limb(tmp_double, e_trim, uint_multiprecision_t{900});
             subtract_unsigned_spans(d_buf, d_v, std::span<const uint_multiprecision_t>{tmp_double.data(), m900});
         }
@@ -2070,9 +2071,9 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         //
         // Implementation: compute 272*|b| into tmp_double. Then combine with |c| based on sign relations.
 
-        const auto                  b_diff_trim = b_v.first(trimmed_size_span(b_v));
-        const auto m272  = multiply_single_limb(tmp_double, b_diff_trim, uint_multiprecision_t{272});
-        const auto                  td272 = std::span<const uint_multiprecision_t>{tmp_double.data(), m272};
+        const auto b_diff_trim = b_v.first(trimmed_size_span(b_v));
+        const auto m272        = multiply_single_limb(tmp_double, b_diff_trim, uint_multiprecision_t{272});
+        const auto td272       = std::span<const uint_multiprecision_t>{tmp_double.data(), m272};
         // X_signed = (sign_D2 ? -272|b| : +272|b|) - (sign_D4 ? -|c| : +|c|)
         //          = sign_D2 ? (-272|b| - (sign_D4 ? -|c| : +|c|)) : (272|b| - (sign_D4 ? -|c| : +|c|))
         // Cases:
@@ -2105,10 +2106,10 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
         //   240 * d_inner_signed = (-D_2) - 1020 * d_outer
         //                        = -(sign_D2 ? -|b| : +|b|) - 1020 * (sign_d_outer ? -|c| : +|c|)
         // Compute 1020 * |c| into tmp_double, sign = sign_d_outer.
-        const auto                  c_buf_view = std::span<const uint_multiprecision_t>{c_buf};
-        const auto                  c_trim     = c_buf_view.first(trimmed_size_span(c_buf_view));
+        const auto c_buf_view = std::span<const uint_multiprecision_t>{c_buf};
+        const auto c_trim     = c_buf_view.first(trimmed_size_span(c_buf_view));
         const auto m1020      = multiply_single_limb(tmp_double, c_trim, uint_multiprecision_t{1020});
-        const auto                  td1020     = std::span<const uint_multiprecision_t>{tmp_double.data(), m1020};
+        const auto td1020     = std::span<const uint_multiprecision_t>{tmp_double.data(), m1020};
         // -D_2 has sign !sign_D2. So we compute (-D_2) + (-(1020*d_outer)) signed-result.
         // = (-D_2) - 1020*d_outer signed.
         // sign of -D_2 = !sign_D2 (we ADD its magnitude to nothing yet; first put it).
