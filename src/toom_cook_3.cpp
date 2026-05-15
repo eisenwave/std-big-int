@@ -8,7 +8,7 @@ namespace beman::big_int::detail {
 void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                           const std::span<const uint_multiprecision_t> a_untrimmed,
                           const std::span<const uint_multiprecision_t> b_untrimmed,
-                          scratch_allocator_base&                scratch) noexcept {
+                          scratch_allocator_base&                      scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
