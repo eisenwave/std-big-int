@@ -1142,6 +1142,12 @@ inline constexpr std::size_t toom_cook_6_5_cutoff = 3000;
 // generous-but-not-wasteful ratio used by the smaller-radix algorithms.
 constexpr std::size_t toom_cook_6_5_storage_size(const std::size_t s) noexcept { return 6 * s; }
 
+// Used by the solve_subsystem lambda in toom_cook_6_5
+struct subsystem_signs {
+    bool outer;
+    bool inner;
+};
+
 // ---------------------------------------------------------------------------
 // Recursive Toom-Cook 6.5 ("Toom 6'n'half") multiplication (Bodrato variant).
 // Reference: Bodrato, "High degree Toom'n'half for balanced and unbalanced
@@ -1958,7 +1964,7 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
             const std::span<uint_multiprecision_t> b_buf,
             const std::span<uint_multiprecision_t> c_buf,
             const std::span<uint_multiprecision_t> d_buf,
-            const std::span<uint_multiprecision_t> e_buf) constexpr noexcept -> std::pair<bool, bool> {
+            const std::span<uint_multiprecision_t> e_buf) constexpr noexcept -> subsystem_signs {
         const auto a_v = std::span<const uint_multiprecision_t>{a_buf};
         const auto b_v = std::span<const uint_multiprecision_t>{b_buf};
         const auto c_v = std::span<const uint_multiprecision_t>{c_buf};
