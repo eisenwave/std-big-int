@@ -142,14 +142,9 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     }
 
     // Step 2: vm1 <- (v1 - vm1) / 2 (sign-aware). After this, vm1 is non-negative.
-    if (sign_vm1) {
-        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm1, v1_view, vm1_view);
-    }
     {
-        const auto rem = shift_right_one(vm1);
+        const auto rem = sign_vm1 ? add_unsigned_spans_and_shift_right_one(vm1, v1_view, vm1_view)
+                                  : subtract_unsigned_spans_and_shift_right_one(vm1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -157,9 +152,8 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     subtract_unsigned_spans(v1, v1_view, v0_view);
 
     // Step 4: v2 <- (v2 - v1) / 2.
-    subtract_unsigned_spans(v2, v2_view, v1_view);
     {
-        const auto rem = shift_right_one(v2);
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(v2, v2_view, v1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 

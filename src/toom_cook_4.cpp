@@ -193,16 +193,10 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     //   E2 = (v2 + vm2)/2 = c0 + 4c2 + 16c4 + 64c6
     //   D2 = (v2 - vm2)/4 = c1 + 4c3 + 16c5
 
-    // Step 1a: v1 <- (v1 + vm1) algebraic (sign-aware on sign_vm1).
-    if (sign_vm1) {
-        subtract_unsigned_spans(v1, v1_view, vm1_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(v1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
-    // Step 1b: v1 /= 2.
+    // Step 1: v1 <- (v1 + vm1) / 2 algebraic (sign-aware on sign_vm1) = E1.
     {
-        const auto rem = shift_right_one(v1);
+        const auto rem = sign_vm1 ? subtract_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view)
+                                  : add_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 1: v1 = E1 = c0 + c2 + c4 + c6.
@@ -216,30 +210,18 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     }
     // After Step 2: vm1 = D1 = c1 + c3 + c5. sign_vm1 is no longer needed.
 
-    // Step 3a: v2 <- (v2 + vm2) algebraic.
-    if (sign_vm2) {
-        subtract_unsigned_spans(v2, v2_view, vm2_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(v2, v2_view, vm2_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
-    // Step 3b: v2 /= 2.
+    // Step 3: v2 <- (v2 + vm2) / 2 algebraic = E2.
     {
-        const auto rem = shift_right_one(v2);
+        const auto rem = sign_vm2 ? subtract_unsigned_spans_and_shift_right_one(v2, v2_view, vm2_view)
+                                  : add_unsigned_spans_and_shift_right_one(v2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 3: v2 = E2 = c0 + 4c2 + 16c4 + 64c6.
 
-    // Step 4a: vm2 <- v2 - vm2 algebraic = (v2_orig - vm2_orig)/2 = 2c1 + 8c3 + 32c5.
-    if (sign_vm2) {
-        const bool carry_out = add_unsigned_spans(vm2, v2_view, vm2_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm2, v2_view, vm2_view);
-    }
-    // Step 4b: vm2 /= 2.
+    // Step 4: vm2 <- (v2 - vm2) / 2 algebraic = (v2_orig - vm2_orig)/4 = c1 + 4c3 + 16c5.
     {
-        const auto rem = shift_right_one(vm2);
+        const auto rem = sign_vm2 ? add_unsigned_spans_and_shift_right_one(vm2, v2_view, vm2_view)
+                                  : subtract_unsigned_spans_and_shift_right_one(vm2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 4: vm2 = D2 = c1 + 4c3 + 16c5. sign_vm2 is no longer needed.

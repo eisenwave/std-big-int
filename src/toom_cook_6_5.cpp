@@ -359,14 +359,9 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     // /(2x) factor absorbed for integer-x points). Sign flags vanish after this. --
 
     // Pair (v1, vm1):  E_1 = (v1+vm1)/2 = c0+c2+c4+c6+c8+c10;  D_1 = (v1-vm1)/2.
-    if (sign_vm1) {
-        subtract_unsigned_spans(v1, v1_view, vm1_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(v1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
     {
-        const auto rem = shift_right_one(v1);
+        const auto rem = sign_vm1 ? subtract_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view)
+                                  : add_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vm1) {
@@ -377,59 +372,34 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     }
 
     // Pair (v2, vm2):  E_2 = (v2+vm2)/2;  D_2 = (v2-vm2)/4.
-    if (sign_vm2) {
-        subtract_unsigned_spans(v2, v2_view, vm2_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(v2, v2_view, vm2_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
     {
-        const auto rem = shift_right_one(v2);
+        const auto rem = sign_vm2 ? subtract_unsigned_spans_and_shift_right_one(v2, v2_view, vm2_view)
+                                  : add_unsigned_spans_and_shift_right_one(v2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
-    if (sign_vm2) {
-        const bool carry_out = add_unsigned_spans(vm2, v2_view, vm2_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm2, v2_view, vm2_view);
-    }
     {
-        const auto rem = shift_right_one(vm2);
+        const auto rem = sign_vm2 ? add_unsigned_spans_and_shift_right_one(vm2, v2_view, vm2_view)
+                                  : subtract_unsigned_spans_and_shift_right_one(vm2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
     // Pair (v4, vm4):  E_4 = (v4+vm4)/2;  D_4 = (v4-vm4)/8.
-    if (sign_vm4) {
-        subtract_unsigned_spans(v4, v4_view, vm4_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(v4, v4_view, vm4_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
     {
-        const auto rem = shift_right_one(v4);
+        const auto rem = sign_vm4 ? subtract_unsigned_spans_and_shift_right_one(v4, v4_view, vm4_view)
+                                  : add_unsigned_spans_and_shift_right_one(v4, v4_view, vm4_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
-    if (sign_vm4) {
-        const bool carry_out = add_unsigned_spans(vm4, v4_view, vm4_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm4, v4_view, vm4_view);
-    }
     {
-        const auto rem = shift_right_n(vm4, 2u);
+        const auto rem = sign_vm4 ? add_unsigned_spans_and_shift_right_n(vm4, v4_view, vm4_view, 2u)
+                                  : subtract_unsigned_spans_and_shift_right_n(vm4, v4_view, vm4_view, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
     // Pair (vh, vmh):  E_h = (vh+vmh_signed)/2 = 2048c0+512c2+128c4+32c6+8c8+2c10;
     //                  D_h = (vh-vmh_signed)/2 = 1024c1+256c3+64c5+16c7+4c9+c11.
-    if (sign_vmh) {
-        subtract_unsigned_spans(vh, vh_view, vmh_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(vh, vh_view, vmh_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
     {
-        const auto rem = shift_right_one(vh);
+        const auto rem = sign_vmh ? subtract_unsigned_spans_and_shift_right_one(vh, vh_view, vmh_view)
+                                  : add_unsigned_spans_and_shift_right_one(vh, vh_view, vmh_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vmh) {
@@ -441,14 +411,9 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
 
     // Pair (vq, vmq):  E_q = (vq+vmq_signed)/2 = 4194304c0+262144c2+16384c4+1024c6+64c8+4c10;
     //                  D_q = (vq-vmq_signed)/2 = 1048576c1+65536c3+4096c5+256c7+16c9+c11.
-    if (sign_vmq) {
-        subtract_unsigned_spans(vq, vq_view, vmq_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(vq, vq_view, vmq_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
     {
-        const auto rem = shift_right_one(vq);
+        const auto rem = sign_vmq ? subtract_unsigned_spans_and_shift_right_one(vq, vq_view, vmq_view)
+                                  : add_unsigned_spans_and_shift_right_one(vq, vq_view, vmq_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     if (sign_vmq) {
