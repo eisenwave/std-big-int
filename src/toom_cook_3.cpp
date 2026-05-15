@@ -130,12 +130,8 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
 
     // TODO(mborland) : Another instance of repetitive operations
     // Step 1: v2 <- (v2 - vm1) / 3 (sign-aware: add if vm1 was negative).
-    if (sign_vm1) {
-        const bool carry_out = add_unsigned_spans(v2, v2_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(v2, v2_view, vm1_view);
-    }
+    sign_vm1 ? add_unsigned_spans_no_carry(v2, v2_view, vm1_view)
+             : subtract_unsigned_spans_no_borrow(v2, v2_view, vm1_view);
     {
         const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);

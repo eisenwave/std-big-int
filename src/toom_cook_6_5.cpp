@@ -364,12 +364,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
                                   : add_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
-    if (sign_vm1) {
-        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm1, v1_view, vm1_view);
-    }
+    sign_vm1 ? add_unsigned_spans_no_carry(vm1, v1_view, vm1_view)
+             : subtract_unsigned_spans_no_borrow(vm1, v1_view, vm1_view);
 
     // Pair (v2, vm2):  E_2 = (v2+vm2)/2;  D_2 = (v2-vm2)/4.
     {
@@ -402,12 +398,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
                                   : add_unsigned_spans_and_shift_right_one(vh, vh_view, vmh_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
-    if (sign_vmh) {
-        const bool carry_out = add_unsigned_spans(vmh, vh_view, vmh_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vmh, vh_view, vmh_view);
-    }
+    sign_vmh ? add_unsigned_spans_no_carry(vmh, vh_view, vmh_view)
+             : subtract_unsigned_spans_no_borrow(vmh, vh_view, vmh_view);
 
     // Pair (vq, vmq):  E_q = (vq+vmq_signed)/2 = 4194304c0+262144c2+16384c4+1024c6+64c8+4c10;
     //                  D_q = (vq-vmq_signed)/2 = 1048576c1+65536c3+4096c5+256c7+16c9+c11.
@@ -416,12 +408,8 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
                                   : add_unsigned_spans_and_shift_right_one(vq, vq_view, vmq_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
-    if (sign_vmq) {
-        const bool carry_out = add_unsigned_spans(vmq, vq_view, vmq_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vmq, vq_view, vmq_view);
-    }
+    sign_vmq ? add_unsigned_spans_no_carry(vmq, vq_view, vmq_view)
+             : subtract_unsigned_spans_no_borrow(vmq, vq_view, vmq_view);
 
     // -- Phase 2: subtract c0 contributions from {v1,v2,v4,vh,vq}; subtract c11
     // contributions from {vm1,vm2,vm4,vmh,vmq}; normalize vh,vq,vmh,vmq so all

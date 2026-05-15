@@ -118,6 +118,24 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size()});
 }
 
+// Void wrappers that discard the existing functions' returns and assert their
+// expected conditions. Their matching `void` return lets callers express the
+// sign-aware "result = a + b_signed" dispatch as a single ternary:
+//   sign_b ? add_unsigned_spans_no_carry(r, a, b)
+//          : subtract_unsigned_spans_no_borrow(r, a, b);
+constexpr void add_unsigned_spans_no_carry(const std::span<uint_multiprecision_t>       result,
+                                           const std::span<const uint_multiprecision_t> a,
+                                           const std::span<const uint_multiprecision_t> b) noexcept {
+    const bool carry = add_unsigned_spans(result, a, b);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+}
+
+constexpr void subtract_unsigned_spans_no_borrow(const std::span<uint_multiprecision_t>       result,
+                                                 const std::span<const uint_multiprecision_t> a,
+                                                 const std::span<const uint_multiprecision_t> b) noexcept {
+    [[maybe_unused]] const auto unused = subtract_unsigned_spans(result, a, b);
+}
+
 // ---------------------------------------------------------------------------
 // Fused (a + b) >> n into result in a single pass. Returns the dropped low n
 // bits (caller asserts == 0 for exact division by 2^n). Asserts no carry-out

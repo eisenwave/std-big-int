@@ -202,12 +202,8 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     // After Step 1: v1 = E1 = c0 + c2 + c4 + c6.
 
     // Step 2: vm1 <- v1 - vm1 algebraic = (v1_orig - vm1_orig)/2 = D1.
-    if (sign_vm1) {
-        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm1, v1_view, vm1_view);
-    }
+    sign_vm1 ? add_unsigned_spans_no_carry(vm1, v1_view, vm1_view)
+             : subtract_unsigned_spans_no_borrow(vm1, v1_view, vm1_view);
     // After Step 2: vm1 = D1 = c1 + c3 + c5. sign_vm1 is no longer needed.
 
     // Step 3: v2 <- (v2 + vm2) / 2 algebraic = E2.
@@ -288,12 +284,9 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     td_size = shift_left_n(tmp_double, td_size, 2u);
     subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
 
-    // Step 16: vh -= c6.
-    subtract_unsigned_spans(vh, vh_view, vinf_view);
-
-    // Step 17: vh /= 2.  vh = 16c1 + 4c3 + c5 = T_odd.
+    // Step 16-17: vh = (vh - c6) / 2.  vh = 16c1 + 4c3 + c5 = T_odd.
     {
-        const auto rem = shift_right_one(vh);
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(vh, vh_view, vinf_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
