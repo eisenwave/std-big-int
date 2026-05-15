@@ -1954,11 +1954,11 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     // After return, a holds the middle coeff, b holds |d_inner| with returned sign_d_inner,
     // c holds |d_outer| with returned sign_d_outer, d holds s_inner, e holds s_outer.
     const auto solve_subsystem =
-        [&](std::span<uint_multiprecision_t> a_buf,
-            std::span<uint_multiprecision_t> b_buf,
-            std::span<uint_multiprecision_t> c_buf,
-            std::span<uint_multiprecision_t> d_buf,
-            std::span<uint_multiprecision_t> e_buf) constexpr noexcept -> std::pair<bool, bool> {
+        [&](const std::span<uint_multiprecision_t> a_buf,
+            const std::span<uint_multiprecision_t> b_buf,
+            const std::span<uint_multiprecision_t> c_buf,
+            const std::span<uint_multiprecision_t> d_buf,
+            const std::span<uint_multiprecision_t> e_buf) constexpr noexcept -> std::pair<bool, bool> {
         const auto a_v = std::span<const uint_multiprecision_t>{a_buf};
         const auto b_v = std::span<const uint_multiprecision_t>{b_buf};
         const auto c_v = std::span<const uint_multiprecision_t>{c_buf};
