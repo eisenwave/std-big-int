@@ -73,7 +73,7 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
 
 // Minimum number of limbs for Toom-Cook 3 to be worthwhile.
 // See multiplication_stress_bench for tuning
-inline constexpr std::size_t toom_cook_3_cutoff = 550;
+inline constexpr std::size_t toom_cook_3_cutoff = 300;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
 // One Toom-3 level uses 8k+10 limbs (~2.67*s where k = ceil(s/3)). The
