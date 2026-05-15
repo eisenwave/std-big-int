@@ -36,7 +36,13 @@ option(
 # for find of beman-install-library
 include(infra/cmake/beman-install-library.cmake)
 
-add_library(beman.big_int STATIC)
+add_library(
+    beman.big_int
+    src/karatsuba.cpp
+    src/toom_cook_3.cpp
+    src/toom_cook_4.cpp
+    src/toom_cook_6_5.cpp
+)
 add_library(beman::big_int ALIAS beman.big_int)
 target_compile_features(beman.big_int PUBLIC cxx_std_23)
 
@@ -51,7 +57,6 @@ set_target_properties(
 )
 
 add_subdirectory(include/beman/big_int)
-add_subdirectory(src)
 
 beman_install_library(beman.big_int TARGETS beman.big_int)
 
