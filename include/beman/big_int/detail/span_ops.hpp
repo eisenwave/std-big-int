@@ -281,28 +281,119 @@ shift_left_n(const std::span<uint_multiprecision_t> tmp, std::size_t size, const
 }
 
 // In-place tmp <- addends[0] + addends[1] + ... + addends[N-1]; returns new size.
-// Equivalent to copying the first addend into tmp and chaining add_into_tmp for
-// the rest. addends.size() == 0 is allowed and returns 0. Empty addends after
-// the first are tolerated (treated as zero by add_into_tmp).
+// Single fused pass over tmp: at each position i, sums addend[j][i] for every j
+// in one shot with multi-input carry propagation. Replaces N-1 separate passes
+// (one per chained add_into_tmp), so the number of writes to tmp drops from
+// O(N*max_size) to O(max_size). Empty addends are tolerated (treated as zero).
 [[nodiscard]] constexpr std::size_t
 add_many_into_tmp(const std::span<uint_multiprecision_t>                              tmp,
                   const std::initializer_list<std::span<const uint_multiprecision_t>> addends) noexcept {
     if (addends.size() == 0) {
         return 0;
     }
-    auto it = addends.begin();
-    std::ranges::copy(*it, tmp.begin());
-    std::size_t size = it->size();
-    for (++it; it != addends.end(); ++it) {
-        size = add_into_tmp(tmp, size, *it);
+
+    std::size_t max_size = 0;
+    for (const auto& addend : addends) {
+        if (addend.size() > max_size) {
+            max_size = addend.size();
+        }
+    }
+    if (max_size == 0) {
+        return 0;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > max_size);
+
+    // Per-position carry is bounded by addends.size() (one increment per overflow),
+    // so it always fits in a single limb for any plausible N.
+    uint_multiprecision_t carry = 0;
+    for (std::size_t i = 0; i < max_size; ++i) {
+        uint_multiprecision_t sum       = carry;
+        uint_multiprecision_t new_carry = 0;
+        for (const auto& addend : addends) {
+            if (i < addend.size()) {
+                const auto [s, c] = carrying_add(sum, addend[i]);
+                sum               = s;
+                new_carry += static_cast<uint_multiprecision_t>(c);
+            }
+        }
+        tmp[i] = sum;
+        carry  = new_carry;
+    }
+
+    std::size_t size = max_size;
+    if (carry != 0) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(size < tmp.size());
+        tmp[size++] = carry;
     }
     return size;
 }
 
+// In-place tmp <- (tmp[0..size) << shift) + addend; returns new size (may grow
+// by up to 2: one from the shift carry-out, one from the add carry-out). Fused
+// single-pass equivalent of (shift_left_n, add_into_tmp). 0 <= shift < limb_width.
+// Used as the inner step of horner_eval_into_tmp, but also useful as a standalone
+// primitive.
+[[nodiscard]] constexpr std::size_t
+shift_left_n_and_add_into_tmp(const std::span<uint_multiprecision_t>       tmp,
+                              const std::size_t                            size,
+                              const unsigned                               shift,
+                              const std::span<const uint_multiprecision_t> addend) noexcept {
+    if (shift == 0) {
+        return add_into_tmp(tmp, size, addend);
+    }
+    if (size == 0) {
+        if (addend.empty()) {
+            return 0;
+        }
+        std::ranges::copy(addend, tmp.begin());
+        return addend.size();
+    }
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(shift < local_limb_bits);
+
+    // The shifted region is `size + 1` limbs if the top limb's high `shift` bits
+    // are non-zero, else `size` limbs. After adding `addend` the new size is
+    // max(shifted_size, addend.size()) plus a possible carry-out.
+    const uint_multiprecision_t shift_out    = tmp[size - 1] >> (local_limb_bits - shift);
+    const std::size_t           shifted_size = size + (shift_out != 0 ? 1u : 0u);
+    const std::size_t           output_size  = std::max(shifted_size, addend.size());
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > output_size);
+
+    bool                  add_carry = false;
+    uint_multiprecision_t prev      = 0;
+    for (std::size_t i = 0; i < output_size; ++i) {
+        uint_multiprecision_t shifted;
+        if (i < size) {
+            const auto limb = tmp[i];
+            shifted         = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = limb}, shift);
+            prev            = limb;
+        } else if (i == size) {
+            shifted = shift_out;
+        } else {
+            shifted = 0;
+        }
+
+        const auto ai            = i < addend.size() ? addend[i] : uint_multiprecision_t{0};
+        const auto [r_value, c1] = carrying_add(shifted, ai, add_carry);
+        tmp[i]                   = r_value;
+        add_carry                = c1;
+    }
+
+    if (add_carry) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(output_size < tmp.size());
+        tmp[output_size] = 1;
+        return output_size + 1;
+    }
+    return output_size;
+}
+
 // In-place tmp <- ((...((coeffs[0] << shift) + coeffs[1]) << shift) + ... ) + coeffs[N-1];
 // returns new size. Evaluates a polynomial with MSB-first coefficients at x = 2^shift
-// via Horner's method. Single-pass equivalent of chained (shift_left_n, add_into_tmp)
-// pairs that recur throughout the Toom-Cook evaluation phases.
+// via Horner's method. Each Horner step is a single fused pass over tmp (shift+add),
+// halving the per-step memory traffic versus calling shift_left_n then add_into_tmp.
 [[nodiscard]] constexpr std::size_t
 horner_eval_into_tmp(const std::span<uint_multiprecision_t>                              tmp,
                      const std::initializer_list<std::span<const uint_multiprecision_t>> coeffs,
@@ -314,8 +405,7 @@ horner_eval_into_tmp(const std::span<uint_multiprecision_t>                     
     std::ranges::copy(*it, tmp.begin());
     std::size_t size = it->size();
     for (++it; it != coeffs.end(); ++it) {
-        size = shift_left_n(tmp, size, shift);
-        size = add_into_tmp(tmp, size, *it);
+        size = shift_left_n_and_add_into_tmp(tmp, size, shift, *it);
     }
     return size;
 }
