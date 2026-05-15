@@ -592,6 +592,7 @@ constexpr void multiply_toom_cook_3(const std::span<uint_multiprecision_t>      
     const auto vm1_view  = std::span<const uint_multiprecision_t>{vm1};
     const auto v2_view   = std::span<const uint_multiprecision_t>{v2};
 
+    // TODO(mborland) : Another instance of repetitive operations
     // Step 1: v2 <- (v2 - vm1) / 3 (sign-aware: add if vm1 was negative).
     if (sign_vm1) {
         const bool carry_out = add_unsigned_spans(v2, v2_view, vm1_view);
@@ -1346,6 +1347,13 @@ constexpr void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>    
     // ---- Evaluate at x = 2: tmpa = 32a5+16a4+8a3+4a2+2a1+a0 (Horner from a5);
     //                         tmpb = 64b6+32b5+...+b0 (Horner from b6). ----
     // TODO(mborland): Same thing, super repetitive calls can be handled better?
+    /*
+     * A lot of the repetition may be avoided if there was an actual array for a, rather than separate variables.
+     * Then at least some of these blocks could be handled via small loop, though maybe not this one.
+     *
+     * Perhaps it would already help to just fuse left-shifting and addition into a single operation using a helper lambda.
+     */
+
     std::ranges::copy(a5, tmpa.begin());
     tmpa_size = a5.size();
     tmpa_size = shift_left_one(tmpa, tmpa_size);
