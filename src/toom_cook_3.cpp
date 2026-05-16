@@ -64,17 +64,12 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     }
 
     // ---- Evaluate at x = 1: tmpa = a0 + a1 + a2; tmpb = b0 + b1 + b2 ----
-    std::ranges::copy(a0, tmpa.begin());
-    std::size_t tmpa_size = a0.size();
-    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a1);
-    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a2);
+    std::size_t tmpa_size = add_many_into_tmp(tmpa, {a0, a1, a2});
+    std::size_t tmpb_size = add_many_into_tmp(tmpb, {b0, b1, b2});
 
-    std::ranges::copy(b0, tmpb.begin());
-    std::size_t tmpb_size = b0.size();
-    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b2);
-
-    // v1 = tmpa * tmpb
+    // v1 = tmpa * tmpb. v1 must be fully zero on entry because the recursive
+    // multiply_toom_cook_3 (when not falling back to Karatsuba) expects its
+    // result region to be pre-zeroed for its recompose step.
     std::ranges::fill(v1, uint_multiprecision_t{0});
     multiply_toom_cook_3(v1,
                          std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
@@ -82,17 +77,13 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                          scratch);
 
     // ---- Evaluate at x = -1: tmpa = (a0 + a2) - a1 (signed); tmpb similarly ----
-    std::ranges::copy(a0, tmpa.begin());
-    tmpa_size = a0.size();
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a2);
+    tmpa_size = add_many_into_tmp(tmpa, {a0, a2});
     const auto sub_a =
         subtract_unsigned_spans_signed(tmpa, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, a1);
     tmpa_size         = sub_a.size;
     const bool sign_a = sub_a.negative;
 
-    std::ranges::copy(b0, tmpb.begin());
-    tmpb_size = b0.size();
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b2);
+    tmpb_size = add_many_into_tmp(tmpb, {b0, b2});
     const auto sub_b =
         subtract_unsigned_spans_signed(tmpb, std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size}, b1);
     tmpb_size         = sub_b.size;
@@ -113,19 +104,8 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     }
 
     // ---- Evaluate at x = 2: tmpa = 4*a2 + 2*a1 + a0 (Horner: ((a2<<1)+a1)<<1+a0); tmpb similarly ----
-    std::ranges::copy(a2, tmpa.begin());
-    tmpa_size = a2.size();
-    tmpa_size = shift_left_one(tmpa, tmpa_size);   // 2*a2
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a1); // 2*a2 + a1
-    tmpa_size = shift_left_one(tmpa, tmpa_size);   // 4*a2 + 2*a1
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a0); // 4*a2 + 2*a1 + a0
-
-    std::ranges::copy(b2, tmpb.begin());
-    tmpb_size = b2.size();
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b0);
+    tmpa_size = horner_eval_into_tmp(tmpa, {a2, a1, a0}, 1u);
+    tmpb_size = horner_eval_into_tmp(tmpb, {b2, b1, b0}, 1u);
 
     // v2 = p(2) * q(2)
     std::ranges::fill(v2, uint_multiprecision_t{0});
@@ -150,28 +130,18 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     const auto vm1_view  = std::span<const uint_multiprecision_t>{vm1};
     const auto v2_view   = std::span<const uint_multiprecision_t>{v2};
 
-    // TODO(mborland) : Another instance of repetitive operations
     // Step 1: v2 <- (v2 - vm1) / 3 (sign-aware: add if vm1 was negative).
-    if (sign_vm1) {
-        const bool carry_out = add_unsigned_spans(v2, v2_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(v2, v2_view, vm1_view);
-    }
+    sign_vm1 ? add_unsigned_spans_no_carry(v2, v2_view, vm1_view)
+             : subtract_unsigned_spans_no_borrow(v2, v2_view, vm1_view);
     {
         const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
     // Step 2: vm1 <- (v1 - vm1) / 2 (sign-aware). After this, vm1 is non-negative.
-    if (sign_vm1) {
-        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm1, v1_view, vm1_view);
-    }
     {
-        const auto rem = shift_right_one(vm1);
+        const auto rem = sign_vm1 ? add_unsigned_spans_and_shift_right_one(vm1, v1_view, vm1_view)
+                                  : subtract_unsigned_spans_and_shift_right_one(vm1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -179,9 +149,8 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     subtract_unsigned_spans(v1, v1_view, v0_view);
 
     // Step 4: v2 <- (v2 - v1) / 2.
-    subtract_unsigned_spans(v2, v2_view, v1_view);
     {
-        const auto rem = shift_right_one(v2);
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(v2, v2_view, v1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -200,9 +169,7 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     // c0 already at result[0..2k); c4 already at result[4k..). Add the three middle
     // coefficients with carry chains spanning to result.size() so carries can
     // propagate into the c4 region.
-    add_shifted(result, k, vm1_view);
-    add_shifted(result, 2 * k, v1_view);
-    add_shifted(result, 3 * k, v2_view);
+    recompose(result, k, {vm1_view, v1_view, v2_view});
 
     // Move bump pointer back so the next sibling recursive call reuses the same region.
     scratch.deallocate(total_scratch);

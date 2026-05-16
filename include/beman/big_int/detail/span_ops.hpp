@@ -6,6 +6,7 @@
 
 #include <beman/big_int/detail/config.hpp>
 #include <algorithm>
+#include <initializer_list>
 #include <ranges>
 #include <utility>
 #include <span>
@@ -52,12 +53,28 @@ compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
                        const std::span<const uint_multiprecision_t> b) noexcept {
     const std::size_t na = a.size();
     const std::size_t nb = b.size();
-    const std::size_t n  = std::max(na, nb);
-    for (std::size_t i = n; i-- > 0;) {
-        const auto ai = i < na ? a[i] : uint_multiprecision_t{0};
-        const auto bi = i < nb ? b[i] : uint_multiprecision_t{0};
-        if (ai != bi) {
-            return ai < bi ? std::strong_ordering::less : std::strong_ordering::greater;
+
+    // Scan the high tail of the longer operand: any non-zero limb there
+    // immediately decides the comparison.
+    if (na > nb) {
+        for (std::size_t i = na; i-- > nb;) {
+            if (a[i] != 0) {
+                return std::strong_ordering::greater;
+            }
+        }
+    } else if (nb > na) {
+        for (std::size_t i = nb; i-- > na;) {
+            if (b[i] != 0) {
+                return std::strong_ordering::less;
+            }
+        }
+    }
+
+    // Overlap: both operands have limbs at every position.
+    const std::size_t overlap = std::min(na, nb);
+    for (std::size_t i = overlap; i-- > 0;) {
+        if (a[i] != b[i]) {
+            return a[i] < b[i] ? std::strong_ordering::less : std::strong_ordering::greater;
         }
     }
     return std::strong_ordering::equal;
@@ -72,11 +89,31 @@ constexpr bool add_unsigned_spans(const std::span<uint_multiprecision_t>       r
                                   const std::span<const uint_multiprecision_t> a,
                                   const std::span<const uint_multiprecision_t> b) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= std::max(a.size(), b.size()));
-    bool carry = false;
-    for (std::size_t i = 0; i < result.size(); ++i) {
-        const auto ai            = i < a.size() ? a[i] : uint_multiprecision_t{0};
-        const auto bi            = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [r_value, c1] = carrying_add(ai, bi, carry);
+
+    const std::size_t overlap     = std::min(a.size(), b.size());
+    const auto&       longer      = a.size() > b.size() ? a : b;
+    const std::size_t longer_size = longer.size();
+
+    bool        carry = false;
+    std::size_t i     = 0;
+
+    // Overlap: both operands contribute.
+    for (; i < overlap; ++i) {
+        const auto [r_value, c1] = carrying_add(a[i], b[i], carry);
+        result[i]                = r_value;
+        carry                    = c1;
+    }
+
+    // Tail of the longer operand: shorter is now zero.
+    for (; i < longer_size; ++i) {
+        const auto [r_value, c1] = carrying_add(longer[i], uint_multiprecision_t{0}, carry);
+        result[i]                = r_value;
+        carry                    = c1;
+    }
+
+    // Carry propagation + zero fill (when result extends beyond both operands).
+    for (; i < result.size(); ++i) {
+        const auto [r_value, c1] = carrying_add(uint_multiprecision_t{0}, uint_multiprecision_t{0}, carry);
         result[i]                = r_value;
         carry                    = c1;
     }
@@ -105,16 +142,260 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
     BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b.size());
 
     bool borrow = false;
-    for (std::size_t i = 0; i < a.size(); ++i) {
-        const auto ai                  = a[i];
-        const auto bi                  = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [r_value, r_borrow] = borrowing_sub(ai, bi, borrow);
+
+    // Overlap: both operands contribute.
+    for (std::size_t i = 0; i < b.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], b[i], borrow);
+        result[i]                      = r_value;
+        borrow                         = r_borrow;
+    }
+
+    // Tail of a: b is now zero.
+    for (std::size_t i = b.size(); i < a.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], uint_multiprecision_t{0}, borrow);
         result[i]                      = r_value;
         borrow                         = r_borrow;
     }
 
     BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size()});
+}
+
+// Void wrappers that discard the existing functions' returns and assert their
+// expected conditions. Their matching `void` return lets callers express the
+// sign-aware "result = a + b_signed" dispatch as a single ternary:
+//   sign_b ? add_unsigned_spans_no_carry(r, a, b)
+//          : subtract_unsigned_spans_no_borrow(r, a, b);
+constexpr void add_unsigned_spans_no_carry(const std::span<uint_multiprecision_t>       result,
+                                           const std::span<const uint_multiprecision_t> a,
+                                           const std::span<const uint_multiprecision_t> b) noexcept {
+    const bool carry = add_unsigned_spans(result, a, b);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+}
+
+constexpr void subtract_unsigned_spans_no_borrow(const std::span<uint_multiprecision_t>       result,
+                                                 const std::span<const uint_multiprecision_t> a,
+                                                 const std::span<const uint_multiprecision_t> b) noexcept {
+    [[maybe_unused]] const auto unused = subtract_unsigned_spans(result, a, b);
+}
+
+// ---------------------------------------------------------------------------
+// Fused (a + b) >> n into result in a single pass. Returns the dropped low n
+// bits (caller asserts == 0 for exact division by 2^n). Asserts no carry-out
+// from the sum. `result` may alias `a` or `b`.
+// 0 <= n < limb_width.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t
+add_unsigned_spans_and_shift_right_n(const std::span<uint_multiprecision_t>       result,
+                                     const std::span<const uint_multiprecision_t> a,
+                                     const std::span<const uint_multiprecision_t> b,
+                                     const unsigned                               n) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= std::max(a.size(), b.size()));
+
+    if (n == 0) {
+        const bool carry = add_unsigned_spans(result, a, b);
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+        return 0;
+    }
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(n < local_limb_bits);
+
+    if (result.empty()) {
+        return 0;
+    }
+
+    // Compute sum[0] separately so we can capture the dropped low bits.
+    const auto a0     = !a.empty() ? a[0] : uint_multiprecision_t{0};
+    const auto b0     = !b.empty() ? b[0] : uint_multiprecision_t{0};
+    auto [s_prev, c0] = carrying_add(a0, b0);
+    bool carry        = c0;
+
+    const uint_multiprecision_t mask = (uint_multiprecision_t{1} << n) - uint_multiprecision_t{1};
+    const uint_multiprecision_t rem  = s_prev & mask;
+
+    // Each iteration computes sum[i] then writes the shifted result[i-1] by
+    // funnel-shifting (sum[i-1], sum[i]) right by n. Reads at index i happen
+    // before the write at i-1, so result may safely alias a or b.
+    const std::size_t overlap     = std::min(a.size(), b.size());
+    const auto&       longer      = a.size() > b.size() ? a : b;
+    const std::size_t longer_size = longer.size();
+    std::size_t       i           = 1;
+
+    // Overlap: both operands contribute.
+    for (; i < overlap; ++i) {
+        const auto [s_curr, ci] = carrying_add(a[i], b[i], carry);
+        carry                   = ci;
+        result[i - 1]           = funnel_shr(wide<uint_multiprecision_t>{.low_bits = s_prev, .high_bits = s_curr}, n);
+        s_prev                  = s_curr;
+    }
+
+    // Tail of the longer operand: shorter is now zero.
+    for (; i < longer_size; ++i) {
+        const auto [s_curr, ci] = carrying_add(longer[i], uint_multiprecision_t{0}, carry);
+        carry                   = ci;
+        result[i - 1]           = funnel_shr(wide<uint_multiprecision_t>{.low_bits = s_prev, .high_bits = s_curr}, n);
+        s_prev                  = s_curr;
+    }
+
+    // Carry propagation + zero fill beyond both operands.
+    for (; i < result.size(); ++i) {
+        const auto [s_curr, ci] = carrying_add(uint_multiprecision_t{0}, uint_multiprecision_t{0}, carry);
+        carry                   = ci;
+        result[i - 1]           = funnel_shr(wide<uint_multiprecision_t>{.low_bits = s_prev, .high_bits = s_curr}, n);
+        s_prev                  = s_curr;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+    result[result.size() - 1] = s_prev >> n;
+    return rem;
+}
+
+[[nodiscard]] constexpr uint_multiprecision_t
+add_unsigned_spans_and_shift_right_one(const std::span<uint_multiprecision_t>       result,
+                                       const std::span<const uint_multiprecision_t> a,
+                                       const std::span<const uint_multiprecision_t> b) noexcept {
+    return add_unsigned_spans_and_shift_right_n(result, a, b, 1u);
+}
+
+// ---------------------------------------------------------------------------
+// Fused (a - b) >> n into result in a single pass. Returns the dropped low n
+// bits. Requires |a| >= |b|. `result` may alias `a` or `b`.
+// 0 <= n < limb_width.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t
+subtract_unsigned_spans_and_shift_right_n(const std::span<uint_multiprecision_t>       result,
+                                          const std::span<const uint_multiprecision_t> a,
+                                          const std::span<const uint_multiprecision_t> b,
+                                          const unsigned                               n) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b.size());
+
+    if (n == 0) {
+        subtract_unsigned_spans(result, a, b);
+        return 0;
+    }
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(n < local_limb_bits);
+
+    if (result.empty()) {
+        return 0;
+    }
+
+    const auto a0      = !a.empty() ? a[0] : uint_multiprecision_t{0};
+    const auto b0      = !b.empty() ? b[0] : uint_multiprecision_t{0};
+    auto [d_prev, bo0] = borrowing_sub(a0, b0);
+    bool borrow        = bo0;
+
+    const uint_multiprecision_t mask = (uint_multiprecision_t{1} << n) - uint_multiprecision_t{1};
+    const uint_multiprecision_t rem  = d_prev & mask;
+
+    std::size_t i = 1;
+
+    // Overlap: both operands contribute (i < b.size()).
+    for (; i < b.size(); ++i) {
+        const auto [d_curr, boi] = borrowing_sub(a[i], b[i], borrow);
+        borrow                   = boi;
+        result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);
+        d_prev                   = d_curr;
+    }
+
+    // Tail of a (a.size() >= b.size() by precondition).
+    for (; i < a.size(); ++i) {
+        const auto [d_curr, boi] = borrowing_sub(a[i], uint_multiprecision_t{0}, borrow);
+        borrow                   = boi;
+        result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);
+        d_prev                   = d_curr;
+    }
+
+    // Beyond a: only borrow propagation (must terminate with borrow == false).
+    for (; i < result.size(); ++i) {
+        const auto [d_curr, boi] = borrowing_sub(uint_multiprecision_t{0}, uint_multiprecision_t{0}, borrow);
+        borrow                   = boi;
+        result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);
+        d_prev                   = d_curr;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+    result[result.size() - 1] = d_prev >> n;
+    return rem;
+}
+
+[[nodiscard]] constexpr uint_multiprecision_t
+subtract_unsigned_spans_and_shift_right_one(const std::span<uint_multiprecision_t>       result,
+                                            const std::span<const uint_multiprecision_t> a,
+                                            const std::span<const uint_multiprecision_t> b) noexcept {
+    return subtract_unsigned_spans_and_shift_right_n(result, a, b, 1u);
+}
+
+// ---------------------------------------------------------------------------
+// Fused dst = dst_view - (src << shift) in a single pass, streaming the shifted
+// source via funnel_shl without materializing it into a buffer. Replaces the
+// open-coded sequence:
+//   fill(tmp, 0); copy(src, tmp); s = shift_left_n(tmp, src.size(), shift);
+//   subtract_unsigned_spans(dst, dst_view, {tmp, s});
+// 0 <= shift < limb_width. `dst` may alias `dst_view`. `src` must not alias
+// either; if src.empty() and dst aliases dst_view, this is a no-op.
+// Requires dst_view.size() >= src.size() + (shift > 0 ? 1 : 0) so the shifted
+// source's top limb has somewhere to land. Returns the trimmed result size
+// (matches subtract_unsigned_spans); callers may ignore it.
+// ---------------------------------------------------------------------------
+constexpr std::size_t subtract_shifted_unsigned(const std::span<uint_multiprecision_t>       dst,
+                                                const std::span<const uint_multiprecision_t> dst_view,
+                                                const std::span<const uint_multiprecision_t> src,
+                                                const unsigned                               shift) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(dst.size() >= dst_view.size());
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(shift < local_limb_bits);
+
+    if (shift == 0) {
+        return subtract_unsigned_spans(dst, dst_view, src);
+    }
+    if (src.empty()) {
+        if (dst.data() != dst_view.data()) {
+            for (std::size_t i = 0; i < dst_view.size(); ++i) {
+                dst[i] = dst_view[i];
+            }
+        }
+        return trimmed_size_span(dst_view);
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(dst_view.size() >= src.size() + 1u);
+
+    bool                  borrow = false;
+    uint_multiprecision_t prev   = 0;
+    std::size_t           i      = 0;
+
+    // Overlap: i in [0, src.size()) — shifted_src has live data here.
+    for (; i < src.size(); ++i) {
+        const auto curr    = src[i];
+        const auto shifted = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = curr}, shift);
+        const auto [r, br] = borrowing_sub(dst_view[i], shifted, borrow);
+        dst[i]             = r;
+        borrow             = br;
+        prev               = curr;
+    }
+
+    // High limb of shifted src: prev >> (limb_bits - shift).
+    {
+        const auto carry_out = prev >> (local_limb_bits - shift);
+        const auto [r, br]   = borrowing_sub(dst_view[i], carry_out, borrow);
+        dst[i]               = r;
+        borrow               = br;
+        ++i;
+    }
+
+    // Tail: src exhausted, only borrow propagates.
+    for (; i < dst_view.size(); ++i) {
+        const auto [r, br] = borrowing_sub(dst_view[i], uint_multiprecision_t{0}, borrow);
+        dst[i]             = r;
+        borrow             = br;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+    return trimmed_size_span(std::span<const uint_multiprecision_t>{dst.data(), dst_view.size()});
 }
 
 // ---------------------------------------------------------------------------
@@ -279,6 +560,136 @@ shift_left_n(const std::span<uint_multiprecision_t> tmp, std::size_t size, const
     return shift_left_n(tmp, size, 1u);
 }
 
+// In-place tmp <- addends[0] + addends[1] + ... + addends[N-1]; returns new size.
+// Single fused pass over tmp: at each position i, sums addend[j][i] for every j
+// in one shot with multi-input carry propagation. Replaces N-1 separate passes
+// (one per chained add_into_tmp), so the number of writes to tmp drops from
+// O(N*max_size) to O(max_size). Empty addends are tolerated (treated as zero).
+[[nodiscard]] constexpr std::size_t
+add_many_into_tmp(const std::span<uint_multiprecision_t>                              tmp,
+                  const std::initializer_list<std::span<const uint_multiprecision_t>> addends) noexcept {
+    if (addends.size() == 0) {
+        return 0;
+    }
+
+    std::size_t max_size = 0;
+    for (const auto& addend : addends) {
+        if (addend.size() > max_size) {
+            max_size = addend.size();
+        }
+    }
+    if (max_size == 0) {
+        return 0;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > max_size);
+
+    // Per-position carry is bounded by addends.size() (one increment per overflow),
+    // so it always fits in a single limb for any plausible N.
+    uint_multiprecision_t carry = 0;
+    for (std::size_t i = 0; i < max_size; ++i) {
+        uint_multiprecision_t sum       = carry;
+        uint_multiprecision_t new_carry = 0;
+        for (const auto& addend : addends) {
+            if (i < addend.size()) {
+                const auto [s, c] = carrying_add(sum, addend[i]);
+                sum               = s;
+                new_carry += static_cast<uint_multiprecision_t>(c);
+            }
+        }
+        tmp[i] = sum;
+        carry  = new_carry;
+    }
+
+    std::size_t size = max_size;
+    if (carry != 0) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(size < tmp.size());
+        tmp[size++] = carry;
+    }
+    return size;
+}
+
+// In-place tmp <- (tmp[0..size) << shift) + addend; returns new size (may grow
+// by up to 2: one from the shift carry-out, one from the add carry-out). Fused
+// single-pass equivalent of (shift_left_n, add_into_tmp). 0 <= shift < limb_width.
+// Used as the inner step of horner_eval_into_tmp, but also useful as a standalone
+// primitive.
+[[nodiscard]] constexpr std::size_t
+shift_left_n_and_add_into_tmp(const std::span<uint_multiprecision_t>       tmp,
+                              const std::size_t                            size,
+                              const unsigned                               shift,
+                              const std::span<const uint_multiprecision_t> addend) noexcept {
+    if (shift == 0) {
+        return add_into_tmp(tmp, size, addend);
+    }
+    if (size == 0) {
+        if (addend.empty()) {
+            return 0;
+        }
+        std::ranges::copy(addend, tmp.begin());
+        return addend.size();
+    }
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(shift < local_limb_bits);
+
+    // The shifted region is `size + 1` limbs if the top limb's high `shift` bits
+    // are non-zero, else `size` limbs. After adding `addend` the new size is
+    // max(shifted_size, addend.size()) plus a possible carry-out.
+    const uint_multiprecision_t shift_out    = tmp[size - 1] >> (local_limb_bits - shift);
+    const std::size_t           shifted_size = size + (shift_out != 0 ? 1u : 0u);
+    const std::size_t           output_size  = std::max(shifted_size, addend.size());
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() > output_size);
+
+    bool                  add_carry = false;
+    uint_multiprecision_t prev      = 0;
+    for (std::size_t i = 0; i < output_size; ++i) {
+        uint_multiprecision_t shifted;
+        if (i < size) {
+            const auto limb = tmp[i];
+            shifted         = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = limb}, shift);
+            prev            = limb;
+        } else if (i == size) {
+            shifted = shift_out;
+        } else {
+            shifted = 0;
+        }
+
+        const auto ai            = i < addend.size() ? addend[i] : uint_multiprecision_t{0};
+        const auto [r_value, c1] = carrying_add(shifted, ai, add_carry);
+        tmp[i]                   = r_value;
+        add_carry                = c1;
+    }
+
+    if (add_carry) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(output_size < tmp.size());
+        tmp[output_size] = 1;
+        return output_size + 1;
+    }
+    return output_size;
+}
+
+// In-place tmp <- ((...((coeffs[0] << shift) + coeffs[1]) << shift) + ... ) + coeffs[N-1];
+// returns new size. Evaluates a polynomial with MSB-first coefficients at x = 2^shift
+// via Horner's method. Each Horner step is a single fused pass over tmp (shift+add),
+// halving the per-step memory traffic versus calling shift_left_n then add_into_tmp.
+[[nodiscard]] constexpr std::size_t
+horner_eval_into_tmp(const std::span<uint_multiprecision_t>                              tmp,
+                     const std::initializer_list<std::span<const uint_multiprecision_t>> coeffs,
+                     const unsigned                                                      shift) noexcept {
+    if (coeffs.size() == 0) {
+        return 0;
+    }
+    auto it = coeffs.begin();
+    std::ranges::copy(*it, tmp.begin());
+    std::size_t size = it->size();
+    for (++it; it != coeffs.end(); ++it) {
+        size = shift_left_n_and_add_into_tmp(tmp, size, shift, *it);
+    }
+    return size;
+}
+
 // In-place tmp >>= n (0 < n < limb_width); returns the dropped low n bits packed
 // as a single value (caller asserts == 0 for exact division by 2^n).
 // Single-pass equivalent of n chained shift_right_one calls.
@@ -323,6 +734,62 @@ constexpr void add_shifted(const std::span<uint_multiprecision_t>       result,
     }
 
     BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+}
+
+// Fused multi-source variant of add_shifted with regular k-stride shifts:
+//   result[(j+1)*k .. (j+1)*k + sources[j].size()) += sources[j]  for j = 0..N-1
+// performed as a single pass over result with a multi-input carry chain.
+// Equivalent to N chained add_shifted calls but writes each result limb exactly
+// once instead of N times, which is the dominant cost when N gets large (e.g.
+// the 10-coefficient recomposition at the end of Toom-Cook 6.5). Asserts no
+// carry escapes result.
+constexpr void recompose(const std::span<uint_multiprecision_t>                              result,
+                         const std::size_t                                                   k,
+                         const std::initializer_list<std::span<const uint_multiprecision_t>> sources) noexcept {
+    if (sources.size() == 0 || k >= result.size()) {
+        return;
+    }
+
+    const auto* const src_begin = sources.begin();
+    const std::size_t n_sources = sources.size();
+
+    // [active_lo, active_hi) is the slice of `sources` whose ranges currently
+    // cover position p. As p advances, active_hi grows when sources enter and
+    // active_lo grows when sources leave; each index increments at most N times
+    // across the whole outer loop, so the inner work is O(1) amortized.
+    std::size_t active_lo = 0;
+    std::size_t active_hi = 0;
+
+    uint_multiprecision_t carry = 0;
+    for (std::size_t p = k; p < result.size(); ++p) {
+        while (active_hi < n_sources && (active_hi + 1) * k <= p) {
+            ++active_hi;
+        }
+        while (active_lo < active_hi && (active_lo + 1) * k + src_begin[active_lo].size() <= p) {
+            ++active_lo;
+        }
+
+        uint_multiprecision_t sum       = result[p];
+        uint_multiprecision_t new_carry = 0;
+
+        if (carry != 0) {
+            const auto [s, c] = carrying_add(sum, carry);
+            sum               = s;
+            new_carry         = static_cast<uint_multiprecision_t>(c);
+        }
+
+        for (std::size_t j = active_lo; j < active_hi; ++j) {
+            const std::size_t shift = (j + 1) * k;
+            const auto [s, c]       = carrying_add(sum, src_begin[j][p - shift]);
+            sum                     = s;
+            new_carry += static_cast<uint_multiprecision_t>(c);
+        }
+
+        result[p] = sum;
+        carry     = new_carry;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(carry == 0);
 }
 
 // Given s = a + b and (|a - b|, sign_d) for non-negative a and b, recover the

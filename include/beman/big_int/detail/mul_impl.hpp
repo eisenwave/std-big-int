@@ -17,9 +17,10 @@
 namespace beman::big_int::detail {
 
 // ---------------------------------------------------------------------------
-// Long (classical) O(n*m) multiplication.
-// `result` must be pre-zeroed and have space for `a.size() + b.size()` limbs.
-// `result` must NOT alias `a` or `b`.
+// Long (classical) O(n*m) multiplication. Writes exactly `a.size() + b.size()`
+// limbs into `result.first(a.size() + b.size())`; limbs beyond that are
+// untouched. `result` need NOT be pre-zeroed.
+// `result` must NOT alias `a` or `b`. Both `a` and `b` must be non-empty.
 // ---------------------------------------------------------------------------
 constexpr void multiply_long(const std::span<uint_multiprecision_t>       result,
                              const std::span<const uint_multiprecision_t> a,
@@ -27,12 +28,29 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + b.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
 
     // The key invariant from Boost is:
     //   double_limb_max - 2 * limb_max >= limb_max * limb_max
     // This means that: widening_mul(a[i], b[j]).high + carry + bool_carry
     // can never overflow a single limb, so we only need a single-limb carry.
-    for (std::size_t i = 0; i < a.size(); ++i) {
+
+    // First row (i=0): write directly into result without reading. This avoids
+    // the pre-zero precondition that the accumulating path below would need.
+    {
+        uint_multiprecision_t carry = 0;
+        for (std::size_t j = 0; j < b.size(); ++j) {
+            const auto [lo, hi] = widening_mul(a[0], b[j]);
+            const auto [s, c]   = carrying_add(lo, carry);
+            result[j]           = s;
+            carry               = hi + static_cast<uint_multiprecision_t>(c);
+        }
+        result[b.size()] = carry;
+    }
+
+    // Subsequent rows: accumulate onto values written by previous rows.
+    for (std::size_t i = 1; i < a.size(); ++i) {
         uint_multiprecision_t carry = 0;
         for (std::size_t j = 0; j < b.size(); ++j) {
             const auto [lo, hi] = widening_mul(a[i], b[j]);
@@ -73,7 +91,7 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
 
 // Minimum number of limbs for Toom-Cook 3 to be worthwhile.
 // See multiplication_stress_bench for tuning
-inline constexpr std::size_t toom_cook_3_cutoff = 550;
+inline constexpr std::size_t toom_cook_3_cutoff = 300;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
 // One Toom-3 level uses 8k+10 limbs (~2.67*s where k = ceil(s/3)). The

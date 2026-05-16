@@ -72,17 +72,8 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     multiply_toom_cook_4(result.subspan(6 * k, a3.size() + b3.size()), a3, b3, scratch);
 
     // ---- Evaluate at x = 1: tmpa = a0 + a1 + a2 + a3; tmpb similarly. ----
-    std::ranges::copy(a0, tmpa.begin());
-    std::size_t tmpa_size = a0.size();
-    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a1);
-    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a2);
-    tmpa_size             = add_into_tmp(tmpa, tmpa_size, a3);
-
-    std::ranges::copy(b0, tmpb.begin());
-    std::size_t tmpb_size = b0.size();
-    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b2);
-    tmpb_size             = add_into_tmp(tmpb, tmpb_size, b3);
+    std::size_t tmpa_size = add_many_into_tmp(tmpa, {a0, a1, a2, a3});
+    std::size_t tmpb_size = add_many_into_tmp(tmpb, {b0, b1, b2, b3});
 
     // v1 = tmpa * tmpb
     std::ranges::fill(v1, uint_multiprecision_t{0});
@@ -92,27 +83,19 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
                          scratch);
 
     // ---- Evaluate at x = -1: tmpa = (a0 + a2) - (a1 + a3) signed; tmpb similarly. ----
-    std::ranges::copy(a0, tmpa.begin());
-    tmpa_size = a0.size();
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a2);
+    tmpa_size = add_many_into_tmp(tmpa, {a0, a2});
     // tmpb temporarily used to hold a1 + a3 before subtraction.
-    std::ranges::copy(a1, tmpb.begin());
-    std::size_t aux_size = a1.size();
-    aux_size             = add_into_tmp(tmpb, aux_size, a3);
-    const auto sub_a_m1 =
+    std::size_t aux_size = add_many_into_tmp(tmpb, {a1, a3});
+    const auto  sub_a_m1 =
         subtract_unsigned_spans_signed(tmpa,
                                        std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
                                        std::span<const uint_multiprecision_t>{tmpb.data(), aux_size});
     tmpa_size            = sub_a_m1.size;
     const bool sign_a_m1 = sub_a_m1.negative;
 
-    std::ranges::copy(b0, tmpb.begin());
-    tmpb_size = b0.size();
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b2);
+    tmpb_size = add_many_into_tmp(tmpb, {b0, b2});
     // tmpa now holds (a0 + a2) - (a1 + a3); reuse tail of vm1 as a scratch slot for (b1 + b3).
-    std::ranges::copy(b1, vm1.begin());
-    aux_size = b1.size();
-    aux_size = add_into_tmp(vm1, aux_size, b3);
+    aux_size = add_many_into_tmp(vm1, {b1, b3});
     const auto sub_b_m1 =
         subtract_unsigned_spans_signed(tmpb,
                                        std::span<const uint_multiprecision_t>{tmpb.data(), tmpb_size},
@@ -130,23 +113,8 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     }
 
     // ---- Evaluate at x = 2: tmpa = ((a3*2 + a2)*2 + a1)*2 + a0 (Horner); tmpb similarly. ----
-    std::ranges::copy(a3, tmpa.begin());
-    tmpa_size = a3.size();
-    tmpa_size = shift_left_one(tmpa, tmpa_size);
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a2);
-    tmpa_size = shift_left_one(tmpa, tmpa_size);
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a1);
-    tmpa_size = shift_left_one(tmpa, tmpa_size);
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a0);
-
-    std::ranges::copy(b3, tmpb.begin());
-    tmpb_size = b3.size();
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b2);
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b0);
+    tmpa_size = horner_eval_into_tmp(tmpa, {a3, a2, a1, a0}, 1u);
+    tmpb_size = horner_eval_into_tmp(tmpb, {b3, b2, b1, b0}, 1u);
 
     std::ranges::fill(v2, uint_multiprecision_t{0});
     multiply_toom_cook_4(v2,
@@ -156,16 +124,10 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
 
     // ---- Evaluate at x = -2: tmpa = (a0 + 4*a2) - (2*a1 + 8*a3) signed; tmpb similarly.
     // Build positive = a0 + 4*a2 in tmpa, negative = 2*a1 + 8*a3 in tmpb, then signed-sub.
-    std::ranges::copy(a2, tmpa.begin());
-    tmpa_size = a2.size();
-    tmpa_size = shift_left_n(tmpa, tmpa_size, 2u);
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a0);
+    tmpa_size = horner_eval_into_tmp(tmpa, {a2, a0}, 2u);
 
-    std::ranges::copy(a3, tmpb.begin());
-    aux_size = a3.size();
-    aux_size = shift_left_n(tmpb, aux_size, 3u);
-    aux_size = add_into_tmp(tmpb, aux_size, a1);
-    // tmpb holds 8*a3 + a1; we still need 2*a1, which is (8*a3 + a1) + a1 = 8*a3 + 2*a1.
+    // tmpb holds 8*a3 + a1; trailing add_into_tmp doubles a1 to yield 8*a3 + 2*a1.
+    aux_size = horner_eval_into_tmp(tmpb, {a3, a1}, 3u);
     aux_size = add_into_tmp(tmpb, aux_size, a1);
 
     const auto sub_a_m2 =
@@ -175,16 +137,10 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     tmpa_size            = sub_a_m2.size;
     const bool sign_a_m2 = sub_a_m2.negative;
 
-    std::ranges::copy(b2, tmpb.begin());
-    tmpb_size = b2.size();
-    tmpb_size = shift_left_n(tmpb, tmpb_size, 2u);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b0);
+    tmpb_size = horner_eval_into_tmp(tmpb, {b2, b0}, 2u);
 
     // Use vm2 as a scratch slot for 8*b3 + 2*b1.
-    std::ranges::copy(b3, vm2.begin());
-    aux_size = b3.size();
-    aux_size = shift_left_n(vm2, aux_size, 3u);
-    aux_size = add_into_tmp(vm2, aux_size, b1);
+    aux_size = horner_eval_into_tmp(vm2, {b3, b1}, 3u);
     aux_size = add_into_tmp(vm2, aux_size, b1);
 
     const auto sub_b_m2 =
@@ -205,23 +161,8 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
 
     // ---- Evaluate at x = 1/2 (scaled by 8): tmpa = ((a0*2 + a1)*2 + a2)*2 + a3 (Horner);
     // this equals 8*a(1/2), so the resulting product is 64*c(1/2). ----
-    std::ranges::copy(a0, tmpa.begin());
-    tmpa_size = a0.size();
-    tmpa_size = shift_left_one(tmpa, tmpa_size);
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a1);
-    tmpa_size = shift_left_one(tmpa, tmpa_size);
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a2);
-    tmpa_size = shift_left_one(tmpa, tmpa_size);
-    tmpa_size = add_into_tmp(tmpa, tmpa_size, a3);
-
-    std::ranges::copy(b0, tmpb.begin());
-    tmpb_size = b0.size();
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b1);
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b2);
-    tmpb_size = shift_left_one(tmpb, tmpb_size);
-    tmpb_size = add_into_tmp(tmpb, tmpb_size, b3);
+    tmpa_size = horner_eval_into_tmp(tmpa, {a0, a1, a2, a3}, 1u);
+    tmpb_size = horner_eval_into_tmp(tmpb, {b0, b1, b2, b3}, 1u);
 
     std::ranges::fill(vh, uint_multiprecision_t{0});
     multiply_toom_cook_4(vh,
@@ -252,53 +193,31 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     //   E2 = (v2 + vm2)/2 = c0 + 4c2 + 16c4 + 64c6
     //   D2 = (v2 - vm2)/4 = c1 + 4c3 + 16c5
 
-    // Step 1a: v1 <- (v1 + vm1) algebraic (sign-aware on sign_vm1).
-    if (sign_vm1) {
-        subtract_unsigned_spans(v1, v1_view, vm1_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(v1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
-    // Step 1b: v1 /= 2.
+    // Step 1: v1 <- (v1 + vm1) / 2 algebraic (sign-aware on sign_vm1) = E1.
     {
-        const auto rem = shift_right_one(v1);
+        const auto rem = sign_vm1 ? subtract_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view)
+                                  : add_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 1: v1 = E1 = c0 + c2 + c4 + c6.
 
     // Step 2: vm1 <- v1 - vm1 algebraic = (v1_orig - vm1_orig)/2 = D1.
-    if (sign_vm1) {
-        const bool carry_out = add_unsigned_spans(vm1, v1_view, vm1_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm1, v1_view, vm1_view);
-    }
+    sign_vm1 ? add_unsigned_spans_no_carry(vm1, v1_view, vm1_view)
+             : subtract_unsigned_spans_no_borrow(vm1, v1_view, vm1_view);
     // After Step 2: vm1 = D1 = c1 + c3 + c5. sign_vm1 is no longer needed.
 
-    // Step 3a: v2 <- (v2 + vm2) algebraic.
-    if (sign_vm2) {
-        subtract_unsigned_spans(v2, v2_view, vm2_view);
-    } else {
-        const bool carry_out = add_unsigned_spans(v2, v2_view, vm2_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    }
-    // Step 3b: v2 /= 2.
+    // Step 3: v2 <- (v2 + vm2) / 2 algebraic = E2.
     {
-        const auto rem = shift_right_one(v2);
+        const auto rem = sign_vm2 ? subtract_unsigned_spans_and_shift_right_one(v2, v2_view, vm2_view)
+                                  : add_unsigned_spans_and_shift_right_one(v2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 3: v2 = E2 = c0 + 4c2 + 16c4 + 64c6.
 
-    // Step 4a: vm2 <- v2 - vm2 algebraic = (v2_orig - vm2_orig)/2 = 2c1 + 8c3 + 32c5.
-    if (sign_vm2) {
-        const bool carry_out = add_unsigned_spans(vm2, v2_view, vm2_view);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!carry_out);
-    } else {
-        subtract_unsigned_spans(vm2, v2_view, vm2_view);
-    }
-    // Step 4b: vm2 /= 2.
+    // Step 4: vm2 <- (v2 - vm2) / 2 algebraic = (v2_orig - vm2_orig)/4 = c1 + 4c3 + 16c5.
     {
-        const auto rem = shift_right_one(vm2);
+        const auto rem = sign_vm2 ? add_unsigned_spans_and_shift_right_one(vm2, v2_view, vm2_view)
+                                  : subtract_unsigned_spans_and_shift_right_one(vm2, v2_view, vm2_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     // After Step 4: vm2 = D2 = c1 + 4c3 + 16c5. sign_vm2 is no longer needed.
@@ -321,8 +240,9 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     // Step 9: v2 -= v1.  v2 = 4c4 + 21c6.
     subtract_unsigned_spans(v2, v2_view, v1_view);
 
-    // Step 10: subtract 21*c6 from v2 using tmp_double for the doublings.
-    //   v2 -= 1*c6, then v2 -= 4*c6, then v2 -= 16*c6.  Total subtracted = 21*c6.
+    // Step 10-11: subtract 21*c6 from v2 using tmp_double for the doublings, then
+    // halve twice in one fused pass.
+    //   v2 -= 1*c6, then v2 -= 4*c6, then v2 = (v2 - 16*c6) / 4.  Net: v2 = c4.
     subtract_unsigned_spans(v2, v2_view, vinf_view);
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(vinf_view, tmp_double.begin());
@@ -330,12 +250,9 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     td_size             = shift_left_n(tmp_double, td_size, 2u);
     subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
     td_size = shift_left_n(tmp_double, td_size, 2u);
-    subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
-    // After Step 10: v2 = 4c4.
-
-    // Step 11: v2 /= 4 (two halvings).  v2 = c4.
     {
-        const auto rem = shift_right_n(v2, 2u);
+        const auto rem = subtract_unsigned_spans_and_shift_right_n(
+            v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size}, 2u);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -344,33 +261,18 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
 
     // Phase 3: Reduce vh to T_odd = (vh - 64c0 - 16c2 - 4c4 - c6) / 2 = 16c1 + 4c3 + c5.
 
-    // Step 13: vh -= 64*c0 (subtract 64*c0 via doubled-tmp_double).
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(v0_view, tmp_double.begin());
-    td_size = trimmed_size_span(v0_view);
-    td_size = shift_left_n(tmp_double, td_size, 6u);
-    subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    // Step 13: vh -= 64*c0.
+    subtract_shifted_unsigned(vh, vh_view, v0_view.first(trimmed_size_span(v0_view)), 6u);
 
     // Step 14: vh -= 16*c2 (c2 lives in v1 now).
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(v1_view, tmp_double.begin());
-    td_size = trimmed_size_span(v1_view);
-    td_size = shift_left_n(tmp_double, td_size, 4u);
-    subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    subtract_shifted_unsigned(vh, vh_view, v1_view.first(trimmed_size_span(v1_view)), 4u);
 
     // Step 15: vh -= 4*c4 (c4 lives in v2 now).
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(v2_view, tmp_double.begin());
-    td_size = trimmed_size_span(v2_view);
-    td_size = shift_left_n(tmp_double, td_size, 2u);
-    subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    subtract_shifted_unsigned(vh, vh_view, v2_view.first(trimmed_size_span(v2_view)), 2u);
 
-    // Step 16: vh -= c6.
-    subtract_unsigned_spans(vh, vh_view, vinf_view);
-
-    // Step 17: vh /= 2.  vh = 16c1 + 4c3 + c5 = T_odd.
+    // Step 16-17: vh = (vh - c6) / 2.  vh = 16c1 + 4c3 + c5 = T_odd.
     {
-        const auto rem = shift_right_one(vh);
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(vh, vh_view, vinf_view);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
 
@@ -398,9 +300,7 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     // Step 22: tmp_double = D1; vm1 *= 4; vm1 += tmp_double  (-> 5*D1).
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(vm1_view, tmp_double.begin());
-    const auto sz_2D1 = shift_left_one(vm1, vm1.size()); // 2*D1
-    BEMAN_BIG_INT_DEBUG_ASSERT(sz_2D1 == vm1.size());
-    const auto sz_4D1 = shift_left_one(vm1, vm1.size()); // 4*D1
+    const auto sz_4D1 = shift_left_n(vm1, vm1.size(), 2u); // 4*D1 in one pass
     BEMAN_BIG_INT_DEBUG_ASSERT(sz_4D1 == vm1.size());
     {
         const bool carry = add_unsigned_spans(vm1, vm1_view, td_view); // 5*D1
@@ -437,11 +337,7 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     //   result += vm2 * B^(5k)    (c5)
     // c0 and c6 are already in result.
     // Carries propagate up to result.size().
-    add_shifted(result, k, vh_view);
-    add_shifted(result, 2 * k, v1_view);
-    add_shifted(result, 3 * k, vm1_view);
-    add_shifted(result, 4 * k, v2_view);
-    add_shifted(result, 5 * k, vm2_view);
+    recompose(result, k, {vh_view, v1_view, vm1_view, v2_view, vm2_view});
 
     // Release scratch back to the bump pool for sibling reuse.
     scratch.deallocate(total_scratch);
