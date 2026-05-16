@@ -37,8 +37,8 @@ then successively add, for instance, schoolbook only, then Karatsuba only and th
 Karatsuba + Toom-Cook 3, and so forth.
 
 - All the runs were numerically correct.
-- We see that right around 800 limbs, Toom-Cook 3 starts becoming advantageous.
-- For larger limb counts, Toom-Cook 3 and 4 become quite beneficial.
+- We see that right around $300-400$ limbs, Toom-Cook 3 and 4 become quite beneficial.
+- Higher Toom-Cook orders show similar trends. These are not explicitly tabulated, but rather summarized via their empirical timing results below.
 
 ### `beman.big_int` relative timings
 
@@ -92,6 +92,16 @@ $$
 
 in good agreement with the measurement.
 
+For a graphical representation of the progression of multiplication coplexity,
+see also the plot below. It depicts the complexity of multiplication,
+in relation to the operand limb count for many orders of increasing limb count.
+Optimal cutoff points for crossing over from one multiplication scheme
+to the next have been judiciously selected according to these and other related
+data. This effort has been undertaken in order to optimize multiplication speed
+across all orders of limb count.
+
+![](./crossover_main.png)
+
 ### Compare multiplication timing `beman.big_int`, `boost.gmp_int`, `boost.cpp_int`
 
 Detailed measurements (with a table) comparing the multiplication performance
@@ -104,12 +114,12 @@ are shown for each big integer type at each digit setting.
 
 | 64-bit limbs   | approx base-10 digits | us per mul  `big_int`  | us per mul  `cpp_int`  | us per mul  `gmp_int` |
 |----------------|-----------------------|------------------------|------------------------|-----------------------|
-| 128            | 2,500                 |   9.2   [2.1]          |   8.6   [1.0]          |   4.3   [1.0]         |
-| 512            | 9,900                 |   84    [2.9]          |   79    [2.7]          |   29    [1.0]         |
-| 1,024          | 20,000                |   200   [2.6]          |   230   [3.0]          |   77    [1.0]         |
-| 2,048          | 39,000                |   700   [3.5]          |   710   [3.6]          |   200   [1.0]         |
-| 8,192          | 160,000               |   4,700 [3.6]          |   6,400 [4.9], see (2) |   1,300 [1.0]         |
-| 32,768         | 631,000               |  30,000 [5.1], see (1) |  58,000 [9.8]          |   5,900 [1.0]         |
+| 128            | 2,500                 |   9.2   [2.1]          |   8.6   [2.0]          |   4.3   [1.0]         |
+| 512            | 9,900                 |   84    [2.9]          |   71    [2.7]          |   29    [1.0]         |
+| 1,024          | 20,000                |   200   [2.6]          |   250   [3.0]          |   77    [1.0]         |
+| 2,048          | 39,000                |   580   [2.9]          |   760   [3.6]          |   200   [1.0]         |
+| 8,192          | 160,000               |   4,600 [3.5]          |   6,400 [4.9], see (2) |   1,300 [1.0]         |
+| 32,768         | 631,000               |  28,000 [4.7], see (1) |  58,000 [9.8]          |   5,900 [1.0]         |
 
 GMP is written in hand-coded assembly in its hot-spots and is known as the _industry_ _standard_
 of performance. The relative multiplication timing of `beman.big_int` compared with `gmp_int`
