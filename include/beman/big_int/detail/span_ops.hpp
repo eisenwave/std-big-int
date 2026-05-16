@@ -341,11 +341,10 @@ subtract_unsigned_spans_and_shift_right_one(const std::span<uint_multiprecision_
 // source's top limb has somewhere to land. Returns the trimmed result size
 // (matches subtract_unsigned_spans); callers may ignore it.
 // ---------------------------------------------------------------------------
-constexpr std::size_t
-subtract_shifted_unsigned(const std::span<uint_multiprecision_t>       dst,
-                          const std::span<const uint_multiprecision_t> dst_view,
-                          const std::span<const uint_multiprecision_t> src,
-                          const unsigned                               shift) noexcept {
+constexpr std::size_t subtract_shifted_unsigned(const std::span<uint_multiprecision_t>       dst,
+                                                const std::span<const uint_multiprecision_t> dst_view,
+                                                const std::span<const uint_multiprecision_t> src,
+                                                const unsigned                               shift) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(dst.size() >= dst_view.size());
 
     constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
