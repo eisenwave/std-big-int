@@ -20,7 +20,6 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
 
     // First, check if we have enough limbs to justify karatsuba
     if (a.size() < karatsuba_cutoff || b.size() < karatsuba_cutoff) {
-        std::ranges::fill(result, uint_multiprecision_t{0});
         multiply_long(result.first(a.size() + b.size()), a, b);
         return;
     }
@@ -29,14 +28,13 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
     const std::size_t n = std::max(a.size(), b.size()) / 2 + 1;
 
     // Split: a = a_h * B^n + a_l,  b = b_h * B^n + b_l
-    // where B = 2^bits_per_limb
+    // where B = 2^bits_per_limb. When a or b is shorter than n limbs the high
+    // half is the empty span (treated as zero by the span ops below).
     const auto a_l = a.first(std::min(a.size(), n));
-
-    const uint_multiprecision_t zero{0U};
-    const auto                  a_h = a.size() > n ? a.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
+    const auto a_h = a.size() > n ? a.subspan(n) : a.last(0);
 
     const auto b_l = b.first(std::min(b.size(), n));
-    const auto b_h = b.size() > n ? b.subspan(n) : std::span<const uint_multiprecision_t>(&zero, 1);
+    const auto b_h = b.size() > n ? b.subspan(n) : b.last(0);
 
     // Allocate all temporaries in a single bump from scratch, then carve
     // sub-spans for each:
@@ -119,15 +117,7 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
                                       std::span<const uint_multiprecision_t>{result_low.data(), result_low_size});
 
     // Add t1 shifted left by n limbs into result: result[n...] += t1
-    const auto result_mid = result.subspan(n);
-    bool       carry      = false;
-    for (std::size_t i = 0; i < result_mid.size(); ++i) {
-        const auto ti            = i < t1_size ? t1[i] : uint_multiprecision_t{0};
-        const auto [r_value, c1] = carrying_add(result_mid[i], ti, carry);
-        result_mid[i]            = r_value;
-        carry                    = c1;
-    }
-    BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+    add_shifted(result, n, std::span<const uint_multiprecision_t>{t1.data(), t1_size});
 
     // Move bump pointer back so the next sibling recursive call reuses the same region.
     // No actual deallocation happens,

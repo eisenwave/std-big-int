@@ -53,12 +53,28 @@ compare_unsigned_spans(const std::span<const uint_multiprecision_t> a,
                        const std::span<const uint_multiprecision_t> b) noexcept {
     const std::size_t na = a.size();
     const std::size_t nb = b.size();
-    const std::size_t n  = std::max(na, nb);
-    for (std::size_t i = n; i-- > 0;) {
-        const auto ai = i < na ? a[i] : uint_multiprecision_t{0};
-        const auto bi = i < nb ? b[i] : uint_multiprecision_t{0};
-        if (ai != bi) {
-            return ai < bi ? std::strong_ordering::less : std::strong_ordering::greater;
+
+    // Scan the high tail of the longer operand: any non-zero limb there
+    // immediately decides the comparison.
+    if (na > nb) {
+        for (std::size_t i = na; i-- > nb;) {
+            if (a[i] != 0) {
+                return std::strong_ordering::greater;
+            }
+        }
+    } else if (nb > na) {
+        for (std::size_t i = nb; i-- > na;) {
+            if (b[i] != 0) {
+                return std::strong_ordering::less;
+            }
+        }
+    }
+
+    // Overlap: both operands have limbs at every position.
+    const std::size_t overlap = std::min(na, nb);
+    for (std::size_t i = overlap; i-- > 0;) {
+        if (a[i] != b[i]) {
+            return a[i] < b[i] ? std::strong_ordering::less : std::strong_ordering::greater;
         }
     }
     return std::strong_ordering::equal;
@@ -73,11 +89,31 @@ constexpr bool add_unsigned_spans(const std::span<uint_multiprecision_t>       r
                                   const std::span<const uint_multiprecision_t> a,
                                   const std::span<const uint_multiprecision_t> b) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= std::max(a.size(), b.size()));
-    bool carry = false;
-    for (std::size_t i = 0; i < result.size(); ++i) {
-        const auto ai            = i < a.size() ? a[i] : uint_multiprecision_t{0};
-        const auto bi            = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [r_value, c1] = carrying_add(ai, bi, carry);
+
+    const std::size_t overlap     = std::min(a.size(), b.size());
+    const auto&       longer      = a.size() > b.size() ? a : b;
+    const std::size_t longer_size = longer.size();
+
+    bool        carry = false;
+    std::size_t i     = 0;
+
+    // Overlap: both operands contribute.
+    for (; i < overlap; ++i) {
+        const auto [r_value, c1] = carrying_add(a[i], b[i], carry);
+        result[i]                = r_value;
+        carry                    = c1;
+    }
+
+    // Tail of the longer operand: shorter is now zero.
+    for (; i < longer_size; ++i) {
+        const auto [r_value, c1] = carrying_add(longer[i], uint_multiprecision_t{0}, carry);
+        result[i]                = r_value;
+        carry                    = c1;
+    }
+
+    // Carry propagation + zero fill (when result extends beyond both operands).
+    for (; i < result.size(); ++i) {
+        const auto [r_value, c1] = carrying_add(uint_multiprecision_t{0}, uint_multiprecision_t{0}, carry);
         result[i]                = r_value;
         carry                    = c1;
     }
@@ -106,10 +142,17 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
     BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b.size());
 
     bool borrow = false;
-    for (std::size_t i = 0; i < a.size(); ++i) {
-        const auto ai                  = a[i];
-        const auto bi                  = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [r_value, r_borrow] = borrowing_sub(ai, bi, borrow);
+
+    // Overlap: both operands contribute.
+    for (std::size_t i = 0; i < b.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], b[i], borrow);
+        result[i]                      = r_value;
+        borrow                         = r_borrow;
+    }
+
+    // Tail of a: b is now zero.
+    for (std::size_t i = b.size(); i < a.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], uint_multiprecision_t{0}, borrow);
         result[i]                      = r_value;
         borrow                         = r_borrow;
     }
@@ -174,10 +217,30 @@ add_unsigned_spans_and_shift_right_n(const std::span<uint_multiprecision_t>     
     // Each iteration computes sum[i] then writes the shifted result[i-1] by
     // funnel-shifting (sum[i-1], sum[i]) right by n. Reads at index i happen
     // before the write at i-1, so result may safely alias a or b.
-    for (std::size_t i = 1; i < result.size(); ++i) {
-        const auto ai           = i < a.size() ? a[i] : uint_multiprecision_t{0};
-        const auto bi           = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [s_curr, ci] = carrying_add(ai, bi, carry);
+    const std::size_t overlap     = std::min(a.size(), b.size());
+    const auto&       longer      = a.size() > b.size() ? a : b;
+    const std::size_t longer_size = longer.size();
+    std::size_t       i           = 1;
+
+    // Overlap: both operands contribute.
+    for (; i < overlap; ++i) {
+        const auto [s_curr, ci] = carrying_add(a[i], b[i], carry);
+        carry                   = ci;
+        result[i - 1]           = funnel_shr(wide<uint_multiprecision_t>{.low_bits = s_prev, .high_bits = s_curr}, n);
+        s_prev                  = s_curr;
+    }
+
+    // Tail of the longer operand: shorter is now zero.
+    for (; i < longer_size; ++i) {
+        const auto [s_curr, ci] = carrying_add(longer[i], uint_multiprecision_t{0}, carry);
+        carry                   = ci;
+        result[i - 1]           = funnel_shr(wide<uint_multiprecision_t>{.low_bits = s_prev, .high_bits = s_curr}, n);
+        s_prev                  = s_curr;
+    }
+
+    // Carry propagation + zero fill beyond both operands.
+    for (; i < result.size(); ++i) {
+        const auto [s_curr, ci] = carrying_add(uint_multiprecision_t{0}, uint_multiprecision_t{0}, carry);
         carry                   = ci;
         result[i - 1]           = funnel_shr(wide<uint_multiprecision_t>{.low_bits = s_prev, .high_bits = s_curr}, n);
         s_prev                  = s_curr;
@@ -228,10 +291,27 @@ subtract_unsigned_spans_and_shift_right_n(const std::span<uint_multiprecision_t>
     const uint_multiprecision_t mask = (uint_multiprecision_t{1} << n) - uint_multiprecision_t{1};
     const uint_multiprecision_t rem  = d_prev & mask;
 
-    for (std::size_t i = 1; i < result.size(); ++i) {
-        const auto ai            = i < a.size() ? a[i] : uint_multiprecision_t{0};
-        const auto bi            = i < b.size() ? b[i] : uint_multiprecision_t{0};
-        const auto [d_curr, boi] = borrowing_sub(ai, bi, borrow);
+    std::size_t i = 1;
+
+    // Overlap: both operands contribute (i < b.size()).
+    for (; i < b.size(); ++i) {
+        const auto [d_curr, boi] = borrowing_sub(a[i], b[i], borrow);
+        borrow                   = boi;
+        result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);
+        d_prev                   = d_curr;
+    }
+
+    // Tail of a (a.size() >= b.size() by precondition).
+    for (; i < a.size(); ++i) {
+        const auto [d_curr, boi] = borrowing_sub(a[i], uint_multiprecision_t{0}, borrow);
+        borrow                   = boi;
+        result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);
+        d_prev                   = d_curr;
+    }
+
+    // Beyond a: only borrow propagation (must terminate with borrow == false).
+    for (; i < result.size(); ++i) {
+        const auto [d_curr, boi] = borrowing_sub(uint_multiprecision_t{0}, uint_multiprecision_t{0}, borrow);
         borrow                   = boi;
         result[i - 1]            = funnel_shr(wide<uint_multiprecision_t>{.low_bits = d_prev, .high_bits = d_curr}, n);
         d_prev                   = d_curr;
@@ -247,6 +327,76 @@ subtract_unsigned_spans_and_shift_right_one(const std::span<uint_multiprecision_
                                             const std::span<const uint_multiprecision_t> a,
                                             const std::span<const uint_multiprecision_t> b) noexcept {
     return subtract_unsigned_spans_and_shift_right_n(result, a, b, 1u);
+}
+
+// ---------------------------------------------------------------------------
+// Fused dst = dst_view - (src << shift) in a single pass, streaming the shifted
+// source via funnel_shl without materializing it into a buffer. Replaces the
+// open-coded sequence:
+//   fill(tmp, 0); copy(src, tmp); s = shift_left_n(tmp, src.size(), shift);
+//   subtract_unsigned_spans(dst, dst_view, {tmp, s});
+// 0 <= shift < limb_width. `dst` may alias `dst_view`. `src` must not alias
+// either; if src.empty() and dst aliases dst_view, this is a no-op.
+// Requires dst_view.size() >= src.size() + (shift > 0 ? 1 : 0) so the shifted
+// source's top limb has somewhere to land. Returns the trimmed result size
+// (matches subtract_unsigned_spans); callers may ignore it.
+// ---------------------------------------------------------------------------
+constexpr std::size_t
+subtract_shifted_unsigned(const std::span<uint_multiprecision_t>       dst,
+                          const std::span<const uint_multiprecision_t> dst_view,
+                          const std::span<const uint_multiprecision_t> src,
+                          const unsigned                               shift) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(dst.size() >= dst_view.size());
+
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(shift < local_limb_bits);
+
+    if (shift == 0) {
+        return subtract_unsigned_spans(dst, dst_view, src);
+    }
+    if (src.empty()) {
+        if (dst.data() != dst_view.data()) {
+            for (std::size_t i = 0; i < dst_view.size(); ++i) {
+                dst[i] = dst_view[i];
+            }
+        }
+        return trimmed_size_span(dst_view);
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(dst_view.size() >= src.size() + 1u);
+
+    bool                  borrow = false;
+    uint_multiprecision_t prev   = 0;
+    std::size_t           i      = 0;
+
+    // Overlap: i in [0, src.size()) — shifted_src has live data here.
+    for (; i < src.size(); ++i) {
+        const auto curr    = src[i];
+        const auto shifted = funnel_shl(wide<uint_multiprecision_t>{.low_bits = prev, .high_bits = curr}, shift);
+        const auto [r, br] = borrowing_sub(dst_view[i], shifted, borrow);
+        dst[i]             = r;
+        borrow             = br;
+        prev               = curr;
+    }
+
+    // High limb of shifted src: prev >> (limb_bits - shift).
+    {
+        const auto carry_out = prev >> (local_limb_bits - shift);
+        const auto [r, br]   = borrowing_sub(dst_view[i], carry_out, borrow);
+        dst[i]               = r;
+        borrow               = br;
+        ++i;
+    }
+
+    // Tail: src exhausted, only borrow propagates.
+    for (; i < dst_view.size(); ++i) {
+        const auto [r, br] = borrowing_sub(dst_view[i], uint_multiprecision_t{0}, borrow);
+        dst[i]             = r;
+        borrow             = br;
+    }
+
+    BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+    return trimmed_size_span(std::span<const uint_multiprecision_t>{dst.data(), dst_view.size()});
 }
 
 // ---------------------------------------------------------------------------

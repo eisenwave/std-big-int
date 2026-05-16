@@ -67,7 +67,9 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     std::size_t tmpa_size = add_many_into_tmp(tmpa, {a0, a1, a2});
     std::size_t tmpb_size = add_many_into_tmp(tmpb, {b0, b1, b2});
 
-    // v1 = tmpa * tmpb
+    // v1 = tmpa * tmpb. v1 must be fully zero on entry because the recursive
+    // multiply_toom_cook_3 (when not falling back to Karatsuba) expects its
+    // result region to be pre-zeroed for its recompose step.
     std::ranges::fill(v1, uint_multiprecision_t{0});
     multiply_toom_cook_3(v1,
                          std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},

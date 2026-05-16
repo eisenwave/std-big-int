@@ -456,18 +456,16 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     subtract_unsigned_spans(vm1, vm1_view, vinf_view);
 
     // vm2 -= 1024*c11.
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(vinf_view, tmp_double.begin());
-    td_size = vinf_size != 0 ? trimmed_size_span(vinf_view) : std::size_t{0};
-    td_size = shift_left_n(tmp_double, td_size, 10u);
-    subtract_unsigned_spans(vm2, vm2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    {
+        const auto vinf_trim = vinf_view.first(vinf_size != 0 ? trimmed_size_span(vinf_view) : std::size_t{0});
+        subtract_shifted_unsigned(vm2, vm2_view, vinf_trim, 10u);
+    }
 
     // vm4 -= 1048576*c11.
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(vinf_view, tmp_double.begin());
-    td_size = vinf_size != 0 ? trimmed_size_span(vinf_view) : std::size_t{0};
-    td_size = shift_left_n(tmp_double, td_size, 20u);
-    subtract_unsigned_spans(vm4, vm4_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    {
+        const auto vinf_trim = vinf_view.first(vinf_size != 0 ? trimmed_size_span(vinf_view) : std::size_t{0});
+        subtract_shifted_unsigned(vm4, vm4_view, vinf_trim, 20u);
+    }
 
     // vmh = (vmh - c11) / 4.
     {
@@ -562,19 +560,13 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
         const bool sign_D4 = sub_d4.negative;
 
         // Eliminate the middle coefficient m from S_2 and S_4 using a (the all-ones row).
+        const auto a_trim = a_v.first(trimmed_size_span(a_v));
+
         // d_buf -= 128*a.
-        std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-        std::ranges::copy(a_buf, tmp_double.begin());
-        s = trimmed_size_span(a_v);
-        s = shift_left_n(tmp_double, s, 7u);
-        subtract_unsigned_spans(d_buf, d_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
+        subtract_shifted_unsigned(d_buf, d_v, a_trim, 7u);
 
         // e_buf -= 8192*a.
-        std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-        std::ranges::copy(a_buf, tmp_double.begin());
-        s = trimmed_size_span(a_v);
-        s = shift_left_n(tmp_double, s, 13u);
-        subtract_unsigned_spans(e_buf, e_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
+        subtract_shifted_unsigned(e_buf, e_v, a_trim, 13u);
 
         // After elimination:
         //   d_buf = 900*s_o + 144*s_i

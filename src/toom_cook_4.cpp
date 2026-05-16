@@ -261,26 +261,14 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
 
     // Phase 3: Reduce vh to T_odd = (vh - 64c0 - 16c2 - 4c4 - c6) / 2 = 16c1 + 4c3 + c5.
 
-    // Step 13: vh -= 64*c0 (subtract 64*c0 via doubled-tmp_double).
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(v0_view, tmp_double.begin());
-    td_size = trimmed_size_span(v0_view);
-    td_size = shift_left_n(tmp_double, td_size, 6u);
-    subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    // Step 13: vh -= 64*c0.
+    subtract_shifted_unsigned(vh, vh_view, v0_view.first(trimmed_size_span(v0_view)), 6u);
 
     // Step 14: vh -= 16*c2 (c2 lives in v1 now).
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(v1_view, tmp_double.begin());
-    td_size = trimmed_size_span(v1_view);
-    td_size = shift_left_n(tmp_double, td_size, 4u);
-    subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    subtract_shifted_unsigned(vh, vh_view, v1_view.first(trimmed_size_span(v1_view)), 4u);
 
     // Step 15: vh -= 4*c4 (c4 lives in v2 now).
-    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
-    std::ranges::copy(v2_view, tmp_double.begin());
-    td_size = trimmed_size_span(v2_view);
-    td_size = shift_left_n(tmp_double, td_size, 2u);
-    subtract_unsigned_spans(vh, vh_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    subtract_shifted_unsigned(vh, vh_view, v2_view.first(trimmed_size_span(v2_view)), 2u);
 
     // Step 16-17: vh = (vh - c6) / 2.  vh = 16c1 + 4c3 + c5 = T_odd.
     {
@@ -312,9 +300,7 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     // Step 22: tmp_double = D1; vm1 *= 4; vm1 += tmp_double  (-> 5*D1).
     std::ranges::fill(tmp_double, uint_multiprecision_t{0});
     std::ranges::copy(vm1_view, tmp_double.begin());
-    const auto sz_2D1 = shift_left_one(vm1, vm1.size()); // 2*D1
-    BEMAN_BIG_INT_DEBUG_ASSERT(sz_2D1 == vm1.size());
-    const auto sz_4D1 = shift_left_one(vm1, vm1.size()); // 4*D1
+    const auto sz_4D1 = shift_left_n(vm1, vm1.size(), 2u); // 4*D1 in one pass
     BEMAN_BIG_INT_DEBUG_ASSERT(sz_4D1 == vm1.size());
     {
         const bool carry = add_unsigned_spans(vm1, vm1_view, td_view); // 5*D1
