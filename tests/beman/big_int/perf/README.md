@@ -95,6 +95,10 @@ in good agreement with the measurement.
 For a graphical representation of the progression of multiplication coplexity,
 see also the plot below. It depicts the complexity of multiplication,
 in relation to the operand limb count for many orders of increasing limb count.
+Optimal cutoff points for crossing over from one multiplication scheme
+to the next have been judiciously selected according to these and other related
+data. This effort has been undertaken in order to optimize multiplication speed
+across all orders of limb count.
 
 ![](./crossover_main.png)
 
