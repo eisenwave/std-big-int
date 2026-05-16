@@ -37,8 +37,7 @@ then successively add, for instance, schoolbook only, then Karatsuba only and th
 Karatsuba + Toom-Cook 3, and so forth.
 
 - All the runs were numerically correct.
-- We see that right around 800 limbs, Toom-Cook 3 starts becoming advantageous.
-- For larger limb counts, Toom-Cook 3 and 4 become quite beneficial.
+- We see that right around $300-400$ limbs, Toom-Cook 3 and 4 become quite beneficial.
 - Higher Toom-Cook orders show similar trends. These are not explicitly tabulated, but rather summarized via their empirical timing results below.
 
 ### `beman.big_int` relative timings
