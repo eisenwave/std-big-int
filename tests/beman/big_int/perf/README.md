@@ -92,6 +92,12 @@ $$
 
 in good agreement with the measurement.
 
+For a graphical representation of the progression of multiplication coplexity,
+see also the plot below. It depicts the complexity of multiplication,
+in relation to the operand limb count for many orders of increasing limb count.
+
+![](./crossover_main.png)
+
 ### Compare multiplication timing `beman.big_int`, `boost.gmp_int`, `boost.cpp_int`
 
 Detailed measurements (with a table) comparing the multiplication performance
