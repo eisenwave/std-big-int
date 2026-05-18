@@ -157,9 +157,6 @@ __extension__ using uint128_t = unsigned __int128;
     #define BEMAN_BIG_INT_HAS_INT128_CLASS 1
 using int128_t  = std::_Signed128;
 using uint128_t = std::_Unsigned128;
-#else
-    // Prevent warnings for use of undefined macros.
-    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 0
 #endif
 
 } // namespace beman::big_int::detail
