@@ -109,7 +109,10 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
     if constexpr (sizeof(std::size_t) == sizeof(std::uint64_t)) {
         return h;
     } else {
-        return h ^ (h >> 32U);
+        BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+        BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
+        return static_cast<std::size_t>(h ^ (h >> 32U));
+        BEMAN_BIG_INT_DIAGNOSTIC_POP()
     }
 }
 

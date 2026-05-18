@@ -560,13 +560,13 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
         const bool sign_D4 = sub_d4.negative;
 
         // Eliminate the middle coefficient m from S_2 and S_4 using a (the all-ones row).
-        const auto a_trim = a_v.first(trimmed_size_span(a_v));
+        const auto a_trim_first = a_v.first(trimmed_size_span(a_v));
 
         // d_buf -= 128*a.
-        subtract_shifted_unsigned(d_buf, d_v, a_trim, 7u);
+        subtract_shifted_unsigned(d_buf, d_v, a_trim_first, 7u);
 
         // e_buf -= 8192*a.
-        subtract_shifted_unsigned(e_buf, e_v, a_trim, 13u);
+        subtract_shifted_unsigned(e_buf, e_v, a_trim_first, 13u);
 
         // After elimination:
         //   d_buf = 900*s_o + 144*s_i
