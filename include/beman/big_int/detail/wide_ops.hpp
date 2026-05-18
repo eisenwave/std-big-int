@@ -49,7 +49,7 @@ struct wider<T> {
         } else if constexpr (width_v<T> == 32) {
             return std::int64_t{};
         }
-#ifdef BEMAN_BIG_INT_HAS_INT128
+#if BEMAN_BIG_INT_HAS_INT128
         else if constexpr (width_v<T> == 64) {
             return int128_t{};
         }
@@ -70,7 +70,7 @@ struct wider<T> {
         } else if constexpr (width_v<T> == 32) {
             return std::uint64_t{};
         }
-#ifdef BEMAN_BIG_INT_HAS_INT128
+#if BEMAN_BIG_INT_HAS_INT128
         else if constexpr (width_v<T> == 64) {
             return uint128_t{};
         }
@@ -168,7 +168,7 @@ constexpr T high_mul_portable(const T x, const T y) noexcept {
 template <signed_or_unsigned T>
     requires(width_v<T> <= 64)
 constexpr T high_mul(const T x, const T y) noexcept {
-#if (defined(BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL) && (BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL != 0))
+#if BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
     return (x * static_cast<wider_t<T>>(y)) >> width_v<T>;
 #else
     if constexpr (width_v<T> <= 32) {
@@ -219,7 +219,7 @@ template <signed_or_unsigned T>
     // but that enshrines the assumption that we have a 128-bit integer type everywhere.
     // Also, we often need to break up the result into limbs anyway.
 
-#ifdef BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
+#if BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
     const auto product = static_cast<wider_t<T>>(x) * static_cast<wider_t<T>>(y);
     return wide<T>::from_int(product);
 #else
