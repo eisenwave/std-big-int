@@ -109,7 +109,7 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
     if constexpr (sizeof(std::size_t) == sizeof(std::uint64_t)) {
         return h;
     } else {
-        return h ^ (h >> 32U);
+        return static_cast<std::size_t>(h ^ (h >> 32U));
     }
 }
 

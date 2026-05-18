@@ -168,7 +168,7 @@ constexpr T high_mul_portable(const T x, const T y) noexcept {
 template <signed_or_unsigned T>
     requires(width_v<T> <= 64)
 constexpr T high_mul(const T x, const T y) noexcept {
-#if BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL
+#if (defined(BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL) && (BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL != 0))
     return (x * static_cast<wider_t<T>>(y)) >> width_v<T>;
 #else
     if constexpr (width_v<T> <= 32) {
