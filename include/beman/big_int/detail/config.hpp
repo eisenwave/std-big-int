@@ -144,26 +144,21 @@ namespace beman::big_int::detail {
 
 #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
     #define BEMAN_BIG_INT_HAS_INT128 1
-    #define BEMAN_BIG_INT_HAS_INT128_CLASS 0
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
 using int128_t  = bit_int<128>;
 using uint128_t = bit_uint<128>;
 #elif defined(__SIZEOF_INT128__)
     #define BEMAN_BIG_INT_HAS_INT128 1
-    #define BEMAN_BIG_INT_HAS_INT128_CLASS 0
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 1
 __extension__ using int128_t  = __int128;
 __extension__ using uint128_t = unsigned __int128;
 #elif defined(BEMAN_BIG_INT_MSVC)
     #define BEMAN_BIG_INT_HAS_INT128 1
     #define BEMAN_BIG_INT_HAS_INT128_CLASS 1
-    #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 0
 using int128_t  = std::_Signed128;
 using uint128_t = std::_Unsigned128;
 #else
     // Prevent warnings for use of undefined macros.
-    #define BEMAN_BIG_INT_HAS_INT128 0
-    #define BEMAN_BIG_INT_HAS_INT128_CLASS 0
     #define BEMAN_BIG_INT_HAS_INT128_FUNDAMENTAL 0
 #endif
 
@@ -189,7 +184,7 @@ static_assert(sizeof(uint_multiprecision_t) == 8);
 namespace detail {
 // Signed counterpart to uint_multiprecision_t.
 using int_multiprecision_t = long long;
-    #if BEMAN_BIG_INT_HAS_INT128
+    #ifdef BEMAN_BIG_INT_HAS_INT128
         // Indicates that `uint_wide_t` and `int_wide_t` exist.
         #define BEMAN_BIG_INT_HAS_WIDE_INT 1
 // Unsigned integer type with twice the width of uint_multiprecision_t.
@@ -294,7 +289,7 @@ static_assert(signed_integer<bit_int<32>>);
 template <class T>
 struct make_unsigned : std::make_unsigned<T> {};
 
-#if BEMAN_BIG_INT_HAS_INT128_CLASS
+#ifdef BEMAN_BIG_INT_HAS_INT128_CLASS
 template <>
 struct make_unsigned<int128_t> {
     using type = uint128_t;
@@ -336,7 +331,7 @@ using make_unsigned_t = typename make_unsigned<T>::type;
 template <class T>
 struct make_signed : std::make_signed<T> {};
 
-#if BEMAN_BIG_INT_HAS_INT128_CLASS
+#ifdef BEMAN_BIG_INT_HAS_INT128_CLASS
 template <>
 struct make_signed<int128_t> {
     using type = int128_t;
@@ -414,7 +409,7 @@ struct width<T>
     : std::integral_constant<std::size_t, static_cast<std::size_t>(std::numeric_limits<make_unsigned_t<T>>::digits)> {
 };
 
-#if BEMAN_BIG_INT_HAS_INT128_CLASS
+#ifdef BEMAN_BIG_INT_HAS_INT128_CLASS
 template <>
 struct width<int128_t> : std::integral_constant<std::size_t, 128> {};
 template <>

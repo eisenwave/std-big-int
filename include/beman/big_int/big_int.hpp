@@ -3090,7 +3090,7 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
     // In the happiest case, we can use the intrinsic conversion from binary32 to uint128_t.
     // Compilers have optimized routines for this,
     // and this approach is very fast during constant evaluation.
-#if BEMAN_BIG_INT_HAS_INT128
+#ifdef BEMAN_BIG_INT_HAS_INT128
     if constexpr (traits::width == 32 && std::is_convertible_v<F, detail::uint128_t>) {
         assign_magnitude(static_cast<detail::uint128_t>(detail::constexpr_fabs(value)));
         unchecked_set_sign(value < 0);
