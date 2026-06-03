@@ -66,7 +66,8 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
 
 // Minimum number of limbs for Karatsuba to be worthwhile
 // Directly from Boost, and reconfirmed as correct
-inline constexpr std::size_t karatsuba_cutoff = 40;
+inline constexpr std::size_t karatsuba_cutoff   = 48;
+inline constexpr std::size_t karatsuba_fallback = 24;
 
 // Heuristic estimate of scratch space needed for Karatsuba multiplication.
 // One Karatsuba level uses ~2*s limbs (t1=2n+2, t2=t3=n+1 with n=s/2+1). The

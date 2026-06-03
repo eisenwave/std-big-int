@@ -19,7 +19,7 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
     const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
 
     // First, check if we have enough limbs to justify karatsuba
-    if (a.size() < karatsuba_cutoff || b.size() < karatsuba_cutoff) {
+    if (a.size() < karatsuba_fallback || b.size() < karatsuba_fallback) {
         multiply_long(result.first(a.size() + b.size()), a, b);
         return;
     }
