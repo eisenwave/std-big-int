@@ -10,6 +10,7 @@
 #include <beman/big_int/detail/scratch_allocator.hpp>
 
 #include <algorithm>
+#include <bit>
 #include <compare>
 #include <memory>
 #include <span>
@@ -215,6 +216,30 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
                             const std::span<const uint_multiprecision_t> b_untrimmed,
                             scratch_allocator_base&                      scratch,
                             const std::size_t                            cutoff_override = 0) noexcept;
+
+// ---------------------------------------------------------------------------
+// result <- a * p2 where p2 is a trimmed power of two: a shifted copy of `a`
+// placed at limb offset p2.size() - 1, bit-shifted by countr_zero(p2.back()).
+// O(n) with no scratch, versus a full kernel dispatch (see GMP mpz_mul_2exp).
+// `result` must be pre-zeroed, have space for a.size() + p2.size() limbs, and
+// must NOT alias `a`. Returns the number of significant result limbs.
+// ---------------------------------------------------------------------------
+constexpr std::size_t multiply_power_of_two(const std::span<uint_multiprecision_t>       result,
+                                            const std::span<const uint_multiprecision_t> a,
+                                            const std::span<const uint_multiprecision_t> p2) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(is_power_of_two_span(p2));
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + p2.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
+
+    const std::size_t limb_offset = p2.size() - 1;
+    const auto        bit_shift   = static_cast<unsigned>(std::countr_zero(p2.back()));
+    const auto        dst         = result.subspan(limb_offset);
+
+    std::ranges::copy(a, dst.begin());
+    return limb_offset + shift_left_n(dst, a.size(), bit_shift);
+}
 
 // ---------------------------------------------------------------------------
 // Top-level multiplication dispatcher.
