@@ -275,12 +275,31 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
         return multiply_single_limb(result, a, b[0]);
     }
 
-    // Choose algorithm to use based off the tuned cutoffs.
+    // This check has 0 runtime cost, but could speed up/reduce depth of constant evaluation
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        if (is_power_of_two_span(b)) {
+            return multiply_power_of_two(result, a, b);
+        }
+        if (is_power_of_two_span(a)) {
+            return multiply_power_of_two(result, b, a);
+        }
+    }
+
+    // Choose an algorithm to use based off the tuned cutoffs.
     // Avoid these at compile time because the recursion depth could blow up consteval limits;
     // long multiplication works just fine in that case.
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
         const std::size_t min_size = std::min(a.size(), b.size());
         if (min_size >= karatsuba_cutoff) {
+            // Power-of-two operands reduce to a shifted copy of the other operand.
+            // This is only worth checking if we're about to do a big number mul anyway
+            if (is_power_of_two_span(b)) {
+                return multiply_power_of_two(result, a, b);
+            }
+            if (is_power_of_two_span(a)) {
+                return multiply_power_of_two(result, b, a);
+            }
+
             const std::size_t s            = std::max(a.size(), b.size());
             const std::size_t result_total = a.size() + b.size();
 
