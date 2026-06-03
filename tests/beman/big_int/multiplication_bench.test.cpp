@@ -17,13 +17,13 @@ bool run_benchmarks(const unsigned p2) {
 
     const cpp_int_type cpp_int_two{2};
     const cpp_int_type cpp_int_mersenne{cpp_int_type{beman::big_int::pow(cpp_int_two, p2)} - 1};
-    std::cout << "stopwatch big_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
+    std::cout << "stopwatch cpp_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
 
     my_stopwatch.reset();
 
     const big_int_type big_int_two{2};
     const big_int_type big_int_mersenne{big_int_type{beman::big_int::pow(big_int_two, p2)} - 1};
-    std::cout << "stopwatch cpp_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
+    std::cout << "stopwatch big_int: " << local_stopwatch_type::elapsed_time<double>(my_stopwatch) << std::endl;
 
     const std::span<const ::boost::multiprecision::limb_type> cpp_int_rep{cpp_int_mersenne.backend().limbs(),
                                                                           cpp_int_mersenne.backend().size()};
