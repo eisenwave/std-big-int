@@ -67,6 +67,17 @@ consteval bool move_heap_mul() {
 }
 static_assert(move_heap_mul());
 
+consteval bool ce_power_of_two_multi_limb() {
+    // At compile time power-of-two operands take the shifted-copy path
+    // unconditionally (no cutoff gate), keeping large products within
+    // consteval step limits.
+    const big_int a = big_int{1} << 2600;
+    const big_int b = big_int{1} << 2600;
+    const big_int c = big_int{1} << 130;
+    return (a * b) == (big_int{1} << 5200) && (c * c) == (big_int{1} << 260);
+}
+static_assert(ce_power_of_two_multi_limb());
+
 // ----- runtime tests -----
 
 TEST(Multiplication, SmallPositivePositive) {
@@ -329,6 +340,69 @@ TEST(Multiplication, MultiLimbSquaring) {
     const big_int r        = a * a;
     const big_int expected = (big_int{1} << 256) + (-(big_int{1} << 129)) + big_int{1};
     EXPECT_EQ(r, expected);
+}
+
+TEST(Multiplication, PowerOfTwoMultiLimbTimesDense) {
+    // The power-of-two dispatch path engages once BOTH operands clear the
+    // karatsuba cutoff (here only k = 4096: a 65-limb 2^k against the 79-limb
+    // dense operand); smaller k values exercise tiny-pow2 * large-dense via
+    // the long-mul fallback. The result must match the independently
+    // implemented shift operator. Bit positions cover limb-aligned shifts,
+    // top-bit carry-out, and both operand orders.
+    const big_int dense = (big_int{1} << 5000) - 1;
+    for (const unsigned k : {64U, 65U, 127U, 128U, 191U, 200U, 4096U}) {
+        const big_int p2 = big_int{1} << k;
+        EXPECT_EQ(dense * p2, dense << k);
+        EXPECT_EQ(p2 * dense, dense << k);
+    }
+}
+
+TEST(Multiplication, PowerOfTwoTimesPowerOfTwo) {
+    // Bit positions below and above the karatsuba cutoff (40 limbs = 2560
+    // bits) cover both the long-mul fallback and the shifted-copy path
+    // (4096 x 4096 is the pair where both operands clear the cutoff).
+    for (const unsigned j : {64U, 127U, 128U, 1000U, 4096U}) {
+        for (const unsigned k : {64U, 127U, 128U, 1000U, 4096U}) {
+            const big_int lhs = big_int{1} << j;
+            const big_int rhs = big_int{1} << k;
+            EXPECT_EQ(lhs * rhs, big_int{1} << (j + k));
+        }
+    }
+}
+
+TEST(Multiplication, NearPowerOfTwoNotMisdetected) {
+    // Values whose top limb is a single bit but with non-zero limbs below must
+    // not take the shift path; verify products via algebraic identities.
+    const big_int m = (big_int{1} << 300) - 1;
+
+    const big_int just_above = (big_int{1} << 256) + 1;
+    EXPECT_EQ(just_above * m, (m << 256) + m);
+
+    const big_int two_sparse_bits = (big_int{1} << 256) + (big_int{1} << 32);
+    EXPECT_EQ(two_sparse_bits * m, (m << 256) + (m << 32));
+
+    const big_int three_p2 = big_int{3} << 256;
+    EXPECT_EQ(three_p2 * m, (m << 257) + (m << 256));
+
+    const big_int all_ones = (big_int{1} << 256) - 1;
+    EXPECT_EQ(all_ones * m, (m << 256) - m);
+}
+
+TEST(Multiplication, PowerOfTwoSignsPreserved) {
+    const big_int x  = (big_int{1} << 200) - 12345;
+    const big_int p2 = big_int{1} << 100;
+    EXPECT_EQ((-x) * p2, -(x << 100));
+    EXPECT_EQ(x * (-p2), -(x << 100));
+    EXPECT_EQ((-x) * (-p2), x << 100);
+}
+
+TEST(Multiplication, PowerOfTwoLargeOperands) {
+    // Sizes that previously dispatched into Karatsuba / Toom-Cook.
+    const big_int  dense = (big_int{1} << 320000) - 1; // 5000 limbs
+    const unsigned k     = 320000U;
+    const big_int  p2    = big_int{1} << k;
+    EXPECT_EQ(dense * p2, dense << k);
+    EXPECT_EQ(p2 * p2, big_int{1} << (2U * k));
 }
 
 TEST(Multiplication, Mersenne) {
