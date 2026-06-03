@@ -6,6 +6,7 @@
 
 #include <beman/big_int/detail/config.hpp>
 #include <algorithm>
+#include <bit>
 #include <initializer_list>
 #include <ranges>
 #include <utility>
@@ -41,6 +42,14 @@ namespace beman::big_int::detail {
 // Returns true if all limbs in the span are zero
 constexpr bool is_span_zero(const std::span<const uint_multiprecision_t> s) noexcept {
     return std::ranges::all_of(s, [](const uint_multiprecision_t limb) { return limb == 0; });
+}
+
+// Returns true if the trimmed span holds exactly a power of two (a single set
+// bit in the top limb, all lower limbs zero). Cheap for ordinary values: the
+// single-bit test on the top limb almost always fails, and the zero-scan exits
+// at the first non-zero low limb.
+[[nodiscard]] constexpr bool is_power_of_two_span(const std::span<const uint_multiprecision_t> s) noexcept {
+    return !s.empty() && std::has_single_bit(s.back()) && is_span_zero(s.first(s.size() - 1));
 }
 
 // ---------------------------------------------------------------------------
