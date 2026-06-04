@@ -343,4 +343,253 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     scratch.deallocate(total_scratch);
 }
 
+void square_toom_cook_4(const std::span<uint_multiprecision_t>       result,
+                        const std::span<const uint_multiprecision_t> a_untrimmed,
+                        scratch_allocator_base&                      scratch,
+                        const std::size_t                            cutoff_override) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= 2 * trimmed_size_span(a_untrimmed));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a_untrimmed.data());
+
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+
+    // Partition at k = ceil(an / 4).
+    const std::size_t k                = (a.size() + 3) / 4;
+    const std::size_t effective_cutoff = cutoff_override == 0 ? square_toom_cook_4_cutoff : cutoff_override;
+
+    // Fall through to the Toom-3 squaring variant below the performance cutoff
+    // or below the algorithm's 3*k invariant (a3 must be non-empty).
+    if (a.size() < effective_cutoff || a.size() <= 3 * k) {
+        square_toom_cook_3(result, a, scratch);
+        return;
+    }
+
+    // Split into four pieces; the 3*k gate guarantees a3 is non-empty.
+    const auto a0 = a.first(k);
+    const auto a1 = a.subspan(k, k);
+    const auto a2 = a.subspan(2 * k, k);
+    const auto a3 = a.subspan(3 * k);
+
+    // Carve scratch: one evaluation buffer tmpa plus one aux buffer for the
+    // negative halves of the signed points (the general kernel needs tmpa and
+    // tmpb); five squares and the tmp_double shift scratch.
+    const std::size_t tmp_cap       = k + 2;
+    const std::size_t prod_cap      = 2 * k + 2;
+    const std::size_t total_scratch = 2 * tmp_cap + 6 * prod_cap;
+
+    auto block      = scratch.allocate(total_scratch);
+    auto tmpa       = block.first(tmp_cap);
+    auto aux        = block.subspan(tmp_cap, tmp_cap);
+    auto v1         = block.subspan(2 * tmp_cap, prod_cap);
+    auto vm1        = block.subspan(2 * tmp_cap + prod_cap, prod_cap);
+    auto v2         = block.subspan(2 * tmp_cap + 2 * prod_cap, prod_cap);
+    auto vm2        = block.subspan(2 * tmp_cap + 3 * prod_cap, prod_cap);
+    auto vh         = block.subspan(2 * tmp_cap + 4 * prod_cap, prod_cap);
+    auto tmp_double = block.subspan(2 * tmp_cap + 5 * prod_cap, prod_cap);
+
+    // ---- c0 = a0^2, written into result[0..2k) (caller pre-zeroed). ----
+    square_toom_cook_4(result.first(2 * a0.size()), a0, scratch);
+
+    // ---- c6 = a3^2, written into result[6k..). ----
+    square_toom_cook_4(result.subspan(6 * k, 2 * a3.size()), a3, scratch);
+
+    // ---- Evaluate at x = 1: tmpa = a0 + a1 + a2 + a3. ----
+    std::size_t tmpa_size = add_many_into_tmp(tmpa, {a0, a1, a2, a3});
+    std::size_t aux_size  = 0;
+
+    // v1 = p(1)^2
+    std::ranges::fill(v1, uint_multiprecision_t{0});
+    square_toom_cook_4(v1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+
+    // ---- Evaluate at x = -1: tmpa = |(a0 + a2) - (a1 + a3)|; squaring erases
+    // the sign, so the interpolation below uses the non-negative arms of the
+    // general kernel's sign-aware steps. ----
+    tmpa_size         = add_many_into_tmp(tmpa, {a0, a2});
+    aux_size          = add_many_into_tmp(aux, {a1, a3});
+    const auto sub_m1 = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{aux.data(), aux_size});
+    tmpa_size         = sub_m1.size;
+
+    // vm1 = p(-1)^2
+    std::ranges::fill(vm1, uint_multiprecision_t{0});
+    if (tmpa_size != 0) {
+        square_toom_cook_4(vm1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+    }
+
+    // ---- Evaluate at x = 2: tmpa = ((a3*2 + a2)*2 + a1)*2 + a0 (Horner). ----
+    tmpa_size = horner_eval_into_tmp(tmpa, {a3, a2, a1, a0}, 1u);
+
+    // v2 = p(2)^2
+    std::ranges::fill(v2, uint_multiprecision_t{0});
+    square_toom_cook_4(v2, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+
+    // ---- Evaluate at x = -2: tmpa = |(a0 + 4*a2) - (2*a1 + 8*a3)|. ----
+    tmpa_size = horner_eval_into_tmp(tmpa, {a2, a0}, 2u);
+
+    // aux holds 8*a3 + a1; trailing add_into_tmp doubles a1 to yield 8*a3 + 2*a1.
+    aux_size = horner_eval_into_tmp(aux, {a3, a1}, 3u);
+    aux_size = add_into_tmp(aux, aux_size, a1);
+
+    const auto sub_m2 = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{aux.data(), aux_size});
+    tmpa_size         = sub_m2.size;
+
+    // vm2 = p(-2)^2
+    std::ranges::fill(vm2, uint_multiprecision_t{0});
+    if (tmpa_size != 0) {
+        square_toom_cook_4(vm2, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+    }
+
+    // ---- Evaluate at x = 1/2 (scaled by 8): tmpa = ((a0*2 + a1)*2 + a2)*2 + a3;
+    // this equals 8*a(1/2), so the resulting square is 64*c(1/2). ----
+    tmpa_size = horner_eval_into_tmp(tmpa, {a0, a1, a2, a3}, 1u);
+
+    // vh = (8*p(1/2))^2
+    std::ranges::fill(vh, uint_multiprecision_t{0});
+    square_toom_cook_4(vh, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+
+    // ---- Interpolation: the general kernel's sequence with sign_vm1 and
+    // sign_vm2 pinned to false (squares are non-negative). ----
+    const auto v0_view   = std::span<const uint_multiprecision_t>{result.data(), 2 * k};
+    const auto vinf_size = std::min(result.size() - 6 * k, 2 * k);
+    const auto vinf_view = std::span<const uint_multiprecision_t>{result.data() + 6 * k, vinf_size};
+    const auto v1_view   = std::span<const uint_multiprecision_t>{v1};
+    const auto vm1_view  = std::span<const uint_multiprecision_t>{vm1};
+    const auto v2_view   = std::span<const uint_multiprecision_t>{v2};
+    const auto vm2_view  = std::span<const uint_multiprecision_t>{vm2};
+    const auto vh_view   = std::span<const uint_multiprecision_t>{vh};
+    const auto td_view   = std::span<const uint_multiprecision_t>{tmp_double};
+
+    // Step 1: v1 <- (v1 + vm1) / 2 = E1 = c0 + c2 + c4 + c6.
+    {
+        const auto rem = add_unsigned_spans_and_shift_right_one(v1, v1_view, vm1_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 2: vm1 <- v1 - vm1 = D1 = c1 + c3 + c5.
+    subtract_unsigned_spans_no_borrow(vm1, v1_view, vm1_view);
+
+    // Step 3: v2 <- (v2 + vm2) / 2 = E2 = c0 + 4c2 + 16c4 + 64c6.
+    {
+        const auto rem = add_unsigned_spans_and_shift_right_one(v2, v2_view, vm2_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 4: vm2 <- (v2 - vm2) / 2 = D2 = c1 + 4c3 + 16c5.
+    {
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(vm2, v2_view, vm2_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Phase 2: Solve even system for c2 (into v1) and c4 (into v2).
+
+    // Step 5: v2 -= v1.  v2 = 3*(c2 + 5c4 + 21c6).
+    subtract_unsigned_spans(v2, v2_view, v1_view);
+    // Step 6: v2 /= 3.  v2 = c2 + 5c4 + 21c6.
+    {
+        const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 7: v1 -= c0.  v1 = c2 + c4 + c6.
+    subtract_unsigned_spans(v1, v1_view, v0_view);
+    // Step 8: v1 -= c6.  v1 = c2 + c4.
+    subtract_unsigned_spans(v1, v1_view, vinf_view);
+
+    // Step 9: v2 -= v1.  v2 = 4c4 + 21c6.
+    subtract_unsigned_spans(v2, v2_view, v1_view);
+
+    // Step 10-11: subtract 21*c6 from v2 using tmp_double for the doublings,
+    // then halve twice in one fused pass.  Net: v2 = c4.
+    subtract_unsigned_spans(v2, v2_view, vinf_view);
+    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
+    std::ranges::copy(vinf_view, tmp_double.begin());
+    std::size_t td_size = vinf_view.size();
+    td_size             = shift_left_n(tmp_double, td_size, 2u);
+    subtract_unsigned_spans(v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size});
+    td_size = shift_left_n(tmp_double, td_size, 2u);
+    {
+        const auto rem = subtract_unsigned_spans_and_shift_right_n(
+            v2, v2_view, std::span<const uint_multiprecision_t>{tmp_double.data(), td_size}, 2u);
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 12: v1 -= v2.  v1 = c2.
+    subtract_unsigned_spans(v1, v1_view, v2_view);
+
+    // Phase 3: Reduce vh to T_odd = (vh - 64c0 - 16c2 - 4c4 - c6) / 2 = 16c1 + 4c3 + c5.
+
+    // Step 13: vh -= 64*c0.
+    subtract_shifted_unsigned(vh, vh_view, v0_view.first(trimmed_size_span(v0_view)), 6u);
+
+    // Step 14: vh -= 16*c2 (c2 lives in v1 now).
+    subtract_shifted_unsigned(vh, vh_view, v1_view.first(trimmed_size_span(v1_view)), 4u);
+
+    // Step 15: vh -= 4*c4 (c4 lives in v2 now).
+    subtract_shifted_unsigned(vh, vh_view, v2_view.first(trimmed_size_span(v2_view)), 2u);
+
+    // Step 16-17: vh = (vh - c6) / 2.  vh = 16c1 + 4c3 + c5 = T_odd.
+    {
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(vh, vh_view, vinf_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Phase 4: Solve odd system using vm1 = D1, vm2 = D2, vh = T_odd.
+
+    // Step 18: vm2 -= vm1.  vm2 = 3*(c3 + 5c5).
+    subtract_unsigned_spans(vm2, vm2_view, vm1_view);
+    // Step 19: vh -= vm1.  vh = 3*(5c1 + c3).
+    subtract_unsigned_spans(vh, vh_view, vm1_view);
+    // Step 20: vm2 /= 3.  vm2 = alpha = c3 + 5c5.
+    {
+        const auto rem = divide_unsigned_short(vm2, vm2_view, uint_multiprecision_t{3});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+    // Step 21: vh /= 3.  vh = beta = 5c1 + c3.
+    {
+        const auto rem = divide_unsigned_short(vh, vh_view, uint_multiprecision_t{3});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 22: tmp_double = D1; vm1 *= 4; vm1 += tmp_double  (-> 5*D1).
+    std::ranges::fill(tmp_double, uint_multiprecision_t{0});
+    std::ranges::copy(vm1_view, tmp_double.begin());
+    const auto sz_4d1 = shift_left_n(vm1, vm1.size(), 2u); // 4*D1 in one pass
+    BEMAN_BIG_INT_DEBUG_ASSERT(sz_4d1 == vm1.size());
+    {
+        const bool carry = add_unsigned_spans(vm1, vm1_view, td_view); // 5*D1
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+    }
+    // Step 23: vm1 -= alpha; vm1 -= beta.  vm1 = 3*c3.
+    subtract_unsigned_spans(vm1, vm1_view, vm2_view);
+    subtract_unsigned_spans(vm1, vm1_view, vh_view);
+    // Step 24: vm1 /= 3.  vm1 = c3.
+    {
+        const auto rem = divide_unsigned_short(vm1, vm1_view, uint_multiprecision_t{3});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 25: vh -= c3 -> 5*c1; vh /= 5.  vh = c1.
+    subtract_unsigned_spans(vh, vh_view, vm1_view);
+    {
+        const auto rem = divide_unsigned_short(vh, vh_view, uint_multiprecision_t{5});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 26: vm2 -= c3 -> 5*c5; vm2 /= 5.  vm2 = c5.
+    subtract_unsigned_spans(vm2, vm2_view, vm1_view);
+    {
+        const auto rem = divide_unsigned_short(vm2, vm2_view, uint_multiprecision_t{5});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Phase 5: Recompose (c0 and c6 are already in result).
+    recompose(result, k, {vh_view, v1_view, vm1_view, v2_view, vm2_view});
+
+    // Release scratch back to the bump pool for sibling reuse.
+    scratch.deallocate(total_scratch);
+}
+
 } // namespace beman::big_int::detail

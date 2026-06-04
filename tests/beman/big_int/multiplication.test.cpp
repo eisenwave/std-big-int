@@ -4,6 +4,7 @@
 #include <bit>
 #include <cstdint>
 #include <limits>
+#include <random>
 #include <string>
 #include <system_error>
 
@@ -77,6 +78,14 @@ consteval bool ce_power_of_two_multi_limb() {
     return (a * b) == (big_int{1} << 5200) && (c * c) == (big_int{1} << 260);
 }
 static_assert(ce_power_of_two_multi_limb());
+
+consteval bool ce_squaring_multi_limb() {
+    // Same-object multiplication takes the consteval squaring path; verify
+    // against the closed form (2^N - 5)^2 = 2^(2N) - 5*2^(N+1) + 25.
+    const big_int x = (big_int{1} << 1024) - 5;
+    return x * x == (big_int{1} << 2048) - (big_int{5} << 1025) + 25;
+}
+static_assert(ce_squaring_multi_limb());
 
 // ----- runtime tests -----
 
@@ -403,6 +412,51 @@ TEST(Multiplication, PowerOfTwoLargeOperands) {
     const big_int  p2    = big_int{1} << k;
     EXPECT_EQ(dense * p2, dense << k);
     EXPECT_EQ(p2 * p2, big_int{1} << (2U * k));
+}
+
+TEST(Multiplication, SquaringClosedForm) {
+    // (2^N - 1)^2 = 2^(2N) - 2^(N+1) + 1, with N spanning every squaring tier
+    // up to square_toom_cook_6_5.
+    for (const unsigned n : {640U, 6400U, 64000U, 320000U, 3840000U}) {
+        const big_int x        = (big_int{1} << n) - 1;
+        const big_int expected = (big_int{1} << (2U * n)) - (big_int{1} << (n + 1U)) + 1;
+        EXPECT_EQ(x * x, expected) << "n=" << n;
+    }
+}
+
+TEST(Multiplication, SquaringRandomDifferential) {
+    // x * x passes the same span twice and takes the squaring path; x * copy
+    // goes through the general kernels. Random values exercise the
+    // sign-dependent evaluation branches at every dispatch tier.
+    std::mt19937_64                    rng{0x5EEDU};
+    std::uniform_int_distribution<int> pick{0, 15};
+    constexpr const char*              digits = "0123456789abcdef";
+    for (const std::size_t hex_len :
+         {48UL, 112UL, 160UL, 480UL, 1024UL, 3100UL, 25000UL, 90000UL, 200000UL, 800000UL}) {
+        std::string s(hex_len, '0');
+        for (auto& ch : s) {
+            ch = digits[pick(rng)];
+        }
+        s.front() = 'f'; // keep the top limb significant
+
+        big_int x;
+        const auto [p, ec] = from_chars(s.data(), s.data() + s.size(), x, 16);
+        ASSERT_EQ(ec, std::errc{});
+        ASSERT_EQ(p, s.data() + s.size());
+
+        const big_int x_copy = x;
+        EXPECT_EQ(x * x, x * x_copy) << "hex_len=" << hex_len;
+        EXPECT_EQ((-x) * (-x), x * x_copy) << "hex_len=" << hex_len;
+    }
+}
+
+TEST(Multiplication, CompoundSelfSquaring) {
+    // y *= y routes through the same operand-identity detection.
+    big_int       y  = (big_int{1} << 1000) - 12345;
+    const big_int x  = y;
+    const big_int xc = y;
+    y *= y;
+    EXPECT_EQ(y, x * xc);
 }
 
 TEST(Multiplication, Mersenne) {
