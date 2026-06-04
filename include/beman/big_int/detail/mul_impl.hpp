@@ -472,12 +472,23 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
         if (is_power_of_two_span(a)) {
             return multiply_power_of_two(result, b, a);
         }
+        // Squaring halves the widening muls, and so the consteval step count.
+        if (a.data() == b.data() && a.size() == b.size()) {
+            square_long(result, a);
+            return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), 2 * a.size()});
+        }
     }
 
     // Choose an algorithm to use based off the tuned cutoffs.
     // Avoid these at compile time because the recursion depth could blow up consteval limits;
     // long multiplication works just fine in that case.
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+        // x * x and x *= x pass the same span twice, so squaring detection is
+        // a pointer compare that almost always fails fast for ordinary mul
+        if (a.data() == b.data() && a.size() == b.size()) {
+            return square_dispatch(result, a, alloc);
+        }
+
         const std::size_t min_size = std::min(a.size(), b.size());
         if (min_size >= karatsuba_cutoff) {
             // Power-of-two operands reduce to a shifted copy of the other operand.
