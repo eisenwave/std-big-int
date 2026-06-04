@@ -170,6 +170,22 @@ double run_toom_cook_6_5_at(const std::size_t limbs, const unsigned trials) {
                              });
 }
 
+double run_toom_cook_8_5_at(const std::size_t limbs, const unsigned trials) {
+    // cutoff_override=1 forces Toom-8.5 to run at any input size that clears the
+    // 7*k / 9*k correctness gates. Recursive sub-products use the default cutoff so
+    // they fall back to Toom-6.5 / Toom-4 / ... / schoolbook as in production.
+    return measure_algorithm(limbs,
+                             trials,
+                             ::beman::big_int::detail::toom_cook_8_5_storage_size(limbs),
+                             [](const std::span<uint_t>       r,
+                                const std::span<const uint_t> a,
+                                const std::span<const uint_t> b,
+                                scratch_for_test&             s) {
+                                 ::beman::big_int::detail::multiply_toom_cook_8_5(
+                                     r.first(a.size() + b.size()), a, b, s, std::size_t{1});
+                             });
+}
+
 // Squaring runners: `b` is ignored, the algorithm squares `a`. The harness
 // zero-fills the result before every call, satisfying square_long's pre-zero
 // requirement.
@@ -245,6 +261,21 @@ double run_square_toom_cook_6_5_at(const std::size_t limbs, const unsigned trial
                              });
 }
 
+double run_square_toom_cook_8_5_at(const std::size_t limbs, const unsigned trials) {
+    // cutoff_override=1 forces the Toom-8.5 squaring level; recursive sub-squares
+    // use the default cutoffs, as in production.
+    return measure_algorithm(limbs,
+                             trials,
+                             ::beman::big_int::detail::toom_cook_8_5_storage_size(limbs),
+                             [](const std::span<uint_t>       r,
+                                const std::span<const uint_t> a,
+                                const std::span<const uint_t>,
+                                scratch_for_test& s) {
+                                 ::beman::big_int::detail::square_toom_cook_8_5(
+                                     r.first(2 * a.size()), a, s, std::size_t{1});
+                             });
+}
+
 // Registry of algorithms to sweep. Each entry constrains the sweep to a
 // reasonable range: too small and the algorithm's own internal cutoff just
 // falls back to the previous tier; too large and a single multiplication
@@ -262,11 +293,13 @@ constexpr algorithm_runner algorithms[] = {
     {"toom-cook-3", 300, 10000, run_toom_cook_3_at},
     {"toom-cook-4", 300, 30000, run_toom_cook_4_at},
     {"toom-cook-6.5", 1000, 80000, run_toom_cook_6_5_at},
+    {"toom-cook-8.5", 2000, 80000, run_toom_cook_8_5_at},
     {"square-long", 4, 400, run_square_long_at},
     {"square-karatsuba", 32, 2000, run_square_karatsuba_at},
     {"square-toom-cook-3", 200, 10000, run_square_toom_cook_3_at},
     {"square-toom-cook-4", 300, 30000, run_square_toom_cook_4_at},
     {"square-toom-cook-6.5", 1000, 80000, run_square_toom_cook_6_5_at},
+    {"square-toom-cook-8.5", 2000, 80000, run_square_toom_cook_8_5_at},
 };
 
 // Limb counts to sample. Dense coverage at the low end for the
@@ -346,11 +379,23 @@ constexpr std::size_t sweep_limbs[] = {
     5000,
     6000,
     7500,
+    // Toom-6.5 -> Toom-8.5 transition (densify to resolve the crossover).
+    9000,
     10000,
+    11000,
+    12000,
+    13000,
+    14000,
     15000,
+    16000,
+    18000,
     20000,
-    30000,
+    24000,
+    28000,
+    32000,
+    40000,
     50000,
+    65000,
     80000,
 };
 
