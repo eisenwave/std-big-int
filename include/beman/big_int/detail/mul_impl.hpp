@@ -143,6 +143,27 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
                         const std::span<const uint_multiprecision_t> b_untrimmed,
                         scratch_allocator_base&                      scratch) noexcept;
 
+// Minimum number of limbs for the Karatsuba squaring variant: the squaring
+// basecase stays ahead of recursion roughly twice as long as schoolbook does
+// against general Karatsuba (the same SQR/MUL threshold ratio GMP observes).
+// Tuned via multiplication_stress_bench.
+inline constexpr std::size_t square_karatsuba_cutoff = 80;
+
+// ---------------------------------------------------------------------------
+// Squaring counterpart of multiply_karatsuba: one evaluation (a_h + a_l) per
+// level instead of two, and all three sub-products are recursive squares.
+// `result` must have space for 2 * a.size() limbs or more; slack beyond the
+// product follows the same caller-pre-zeroed convention as the general kernel.
+// `result` must NOT alias `a`. `scratch` provides pre-allocated workspace.
+// ---------------------------------------------------------------------------
+// `cutoff_override` is a benchmark-only escape hatch: when non-zero it
+// replaces `square_karatsuba_cutoff` for this call only; recursive
+// sub-squares always use the default.
+void square_karatsuba(const std::span<uint_multiprecision_t>       result,
+                      const std::span<const uint_multiprecision_t> a_untrimmed,
+                      scratch_allocator_base&                      scratch,
+                      const std::size_t                            cutoff_override = 0) noexcept;
+
 // Minimum number of limbs for Toom-Cook 3 to be worthwhile.
 // See multiplication_stress_bench for tuning
 inline constexpr std::size_t toom_cook_3_cutoff = 300;

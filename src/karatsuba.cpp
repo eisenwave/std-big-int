@@ -125,4 +125,83 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
     scratch.deallocate(total_scratch);
 }
 
+void square_karatsuba(const std::span<uint_multiprecision_t>       result,
+                      const std::span<const uint_multiprecision_t> a_untrimmed,
+                      scratch_allocator_base&                      scratch,
+                      const std::size_t                            cutoff_override) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= 2 * trimmed_size_span(a_untrimmed));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a_untrimmed.data());
+
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+
+    const std::size_t effective_cutoff = cutoff_override == 0 ? square_karatsuba_cutoff : cutoff_override;
+
+    // Below the cutoff the three-pass squaring basecase wins. Unlike
+    // multiply_long it accumulates, so its window must be zeroed first.
+    if (a.size() < effective_cutoff) {
+        std::ranges::fill(result.first(2 * a.size()), uint_multiprecision_t{0});
+        square_long(result.first(2 * a.size()), a);
+        return;
+    }
+
+    // Partition at n = a.size() / 2 + 1; the cutoff guarantees a_h is non-empty.
+    const std::size_t n = a.size() / 2 + 1;
+
+    const auto a_l = a.first(n);
+    const auto a_h = a.subspan(n);
+
+    // Scratch: one evaluation buffer (the general kernel needs two):
+    //   t1: holds (a_h + a_l)^2, needs up to 2*n + 2 limbs
+    //   t2: holds a_h + a_l, needs up to n + 1 limbs
+    const std::size_t t1_cap        = 2 * n + 2;
+    const std::size_t t2_cap        = n + 1;
+    const std::size_t total_scratch = t1_cap + t2_cap;
+
+    auto scratch_block = scratch.allocate(total_scratch);
+    auto t1            = scratch_block.first(t1_cap);
+    auto t2            = scratch_block.subspan(t1_cap, t2_cap);
+
+    auto result_low  = result.first(2 * n);
+    auto result_high = result.subspan(2 * n);
+
+    // result_low = a_l^2
+    square_karatsuba(result_low, a_l, scratch);
+    const std::size_t result_low_size =
+        trimmed_size_span(std::span<const uint_multiprecision_t>{result_low.data(), 2 * a_l.size()});
+    std::ranges::fill(result_low.subspan(result_low_size), uint_multiprecision_t{0});
+
+    // result_high = a_h^2
+    square_karatsuba(result_high, a_h, scratch);
+    const std::size_t result_high_size =
+        trimmed_size_span(std::span<const uint_multiprecision_t>{result_high.data(), 2 * a_h.size()});
+    std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
+
+    // t2 = a_h + a_l
+    std::size_t t2_size = std::max(a_h.size(), a_l.size());
+    if (add_unsigned_spans(t2.first(t2_size), a_l, a_h)) {
+        t2[t2_size] = 1;
+        ++t2_size;
+    }
+
+    // t1 = (a_h + a_l)^2
+    std::ranges::fill(t1, uint_multiprecision_t{0});
+    square_karatsuba(t1, std::span<const uint_multiprecision_t>{t2.data(), t2_size}, scratch);
+    std::size_t t1_size = trimmed_size_span(std::span<const uint_multiprecision_t>{t1.data(), 2 * t2_size});
+
+    // t1 -= a_h^2; t1 -= a_l^2, leaving the doubled cross term 2*a_l*a_h.
+    t1_size = subtract_unsigned_spans(t1.first(t1_size),
+                                      std::span<const uint_multiprecision_t>{t1.data(), t1_size},
+                                      std::span<const uint_multiprecision_t>{result_high.data(), result_high_size});
+    t1_size = subtract_unsigned_spans(t1.first(t1_size),
+                                      std::span<const uint_multiprecision_t>{t1.data(), t1_size},
+                                      std::span<const uint_multiprecision_t>{result_low.data(), result_low_size});
+
+    // Add t1 shifted left by n limbs into result: result[n...] += t1
+    add_shifted(result, n, std::span<const uint_multiprecision_t>{t1.data(), t1_size});
+
+    // Move bump pointer back so the next sibling recursive call reuses the same region.
+    scratch.deallocate(total_scratch);
+}
+
 } // namespace beman::big_int::detail
