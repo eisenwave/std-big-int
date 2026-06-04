@@ -138,10 +138,14 @@ constexpr std::size_t karatsuba_storage_size(const std::size_t s) noexcept { ret
 // `result` must NOT alias `a` or `b`.
 // `scratch` provides pre-allocated workspace for temporaries.
 // ---------------------------------------------------------------------------
+// `cutoff_override` is a benchmark-only escape hatch: when non-zero it replaces
+// `karatsuba_fallback` for this call only (forcing a split at smaller sizes);
+// recursive sub-products always use the default. Production callers omit it.
 void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
                         const std::span<const uint_multiprecision_t> a_untrimmed,
                         const std::span<const uint_multiprecision_t> b_untrimmed,
-                        scratch_allocator_base&                      scratch) noexcept;
+                        scratch_allocator_base&                      scratch,
+                        const std::size_t                            cutoff_override = 0) noexcept;
 
 // Minimum number of limbs for the Karatsuba squaring variant: the squaring
 // basecase stays ahead of recursion roughly twice as long as schoolbook does

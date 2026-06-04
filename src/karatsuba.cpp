@@ -8,7 +8,8 @@ namespace beman::big_int::detail {
 void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
                         const std::span<const uint_multiprecision_t> a_untrimmed,
                         const std::span<const uint_multiprecision_t> b_untrimmed,
-                        scratch_allocator_base&                      scratch) noexcept {
+                        scratch_allocator_base&                      scratch,
+                        const std::size_t                            cutoff_override) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
@@ -18,8 +19,10 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
     const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
     const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
 
+    const std::size_t effective_fallback = cutoff_override == 0 ? karatsuba_fallback : cutoff_override;
+
     // First, check if we have enough limbs to justify karatsuba
-    if (a.size() < karatsuba_fallback || b.size() < karatsuba_fallback) {
+    if (a.size() < effective_fallback || b.size() < effective_fallback) {
         multiply_long(result.first(a.size() + b.size()), a, b);
         return;
     }
