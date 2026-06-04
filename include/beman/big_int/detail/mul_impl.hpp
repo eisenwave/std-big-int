@@ -331,6 +331,29 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
                             scratch_allocator_base&                      scratch,
                             const std::size_t                            cutoff_override = 0) noexcept;
 
+// Minimum number of limbs for the Toom-6.5 squaring variant; roughly twice
+// the general toom_cook_6_5_cutoff, mirroring the SQR/MUL threshold ratio.
+// Tuned via multiplication_stress_bench.
+inline constexpr std::size_t square_toom_cook_6_5_cutoff = 2900;
+
+// ---------------------------------------------------------------------------
+// Squaring counterpart of multiply_toom_cook_6_5. Squaring is always balanced,
+// so the operand splits into exactly six pieces (b6 of the general kernel is
+// empty and c11 = 0). One evaluation per point instead of two; all eleven
+// products are recursive squares. The squared fractional-point evaluations
+// come out scaled by 2^10 / 4^10 instead of the 2^11 / 4^11 the interpolation
+// expects (the general kernel pairs a 6-piece and a 7-piece evaluation), so
+// vh/vmh are shifted left once and vq/vmq twice after squaring.
+// Falls back to square_toom_cook_4 below the cutoff.
+// `result` must be pre-zeroed and have space for 2 * a.size() limbs.
+// `result` must NOT alias `a`. `scratch` provides pre-allocated workspace.
+// `cutoff_override` is a benchmark-only escape hatch as in the general kernel.
+// ---------------------------------------------------------------------------
+void square_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
+                          const std::span<const uint_multiprecision_t> a_untrimmed,
+                          scratch_allocator_base&                      scratch,
+                          const std::size_t                            cutoff_override = 0) noexcept;
+
 // ---------------------------------------------------------------------------
 // result <- a * p2 where p2 is a trimmed power of two: a shifted copy of `a`
 // placed at limb offset p2.size() - 1, bit-shifted by countr_zero(p2.back()).
