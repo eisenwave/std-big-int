@@ -42,6 +42,7 @@ add_library(
     src/toom_cook_3.cpp
     src/toom_cook_4.cpp
     src/toom_cook_6_5.cpp
+    src/toom_cook_8_5.cpp
 )
 add_library(beman::big_int ALIAS beman.big_int)
 target_compile_features(beman.big_int PUBLIC cxx_std_23)

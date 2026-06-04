@@ -367,6 +367,68 @@ void square_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
                           scratch_allocator_base&                      scratch,
                           const std::size_t                            cutoff_override = 0) noexcept;
 
+// Minimum number of limbs for Toom-8.5 to be worthwhile. Measured via
+// multiplication_stress_bench (two runs, AppleClang): below ~15000 Toom-6.5
+// ties or wins; from 15000 Toom-8.5 overtakes cleanly and monotonically, and
+// decisively (~5-8%) beyond ~24000.
+inline constexpr std::size_t toom_cook_8_5_cutoff = 15000;
+
+// Heuristic estimate of scratch space needed for Toom-Cook 8.5 multiplication.
+// One Toom-8.5 level uses 32k+34 limbs (~4*s where k = ceil(min/8)) for fourteen
+// scratch products + two evaluation buffers + one tmp_double. The recursive child
+// enters Toom-6.5 (or Toom-8.5 above ~8x the cutoff) on pieces of size ~s/8.
+// Empirically (BEMAN_BIG_INT_INSTRUMENT high-water probe over sizes 8000-130000,
+// including two-level recursion) the peak/s ratio tops out at ~4.59 for the
+// multiply kernel and ~4.43 for the square kernel. 6*s leaves ~24% margin and
+// matches the ratio used by the smaller-radix algorithms.
+constexpr std::size_t toom_cook_8_5_storage_size(const std::size_t s) noexcept { return 6 * s; }
+
+// ---------------------------------------------------------------------------
+// Recursive Toom-Cook 8.5 ("Toom 8'n'half") multiplication (Bodrato variant).
+// Reference: Bodrato, "High degree Toom'n'half for balanced and unbalanced
+//            multiplication" (ARITH-20, 2011); GMP mpn_toom8h_mul /
+//            mpn_toom_interpolate_16pts (independent derivation; GMP is LGPL).
+//
+// Asymmetric Toom-9x8: the smaller operand is split into 8 pieces (degree-7 p)
+// and the larger into up to 9 (degree-8 q), piece size k = ceil(min/8). Product
+// r = p*q is degree 15. Evaluates r at 16 points
+// {0, +-1, +-2, +-4, +-8, +-1/2, +-1/4, +-1/8, +infinity}, then solves two 7x7
+// systems (even and odd parity) to recover c0..c15. c0 lives in result[0..2k);
+// c15 = a7*b8 (zero for balanced inputs) lives in result[15k..).
+//
+// `result` must be pre-zeroed and have space for a.size() + b.size() limbs and
+// must NOT alias `a` or `b`. `scratch` provides workspace. `cutoff_override` is
+// the benchmark-only escape hatch; recursive sub-products use the default.
+// Falls back to Toom-6.5 below the cutoff / outside the 9:8 ratio.
+// ---------------------------------------------------------------------------
+void multiply_toom_cook_8_5(const std::span<uint_multiprecision_t>       result,
+                            const std::span<const uint_multiprecision_t> a_untrimmed,
+                            const std::span<const uint_multiprecision_t> b_untrimmed,
+                            scratch_allocator_base&                      scratch,
+                            const std::size_t                            cutoff_override = 0) noexcept;
+
+// Minimum number of limbs for the Toom-8.5 squaring variant. Measured via
+// multiplication_stress_bench (two runs): square-Toom-6.5 stays competitive
+// longer than the multiply kernel, with a reproducible ~1% square-Toom-8.5 dip
+// near 20000, so the cutoff sits above it where 8.5 overtakes cleanly.
+inline constexpr std::size_t square_toom_cook_8_5_cutoff = 24000;
+
+// ---------------------------------------------------------------------------
+// Squaring counterpart of multiply_toom_cook_8_5. Squaring is always balanced
+// (the general kernel's b8 is empty and c15 = 0). One evaluation per point; all
+// fourteen products are recursive squares; sign handling drops out. The squared
+// fractional-point evaluations come out scaled by base^14 instead of the base^15
+// the (9x8) interpolation expects, so vh/vmh are shifted left 1, vq/vmq left 2,
+// and ve/vme left 3 after squaring. Falls back to square_toom_cook_6_5 below the
+// cutoff.
+// `result` must be pre-zeroed with space for 2 * a.size() limbs and must NOT
+// alias `a`. `cutoff_override` is a benchmark-only escape hatch.
+// ---------------------------------------------------------------------------
+void square_toom_cook_8_5(const std::span<uint_multiprecision_t>       result,
+                          const std::span<const uint_multiprecision_t> a_untrimmed,
+                          scratch_allocator_base&                      scratch,
+                          const std::size_t                            cutoff_override = 0) noexcept;
+
 // ---------------------------------------------------------------------------
 // result <- a * p2 where p2 is a trimmed power of two: a shifted copy of `a`
 // placed at limb offset p2.size() - 1, bit-shifted by countr_zero(p2.back()).
@@ -435,9 +497,12 @@ std::size_t square_dispatch(const std::span<uint_multiprecision_t>       result,
     } else if (n < square_toom_cook_6_5_cutoff) {
         scratch_allocator<Allocator> scratch(toom_cook_4_storage_size(n), alloc);
         square_toom_cook_4(result.first(result_total), a, scratch);
-    } else {
+    } else if (n < square_toom_cook_8_5_cutoff) {
         scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(n), alloc);
         square_toom_cook_6_5(result.first(result_total), a, scratch);
+    } else {
+        scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(n), alloc);
+        square_toom_cook_8_5(result.first(result_total), a, scratch);
     }
 
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
@@ -525,9 +590,12 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
             } else if (min_size < toom_cook_6_5_cutoff) {
                 scratch_allocator<Allocator> scratch(toom_cook_4_storage_size(s), alloc);
                 multiply_toom_cook_4(result.first(result_total), a, b, scratch);
-            } else {
+            } else if (min_size < toom_cook_8_5_cutoff) {
                 scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(s), alloc);
                 multiply_toom_cook_6_5(result.first(result_total), a, b, scratch);
+            } else {
+                scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(s), alloc);
+                multiply_toom_cook_8_5(result.first(result_total), a, b, scratch);
             }
             return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
         }

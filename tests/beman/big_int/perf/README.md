@@ -119,7 +119,8 @@ are shown for each big integer type at each digit setting.
 | 1,024          | 65,536       | 20,000                |   210   [2.7]          |   250   [3.2]          |   78    [1.0]         |
 | 2,048          | 131,072      | 39,000                |   590   [3.0]          |   760   [3.6]          |   200   [1.0]         |
 | 8,192          | 524,288      | 160,000               |   4,100 [3.2]          |   6,800 [5.2], see (2) |   1,300 [1.0]         |
-| 32,768         | 2,097,152    | 631,000               |  28,000 [4.7], see (1) |  58,000 [9.8]          |   5,900 [1.0]         |
+| 32,768         | 2,097,152    | 631,000               |  25,000 [4.2]          |  58,000 [9.8]          |   5,900 [1.0]         |
+| 131,072        | 8,388,608    | 2,525,000             | 160,000 [5.3], see (1) | 560,000 [18]           |  30,000 [1.0]         |
 
 GMP is written in hand-coded assembly in its hot-spots and is known as the _industry_ _standard_
 of performance. The relative multiplication timing of `beman.big_int` compared with `gmp_int`
