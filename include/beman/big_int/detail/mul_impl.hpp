@@ -261,6 +261,25 @@ void multiply_toom_cook_4(const std::span<uint_multiprecision_t>       result,
                           scratch_allocator_base&                      scratch,
                           const std::size_t                            cutoff_override = 0) noexcept;
 
+// Minimum number of limbs for the Toom-Cook 4 squaring variant; roughly twice
+// the general toom_cook_4_cutoff, mirroring the SQR/MUL threshold ratio.
+// Tuned via multiplication_stress_bench.
+inline constexpr std::size_t square_toom_cook_4_cutoff = 2000;
+
+// ---------------------------------------------------------------------------
+// Squaring counterpart of multiply_toom_cook_4: one evaluation per point
+// instead of two, all seven products are recursive squares, and the squared
+// evaluations at -1 and -2 are non-negative, removing the sign handling from
+// interpolation. Falls back to square_toom_cook_3 below the cutoff.
+// `result` must be pre-zeroed and have space for 2 * a.size() limbs.
+// `result` must NOT alias `a`. `scratch` provides pre-allocated workspace.
+// `cutoff_override` is a benchmark-only escape hatch as in the general kernel.
+// ---------------------------------------------------------------------------
+void square_toom_cook_4(const std::span<uint_multiprecision_t>       result,
+                        const std::span<const uint_multiprecision_t> a_untrimmed,
+                        scratch_allocator_base&                      scratch,
+                        const std::size_t                            cutoff_override = 0) noexcept;
+
 // See tests/beman/big_int/perf crossover_speedup.png
 inline constexpr std::size_t toom_cook_6_5_cutoff = 3000;
 
