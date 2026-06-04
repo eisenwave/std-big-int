@@ -64,6 +64,58 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
     }
 }
 
+// ---------------------------------------------------------------------------
+// Schoolbook squaring: result <- a * a (HAC algorithm 14.16). Computes the
+// off-diagonal upper triangle once (n*(n-1)/2 widening muls), doubles it with
+// a one-bit shift, then folds in the n diagonal squares: roughly half the
+// widening muls of multiply_long. Unlike multiply_long, `result` MUST be
+// pre-zeroed and have space for 2 * a.size() limbs. `result` must NOT alias `a`.
+// ---------------------------------------------------------------------------
+constexpr void square_long(const std::span<uint_multiprecision_t>       result,
+                           const std::span<const uint_multiprecision_t> a) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= 2 * a.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
+
+    const std::size_t n = a.size();
+
+    // Off-diagonal upper triangle: result += sum_{i<j} a[i]*a[j] * B^(i+j).
+    for (std::size_t i = 0; i + 1 < n; ++i) {
+        uint_multiprecision_t carry = 0;
+        for (std::size_t j = i + 1; j < n; ++j) {
+            const auto [lo, hi] = widening_mul(a[i], a[j]);
+            const auto [s1, c1] = carrying_add(lo, result[i + j]);
+            const auto [s2, c2] = carrying_add(s1, carry);
+            result[i + j]       = s2;
+            carry               = hi + static_cast<uint_multiprecision_t>(c1) + static_cast<uint_multiprecision_t>(c2);
+        }
+        result[i + n] = carry;
+    }
+
+    // Double the triangle; cannot overflow 2n limbs since a*a < B^(2n).
+    [[maybe_unused]] const auto doubled_size = shift_left_n(result.first(2 * n), 2 * n, 1u);
+    BEMAN_BIG_INT_DEBUG_ASSERT(doubled_size == 2 * n);
+
+    // Diagonal: result += sum a[i]^2 * B^(2i). The carry out of slot 2i+1
+    // lands in slot 2i+2, the next iteration's low slot, so one flag suffices.
+    bool carry_flag = false;
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto [lo, hi] = widening_mul(a[i], a[i]);
+        const auto [s1, c1] = carrying_add(result[2 * i], lo, carry_flag);
+        result[2 * i]       = s1;
+        const auto [s2, c2] = carrying_add(result[2 * i + 1], hi, c1);
+        result[2 * i + 1]   = s2;
+        carry_flag          = c2;
+    }
+    BEMAN_BIG_INT_DEBUG_ASSERT(!carry_flag);
+}
+
+// Below this limb count square_dispatch routes squares back to plain
+// schoolbook: the three-pass structure of square_long loses there (OpenJDK's
+// MULTIPLY_SQUARE_THRESHOLD draws the same line at 640 bits).
+// Tuned via multiplication_stress_bench.
+inline constexpr std::size_t square_long_cutoff = 8;
+
 // Minimum number of limbs for Karatsuba to be worthwhile
 // Directly from Boost, and reconfirmed as correct
 inline constexpr std::size_t karatsuba_cutoff   = 48;
