@@ -119,7 +119,7 @@ inline constexpr std::size_t square_long_cutoff = 8;
 // Minimum number of limbs for Karatsuba to be worthwhile
 // Directly from Boost, and reconfirmed as correct
 inline constexpr std::size_t karatsuba_cutoff   = 48;
-inline constexpr std::size_t karatsuba_fallback = 24;
+inline constexpr std::size_t karatsuba_fallback = 40;
 
 // Heuristic estimate of scratch space needed for Karatsuba multiplication.
 // One Karatsuba level uses ~2*s limbs (t1=2n+2, t2=t3=n+1 with n=s/2+1). The
@@ -171,6 +171,7 @@ void square_karatsuba(const std::span<uint_multiprecision_t>       result,
 // Minimum number of limbs for Toom-Cook 3 to be worthwhile.
 // See multiplication_stress_bench for tuning
 inline constexpr std::size_t toom_cook_3_cutoff = 300;
+inline constexpr std::size_t toom_cook_3_cutoff = 400;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
 // One Toom-3 level uses 8k+10 limbs (~2.67*s where k = ceil(s/3)). The
@@ -227,6 +228,7 @@ void square_toom_cook_3(const std::span<uint_multiprecision_t>       result,
 // Minimum number of limbs for Toom-Cook 4 to be worthwhile.
 // Empirically tuned on Apple Silicon via multiplication_stress_bench
 inline constexpr std::size_t toom_cook_4_cutoff = 1400;
+inline constexpr std::size_t toom_cook_4_cutoff = 1600;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 4 multiplication.
 // One Toom-4 level uses 14k+16 limbs (~3.5*s where k = ceil(s/4)). The geometric
@@ -286,6 +288,7 @@ void square_toom_cook_4(const std::span<uint_multiprecision_t>       result,
 
 // See tests/beman/big_int/perf crossover_speedup.png
 inline constexpr std::size_t toom_cook_6_5_cutoff = 3000;
+inline constexpr std::size_t toom_cook_6_5_cutoff = 2400;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 6.5 multiplication.
 // One Toom-6.5 level uses 24k+26 limbs (~4*s where k = ceil(min/6)) for ten
