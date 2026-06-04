@@ -115,7 +115,10 @@ double run_karatsuba_at(const std::size_t limbs, const unsigned trials) {
                                 const std::span<const uint_t> a,
                                 const std::span<const uint_t> b,
                                 scratch_for_test&             s) {
-                                 ::beman::big_int::detail::multiply_karatsuba(r.first(a.size() + b.size()), a, b, s);
+                                 // cutoff_override=1 forces a Karatsuba split at any splittable size;
+                                 // recursive sub-products use the production fallback.
+                                 ::beman::big_int::detail::multiply_karatsuba(
+                                     r.first(a.size() + b.size()), a, b, s, std::size_t{1});
                              });
 }
 
@@ -127,7 +130,10 @@ double run_toom_cook_3_at(const std::size_t limbs, const unsigned trials) {
                                 const std::span<const uint_t> a,
                                 const std::span<const uint_t> b,
                                 scratch_for_test&             s) {
-                                 ::beman::big_int::detail::multiply_toom_cook_3(r.first(a.size() + b.size()), a, b, s);
+                                 // cutoff_override=1 forces the Toom-3 split; recursive sub-products
+                                 // fall back to Karatsuba/schoolbook at the production cutoffs.
+                                 ::beman::big_int::detail::multiply_toom_cook_3(
+                                     r.first(a.size() + b.size()), a, b, s, std::size_t{1});
                              });
 }
 
