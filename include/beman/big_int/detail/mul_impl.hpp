@@ -147,7 +147,7 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
 // basecase stays ahead of recursion roughly twice as long as schoolbook does
 // against general Karatsuba (the same SQR/MUL threshold ratio GMP observes).
 // Tuned via multiplication_stress_bench.
-inline constexpr std::size_t square_karatsuba_cutoff = 80;
+inline constexpr std::size_t square_karatsuba_cutoff = 72;
 
 // ---------------------------------------------------------------------------
 // Squaring counterpart of multiply_karatsuba: one evaluation (a_h + a_l) per
@@ -202,7 +202,7 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
 // Minimum number of limbs for the Toom-Cook 3 squaring variant; roughly twice
 // the general toom_cook_3_cutoff, mirroring the SQR/MUL threshold ratio.
 // Tuned via multiplication_stress_bench.
-inline constexpr std::size_t square_toom_cook_3_cutoff = 400;
+inline constexpr std::size_t square_toom_cook_3_cutoff = 300;
 
 // ---------------------------------------------------------------------------
 // Squaring counterpart of multiply_toom_cook_3: one evaluation per point
@@ -334,7 +334,7 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
 // Minimum number of limbs for the Toom-6.5 squaring variant; roughly twice
 // the general toom_cook_6_5_cutoff, mirroring the SQR/MUL threshold ratio.
 // Tuned via multiplication_stress_bench.
-inline constexpr std::size_t square_toom_cook_6_5_cutoff = 2900;
+inline constexpr std::size_t square_toom_cook_6_5_cutoff = 2400;
 
 // ---------------------------------------------------------------------------
 // Squaring counterpart of multiply_toom_cook_6_5. Squaring is always balanced,
