@@ -142,6 +142,17 @@ std::size_t peak_toom_cook_6_5_at(const std::size_t limbs) {
                         });
 }
 
+std::size_t peak_toom_cook_8_5_at(const std::size_t limbs) {
+    return measure_peak(limbs,
+                        [](const std::span<uint_t>       r,
+                           const std::span<const uint_t> a,
+                           const std::span<const uint_t> b,
+                           scratch_for_test&             s) {
+                            ::beman::big_int::detail::multiply_toom_cook_8_5(
+                                r.first(a.size() + b.size()), a, b, s, std::size_t{1});
+                        });
+}
+
 struct algorithm_runner {
     std::string_view name;
     std::size_t      min_limbs;
@@ -157,6 +168,7 @@ constexpr algorithm_runner algorithms[] = {
     {"toom-cook-3", 550, 80000, peak_toom_cook_3_at},
     {"toom-cook-4", 1400, 80000, peak_toom_cook_4_at},
     {"toom-cook-6.5", 3000, 80000, peak_toom_cook_6_5_at},
+    {"toom-cook-8.5", 8000, 80000, peak_toom_cook_8_5_at},
 };
 
 constexpr std::size_t sweep_limbs[] = {
