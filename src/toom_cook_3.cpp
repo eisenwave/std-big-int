@@ -8,7 +8,8 @@ namespace beman::big_int::detail {
 void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                           const std::span<const uint_multiprecision_t> a_untrimmed,
                           const std::span<const uint_multiprecision_t> b_untrimmed,
-                          scratch_allocator_base&                      scratch) noexcept {
+                          scratch_allocator_base&                      scratch,
+                          const std::size_t                            cutoff_override) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= trimmed_size_span(a_untrimmed) + trimmed_size_span(b_untrimmed));
@@ -19,13 +20,14 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
 
     // Partition at k = ceil(max(an, bn) / 3).
-    const std::size_t min_size = std::min(a.size(), b.size());
-    const std::size_t k        = (std::max(a.size(), b.size()) + 2) / 3;
+    const std::size_t min_size         = std::min(a.size(), b.size());
+    const std::size_t k                = (std::max(a.size(), b.size()) + 2) / 3;
+    const std::size_t effective_cutoff = cutoff_override == 0 ? toom_cook_3_cutoff : cutoff_override;
 
     // Fall through to Karatsuba (and on through to schoolbook) when the smaller
     // operand is below the performance cutoff or below the algorithm's 2*k
     // invariant (Toom-Cook 3 needs both a2 and b2 non-empty).
-    if (min_size < toom_cook_3_cutoff || min_size <= 2 * k) {
+    if (min_size < effective_cutoff || min_size <= 2 * k) {
         multiply_karatsuba(result, a, b, scratch);
         return;
     }

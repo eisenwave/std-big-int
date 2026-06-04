@@ -198,11 +198,15 @@ constexpr std::size_t toom_cook_3_storage_size(const std::size_t s) noexcept { r
 // `result` must be pre-zeroed and have space for a.size() + b.size() limbs.
 // `result` must NOT alias `a` or `b`.
 // `scratch` provides pre-allocated workspace for temporaries.
+// `cutoff_override` is a benchmark-only escape hatch: when non-zero it replaces
+// `toom_cook_3_cutoff` for this call only; recursive sub-products always use the
+// default. Production callers omit it.
 // ---------------------------------------------------------------------------
 void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                           const std::span<const uint_multiprecision_t> a_untrimmed,
                           const std::span<const uint_multiprecision_t> b_untrimmed,
-                          scratch_allocator_base&                      scratch) noexcept;
+                          scratch_allocator_base&                      scratch,
+                          const std::size_t                            cutoff_override = 0) noexcept;
 
 // Minimum number of limbs for the Toom-Cook 3 squaring variant; roughly twice
 // the general toom_cook_3_cutoff, mirroring the SQR/MUL threshold ratio.
