@@ -379,6 +379,58 @@ constexpr std::size_t multiply_power_of_two(const std::span<uint_multiprecision_
 }
 
 // ---------------------------------------------------------------------------
+// Squaring dispatcher: result <- a * a using kernels that exploit the
+// symmetric cross products. Same contract as multiply_dispatch: `result` must
+// be pre-zeroed with space for 2 * a.size() limbs and must NOT alias `a`.
+// `a` must be trimmed with at least two limbs. Returns the number of
+// significant result limbs.
+// ---------------------------------------------------------------------------
+template <class Allocator>
+std::size_t square_dispatch(const std::span<uint_multiprecision_t>       result,
+                            const std::span<const uint_multiprecision_t> a,
+                            Allocator&                                   alloc) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= 2);
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= 2 * a.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
+
+    const std::size_t n            = a.size();
+    const std::size_t result_total = 2 * n;
+
+    // Tiny squares: plain schoolbook beats the three-pass squaring basecase.
+    if (n < square_long_cutoff) {
+        multiply_long(result.first(result_total), a, a);
+        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
+    }
+
+    // (2^k)^2 = 2^(2k): a shifted copy beats any squaring kernel.
+    if (is_power_of_two_span(a)) {
+        return multiply_power_of_two(result, a, a);
+    }
+
+    if (n < square_karatsuba_cutoff) {
+        square_long(result, a);
+        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
+    }
+
+    if (n < square_toom_cook_3_cutoff) {
+        scratch_allocator<Allocator> scratch(karatsuba_storage_size(n), alloc);
+        square_karatsuba(result.first(result_total), a, scratch);
+    } else if (n < square_toom_cook_4_cutoff) {
+        scratch_allocator<Allocator> scratch(toom_cook_3_storage_size(n), alloc);
+        square_toom_cook_3(result.first(result_total), a, scratch);
+    } else if (n < square_toom_cook_6_5_cutoff) {
+        scratch_allocator<Allocator> scratch(toom_cook_4_storage_size(n), alloc);
+        square_toom_cook_4(result.first(result_total), a, scratch);
+    } else {
+        scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(n), alloc);
+        square_toom_cook_6_5(result.first(result_total), a, scratch);
+    }
+
+    return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
+}
+
+// ---------------------------------------------------------------------------
 // Top-level multiplication dispatcher.
 // `result` must be pre-zeroed and have space for a.size() + b.size() limbs.
 // `result` must NOT alias `a` or `b`.
