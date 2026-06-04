@@ -168,9 +168,9 @@ void square_karatsuba(const std::span<uint_multiprecision_t>       result,
                       scratch_allocator_base&                      scratch,
                       const std::size_t                            cutoff_override = 0) noexcept;
 
-// Minimum number of limbs for Toom-Cook 3 to be worthwhile.
-// See multiplication_stress_bench for tuning
-inline constexpr std::size_t toom_cook_3_cutoff = 300;
+// Minimum number of limbs for Toom-Cook 3 to be worthwhile. Karatsuba still
+// wins at 300-350 limbs (~15%); Toom-3 reliably overtakes from ~400.
+// Tuned via multiplication_stress_bench.
 inline constexpr std::size_t toom_cook_3_cutoff = 400;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 3 multiplication.
@@ -229,9 +229,9 @@ void square_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                         scratch_allocator_base&                      scratch,
                         const std::size_t                            cutoff_override = 0) noexcept;
 
-// Minimum number of limbs for Toom-Cook 4 to be worthwhile.
-// Empirically tuned on Apple Silicon via multiplication_stress_bench
-inline constexpr std::size_t toom_cook_4_cutoff = 1400;
+// Minimum number of limbs for Toom-Cook 4 to be worthwhile. Toom-3 still wins
+// at 1400 (~9%); Toom-4 reliably overtakes from ~1600.
+// Tuned via multiplication_stress_bench.
 inline constexpr std::size_t toom_cook_4_cutoff = 1600;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 4 multiplication.
@@ -290,8 +290,10 @@ void square_toom_cook_4(const std::span<uint_multiprecision_t>       result,
                         scratch_allocator_base&                      scratch,
                         const std::size_t                            cutoff_override = 0) noexcept;
 
-// See tests/beman/big_int/perf crossover_speedup.png
-inline constexpr std::size_t toom_cook_6_5_cutoff = 3000;
+// See tests/beman/big_int/perf crossover_speedup.png. Toom-6.5 overtakes Toom-4
+// cleanly and monotonically from ~2400 limbs (re-measured 2026-06-04; the old
+// 3000 left a ~2400-3000 band on the slower Toom-4).
+// Tuned via multiplication_stress_bench.
 inline constexpr std::size_t toom_cook_6_5_cutoff = 2400;
 
 // Heuristic estimate of scratch space needed for Toom-Cook 6.5 multiplication.
