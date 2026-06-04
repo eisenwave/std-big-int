@@ -404,13 +404,12 @@ void square_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     // ---- Evaluate at x = -1: tmpa = |(a0 + a2) - (a1 + a3)|; squaring erases
     // the sign, so the interpolation below uses the non-negative arms of the
     // general kernel's sign-aware steps. ----
-    tmpa_size = add_many_into_tmp(tmpa, {a0, a2});
-    aux_size  = add_many_into_tmp(aux, {a1, a3});
-    const auto sub_m1 =
-        subtract_unsigned_spans_signed(tmpa,
-                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                       std::span<const uint_multiprecision_t>{aux.data(), aux_size});
-    tmpa_size = sub_m1.size;
+    tmpa_size         = add_many_into_tmp(tmpa, {a0, a2});
+    aux_size          = add_many_into_tmp(aux, {a1, a3});
+    const auto sub_m1 = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{aux.data(), aux_size});
+    tmpa_size         = sub_m1.size;
 
     // vm1 = p(-1)^2
     std::ranges::fill(vm1, uint_multiprecision_t{0});
@@ -432,11 +431,10 @@ void square_toom_cook_4(const std::span<uint_multiprecision_t>       result,
     aux_size = horner_eval_into_tmp(aux, {a3, a1}, 3u);
     aux_size = add_into_tmp(aux, aux_size, a1);
 
-    const auto sub_m2 =
-        subtract_unsigned_spans_signed(tmpa,
-                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                       std::span<const uint_multiprecision_t>{aux.data(), aux_size});
-    tmpa_size = sub_m2.size;
+    const auto sub_m2 = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{aux.data(), aux_size});
+    tmpa_size         = sub_m2.size;
 
     // vm2 = p(-2)^2
     std::ranges::fill(vm2, uint_multiprecision_t{0});

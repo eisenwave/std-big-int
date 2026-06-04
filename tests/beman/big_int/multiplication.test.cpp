@@ -431,7 +431,8 @@ TEST(Multiplication, SquaringRandomDifferential) {
     std::mt19937_64                    rng{0x5EEDU};
     std::uniform_int_distribution<int> pick{0, 15};
     constexpr const char*              digits = "0123456789abcdef";
-    for (const std::size_t hex_len : {48UL, 112UL, 160UL, 480UL, 1024UL, 3100UL, 25000UL, 90000UL, 200000UL, 800000UL}) {
+    for (const std::size_t hex_len :
+         {48UL, 112UL, 160UL, 480UL, 1024UL, 3100UL, 25000UL, 90000UL, 200000UL, 800000UL}) {
         std::string s(hex_len, '0');
         for (auto& ch : s) {
             ch = digits[pick(rng)];

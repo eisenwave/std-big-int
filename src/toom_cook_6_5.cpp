@@ -30,8 +30,7 @@ static subsystem_signs solve_subsystem(const std::span<uint_multiprecision_t> a_
     s             = shift_left_n(tmp_double, s, 2u);
 
     // d_buf <- b + 4*d = S_2.
-    const bool s2_carry =
-        add_unsigned_spans(d_buf, b_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
+    const bool s2_carry = add_unsigned_spans(d_buf, b_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
     BEMAN_BIG_INT_DEBUG_ASSERT(!s2_carry);
     // b_buf <- |b - 4*d| with sign.
     const auto sub_d2 =
@@ -45,8 +44,7 @@ static subsystem_signs solve_subsystem(const std::span<uint_multiprecision_t> a_
     s = shift_left_n(tmp_double, s, 4u);
 
     // e_buf <- c + 16*e = S_4.
-    const bool s4_carry =
-        add_unsigned_spans(e_buf, c_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
+    const bool s4_carry = add_unsigned_spans(e_buf, c_v, std::span<const uint_multiprecision_t>{tmp_double.data(), s});
     BEMAN_BIG_INT_DEBUG_ASSERT(!s4_carry);
     // c_buf <- |c - 16*e| with sign.
     const auto sub_d4 =
@@ -132,8 +130,8 @@ static subsystem_signs solve_subsystem(const std::span<uint_multiprecision_t> a_
     // c_buf now holds |X|; X_signed = 771120 * d_outer; therefore
     // sign of d_outer = sign_X (771120 > 0); magnitude |d_outer| = |X|/771120.
     {
-        const auto rem = divide_unsigned_short(
-            c_buf, std::span<const uint_multiprecision_t>{c_buf}, uint_multiprecision_t{771120});
+        const auto rem =
+            divide_unsigned_short(c_buf, std::span<const uint_multiprecision_t>{c_buf}, uint_multiprecision_t{771120});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     const bool sign_d_outer = sign_X;
@@ -167,8 +165,8 @@ static subsystem_signs solve_subsystem(const std::span<uint_multiprecision_t> a_
     }
     // Y = 240 * d_inner. Therefore |d_inner| = |Y|/240, sign_d_inner = sign_Y.
     {
-        const auto rem = divide_unsigned_short(
-            b_buf, std::span<const uint_multiprecision_t>{b_buf}, uint_multiprecision_t{240});
+        const auto rem =
+            divide_unsigned_short(b_buf, std::span<const uint_multiprecision_t>{b_buf}, uint_multiprecision_t{240});
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
     }
     const bool sign_d_inner = sign_Y;
@@ -684,7 +682,6 @@ void multiply_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     // Finally recover c2,c10 (or c1,c9) and c4,c8 (or c3,c7) using sign-aware
     // half-sum-and-difference in v2/vh and v4/vq respectively. --
 
-
     // Solve even subsystem in {v1, v2, v4, vh, vq}.
     const auto [sign_d_outer_e, sign_d_inner_e] = solve_subsystem(v1, v2, v4, vh, vq, tmp_double);
     // Now:  v1 = c6;  vh = c4+c8;  vq = c2+c10;  v4 = |c2 - c10|, sign_d_outer_e;  v2 = |c4 - c8|, sign_d_inner_e.
@@ -845,12 +842,11 @@ void square_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     // interpolation uses the non-negative arms of the general kernel. ----
     tmpa_size = add_many_into_tmp(tmpa, {a0, a2, a4});
     // Use vm1 (currently unused) as scratch for (a1+a3+a5).
-    aux_size = add_many_into_tmp(vm1, {a1, a3, a5});
-    const auto sub_m1 =
-        subtract_unsigned_spans_signed(tmpa,
-                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                       std::span<const uint_multiprecision_t>{vm1.data(), aux_size});
-    tmpa_size = sub_m1.size;
+    aux_size          = add_many_into_tmp(vm1, {a1, a3, a5});
+    const auto sub_m1 = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{vm1.data(), aux_size});
+    tmpa_size         = sub_m1.size;
 
     std::ranges::fill(vm1, uint_multiprecision_t{0});
     if (tmpa_size != 0) {
@@ -866,13 +862,12 @@ void square_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     // ---- Evaluate at x = -2: tmpa = |(a0+4a2+16a4) - (2a1+8a3+32a5)|. ----
     tmpa_size = horner_eval_into_tmp(tmpa, {a4, a2, a0}, 2u);
     // negative part 2a1+8a3+32a5 into vm2 (currently unused).
-    aux_size = horner_eval_into_tmp(vm2, {a5, a3, a1}, 2u);
-    aux_size = shift_left_one(vm2, aux_size);
-    const auto sub_m2 =
-        subtract_unsigned_spans_signed(tmpa,
-                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                       std::span<const uint_multiprecision_t>{vm2.data(), aux_size});
-    tmpa_size = sub_m2.size;
+    aux_size          = horner_eval_into_tmp(vm2, {a5, a3, a1}, 2u);
+    aux_size          = shift_left_one(vm2, aux_size);
+    const auto sub_m2 = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{vm2.data(), aux_size});
+    tmpa_size         = sub_m2.size;
 
     std::ranges::fill(vm2, uint_multiprecision_t{0});
     if (tmpa_size != 0) {
@@ -888,13 +883,12 @@ void square_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     // ---- Evaluate at x = -4: tmpa = |(a0+16a2+256a4) - (4a1+64a3+1024a5)|. ----
     tmpa_size = horner_eval_into_tmp(tmpa, {a4, a2, a0}, 4u);
     // negative part 4a1+64a3+1024a5 into vm4.
-    aux_size = horner_eval_into_tmp(vm4, {a5, a3, a1}, 4u);
-    aux_size = shift_left_n(vm4, aux_size, 2u);
-    const auto sub_m4 =
-        subtract_unsigned_spans_signed(tmpa,
-                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                       std::span<const uint_multiprecision_t>{vm4.data(), aux_size});
-    tmpa_size = sub_m4.size;
+    aux_size          = horner_eval_into_tmp(vm4, {a5, a3, a1}, 4u);
+    aux_size          = shift_left_n(vm4, aux_size, 2u);
+    const auto sub_m4 = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{vm4.data(), aux_size});
+    tmpa_size         = sub_m4.size;
 
     std::ranges::fill(vm4, uint_multiprecision_t{0});
     if (tmpa_size != 0) {
@@ -919,12 +913,11 @@ void square_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     tmpa_size = horner_eval_into_tmp(tmpa, {a0, a2, a4}, 2u);
     tmpa_size = shift_left_one(tmpa, tmpa_size);
     // negative part 16a1+4a3+a5 into vmh.
-    aux_size = horner_eval_into_tmp(vmh, {a1, a3, a5}, 2u);
-    const auto sub_mh =
-        subtract_unsigned_spans_signed(tmpa,
-                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                       std::span<const uint_multiprecision_t>{vmh.data(), aux_size});
-    tmpa_size = sub_mh.size;
+    aux_size          = horner_eval_into_tmp(vmh, {a1, a3, a5}, 2u);
+    const auto sub_mh = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{vmh.data(), aux_size});
+    tmpa_size         = sub_mh.size;
 
     std::ranges::fill(vmh, uint_multiprecision_t{0});
     if (tmpa_size != 0) {
@@ -950,12 +943,11 @@ void square_toom_cook_6_5(const std::span<uint_multiprecision_t>       result,
     tmpa_size = horner_eval_into_tmp(tmpa, {a0, a2, a4}, 4u);
     tmpa_size = shift_left_n(tmpa, tmpa_size, 2u);
     // negative part 256a1+16a3+a5 into vmq.
-    aux_size = horner_eval_into_tmp(vmq, {a1, a3, a5}, 4u);
-    const auto sub_mq =
-        subtract_unsigned_spans_signed(tmpa,
-                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
-                                       std::span<const uint_multiprecision_t>{vmq.data(), aux_size});
-    tmpa_size = sub_mq.size;
+    aux_size          = horner_eval_into_tmp(vmq, {a1, a3, a5}, 4u);
+    const auto sub_mq = subtract_unsigned_spans_signed(tmpa,
+                                                       std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size},
+                                                       std::span<const uint_multiprecision_t>{vmq.data(), aux_size});
+    tmpa_size         = sub_mq.size;
 
     std::ranges::fill(vmq, uint_multiprecision_t{0});
     if (tmpa_size != 0) {

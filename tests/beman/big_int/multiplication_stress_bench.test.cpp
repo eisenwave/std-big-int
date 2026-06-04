@@ -169,13 +169,14 @@ double run_toom_cook_6_5_at(const std::size_t limbs, const unsigned trials) {
 // requirement.
 
 double run_square_long_at(const std::size_t limbs, const unsigned trials) {
-    return measure_algorithm(limbs,
-                             trials,
-                             /*scratch_size=*/0,
-                             [](const std::span<uint_t> r,
-                                const std::span<const uint_t> a,
-                                const std::span<const uint_t>,
-                                scratch_for_test&) { ::beman::big_int::detail::square_long(r.first(2 * a.size()), a); });
+    return measure_algorithm(
+        limbs,
+        trials,
+        /*scratch_size=*/0,
+        [](const std::span<uint_t>       r,
+           const std::span<const uint_t> a,
+           const std::span<const uint_t>,
+           scratch_for_test&) { ::beman::big_int::detail::square_long(r.first(2 * a.size()), a); });
 }
 
 double run_square_karatsuba_at(const std::size_t limbs, const unsigned trials) {
@@ -184,7 +185,7 @@ double run_square_karatsuba_at(const std::size_t limbs, const unsigned trials) {
     return measure_algorithm(limbs,
                              trials,
                              ::beman::big_int::detail::karatsuba_storage_size(limbs),
-                             [](const std::span<uint_t> r,
+                             [](const std::span<uint_t>       r,
                                 const std::span<const uint_t> a,
                                 const std::span<const uint_t>,
                                 scratch_for_test& s) {
@@ -199,7 +200,7 @@ double run_square_toom_cook_3_at(const std::size_t limbs, const unsigned trials)
     return measure_algorithm(limbs,
                              trials,
                              ::beman::big_int::detail::toom_cook_3_storage_size(limbs),
-                             [](const std::span<uint_t> r,
+                             [](const std::span<uint_t>       r,
                                 const std::span<const uint_t> a,
                                 const std::span<const uint_t>,
                                 scratch_for_test& s) {
@@ -214,7 +215,7 @@ double run_square_toom_cook_4_at(const std::size_t limbs, const unsigned trials)
     return measure_algorithm(limbs,
                              trials,
                              ::beman::big_int::detail::toom_cook_4_storage_size(limbs),
-                             [](const std::span<uint_t> r,
+                             [](const std::span<uint_t>       r,
                                 const std::span<const uint_t> a,
                                 const std::span<const uint_t>,
                                 scratch_for_test& s) {
@@ -229,7 +230,7 @@ double run_square_toom_cook_6_5_at(const std::size_t limbs, const unsigned trial
     return measure_algorithm(limbs,
                              trials,
                              ::beman::big_int::detail::toom_cook_6_5_storage_size(limbs),
-                             [](const std::span<uint_t> r,
+                             [](const std::span<uint_t>       r,
                                 const std::span<const uint_t> a,
                                 const std::span<const uint_t>,
                                 scratch_for_test& s) {
