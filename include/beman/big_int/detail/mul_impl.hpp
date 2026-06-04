@@ -199,6 +199,27 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
                           const std::span<const uint_multiprecision_t> b_untrimmed,
                           scratch_allocator_base&                      scratch) noexcept;
 
+// Minimum number of limbs for the Toom-Cook 3 squaring variant; roughly twice
+// the general toom_cook_3_cutoff, mirroring the SQR/MUL threshold ratio.
+// Tuned via multiplication_stress_bench.
+inline constexpr std::size_t square_toom_cook_3_cutoff = 400;
+
+// ---------------------------------------------------------------------------
+// Squaring counterpart of multiply_toom_cook_3: one evaluation per point
+// instead of two, all five products are recursive squares, and p(-1)^2 >= 0
+// removes the sign handling from interpolation. Falls back to
+// square_karatsuba below the cutoff.
+// `result` must be pre-zeroed and have space for 2 * a.size() limbs.
+// `result` must NOT alias `a`. `scratch` provides pre-allocated workspace.
+// ---------------------------------------------------------------------------
+// `cutoff_override` is a benchmark-only escape hatch: when non-zero it
+// replaces `square_toom_cook_3_cutoff` for this call only; recursive
+// sub-squares always use the default.
+void square_toom_cook_3(const std::span<uint_multiprecision_t>       result,
+                        const std::span<const uint_multiprecision_t> a_untrimmed,
+                        scratch_allocator_base&                      scratch,
+                        const std::size_t                            cutoff_override = 0) noexcept;
+
 // Minimum number of limbs for Toom-Cook 4 to be worthwhile.
 // Empirically tuned on Apple Silicon via multiplication_stress_bench
 inline constexpr std::size_t toom_cook_4_cutoff = 1400;

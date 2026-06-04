@@ -175,4 +175,127 @@ void multiply_toom_cook_3(const std::span<uint_multiprecision_t>       result,
     scratch.deallocate(total_scratch);
 }
 
+void square_toom_cook_3(const std::span<uint_multiprecision_t>       result,
+                        const std::span<const uint_multiprecision_t> a_untrimmed,
+                        scratch_allocator_base&                      scratch,
+                        const std::size_t                            cutoff_override) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= 2 * trimmed_size_span(a_untrimmed));
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a_untrimmed.data());
+
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+
+    // Partition at k = ceil(an / 3).
+    const std::size_t k = (a.size() + 2) / 3;
+
+    const std::size_t effective_cutoff = cutoff_override == 0 ? square_toom_cook_3_cutoff : cutoff_override;
+
+    // Fall through to the Karatsuba squaring variant below the performance
+    // cutoff or below the algorithm's 2*k invariant (a2 must be non-empty).
+    if (a.size() < effective_cutoff || a.size() <= 2 * k) {
+        square_karatsuba(result, a, scratch);
+        return;
+    }
+
+    // Split into three pieces; the 2*k gate guarantees a2 is non-empty.
+    const auto a0 = a.first(k);
+    const auto a1 = a.subspan(k, k);
+    const auto a2 = a.subspan(2 * k);
+
+    // Carve scratch: one evaluation buffer (the general kernel needs two):
+    //   tmpa: k+2 limbs
+    //   v1, vm1, v2: 2k+2 limbs each, hold three squares through interpolation
+    //   v0 = a0^2 and vinf = a2^2 live directly in result.
+    const std::size_t tmp_cap       = k + 2;
+    const std::size_t prod_cap      = 2 * k + 2;
+    const std::size_t total_scratch = tmp_cap + 3 * prod_cap;
+
+    auto block = scratch.allocate(total_scratch);
+    auto tmpa  = block.first(tmp_cap);
+    auto v1    = block.subspan(tmp_cap, prod_cap);
+    auto vm1   = block.subspan(tmp_cap + prod_cap, prod_cap);
+    auto v2    = block.subspan(tmp_cap + 2 * prod_cap, prod_cap);
+
+    // ---- v0 = a0^2, written into result[0..2k) (caller pre-zeroed). ----
+    square_toom_cook_3(result.first(2 * a0.size()), a0, scratch);
+
+    // ---- vinf = a2^2, written into result[4k..). ----
+    square_toom_cook_3(result.subspan(4 * k, 2 * a2.size()), a2, scratch);
+
+    // ---- Evaluate at x = 1: tmpa = a0 + a1 + a2. ----
+    std::size_t tmpa_size = add_many_into_tmp(tmpa, {a0, a1, a2});
+
+    // v1 = p(1)^2. Pre-zeroed for the recursive recompose step.
+    std::ranges::fill(v1, uint_multiprecision_t{0});
+    square_toom_cook_3(v1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+
+    // ---- Evaluate at x = -1: tmpa = |(a0 + a2) - a1|; squaring erases the sign,
+    // so the sign-aware interpolation branches of the general kernel collapse
+    // to their non-negative arms below. ----
+    tmpa_size = add_many_into_tmp(tmpa, {a0, a2});
+    const auto sub_a =
+        subtract_unsigned_spans_signed(tmpa, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, a1);
+    tmpa_size = sub_a.size;
+
+    // vm1 = p(-1)^2
+    std::ranges::fill(vm1, uint_multiprecision_t{0});
+    if (tmpa_size != 0) {
+        square_toom_cook_3(vm1, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+    }
+
+    // ---- Evaluate at x = 2: tmpa = 4*a2 + 2*a1 + a0 (Horner). ----
+    tmpa_size = horner_eval_into_tmp(tmpa, {a2, a1, a0}, 1u);
+
+    // v2 = p(2)^2
+    std::ranges::fill(v2, uint_multiprecision_t{0});
+    square_toom_cook_3(v2, std::span<const uint_multiprecision_t>{tmpa.data(), tmpa_size}, scratch);
+
+    // ---- Bodrato interpolation (as the general kernel with sign_vm1 == false) ----
+    const auto v0_view   = std::span<const uint_multiprecision_t>{result.data(), 2 * k};
+    const auto vinf_size = std::min(result.size() - 4 * k, 2 * k);
+    const auto vinf_view = std::span<const uint_multiprecision_t>{result.data() + 4 * k, vinf_size};
+    const auto v1_view   = std::span<const uint_multiprecision_t>{v1};
+    const auto vm1_view  = std::span<const uint_multiprecision_t>{vm1};
+    const auto v2_view   = std::span<const uint_multiprecision_t>{v2};
+
+    // Step 1: v2 <- (v2 - vm1) / 3.
+    subtract_unsigned_spans_no_borrow(v2, v2_view, vm1_view);
+    {
+        const auto rem = divide_unsigned_short(v2, v2_view, uint_multiprecision_t{3});
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 2: vm1 <- (v1 - vm1) / 2.
+    {
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(vm1, v1_view, vm1_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 3: v1 <- v1 - v0.
+    subtract_unsigned_spans(v1, v1_view, v0_view);
+
+    // Step 4: v2 <- (v2 - v1) / 2.
+    {
+        const auto rem = subtract_unsigned_spans_and_shift_right_one(v2, v2_view, v1_view);
+        BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
+    }
+
+    // Step 5: v1 <- v1 - vm1 - vinf.
+    subtract_unsigned_spans(v1, v1_view, vm1_view);
+    subtract_unsigned_spans(v1, v1_view, vinf_view);
+
+    // Step 6: v2 <- v2 - 2*vinf.
+    subtract_unsigned_spans(v2, v2_view, vinf_view);
+    subtract_unsigned_spans(v2, v2_view, vinf_view);
+
+    // Step 7: vm1 <- vm1 - v2.
+    subtract_unsigned_spans(vm1, vm1_view, v2_view);
+
+    // ---- Recompose: result += vm1*B^k + v1*B^(2k) + v2*B^(3k) ----
+    recompose(result, k, {vm1_view, v1_view, v2_view});
+
+    // Move bump pointer back so the next sibling recursive call reuses the same region.
+    scratch.deallocate(total_scratch);
+}
+
 } // namespace beman::big_int::detail
