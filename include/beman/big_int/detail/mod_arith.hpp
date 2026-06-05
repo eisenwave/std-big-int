@@ -14,16 +14,16 @@ namespace beman::big_int::detail {
 // Modular arithmetic over a single word-size prime, the foundation for the NTT
 // that backs FFT multiplication. Values are 64-bit regardless of the library
 // limb width: the chosen primes are 62-bit, so the transform always works in
-// 64-bit arithmetic and the (deferred) packing layer bridges to limbs.
+// 64-bit arithmetic and the packing layer (src/fft_mul.cpp) bridges to limbs.
 //
 // Multiplication uses Montgomery reduction (REDC), which needs only a
 // 64x64->128 widening multiply (widening_mul) plus 64-bit add -- no 128-bit
 // division -- so it is portable and usable in constant expressions. Transform
 // data is kept in ordinary residue form [0, p); twiddles are stored in
 // Montgomery form so a single mont_mul() maps an ordinary residue to the
-// ordinary-form product: mont_mul(a, to_mont(w)) == a*w mod p. A Shoup
-// precomputed-quotient multiply is a possible future optimization for the
-// butterfly hot loop.
+// ordinary-form product: mont_mul(a, to_mont(w)) == a*w mod p. (A Shoup
+// precomputed-quotient multiply was tried for the butterfly but measured slower
+// here -- see the note in src/ntt.cpp.)
 struct ntt_modulus {
     std::uint64_t p;          // the prime modulus (< 2^62)
     std::uint64_t n_prime;    // -p^-1 mod 2^64
