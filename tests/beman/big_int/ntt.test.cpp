@@ -18,12 +18,22 @@
 
 namespace {
 
+using ::beman::big_int::detail::ntt_build_twiddles;
+using ::beman::big_int::detail::ntt_direction;
 using ::beman::big_int::detail::ntt_forward;
 using ::beman::big_int::detail::ntt_inverse;
 using ::beman::big_int::detail::ntt_modulus;
 using ::beman::big_int::detail::ntt_pointwise;
 using ::beman::big_int::detail::ntt_primes;
 using ::boost::multiprecision::cpp_int;
+
+// Build the forward or inverse twiddle table of size n/2 for modulus m.
+[[nodiscard]] std::vector<std::uint64_t>
+twiddles_for(const std::size_t n, const ntt_modulus& m, const ntt_direction direction) {
+    std::vector<std::uint64_t> table(n / 2);
+    ntt_build_twiddles(table, n, m, direction);
+    return table;
+}
 
 [[nodiscard]] std::vector<std::uint64_t>
 random_vector(std::mt19937_64& rng, const std::size_t n, const std::uint64_t max_exclusive) {
@@ -47,8 +57,10 @@ TEST(Ntt, RoundTripPerPrime) {
             const std::size_t                n    = std::size_t{1} << logn;
             const std::vector<std::uint64_t> orig = random_vector(rng, n, m.p);
             std::vector<std::uint64_t>       data = orig;
-            ntt_forward(data, m);
-            ntt_inverse(data, m);
+            const auto                       fwd = twiddles_for(n, m, ntt_direction::forward);
+            const auto                       inv = twiddles_for(n, m, ntt_direction::inverse);
+            ntt_forward(data, fwd, m);
+            ntt_inverse(data, inv, m);
             ASSERT_EQ(data, orig) << "p=" << m.p << " n=" << n;
         }
     }
@@ -75,12 +87,14 @@ TEST(Ntt, CyclicConvolutionSinglePrime) {
                 reference[k] = static_cast<std::uint64_t>(acc % m.p);
             }
 
-            std::vector<std::uint64_t> fa = a;
-            std::vector<std::uint64_t> fb = b;
-            ntt_forward(fa, m);
-            ntt_forward(fb, m);
+            std::vector<std::uint64_t> fa     = a;
+            std::vector<std::uint64_t> fb     = b;
+            const auto                 fwd = twiddles_for(n, m, ntt_direction::forward);
+            const auto                 inv = twiddles_for(n, m, ntt_direction::inverse);
+            ntt_forward(fa, fwd, m);
+            ntt_forward(fb, fwd, m);
             ntt_pointwise(fa, fb, m);
-            ntt_inverse(fa, m);
+            ntt_inverse(fa, inv, m);
             ASSERT_EQ(fa, reference) << "p=" << m.p << " n=" << n;
         }
     }
@@ -134,10 +148,12 @@ TEST(Ntt, MultiPrimeCrtExactProduct) {
         for (std::size_t i = 0; i < nb; ++i) {
             vb[i] = b[i];
         }
-        ntt_forward(va, m);
-        ntt_forward(vb, m);
+        const auto fwd = twiddles_for(n, m, ntt_direction::forward);
+        const auto inv = twiddles_for(n, m, ntt_direction::inverse);
+        ntt_forward(va, fwd, m);
+        ntt_forward(vb, fwd, m);
         ntt_pointwise(va, vb, m);
-        ntt_inverse(va, m);
+        ntt_inverse(va, inv, m);
         residues[t] = std::move(va);
     }
 

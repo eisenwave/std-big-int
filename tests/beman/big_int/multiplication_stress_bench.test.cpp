@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -186,6 +187,23 @@ double run_toom_cook_8_5_at(const std::size_t limbs, const unsigned trials) {
                              });
 }
 
+double run_fft_at(const std::size_t limbs, const unsigned trials) {
+    // The FFT kernel has no internal cutoff, so calling it directly forces it at
+    // any size. It takes a std::uint64_t workspace rather than the limb scratch,
+    // so we pre-allocate one and capture it (the lambda ignores the harness scratch).
+    std::vector<std::uint64_t> workspace(::beman::big_int::detail::fft_mul_storage_size(limbs, limbs));
+    return measure_algorithm(limbs,
+                             trials,
+                             /*scratch_size=*/0,
+                             [&workspace](const std::span<uint_t>       r,
+                                          const std::span<const uint_t> a,
+                                          const std::span<const uint_t> b,
+                                          scratch_for_test&) {
+                                 ::beman::big_int::detail::multiply_fft(
+                                     r.first(a.size() + b.size()), a, b, workspace);
+                             });
+}
+
 // Squaring runners: `b` is ignored, the algorithm squares `a`. The harness
 // zero-fills the result before every call, satisfying square_long's pre-zero
 // requirement.
@@ -276,6 +294,19 @@ double run_square_toom_cook_8_5_at(const std::size_t limbs, const unsigned trial
                              });
 }
 
+double run_square_fft_at(const std::size_t limbs, const unsigned trials) {
+    std::vector<std::uint64_t> workspace(::beman::big_int::detail::square_fft_storage_size(limbs));
+    return measure_algorithm(limbs,
+                             trials,
+                             /*scratch_size=*/0,
+                             [&workspace](const std::span<uint_t>       r,
+                                          const std::span<const uint_t> a,
+                                          const std::span<const uint_t>,
+                                          scratch_for_test&) {
+                                 ::beman::big_int::detail::square_fft(r.first(2 * a.size()), a, workspace);
+                             });
+}
+
 // Registry of algorithms to sweep. Each entry constrains the sweep to a
 // reasonable range: too small and the algorithm's own internal cutoff just
 // falls back to the previous tier; too large and a single multiplication
@@ -293,13 +324,15 @@ constexpr algorithm_runner algorithms[] = {
     {"toom-cook-3", 300, 10000, run_toom_cook_3_at},
     {"toom-cook-4", 300, 30000, run_toom_cook_4_at},
     {"toom-cook-6.5", 1000, 80000, run_toom_cook_6_5_at},
-    {"toom-cook-8.5", 2000, 80000, run_toom_cook_8_5_at},
+    {"toom-cook-8.5", 2000, 300000, run_toom_cook_8_5_at},
+    {"fft", 8000, 300000, run_fft_at},
     {"square-long", 4, 400, run_square_long_at},
     {"square-karatsuba", 32, 2000, run_square_karatsuba_at},
     {"square-toom-cook-3", 200, 10000, run_square_toom_cook_3_at},
     {"square-toom-cook-4", 300, 30000, run_square_toom_cook_4_at},
     {"square-toom-cook-6.5", 1000, 80000, run_square_toom_cook_6_5_at},
-    {"square-toom-cook-8.5", 2000, 80000, run_square_toom_cook_8_5_at},
+    {"square-toom-cook-8.5", 2000, 300000, run_square_toom_cook_8_5_at},
+    {"square-fft", 8000, 300000, run_square_fft_at},
 };
 
 // Limb counts to sample. Dense coverage at the low end for the
@@ -397,6 +430,13 @@ constexpr std::size_t sweep_limbs[] = {
     50000,
     65000,
     80000,
+    // Toom-8.5 -> FFT transition and beyond (densify to resolve the crossover).
+    100000,
+    130000,
+    160000,
+    200000,
+    260000,
+    300000,
 };
 
 // Aim for ~0.2-1 second per data point. Trial counts taper as the cost per
@@ -447,7 +487,10 @@ constexpr std::size_t sweep_limbs[] = {
     if (limbs <= 50'000) {
         return 8U;
     }
-    return 4U;
+    if (limbs <= 100'000) {
+        return 4U;
+    }
+    return 2U;
 }
 
 void run_sweep() {
