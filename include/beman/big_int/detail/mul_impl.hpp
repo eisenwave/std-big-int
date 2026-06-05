@@ -12,8 +12,10 @@
 #include <algorithm>
 #include <bit>
 #include <compare>
+#include <cstdint>
 #include <memory>
 #include <span>
+#include <vector>
 
 namespace beman::big_int::detail {
 
@@ -437,6 +439,74 @@ void square_toom_cook_8_5(const std::span<uint_multiprecision_t>       result,
                           const std::size_t                            cutoff_override = 0) noexcept;
 
 // ---------------------------------------------------------------------------
+// FFT (small-prime NTT) multiplication: the asymptotically-best tier, above
+// Toom-Cook 8.5. Operands are split into base-2^32 coefficients, convolved via a
+// number-theoretic transform modulo two word-size primes, recombined with the
+// CRT, and carry-propagated into the product (see src/fft_mul.cpp, src/ntt.cpp).
+// The kernels work in std::uint64_t and take a uint64 workspace allocated by the
+// dispatcher, so they are independent of the library limb width.
+// ---------------------------------------------------------------------------
+
+// Bits per packed coefficient (b). 32 is the largest value that keeps a
+// coefficient product within 64 bits and divides a limb cleanly, so packing
+// never crosses a limb boundary.
+inline constexpr std::size_t fft_coeff_bits = 32;
+
+// Coefficients packed per limb: two on a 64-bit build, one on a 32-bit build.
+inline constexpr std::size_t fft_coeffs_per_limb = width_v<uint_multiprecision_t> / fft_coeff_bits;
+
+// Transform length for an na-by-nb limb product: the linear convolution has
+// fft_coeffs_per_limb*(na+nb)-1 coefficients; round up to a power of two so the
+// cyclic transform computes the linear convolution with no wraparound.
+constexpr std::size_t fft_transform_length(const std::size_t na, const std::size_t nb) noexcept {
+    return std::bit_ceil(fft_coeffs_per_limb * (na + nb) - 1);
+}
+
+// Workspace (in std::uint64_t) for multiply_fft: ca[N] + cb[N] + tw[N/2] +
+// res0[result_coeff], N = fft_transform_length(na, nb).
+constexpr std::size_t fft_mul_storage_size(const std::size_t na, const std::size_t nb) noexcept {
+    const std::size_t n = fft_transform_length(na, nb);
+    return 2 * n + n / 2 + (fft_coeffs_per_limb * (na + nb) - 1);
+}
+
+// Workspace (in std::uint64_t) for square_fft: ca[N] + tw[N/2] + save[result_coeff].
+constexpr std::size_t square_fft_storage_size(const std::size_t n_limbs) noexcept {
+    const std::size_t n = fft_transform_length(n_limbs, n_limbs);
+    return n + n / 2 + (2 * fft_coeffs_per_limb * n_limbs - 1);
+}
+
+// Minimum number of limbs (of the smaller operand) for FFT to beat Toom-Cook 8.5.
+// Measured via multiplication_stress_bench (AppleClang, release, 2026-06-05).
+// FFT cost is flat within each transform-length (power-of-two) band and steps up
+// at the band boundaries, so the crossover is not perfectly monotonic. FFT
+// decisively overtakes Toom-8.5 from ~24000 limbs (16% faster at 24000, >40% by
+// 32000, ~1.8x by 300000); below that Toom-8.5 wins or ties (notably the
+// 18000-20000 band just past a band-doubling). A narrow band just past each later
+// doubling (e.g. ~33000-36000) where Toom-8.5 is briefly ~10% faster is the
+// accepted cost of a single FFT threshold; a future multi-k table would smooth it.
+inline constexpr std::size_t fft_mul_cutoff = 24000;
+
+// Squaring crossover, measured the same way: square-FFT decisively overtakes
+// square-Toom-8.5 from ~24000 limbs (25% faster at 24000), with the same
+// stairstep caveat. Equal to square_toom_cook_8_5_cutoff, so FFT supersedes the
+// Toom-8.5 squaring kernel above it (Toom-6.5 still covers 2400-24000).
+inline constexpr std::size_t square_fft_cutoff = 24000;
+
+// FFT kernels (defined in src/fft_mul.cpp). Operands may be untrimmed; `result`
+// must have space for a.size()+b.size() limbs and must NOT alias `a`/`b`.
+// `workspace` is a std::uint64_t scratch span sized by fft_mul_storage_size /
+// square_fft_storage_size. Writes exactly a.size()+b.size() (resp. 2*a.size())
+// limbs; the dispatcher trims.
+void multiply_fft(std::span<uint_multiprecision_t>       result,
+                  std::span<const uint_multiprecision_t> a_untrimmed,
+                  std::span<const uint_multiprecision_t> b_untrimmed,
+                  std::span<std::uint64_t>               workspace) noexcept;
+
+void square_fft(std::span<uint_multiprecision_t>       result,
+                std::span<const uint_multiprecision_t> a_untrimmed,
+                std::span<std::uint64_t>               workspace) noexcept;
+
+// ---------------------------------------------------------------------------
 // result <- a * p2 where p2 is a trimmed power of two: a shifted copy of `a`
 // placed at limb offset p2.size() - 1, bit-shifted by countr_zero(p2.back()).
 // O(n) with no scratch, versus a full kernel dispatch (see GMP mpz_mul_2exp).
@@ -508,8 +578,22 @@ std::size_t square_dispatch(const std::span<uint_multiprecision_t>       result,
         scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(n), alloc);
         square_toom_cook_6_5(result.first(result_total), a, scratch);
     } else {
-        scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(n), alloc);
-        square_toom_cook_8_5(result.first(result_total), a, scratch);
+        // FFT for the largest 64-bit-limb squares; otherwise Toom-8.5. The FFT
+        // kernel works in std::uint64_t, so it is gated to 64-bit limbs (the
+        // 32-bit branch is discarded and never instantiates square_fft).
+        bool used_fft = false;
+        if constexpr (width_v<uint_multiprecision_t> == 64) {
+            if (n >= square_fft_cutoff) {
+                using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
+                std::vector<std::uint64_t, u64_alloc> workspace(square_fft_storage_size(n), u64_alloc(alloc));
+                square_fft(result.first(result_total), a, workspace);
+                used_fft = true;
+            }
+        }
+        if (!used_fft) {
+            scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(n), alloc);
+            square_toom_cook_8_5(result.first(result_total), a, scratch);
+        }
     }
 
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
@@ -608,8 +692,23 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
                 scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(s), alloc);
                 multiply_toom_cook_6_5(result.first(result_total), a, b, scratch);
             } else {
-                scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(s), alloc);
-                multiply_toom_cook_8_5(result.first(result_total), a, b, scratch);
+                // FFT for the largest 64-bit-limb products; otherwise Toom-8.5.
+                // Gated to 64-bit limbs (the std::uint64_t FFT kernel); the
+                // 32-bit branch is discarded and never instantiates multiply_fft.
+                bool used_fft = false;
+                if constexpr (width_v<uint_multiprecision_t> == 64) {
+                    if (min_size >= fft_mul_cutoff) {
+                        using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
+                        std::vector<std::uint64_t, u64_alloc> workspace(fft_mul_storage_size(a.size(), b.size()),
+                                                                        u64_alloc(alloc));
+                        multiply_fft(result.first(result_total), a, b, workspace);
+                        used_fft = true;
+                    }
+                }
+                if (!used_fft) {
+                    scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(s), alloc);
+                    multiply_toom_cook_8_5(result.first(result_total), a, b, scratch);
+                }
             }
             return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
         }

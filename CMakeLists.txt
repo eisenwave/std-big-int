@@ -44,6 +44,7 @@ add_library(
     src/toom_cook_6_5.cpp
     src/toom_cook_8_5.cpp
     src/ntt.cpp
+    src/fft_mul.cpp
 )
 add_library(beman::big_int ALIAS beman.big_int)
 target_compile_features(beman.big_int PUBLIC cxx_std_23)
