@@ -325,14 +325,14 @@ constexpr algorithm_runner algorithms[] = {
     {"toom-cook-4", 300, 30000, run_toom_cook_4_at},
     {"toom-cook-6.5", 1000, 80000, run_toom_cook_6_5_at},
     {"toom-cook-8.5", 2000, 300000, run_toom_cook_8_5_at},
-    {"fft", 8000, 300000, run_fft_at},
+    {"fft", 3000, 300000, run_fft_at},
     {"square-long", 4, 400, run_square_long_at},
     {"square-karatsuba", 32, 2000, run_square_karatsuba_at},
     {"square-toom-cook-3", 200, 10000, run_square_toom_cook_3_at},
     {"square-toom-cook-4", 300, 30000, run_square_toom_cook_4_at},
     {"square-toom-cook-6.5", 1000, 80000, run_square_toom_cook_6_5_at},
     {"square-toom-cook-8.5", 2000, 300000, run_square_toom_cook_8_5_at},
-    {"square-fft", 8000, 300000, run_square_fft_at},
+    {"square-fft", 3000, 300000, run_square_fft_at},
 };
 
 // Limb counts to sample. Dense coverage at the low end for the

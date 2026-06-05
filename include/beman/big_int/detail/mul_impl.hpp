@@ -440,39 +440,66 @@ void square_toom_cook_8_5(const std::span<uint_multiprecision_t>       result,
 
 // ---------------------------------------------------------------------------
 // FFT (small-prime NTT) multiplication: the asymptotically-best tier, above
-// Toom-Cook 8.5. Operands are split into base-2^32 coefficients, convolved via a
+// Toom-Cook 8.5. Operands are split into base-2^b coefficients, convolved via a
 // number-theoretic transform modulo two word-size primes, recombined with the
 // CRT, and carry-propagated into the product (see src/fft_mul.cpp, src/ntt.cpp).
 // The kernels work in std::uint64_t and take a uint64 workspace allocated by the
 // dispatcher, so they are independent of the library limb width.
 // ---------------------------------------------------------------------------
 
-// Bits per packed coefficient (b). 32 is the largest value that keeps a
-// coefficient product within 64 bits and divides a limb cleanly, so packing
-// never crosses a limb boundary.
-inline constexpr std::size_t fft_coeff_bits = 32;
+// Bits per packed coefficient (b) is chosen per multiply: a larger b means fewer
+// coefficients -- a smaller, faster transform -- bounded by the requirement that
+// every convolution coefficient stay below the product of the two NTT primes
+// (~2^123.8) so the two-prime CRT recovers it exactly. This is the largest b we
+// try; 32 is the floor (always safe in the range the 2-adicity allows), so any
+// higher b is pure upside.
+inline constexpr unsigned fft_max_coeff_bits = 50;
 
-// Coefficients packed per limb: two on a 64-bit build, one on a 32-bit build.
-inline constexpr std::size_t fft_coeffs_per_limb = width_v<uint_multiprecision_t> / fft_coeff_bits;
+// Number of base-2^b coefficients an n-limb operand splits into.
+constexpr std::size_t fft_coeff_count(const std::size_t n_limbs, const unsigned b) noexcept {
+    return (width_v<uint_multiprecision_t> * n_limbs + b - 1) / b; // ceil
+}
+
+// Largest b in [32, fft_max_coeff_bits] for which an na-by-nb limb product's
+// convolution coefficients provably fit in two primes. The widest coefficient
+// sums min(na_coeff, nb_coeff) products of two b-bit values, so we need
+// min_coeff * (2^b-1)^2 < p0*p1; bit_width(min_coeff) + 2b <= 123 < log2(p0*p1)
+// is a safe integer test. Always returns >= 32.
+constexpr unsigned fft_choose_coeff_bits(const std::size_t na, const std::size_t nb) noexcept {
+    const std::size_t min_limbs = na < nb ? na : nb;
+    for (unsigned b = fft_max_coeff_bits; b > 32; --b) {
+        const std::size_t min_coeff = fft_coeff_count(min_limbs, b);
+        if (static_cast<std::size_t>(std::bit_width(min_coeff)) + 2 * b <= 123) {
+            return b;
+        }
+    }
+    return 32;
+}
 
 // Transform length for an na-by-nb limb product: the linear convolution has
-// fft_coeffs_per_limb*(na+nb)-1 coefficients; round up to a power of two so the
-// cyclic transform computes the linear convolution with no wraparound.
+// na_coeff + nb_coeff - 1 coefficients; round up to a power of two so the cyclic
+// transform computes the linear convolution with no wraparound.
 constexpr std::size_t fft_transform_length(const std::size_t na, const std::size_t nb) noexcept {
-    return std::bit_ceil(fft_coeffs_per_limb * (na + nb) - 1);
+    const unsigned    b            = fft_choose_coeff_bits(na, nb);
+    const std::size_t result_coeff = fft_coeff_count(na, b) + fft_coeff_count(nb, b) - 1;
+    return std::bit_ceil(result_coeff);
 }
 
 // Workspace (in std::uint64_t) for multiply_fft: ca[N] + cb[N] + tw[N/2] +
 // res0[result_coeff], N = fft_transform_length(na, nb).
 constexpr std::size_t fft_mul_storage_size(const std::size_t na, const std::size_t nb) noexcept {
-    const std::size_t n = fft_transform_length(na, nb);
-    return 2 * n + n / 2 + (fft_coeffs_per_limb * (na + nb) - 1);
+    const unsigned    b            = fft_choose_coeff_bits(na, nb);
+    const std::size_t n            = fft_transform_length(na, nb);
+    const std::size_t result_coeff = fft_coeff_count(na, b) + fft_coeff_count(nb, b) - 1;
+    return 2 * n + n / 2 + result_coeff;
 }
 
 // Workspace (in std::uint64_t) for square_fft: ca[N] + tw[N/2] + save[result_coeff].
 constexpr std::size_t square_fft_storage_size(const std::size_t n_limbs) noexcept {
-    const std::size_t n = fft_transform_length(n_limbs, n_limbs);
-    return n + n / 2 + (2 * fft_coeffs_per_limb * n_limbs - 1);
+    const unsigned    b            = fft_choose_coeff_bits(n_limbs, n_limbs);
+    const std::size_t n            = fft_transform_length(n_limbs, n_limbs);
+    const std::size_t result_coeff = 2 * fft_coeff_count(n_limbs, b) - 1;
+    return n + n / 2 + result_coeff;
 }
 
 // Minimum number of limbs (of the smaller operand) for FFT to beat Toom-Cook 8.5.

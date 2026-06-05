@@ -18,6 +18,7 @@
 namespace {
 
 using ::beman::big_int::uint_multiprecision_t;
+using ::beman::big_int::detail::fft_choose_coeff_bits;
 using ::beman::big_int::detail::fft_mul_storage_size;
 using ::beman::big_int::detail::multiply_fft;
 using ::beman::big_int::detail::square_fft;
@@ -25,6 +26,17 @@ using ::beman::big_int::detail::square_fft_storage_size;
 using ::boost::multiprecision::cpp_int;
 
 inline constexpr unsigned limb_bits = std::numeric_limits<uint_multiprecision_t>::digits;
+
+// Adaptive coefficient-bit selection: the common FFT range picks the maximum
+// b = 50; the smaller operand bounds the coefficient overlap (so a tiny operand
+// still allows b=50); and for astronomically large operands b drops to keep the
+// two-prime CRT exact. (Validated on the 64-bit-limb build.)
+#if BEMAN_BIG_INT_LIMB_WIDTH == 64
+static_assert(fft_choose_coeff_bits(1000, 1000) == 50);
+static_assert(fft_choose_coeff_bits(100000, 100000) == 50);
+static_assert(fft_choose_coeff_bits(1, 1000000) == 50);
+static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48);
+#endif
 
 // Random limb vector with a non-zero top limb (so the trimmed size is exactly n).
 [[nodiscard]] std::vector<uint_multiprecision_t> random_limbs(std::mt19937_64& rng, const std::size_t n) {
