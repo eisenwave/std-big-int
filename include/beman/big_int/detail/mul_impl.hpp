@@ -128,7 +128,14 @@ inline constexpr std::size_t karatsuba_fallback = 40;
 // 40-4000 limbs in scratch_peak_bench) the actual peak/s ratio tops out at
 // ~3.997. 5*s leaves ~25% safety margin and matches the same generous-but-not-
 // wasteful ratio used by the Toom-Cook variants.
+static_assert(karatsuba_fallback >= 5,
+              "karatsuba_fallback < 5 makes the Karatsuba recursion non-terminating (stack overflow)");
+
 constexpr std::size_t karatsuba_storage_size(const std::size_t s) noexcept { return 5 * s; }
+
+// Maximum number of scratch limbs we are willing to place on the stack
+// Value from boost
+inline constexpr std::size_t karatsuba_stack_threshold = 300;
 
 // ---------------------------------------------------------------------------
 // Recursive Karatsuba multiplication.
@@ -582,8 +589,15 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
             const std::size_t result_total = a.size() + b.size();
 
             if (min_size < toom_cook_3_cutoff) {
-                scratch_allocator<Allocator> scratch(karatsuba_storage_size(s), alloc);
-                multiply_karatsuba(result.first(result_total), a, b, scratch);
+                const std::size_t storage_size = karatsuba_storage_size(s);
+                if (storage_size <= karatsuba_stack_threshold) {
+                    uint_multiprecision_t        stack_buf[karatsuba_stack_threshold];
+                    scratch_allocator<Allocator> scratch(stack_buf, karatsuba_stack_threshold, alloc);
+                    multiply_karatsuba(result.first(result_total), a, b, scratch);
+                } else {
+                    scratch_allocator<Allocator> scratch(storage_size, alloc);
+                    multiply_karatsuba(result.first(result_total), a, b, scratch);
+                }
             } else if (min_size < toom_cook_4_cutoff) {
                 scratch_allocator<Allocator> scratch(toom_cook_3_storage_size(s), alloc);
                 multiply_toom_cook_3(result.first(result_total), a, b, scratch);
