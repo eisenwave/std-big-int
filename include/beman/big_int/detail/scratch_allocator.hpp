@@ -77,9 +77,12 @@ struct scratch_allocator : scratch_allocator_base {
     using alloc_traits = std::allocator_traits<Allocator>;
     using pointer      = typename alloc_traits::pointer;
 
-    BEMAN_BIG_INT_NO_UNIQUE_ADDRESS Allocator m_alloc;
-    pointer                                   m_owned_pointer = pointer{};
-    bool                                      m_owns;
+    // NOTE: deliberately plain [[no_unique_address]], NOT BEMAN_BIG_INT_NO_UNIQUE_ADDRESS.
+    // BEMAN_BIG_INT_NO_UNIQUE_ADDRESS expands to [[msvc::no_unique_address]] which miscompiles leading to segfault
+    // MSVC ignores plain [[no_unique_address]] which works fine (and correctly) with GCC and Clang
+    [[no_unique_address]] Allocator m_alloc;
+    pointer                         m_owned_pointer = pointer{};
+    bool                            m_owns;
 
     // Wrap an existing stack buffer — no ownership.
     constexpr scratch_allocator(pointer buf, const std::size_t cap, const Allocator& alloc) noexcept
