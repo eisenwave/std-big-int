@@ -109,29 +109,39 @@ of `big_int` with those of `boost.cpp_int` and GMP (wrapped by `boost.gmp_int`) 
 The result of multiplication adds the widths of its operands. So multiplying
 two big integers produces a result having double the width of its operands.
 
-The time and the relative time compared with the best time (see the square brackets)
-are shown for each big integer type at each digit setting.
+The time and the relative time compared with the best (GMP) time (in square
+brackets) are shown for each big-integer type at each width. These were measured
+on an x86-64 machine with the SIMD multiplication path enabled (configured with
+`-DBEMAN_BIG_INT_SIMD_MUL=ON`, so the FFT tier uses the AVX2 kernel); see the
+"Optional: SIMD-accelerated multiplication" note in the top-level README.
 
 | 64-bit limbs   | bit width    | approx base-10 digits | us per mul  `big_int`  | us per mul  `cpp_int`  | us per mul  `gmp_int` |
 |----------------|--------------|-----------------------|------------------------|------------------------|-----------------------|
-| 128            | 8,192        | 2,500                 |   8.2   [2.0]          |   9.6   [2.3]          |   4.1   [1.0]         |
-| 512            | 32,768       | 9,900                 |   74    [2.6]          |   85    [2.9]          |   29    [1.0]         |
-| 1,024          | 65,536       | 20,000                |   210   [2.7]          |   250   [3.2]          |   78    [1.0]         |
-| 2,048          | 131,072      | 39,000                |   590   [3.0]          |   760   [3.6]          |   200   [1.0]         |
-| 8,192          | 524,288      | 160,000               |   4,100 [3.2]          |   6,800 [5.2], see (2) |   1,300 [1.0]         |
-| 32,768         | 2,097,152    | 631,000               |  25,000 [4.2]          |  58,000 [9.8]          |   5,900 [1.0]         |
-| 131,072        | 8,388,608    | 2,525,000             | 160,000 [5.3], see (1) | 560,000 [18]           |  30,000 [1.0]         |
+| 128            | 8,192        | 2,500                 |   9.8   [2.2]          |   8.2   [1.9]          |   4.4   [1.0]         |
+| 512            | 32,768       | 9,900                 |   67    [2.5]          |   64    [2.4]          |   27    [1.0]         |
+| 1,024          | 65,536       | 20,000                |   199   [2.7]          |   188   [2.6]          |   73    [1.0]         |
+| 2,048          | 131,072      | 39,000                |   564   [3.0]          |   579   [3.0]          |   190   [1.0]         |
+| 8,192          | 524,288      | 160,000               |   4,060 [3.2]          |   5,210 [4.1], see (2) |   1,270 [1.0]         |
+| 32,768         | 2,097,152    | 631,000               |  17,100 [3.2]          |  46,900 [8.8]          |   5,330 [1.0]         |
+| 131,072        | 8,388,608    | 2,525,000             |  71,700 [2.7], see (1) | 422,000 [15.7]         |  26,900 [1.0]         |
 
-GMP is written in hand-coded assembly in its hot-spots and is known as the _industry_ _standard_
-of performance. The relative multiplication timing of `beman.big_int` compared with `gmp_int`
-is quite respectable, considering its C++, portable design. The code used for this comparison
-can be found in [mul_big_int_vs_gmp_cpp.perf.cpp](./mul_big_int_vs_gmp_cpp.perf.cpp).
+GMP is written in hand-coded assembly in its hot spots and is the _industry_
+_standard_ of performance. With its FFT (small-prime NTT) tier, `beman.big_int`
+now stays within roughly 3x of GMP across the entire range -- including the
+largest sizes, where it previously fell behind (see (1)) -- which is quite
+respectable for a portable C++ design. The code used for this comparison can be
+found in [mul_big_int_vs_gmp_cpp.perf.cpp](./mul_big_int_vs_gmp_cpp.perf.cpp);
+pass an operand width in limbs (and optionally a trial count) on the command line
+to reproduce a row.
 
-(1) At the moment, `big_int` does not support FFT multiplication so `gmp_int`
-really pulls ahead at very high digit counts.
+(1) `beman.big_int` now has FFT multiplication (a small-prime NTT, vectorized via
+the optional SIMD path). Earlier it topped out at Toom-Cook, so `gmp_int` pulled
+far ahead at very high digit counts (about 5.3x at 131,072 limbs); the FFT brings
+that back to about 2.7x, tracking GMP's asymptotic complexity.
 
-(2) At the moment, `cpp_int` only reaches _as_ _high_ as Karatsuba multiplication
-so both `big_int` and `gmp_int` pull ahead at medium high digit counts.
+(2) `cpp_int` only reaches _as_ _high_ as Karatsuba multiplication, so both
+`big_int` and `gmp_int` pull ahead at medium-high digit counts -- `big_int`'s lead
+over `cpp_int` grows to roughly 6x by 131,072 limbs.
 
 ## Division
 
