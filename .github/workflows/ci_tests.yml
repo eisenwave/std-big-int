@@ -31,7 +31,9 @@ jobs:
           {"preset": "appleclang-debug", "runner": "macos-latest"},
           {"preset": "appleclang-release", "runner": "macos-latest"},
           {"preset": "msvc-debug", "runner": "windows-latest"},
-          {"preset": "msvc-release", "runner": "windows-latest"}
+          {"preset": "msvc-release", "runner": "windows-latest"},
+          {"preset": "llvm-debug-simd", "image": "ghcr.io/bemanproject/infra-containers-clang:latest"},
+          {"preset": "appleclang-debug-simd", "runner": "macos-latest"}
         ]
 
   build-and-test:
@@ -47,7 +49,7 @@ jobs:
                     { "stdlibs": ["libstdc++"],
                       "tests": [
                         "Debug.Default", "Release.Default", "Release.TSan",
-                        "Debug.Coverage"
+                        "Debug.Coverage", "Release.-DBEMAN_BIG_INT_SIMD_MUL=ON"
                       ]
                     }
                   ]
@@ -73,7 +75,7 @@ jobs:
                     { "stdlibs": ["libstdc++", "libc++"],
                       "tests": [
                         "Debug.Default", "Release.Default", "Release.TSan",
-                        "Release.MaxSan"
+                        "Release.MaxSan", "Release.-DBEMAN_BIG_INT_SIMD_MUL=ON"
                       ]
                     }
                   ]
@@ -110,7 +112,10 @@ jobs:
                 { "cxxversions": ["c++23"],
                   "tests": [
                     { "stdlibs": ["stl"],
-                      "tests": ["Debug.Default", "Release.Default", "Release.MaxSan"]
+                      "tests": [
+                        "Debug.Default", "Release.Default", "Release.MaxSan",
+                        "Release.-DBEMAN_BIG_INT_SIMD_MUL=ON"
+                      ]
                     }
                   ]
                 }
