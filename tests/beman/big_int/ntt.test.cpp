@@ -16,6 +16,10 @@
 #include <span>
 #include <vector>
 
+// The integer NTT transform is only built in the default (non-SIMD) configuration;
+// when BEMAN_BIG_INT_SIMD_MUL is on, the FP NTT replaces it and this is an empty TU.
+#if !defined(BEMAN_BIG_INT_SIMD_MUL)
+
 namespace {
 
 using ::beman::big_int::detail::ntt_build_twiddles;
@@ -188,3 +192,5 @@ TEST(Ntt, MultiPrimeCrtExactProduct) {
 }
 
 } // namespace
+
+#endif // !BEMAN_BIG_INT_SIMD_MUL

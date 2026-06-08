@@ -19,23 +19,33 @@ namespace {
 
 using ::beman::big_int::uint_multiprecision_t;
 using ::beman::big_int::detail::fft_choose_coeff_bits;
-using ::beman::big_int::detail::fft_mul_storage_size;
 using ::beman::big_int::detail::multiply_fft;
 using ::beman::big_int::detail::square_fft;
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+using ::beman::big_int::detail::fft_mul_fp_storage_size;
+using ::beman::big_int::detail::fft_mul_int_storage_size;
+using ::beman::big_int::detail::square_fft_fp_storage_size;
+using ::beman::big_int::detail::square_fft_int_storage_size;
+#else
+using ::beman::big_int::detail::fft_mul_storage_size;
 using ::beman::big_int::detail::square_fft_storage_size;
+#endif
 using ::boost::multiprecision::cpp_int;
 
 inline constexpr unsigned limb_bits = std::numeric_limits<uint_multiprecision_t>::digits;
 
-// Adaptive coefficient-bit selection: the common FFT range picks the maximum
-// b = 50; the smaller operand bounds the coefficient overlap (so a tiny operand
-// still allows b=50); and for astronomically large operands b drops to keep the
-// two-prime CRT exact. (Validated on the 64-bit-limb build.)
+// Adaptive coefficient-bit selection: the common range picks b = 50 (the max); b
+// drops only for very large operands, and sooner for the tighter two-prime integer
+// CRT (~2^124) than the three-prime FP CRT (~2^149). (Validated on 64-bit limbs.)
 #if BEMAN_BIG_INT_LIMB_WIDTH == 64
 static_assert(fft_choose_coeff_bits(1000, 1000) == 50);
 static_assert(fft_choose_coeff_bits(100000, 100000) == 50);
 static_assert(fft_choose_coeff_bits(1, 1000000) == 50);
-static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48);
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+static_assert(fft_choose_coeff_bits(50000000, 50000000) == 50); // three ~50-bit primes
+#else
+static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48); // two ~62-bit primes
+#endif
 #endif
 
 // Random limb vector with a non-zero top limb (so the trimmed size is exactly n).
@@ -64,9 +74,14 @@ static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48);
     const std::vector<uint_multiprecision_t> a = random_limbs(rng, na);
     const std::vector<uint_multiprecision_t> b = random_limbs(rng, nb);
     std::vector<uint_multiprecision_t>       result(na + nb, uint_multiprecision_t{0});
-    std::vector<std::uint64_t>               workspace(fft_mul_storage_size(na, nb));
-
-    multiply_fft(result, a, b, workspace);
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+    std::vector<double>        fp_ws(fft_mul_fp_storage_size(na, nb));
+    std::vector<std::uint64_t> int_ws(fft_mul_int_storage_size(na, nb));
+    multiply_fft(result, a, b, fp_ws, int_ws);
+#else
+    std::vector<std::uint64_t> ws(fft_mul_storage_size(na, nb));
+    multiply_fft(result, a, b, ws);
+#endif
 
     const cpp_int expected = from_limbs(a) * from_limbs(b);
     const cpp_int got      = from_limbs(result);
@@ -79,9 +94,14 @@ static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48);
 [[nodiscard]] ::testing::AssertionResult check_square(std::mt19937_64& rng, const std::size_t na) {
     const std::vector<uint_multiprecision_t> a = random_limbs(rng, na);
     std::vector<uint_multiprecision_t>       result(2 * na, uint_multiprecision_t{0});
-    std::vector<std::uint64_t>               workspace(square_fft_storage_size(na));
-
-    square_fft(result, a, workspace);
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+    std::vector<double>        fp_ws(square_fft_fp_storage_size(na));
+    std::vector<std::uint64_t> int_ws(square_fft_int_storage_size(na));
+    square_fft(result, a, fp_ws, int_ws);
+#else
+    std::vector<std::uint64_t> ws(square_fft_storage_size(na));
+    square_fft(result, a, ws);
+#endif
 
     const cpp_int base     = from_limbs(a);
     const cpp_int expected = base * base;

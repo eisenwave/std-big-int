@@ -189,19 +189,33 @@ double run_toom_cook_8_5_at(const std::size_t limbs, const unsigned trials) {
 
 double run_fft_at(const std::size_t limbs, const unsigned trials) {
     // The FFT kernel has no internal cutoff, so calling it directly forces it at
-    // any size. It takes a std::uint64_t workspace rather than the limb scratch,
-    // so we pre-allocate one and capture it (the lambda ignores the harness scratch).
-    std::vector<std::uint64_t> workspace(::beman::big_int::detail::fft_mul_storage_size(limbs, limbs));
+    // any size. We pre-allocate its workspace(s) and capture them (the lambda
+    // ignores the harness scratch). The signature depends on BEMAN_BIG_INT_SIMD_MUL.
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+    std::vector<double>        fp_ws(::beman::big_int::detail::fft_mul_fp_storage_size(limbs, limbs));
+    std::vector<std::uint64_t> int_ws(::beman::big_int::detail::fft_mul_int_storage_size(limbs, limbs));
     return measure_algorithm(limbs,
                              trials,
                              /*scratch_size=*/0,
-                             [&workspace](const std::span<uint_t>       r,
-                                          const std::span<const uint_t> a,
-                                          const std::span<const uint_t> b,
-                                          scratch_for_test&) {
+                             [&fp_ws, &int_ws](const std::span<uint_t>       r,
+                                               const std::span<const uint_t> a,
+                                               const std::span<const uint_t> b,
+                                               scratch_for_test&) {
                                  ::beman::big_int::detail::multiply_fft(
-                                     r.first(a.size() + b.size()), a, b, workspace);
+                                     r.first(a.size() + b.size()), a, b, fp_ws, int_ws);
                              });
+#else
+    std::vector<std::uint64_t> ws(::beman::big_int::detail::fft_mul_storage_size(limbs, limbs));
+    return measure_algorithm(limbs,
+                             trials,
+                             /*scratch_size=*/0,
+                             [&ws](const std::span<uint_t>       r,
+                                   const std::span<const uint_t> a,
+                                   const std::span<const uint_t> b,
+                                   scratch_for_test&) {
+                                 ::beman::big_int::detail::multiply_fft(r.first(a.size() + b.size()), a, b, ws);
+                             });
+#endif
 }
 
 // Squaring runners: `b` is ignored, the algorithm squares `a`. The harness
@@ -295,16 +309,30 @@ double run_square_toom_cook_8_5_at(const std::size_t limbs, const unsigned trial
 }
 
 double run_square_fft_at(const std::size_t limbs, const unsigned trials) {
-    std::vector<std::uint64_t> workspace(::beman::big_int::detail::square_fft_storage_size(limbs));
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+    std::vector<double>        fp_ws(::beman::big_int::detail::square_fft_fp_storage_size(limbs));
+    std::vector<std::uint64_t> int_ws(::beman::big_int::detail::square_fft_int_storage_size(limbs));
     return measure_algorithm(limbs,
                              trials,
                              /*scratch_size=*/0,
-                             [&workspace](const std::span<uint_t>       r,
-                                          const std::span<const uint_t> a,
-                                          const std::span<const uint_t>,
-                                          scratch_for_test&) {
-                                 ::beman::big_int::detail::square_fft(r.first(2 * a.size()), a, workspace);
+                             [&fp_ws, &int_ws](const std::span<uint_t>       r,
+                                               const std::span<const uint_t> a,
+                                               const std::span<const uint_t>,
+                                               scratch_for_test&) {
+                                 ::beman::big_int::detail::square_fft(r.first(2 * a.size()), a, fp_ws, int_ws);
                              });
+#else
+    std::vector<std::uint64_t> ws(::beman::big_int::detail::square_fft_storage_size(limbs));
+    return measure_algorithm(limbs,
+                             trials,
+                             /*scratch_size=*/0,
+                             [&ws](const std::span<uint_t>       r,
+                                   const std::span<const uint_t> a,
+                                   const std::span<const uint_t>,
+                                   scratch_for_test&) {
+                                 ::beman::big_int::detail::square_fft(r.first(2 * a.size()), a, ws);
+                             });
+#endif
 }
 
 // Registry of algorithms to sweep. Each entry constrains the sweep to a
