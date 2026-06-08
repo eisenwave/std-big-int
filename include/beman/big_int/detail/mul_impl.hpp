@@ -558,11 +558,11 @@ constexpr std::size_t square_fft_storage_size(const std::size_t n_limbs) noexcep
 // not recover it -- so SIMD multiply mainly benefits x86-64.)
 #if defined(BEMAN_BIG_INT_SIMD_MUL)
 inline constexpr std::size_t fft_mul_cutoff = 6000;
-#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+    #if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
 inline constexpr std::size_t square_fft_cutoff = 11000;
-#else
+    #else
 inline constexpr std::size_t square_fft_cutoff = 6000;
-#endif
+    #endif
 #elif defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
 inline constexpr std::size_t fft_mul_cutoff    = 24000;
 inline constexpr std::size_t square_fft_cutoff = 24000;
@@ -797,7 +797,8 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
                 bool used_fft = false;
                 if constexpr (width_v<uint_multiprecision_t> == 64) {
                     if (min_size >= fft_mul_cutoff) {
-                        using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
+                        using u64_alloc =
+                            typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
 #if defined(BEMAN_BIG_INT_SIMD_MUL)
                         using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
                         std::vector<double, f64_alloc>        fp_ws(fft_mul_fp_storage_size(a.size(), b.size()),

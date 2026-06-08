@@ -41,13 +41,17 @@ void ntt_build_twiddles(std::span<std::uint64_t> twiddles,
 // decimation-in-frequency, no explicit bit-reversal). `data.size()` must be a
 // power of two and at most 2^mod.log2_order. `twiddles` is a forward table from
 // ntt_build_twiddles sized for `data.size()`.
-void ntt_forward(std::span<std::uint64_t> data, std::span<const std::uint64_t> twiddles, const ntt_modulus& mod) noexcept;
+void ntt_forward(std::span<std::uint64_t>       data,
+                 std::span<const std::uint64_t> twiddles,
+                 const ntt_modulus&             mod) noexcept;
 
 // In-place inverse transform: consumes the bit-reversed output of ntt_forward
 // (Cooley-Tukey decimation-in-time) and restores natural order, including the
 // final 1/N scaling. Pairs with ntt_forward so the bit-reversal cancels.
 // `twiddles` is an inverse table from ntt_build_twiddles sized for `data.size()`.
-void ntt_inverse(std::span<std::uint64_t> data, std::span<const std::uint64_t> twiddles, const ntt_modulus& mod) noexcept;
+void ntt_inverse(std::span<std::uint64_t>       data,
+                 std::span<const std::uint64_t> twiddles,
+                 const ntt_modulus&             mod) noexcept;
 
 // Elementwise modular product a[i] <- a[i] * b[i] mod mod.p. Order-agnostic, so
 // it composes with the bit-reversed layout between forward and inverse.

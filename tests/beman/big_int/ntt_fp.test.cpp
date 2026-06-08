@@ -42,13 +42,13 @@ using ::boost::multiprecision::cpp_int;
 // only usable in the FP transform if this exact-bound predicate also holds (the
 // rounding of 1/n must be benign). Guards the chosen prime set.
 [[nodiscard]] bool satisfies_bounds(const std::uint64_t nn) {
-    constexpr int    d_bits = 53;
-    const double     n      = static_cast<double>(nn);
-    const double     ninv   = 1.0 / n;
-    const double     t1     = std::fabs(std::fma(n, ninv, -1.0));
-    const int        n1bits = std::bit_width(nn);
-    const int        n2bits = n2bits_of(nn);
-    int              b      = d_bits - n1bits - 1;
+    constexpr int d_bits = 53;
+    const double  n      = static_cast<double>(nn);
+    const double  ninv   = 1.0 / n;
+    const double  t1     = std::fabs(std::fma(n, ninv, -1.0));
+    const int     n1bits = std::bit_width(nn);
+    const int     n2bits = n2bits_of(nn);
+    int           b      = d_bits - n1bits - 1;
     if (b < 2) {
         return false;
     }
@@ -82,10 +82,9 @@ TEST(NttFp, MulmodExactness) {
             const std::int64_t ix = static_cast<std::int64_t>(dx(rng)) - static_cast<std::int64_t>(2 * p);
             const std::int64_t iy = static_cast<std::int64_t>(dy(rng)) - static_cast<std::int64_t>(p / 2);
 
-            const double        got_d = fp_reduce_to_0n(fp_mulmod(static_cast<double>(ix), static_cast<double>(iy),
-                                                                  m.n, m.ninv),
-                                                       m.n, m.ninv);
-            const std::uint64_t got   = static_cast<std::uint64_t>(got_d);
+            const double got_d =
+                fp_reduce_to_0n(fp_mulmod(static_cast<double>(ix), static_cast<double>(iy), m.n, m.ninv), m.n, m.ninv);
+            const std::uint64_t got = static_cast<std::uint64_t>(got_d);
 
             const cpp_int       prod = cpp_int(ix) * iy;
             const std::uint64_t ref  = static_cast<std::uint64_t>(((prod % p) + p) % p);

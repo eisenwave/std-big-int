@@ -146,9 +146,7 @@ void fft_recompose(const std::span<uint_multiprecision_t> result,
 }
 
 // (p0 mod p1)^-1 mod p1, the only CRT constant needed for two primes.
-[[nodiscard]] std::uint64_t crt_inverse() noexcept {
-    return ntt_primes[1].inv(ntt_primes[0].p % ntt_primes[1].p);
-}
+[[nodiscard]] std::uint64_t crt_inverse() noexcept { return ntt_primes[1].inv(ntt_primes[0].p % ntt_primes[1].p); }
 
 } // namespace
 

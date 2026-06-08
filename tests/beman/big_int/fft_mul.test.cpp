@@ -41,11 +41,11 @@ inline constexpr unsigned limb_bits = std::numeric_limits<uint_multiprecision_t>
 static_assert(fft_choose_coeff_bits(1000, 1000) == 50);
 static_assert(fft_choose_coeff_bits(100000, 100000) == 50);
 static_assert(fft_choose_coeff_bits(1, 1000000) == 50);
-#if defined(BEMAN_BIG_INT_SIMD_MUL)
+    #if defined(BEMAN_BIG_INT_SIMD_MUL)
 static_assert(fft_choose_coeff_bits(50000000, 50000000) == 50); // three ~50-bit primes
-#else
+    #else
 static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48); // two ~62-bit primes
-#endif
+    #endif
 #endif
 
 // Random limb vector with a non-zero top limb (so the trimmed size is exactly n).
@@ -70,7 +70,8 @@ static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48); // two ~62-bit p
     return v;
 }
 
-[[nodiscard]] ::testing::AssertionResult check_multiply(std::mt19937_64& rng, const std::size_t na, const std::size_t nb) {
+[[nodiscard]] ::testing::AssertionResult
+check_multiply(std::mt19937_64& rng, const std::size_t na, const std::size_t nb) {
     const std::vector<uint_multiprecision_t> a = random_limbs(rng, na);
     const std::vector<uint_multiprecision_t> b = random_limbs(rng, nb);
     std::vector<uint_multiprecision_t>       result(na + nb, uint_multiprecision_t{0});
@@ -115,9 +116,8 @@ static_assert(fft_choose_coeff_bits(50000000, 50000000) == 48); // two ~62-bit p
 // Sizes spanning tiny, around powers of two, odd, and large enough that
 // convolution coefficients use the high limb of the CRT value and grow the
 // recomposition accumulator.
-constexpr std::size_t sizes[] = {1,   2,   3,   4,    5,    7,    8,    9,    15,   16,   17,
-                                 31,  32,  33,  63,   64,   65,   100,  127,  128,  129,  256,
-                                 511, 512, 513, 1000, 1024, 2000, 2048, 3000, 4096, 5000};
+constexpr std::size_t sizes[] = {1,  2,   3,   4,   5,   7,   8,   9,   15,  16,   17,   31,   32,   33,   63,   64,
+                                 65, 100, 127, 128, 129, 256, 511, 512, 513, 1000, 1024, 2000, 2048, 3000, 4096, 5000};
 
 TEST(FftMul, MultiplyEqualSizesDifferential) {
     std::mt19937_64 rng{0xf17u};

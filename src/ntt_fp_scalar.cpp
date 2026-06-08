@@ -57,9 +57,9 @@ void ntt_fp_build_twiddles(const std::span<double> twiddles,
     std::size_t         off  = 0;
 
     const auto fill_level = [&](const std::size_t len) noexcept {
-        const std::size_t   half   = len >> 1;
-        const std::uint64_t w_len  = m.mod.pow(root, static_cast<std::uint64_t>(n / len));
-        std::uint64_t       r      = 1; // w_len^0
+        const std::size_t   half  = len >> 1;
+        const std::uint64_t w_len = m.mod.pow(root, static_cast<std::uint64_t>(n / len));
+        std::uint64_t       r     = 1; // w_len^0
         for (std::size_t j = 0; j < half; ++j) {
             twiddles[off + j] = fp_center(r, m.mod.p);
             r                 = m.mod.mul(r, w_len);

@@ -34,7 +34,7 @@ struct ntt_modulus {
     // -p^-1 mod 2^64 via Newton's iteration, which doubles the number of
     // correct low bits each step (p must be odd; p itself is the 3-bit seed).
     [[nodiscard]] static constexpr std::uint64_t make_n_prime(const std::uint64_t prime) noexcept {
-        std::uint64_t inv = prime; // correct modulo 2^3 for odd prime
+        std::uint64_t inv = prime;             // correct modulo 2^3 for odd prime
         inv *= std::uint64_t{2} - prime * inv; // 2^6
         inv *= std::uint64_t{2} - prime * inv; // 2^12
         inv *= std::uint64_t{2} - prime * inv; // 2^24
@@ -64,8 +64,8 @@ struct ntt_modulus {
     // Montgomery reduction of the 128-bit product t into [0, p): returns
     // t * 2^-64 mod p. Used as the kernel of every modular multiply.
     [[nodiscard]] constexpr std::uint64_t reduce(const wide<std::uint64_t> t) const noexcept {
-        const std::uint64_t       m  = t.low_bits * n_prime; // chosen so the low 64 bits cancel
-        const wide<std::uint64_t> mp = widening_mul(m, p);
+        const std::uint64_t       m        = t.low_bits * n_prime; // chosen so the low 64 bits cancel
+        const wide<std::uint64_t> mp       = widening_mul(m, p);
         const auto                low_sum  = carrying_add(t.low_bits, mp.low_bits); // low_sum.value == 0
         const auto                high_sum = carrying_add(t.high_bits, mp.high_bits, low_sum.carry);
         const std::uint64_t       res      = high_sum.value; // < 2p; high carry is provably zero
@@ -116,9 +116,7 @@ struct ntt_modulus {
     [[nodiscard]] constexpr std::uint64_t inv(const std::uint64_t a) const noexcept { return pow(a, p - 2); }
 
     // A primitive 2^j-th root of unity (ordinary form), valid for j <= log2_order.
-    [[nodiscard]] constexpr std::uint64_t root(const std::uint64_t j) const noexcept {
-        return pow(g, (p - 1) >> j);
-    }
+    [[nodiscard]] constexpr std::uint64_t root(const std::uint64_t j) const noexcept { return pow(g, (p - 1) >> j); }
 };
 
 } // namespace beman::big_int::detail

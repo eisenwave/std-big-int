@@ -15,7 +15,7 @@ namespace beman::big_int::detail {
 
 struct vec1d {
     inline static constexpr std::size_t width = 1;
-    double                               v;
+    double                              v;
 
     [[nodiscard]] static vec1d loadu(const double* const p) noexcept { return vec1d{*p}; }
     void                       storeu(double* const p) const noexcept { *p = v; }

@@ -61,8 +61,8 @@ TEST(Ntt, RoundTripPerPrime) {
             const std::size_t                n    = std::size_t{1} << logn;
             const std::vector<std::uint64_t> orig = random_vector(rng, n, m.p);
             std::vector<std::uint64_t>       data = orig;
-            const auto                       fwd = twiddles_for(n, m, ntt_direction::forward);
-            const auto                       inv = twiddles_for(n, m, ntt_direction::inverse);
+            const auto                       fwd  = twiddles_for(n, m, ntt_direction::forward);
+            const auto                       inv  = twiddles_for(n, m, ntt_direction::inverse);
             ntt_forward(data, fwd, m);
             ntt_inverse(data, inv, m);
             ASSERT_EQ(data, orig) << "p=" << m.p << " n=" << n;
@@ -91,8 +91,8 @@ TEST(Ntt, CyclicConvolutionSinglePrime) {
                 reference[k] = static_cast<std::uint64_t>(acc % m.p);
             }
 
-            std::vector<std::uint64_t> fa     = a;
-            std::vector<std::uint64_t> fb     = b;
+            std::vector<std::uint64_t> fa  = a;
+            std::vector<std::uint64_t> fb  = b;
             const auto                 fwd = twiddles_for(n, m, ntt_direction::forward);
             const auto                 inv = twiddles_for(n, m, ntt_direction::inverse);
             ntt_forward(fa, fwd, m);
@@ -114,17 +114,17 @@ TEST(Ntt, CyclicConvolutionSinglePrime) {
 TEST(Ntt, MultiPrimeCrtExactProduct) {
     std::mt19937_64 rng{0xc27e57u};
 
-    constexpr std::size_t   na = 200;
-    constexpr std::size_t   nb = 200;
+    constexpr std::size_t   na          = 200;
+    constexpr std::size_t   nb          = 200;
     constexpr std::uint64_t coeff_bound = std::uint64_t{1} << 30; // coefficients in [0, 2^30)
 
     const std::vector<std::uint64_t> a = random_vector(rng, na, coeff_bound);
     const std::vector<std::uint64_t> b = random_vector(rng, nb, coeff_bound);
 
     // Exact linear convolution with cpp_int.
-    const std::size_t      result_len = na + nb - 1;
-    std::vector<cpp_int>   exact(result_len, cpp_int{0});
-    cpp_int                max_coefficient = 0;
+    const std::size_t    result_len = na + nb - 1;
+    std::vector<cpp_int> exact(result_len, cpp_int{0});
+    cpp_int              max_coefficient = 0;
     for (std::size_t i = 0; i < na; ++i) {
         for (std::size_t j = 0; j < nb; ++j) {
             exact[i + j] += cpp_int(a[i]) * b[j];
@@ -162,9 +162,9 @@ TEST(Ntt, MultiPrimeCrtExactProduct) {
     }
 
     // Garner CRT constants for the three moduli.
-    const std::uint64_t p0 = ntt_primes[0].p;
-    const std::uint64_t p1 = ntt_primes[1].p;
-    const std::uint64_t p2 = ntt_primes[2].p;
+    const std::uint64_t p0              = ntt_primes[0].p;
+    const std::uint64_t p1              = ntt_primes[1].p;
+    const std::uint64_t p2              = ntt_primes[2].p;
     const std::uint64_t inv_p0_mod_p1   = ntt_primes[1].inv(p0 % p1);
     const cpp_int       p0p1            = cpp_int(p0) * p1;
     const std::uint64_t inv_p0p1_mod_p2 = ntt_primes[2].inv(static_cast<std::uint64_t>(p0p1 % p2));
@@ -176,8 +176,8 @@ TEST(Ntt, MultiPrimeCrtExactProduct) {
 
         const std::uint64_t c1 = ntt_primes[1].mul(ntt_primes[1].sub(r1, r0), inv_p0_mod_p1);
         cpp_int             x  = cpp_int(r0) + cpp_int(p0) * c1;
-        const std::uint64_t c2 = ntt_primes[2].mul(ntt_primes[2].sub(r2, static_cast<std::uint64_t>(x % p2)),
-                                                   inv_p0p1_mod_p2);
+        const std::uint64_t c2 =
+            ntt_primes[2].mul(ntt_primes[2].sub(r2, static_cast<std::uint64_t>(x % p2)), inv_p0p1_mod_p2);
         x += p0p1 * c2;
 
         ASSERT_EQ(x, exact[k]) << "k=" << k;

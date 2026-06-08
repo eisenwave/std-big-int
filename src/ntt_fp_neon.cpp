@@ -8,9 +8,9 @@
 // there. The guard keeps the TU empty if it is ever compiled elsewhere.
 #if BEMAN_BIG_INT_NTT_FP_ARM64
 
-#include <beman/big_int/detail/simd/vec_neon.hpp>
+    #include <beman/big_int/detail/simd/vec_neon.hpp>
 
-#include <cstddef>
+    #include <cstddef>
 
 namespace beman::big_int::detail {
 

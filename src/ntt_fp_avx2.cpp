@@ -10,9 +10,9 @@
 // it is ever compiled on another architecture.
 #if BEMAN_BIG_INT_NTT_FP_X86
 
-#include <beman/big_int/detail/simd/vec_avx2.hpp>
+    #include <beman/big_int/detail/simd/vec_avx2.hpp>
 
-#include <cstddef>
+    #include <cstddef>
 
 namespace beman::big_int::detail {
 

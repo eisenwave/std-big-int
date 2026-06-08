@@ -206,15 +206,14 @@ double run_fft_at(const std::size_t limbs, const unsigned trials) {
                              });
 #else
     std::vector<std::uint64_t> ws(::beman::big_int::detail::fft_mul_storage_size(limbs, limbs));
-    return measure_algorithm(limbs,
-                             trials,
-                             /*scratch_size=*/0,
-                             [&ws](const std::span<uint_t>       r,
-                                   const std::span<const uint_t> a,
-                                   const std::span<const uint_t> b,
-                                   scratch_for_test&) {
-                                 ::beman::big_int::detail::multiply_fft(r.first(a.size() + b.size()), a, b, ws);
-                             });
+    return measure_algorithm(
+        limbs,
+        trials,
+        /*scratch_size=*/0,
+        [&ws](const std::span<uint_t>       r,
+              const std::span<const uint_t> a,
+              const std::span<const uint_t> b,
+              scratch_for_test&) { ::beman::big_int::detail::multiply_fft(r.first(a.size() + b.size()), a, b, ws); });
 #endif
 }
 
@@ -323,15 +322,14 @@ double run_square_fft_at(const std::size_t limbs, const unsigned trials) {
                              });
 #else
     std::vector<std::uint64_t> ws(::beman::big_int::detail::square_fft_storage_size(limbs));
-    return measure_algorithm(limbs,
-                             trials,
-                             /*scratch_size=*/0,
-                             [&ws](const std::span<uint_t>       r,
-                                   const std::span<const uint_t> a,
-                                   const std::span<const uint_t>,
-                                   scratch_for_test&) {
-                                 ::beman::big_int::detail::square_fft(r.first(2 * a.size()), a, ws);
-                             });
+    return measure_algorithm(
+        limbs,
+        trials,
+        /*scratch_size=*/0,
+        [&ws](const std::span<uint_t>       r,
+              const std::span<const uint_t> a,
+              const std::span<const uint_t>,
+              scratch_for_test&) { ::beman::big_int::detail::square_fft(r.first(2 * a.size()), a, ws); });
 #endif
 }
 

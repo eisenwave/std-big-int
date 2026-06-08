@@ -15,7 +15,7 @@
 #include <cstdlib>
 
 #if BEMAN_BIG_INT_NTT_FP_X86 && defined(_MSC_VER)
-#include <intrin.h>
+    #include <intrin.h>
 #endif
 
 namespace beman::big_int::detail {
@@ -32,10 +32,10 @@ namespace {
 
 #if BEMAN_BIG_INT_NTT_FP_X86
 [[nodiscard]] bool cpu_has_avx2_fma() noexcept {
-#if defined(__GNUC__) || defined(__clang__)
+    #if defined(__GNUC__) || defined(__clang__)
     __builtin_cpu_init();
     return __builtin_cpu_supports("avx2") != 0 && __builtin_cpu_supports("fma") != 0;
-#elif defined(_MSC_VER)
+    #elif defined(_MSC_VER)
     int regs[4];
     __cpuid(regs, 1);
     const bool fma     = (regs[2] & (1 << 12)) != 0;
@@ -48,9 +48,9 @@ namespace {
         ymm                           = (xcr0 & 0x6u) == 0x6u; // XMM + YMM state enabled by the OS
     }
     return fma && avx2 && ymm;
-#else
+    #else
     return false;
-#endif
+    #endif
 }
 #endif
 

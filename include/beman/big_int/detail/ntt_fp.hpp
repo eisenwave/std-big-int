@@ -28,28 +28,26 @@ namespace beman::big_int::detail {
 // NEON is mandatory baseline on AArch64 (no dispatch);
 // x86-64 selects AVX2 at runtime, else the scalar kernel.
 #if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
-#define BEMAN_BIG_INT_NTT_FP_X86 1
+    #define BEMAN_BIG_INT_NTT_FP_X86 1
 #else
-#define BEMAN_BIG_INT_NTT_FP_X86 0
+    #define BEMAN_BIG_INT_NTT_FP_X86 0
 #endif
 #if defined(__aarch64__) || defined(_M_ARM64)
-#define BEMAN_BIG_INT_NTT_FP_ARM64 1
+    #define BEMAN_BIG_INT_NTT_FP_ARM64 1
 #else
-#define BEMAN_BIG_INT_NTT_FP_ARM64 0
+    #define BEMAN_BIG_INT_NTT_FP_ARM64 0
 #endif
 
 // An NTT prime for the FP transform: the integer modulus (used only for setup --
 // roots, inverses, CRT) plus the double constants the transform needs.
 struct ntt_fp_modulus {
-    ntt_modulus   mod;  // integer Montgomery modulus (50-bit prime) for setup/CRT
-    double        n;    // (double)p, exact since p < 2^53
-    double        ninv; // 1.0 / n (round-to-nearest)
+    ntt_modulus mod;  // integer Montgomery modulus (50-bit prime) for setup/CRT
+    double      n;    // (double)p, exact since p < 2^53
+    double      ninv; // 1.0 / n (round-to-nearest)
 
     [[nodiscard]] static constexpr ntt_fp_modulus
     make(const std::uint64_t p, const std::uint64_t g, const std::uint64_t adicity) noexcept {
-        return ntt_fp_modulus{ntt_modulus::make(p, g, adicity),
-                              static_cast<double>(p),
-                              1.0 / static_cast<double>(p)};
+        return ntt_fp_modulus{ntt_modulus::make(p, g, adicity), static_cast<double>(p), 1.0 / static_cast<double>(p)};
     }
 };
 
@@ -69,10 +67,10 @@ inline constexpr ntt_fp_modulus ntt_fp_primes[3] = {
 // (output in (-n, n) when |a*b| < 2*n^2). The only FMAs MUST be these explicit
 // ones -- see the -ffp-contract=off requirement on the TUs that use this.
 [[nodiscard]] inline double fp_mulmod(const double a, const double b, const double n, const double ninv) noexcept {
-    const double h = a * b;                  // rounded product
-    const double q = std::rint(h * ninv);    // quotient estimate, round-to-nearest
-    const double l = std::fma(a, b, -h);     // exact low part: h + l == a*b
-    return std::fma(-q, n, h) + l;           // (h - q*n) + l
+    const double h = a * b;               // rounded product
+    const double q = std::rint(h * ninv); // quotient estimate, round-to-nearest
+    const double l = std::fma(a, b, -h);  // exact low part: h + l == a*b
+    return std::fma(-q, n, h) + l;        // (h - q*n) + l
 }
 
 // Reduce a into the centered range [-n, n] (a representative of a mod n).
@@ -112,7 +110,10 @@ template <class V>
 // twiddles load as full vectors. Levels with half >= width vectorize; the last
 // log2(width) levels (half < width) run scalar. Centered residues stay in [-n, n].
 template <class V>
-void ntt_fp_forward_impl(double* const data, const std::size_t n, const double* const tw, const ntt_fp_modulus& m) noexcept {
+void ntt_fp_forward_impl(double* const         data,
+                         const std::size_t     n,
+                         const double* const   tw,
+                         const ntt_fp_modulus& m) noexcept {
     const V      vn     = V::splat(m.n);
     const V      vninv  = V::splat(m.ninv);
     const double sn     = m.n;
@@ -150,7 +151,10 @@ void ntt_fp_forward_impl(double* const data, const std::size_t n, const double* 
 // Inverse transform (Cooley-Tukey DIT) plus the 1/n scaling. Consumes the
 // bit-reversed layout from ntt_fp_forward_impl; the inverse twiddle table.
 template <class V>
-void ntt_fp_inverse_impl(double* const data, const std::size_t n, const double* const tw, const ntt_fp_modulus& m) noexcept {
+void ntt_fp_inverse_impl(double* const         data,
+                         const std::size_t     n,
+                         const double* const   tw,
+                         const ntt_fp_modulus& m) noexcept {
     const V      vn     = V::splat(m.n);
     const V      vninv  = V::splat(m.ninv);
     const double sn     = m.n;
@@ -197,7 +201,10 @@ void ntt_fp_inverse_impl(double* const data, const std::size_t n, const double* 
 
 // Elementwise a[i] <- a[i] * b[i] mod p (centered); a and b may alias.
 template <class V>
-void ntt_fp_pointwise_impl(double* const a, const double* const b, const std::size_t n, const ntt_fp_modulus& m) noexcept {
+void ntt_fp_pointwise_impl(double* const         a,
+                           const double* const   b,
+                           const std::size_t     n,
+                           const ntt_fp_modulus& m) noexcept {
     const V      vn    = V::splat(m.n);
     const V      vninv = V::splat(m.ninv);
     const double sn    = m.n;
@@ -246,20 +253,23 @@ struct ntt_fp_kernels {
 // laid out contiguously so the transform loads them as vectors. Powers are
 // computed exactly with integer arithmetic, then centered to [-p/2, p/2].
 void ntt_fp_build_twiddles(std::span<double>     tw,
-                           std::size_t            n,
-                           const ntt_fp_modulus&  m,
-                           ntt_direction          direction) noexcept;
+                           std::size_t           n,
+                           const ntt_fp_modulus& m,
+                           ntt_direction         direction) noexcept;
 
 // Public, dispatched entry points used by src/fft_mul.cpp.
-inline void ntt_fp_forward(const std::span<double> data, const std::span<const double> tw, const ntt_fp_modulus& m) noexcept {
+inline void
+ntt_fp_forward(const std::span<double> data, const std::span<const double> tw, const ntt_fp_modulus& m) noexcept {
     ntt_fp_dispatch().forward(data.data(), data.size(), tw.data(), m);
 }
 
-inline void ntt_fp_inverse(const std::span<double> data, const std::span<const double> tw, const ntt_fp_modulus& m) noexcept {
+inline void
+ntt_fp_inverse(const std::span<double> data, const std::span<const double> tw, const ntt_fp_modulus& m) noexcept {
     ntt_fp_dispatch().inverse(data.data(), data.size(), tw.data(), m);
 }
 
-inline void ntt_fp_pointwise(const std::span<double> a, const std::span<const double> b, const ntt_fp_modulus& m) noexcept {
+inline void
+ntt_fp_pointwise(const std::span<double> a, const std::span<const double> b, const ntt_fp_modulus& m) noexcept {
     ntt_fp_dispatch().pointwise(a.data(), b.data(), a.size(), m);
 }
 

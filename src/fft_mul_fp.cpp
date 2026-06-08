@@ -87,7 +87,8 @@ struct crt3_constants {
     const ntt_modulus&        m1   = ntt_fp_primes[1].mod;
     const ntt_modulus&        m2   = ntt_fp_primes[2].mod;
     const wide<std::uint64_t> p0p1 = widening_mul(m0.p, m1.p); // p0 < p1 < p2
-    return crt3_constants{m1.inv(m0.p % m1.p), m2.inv(m2.mul(m0.p % m2.p, m1.p % m2.p)), p0p1.low_bits, p0p1.high_bits};
+    return crt3_constants{
+        m1.inv(m0.p % m1.p), m2.inv(m2.mul(m0.p % m2.p, m1.p % m2.p)), p0p1.low_bits, p0p1.high_bits};
 }
 
 // A non-negative 192-bit value (the CRT result is < p0*p1*p2 ~ 2^149).
@@ -113,7 +114,7 @@ crt3(const std::uint64_t r0, const std::uint64_t r1, const std::uint64_t r2, con
     const std::uint64_t       x0   = x0c.value; // x = r0 + p0*c1 < p0*p1, two words
     const std::uint64_t       x1   = p0c1.high_bits + std::uint64_t{x0c.carry};
 
-    const std::uint64_t x_mod_p2 = m2.add(r0, m2.mul(p0, c1)); // (r0 + p0*c1) mod p2
+    const std::uint64_t x_mod_p2 = m2.add(r0, m2.mul(p0, c1));              // (r0 + p0*c1) mod p2
     const std::uint64_t c2       = m2.mul(m2.sub(r2, x_mod_p2), cc.inv012); // < p2
 
     // term2 = p0*p1 * c2, a three-word value added to the two-word x.
@@ -124,8 +125,8 @@ crt3(const std::uint64_t r0, const std::uint64_t r1, const std::uint64_t r2, con
     const std::uint64_t       u1  = t1c.value;
     const std::uint64_t       u2  = hi.high_bits + std::uint64_t{t1c.carry};
 
-    const auto          s0 = carrying_add(x0, u0);
-    const auto          s1 = carrying_add(x1, u1, s0.carry);
+    const auto s0 = carrying_add(x0, u0);
+    const auto s1 = carrying_add(x1, u1, s0.carry);
     return crt3_word{s0.value, s1.value, u2 + std::uint64_t{s1.carry}};
 }
 
@@ -207,7 +208,8 @@ void fft_recompose(const std::span<uint_multiprecision_t> result,
 
 // The smallest 2-adicity across the three primes caps the transform length.
 [[nodiscard]] std::uint64_t fft_min_adicity() noexcept {
-    return std::min({ntt_fp_primes[0].mod.log2_order, ntt_fp_primes[1].mod.log2_order, ntt_fp_primes[2].mod.log2_order});
+    return std::min(
+        {ntt_fp_primes[0].mod.log2_order, ntt_fp_primes[1].mod.log2_order, ntt_fp_primes[2].mod.log2_order});
 }
 
 } // namespace
@@ -230,9 +232,9 @@ void multiply_fft(const std::span<uint_multiprecision_t>       result,
     BEMAN_BIG_INT_DEBUG_ASSERT(int_workspace.size() >= fft_mul_int_storage_size(na, nb));
     BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::uint64_t>(std::countr_zero(n)) <= fft_min_adicity());
 
-    const auto fca = fp_workspace.subspan(0, n);
-    const auto fcb = fp_workspace.subspan(n, n);
-    const auto ftw = fp_workspace.subspan(2 * n, n); // per-level twiddle table (n-1 entries)
+    const auto                     fca    = fp_workspace.subspan(0, n);
+    const auto                     fcb    = fp_workspace.subspan(n, n);
+    const auto                     ftw    = fp_workspace.subspan(2 * n, n); // per-level twiddle table (n-1 entries)
     const std::span<std::uint64_t> res[3] = {
         int_workspace.subspan(0, result_coeff),
         int_workspace.subspan(result_coeff, result_coeff),
@@ -272,8 +274,8 @@ void square_fft(const std::span<uint_multiprecision_t>       result,
     BEMAN_BIG_INT_DEBUG_ASSERT(int_workspace.size() >= square_fft_int_storage_size(na));
     BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::uint64_t>(std::countr_zero(n)) <= fft_min_adicity());
 
-    const auto fca = fp_workspace.subspan(0, n);
-    const auto ftw = fp_workspace.subspan(n, n); // per-level twiddle table (n-1 entries)
+    const auto                     fca    = fp_workspace.subspan(0, n);
+    const auto                     ftw    = fp_workspace.subspan(n, n); // per-level twiddle table (n-1 entries)
     const std::span<std::uint64_t> res[3] = {
         int_workspace.subspan(0, result_coeff),
         int_workspace.subspan(result_coeff, result_coeff),
