@@ -20,13 +20,13 @@ namespace beman::big_int::detail {
 // the exact modular multiply is fp_mulmod, provably exact for primes p < 2^50
 // (the 53-bit mantissa makes h + l == a*b exact via a single-rounded FMA, and the
 // quotient estimate is bounded). The butterfly is written ONCE as a template over
-// a vector type V (scalar / NEON / AVX2 / AVX-512); a runtime dispatcher selects
-// the kernel. Round-to-nearest mode is assumed, and the FMAs must not be contracted
-// -- the TUs that compile this are built with -ffp-contract=off / /fp:strict.
+// a vector type V (scalar / NEON / AVX2); a runtime dispatcher selects the kernel.
+// Round-to-nearest mode is assumed, and the FMAs must not be contracted -- the TUs
+// that compile this are built with -ffp-contract=off / /fp:strict.
 
 // Architectures with a hand-written SIMD kernel.
 // NEON is mandatory baseline on AArch64 (no dispatch);
-// x86-64 selects AVX-512F, else AVX2, else the scalar kernel, at runtime.
+// x86-64 selects AVX2 at runtime, else the scalar kernel.
 #if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
 #define BEMAN_BIG_INT_NTT_FP_X86 1
 #else
@@ -229,9 +229,6 @@ void ntt_fp_pointwise_neon(double*, const double*, std::size_t, const ntt_fp_mod
 void ntt_fp_forward_avx2(double*, std::size_t, const double*, const ntt_fp_modulus&) noexcept;
 void ntt_fp_inverse_avx2(double*, std::size_t, const double*, const ntt_fp_modulus&) noexcept;
 void ntt_fp_pointwise_avx2(double*, const double*, std::size_t, const ntt_fp_modulus&) noexcept;
-void ntt_fp_forward_avx512(double*, std::size_t, const double*, const ntt_fp_modulus&) noexcept;
-void ntt_fp_inverse_avx512(double*, std::size_t, const double*, const ntt_fp_modulus&) noexcept;
-void ntt_fp_pointwise_avx512(double*, const double*, std::size_t, const ntt_fp_modulus&) noexcept;
 #endif
 
 // The selected kernel set (forward / inverse / pointwise), chosen once by

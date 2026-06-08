@@ -87,29 +87,20 @@ if(BEMAN_BIG_INT_SIMD_MUL)
 
     # Hand-written SIMD kernels, one ISA per TU, gated by target architecture.
     # AArch64: NEON is mandatory baseline (no runtime dispatch, no extra ISA flags).
-    # x86-64: the AVX2+FMA and AVX-512F kernel TUs get their ISA flags (or /arch:);
-    # the dispatcher (baseline ISA) selects one only after a runtime feature check,
-    # so wide instructions stay confined to their TU and never run on a CPU lacking
-    # them.
+    # x86-64: the AVX2+FMA kernel TU gets -mavx2 -mfma (or /arch:AVX2); the dispatcher
+    # (baseline ISA) selects it only after a runtime AVX2 check, so AVX instructions
+    # stay confined to this one TU and never run on a CPU lacking them.
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
-        target_sources(beman.big_int PRIVATE src/ntt_fp_avx2.cpp src/ntt_fp_avx512.cpp)
+        target_sources(beman.big_int PRIVATE src/ntt_fp_avx2.cpp)
         if(MSVC)
             set_source_files_properties(
                 src/ntt_fp_avx2.cpp
                 PROPERTIES COMPILE_OPTIONS "/arch:AVX2;${_bigint_fp_strict}"
             )
-            set_source_files_properties(
-                src/ntt_fp_avx512.cpp
-                PROPERTIES COMPILE_OPTIONS "/arch:AVX512;${_bigint_fp_strict}"
-            )
         else()
             set_source_files_properties(
                 src/ntt_fp_avx2.cpp
                 PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma;${_bigint_fp_strict}"
-            )
-            set_source_files_properties(
-                src/ntt_fp_avx512.cpp
-                PROPERTIES COMPILE_OPTIONS "-mavx512f;-mfma;${_bigint_fp_strict}"
             )
         endif()
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")

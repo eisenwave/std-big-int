@@ -129,7 +129,7 @@ number-theoretic transform for its FFT tier. This is correct on every conforming
 compiler and imposes no special build requirements.
 
 A faster double-precision floating-point transform with hand-written SIMD kernels
-(ARM NEON, x86 AVX2/AVX-512, selected at runtime) is available behind the CMake
+(ARM NEON, x86 AVX2, selected at runtime) is available behind the CMake
 option `BEMAN_BIG_INT_SIMD_MUL` (default `OFF`):
 
 ```bash

@@ -5,12 +5,12 @@
 
 // Runtime kernel selection. This TU is compiled at the baseline ISA (no -mavx*),
 // so it is always safe to run; it inspects the CPU once and caches the chosen
-// kernel set. On AArch64 NEON is baseline (no check). On x86-64 it prefers AVX-512F,
-// then AVX2+FMA, then scalar -- each chosen only after confirming the CPU features
-// (and that the OS enabled the YMM/ZMM register state), so wide instructions never
-// run on a CPU/OS that lacks them. (AVX-512 frequency downclocking is negligible on
-// current implementations -- Ice Lake+, Zen4/5 -- so preferring it is the right
-// default.) Everything else uses the scalar kernels.
+// kernel set. On AArch64 NEON is baseline (no check). On x86-64 it picks the AVX2
+// kernels only after confirming AVX2+FMA (and, on MSVC, that the OS enabled YMM
+// state), else the scalar kernels -- so AVX instructions never run on a CPU that
+// lacks them. (AVX-512 was evaluated and dropped: it was no faster than AVX2 for
+// this bandwidth-bound transform and is absent on many current CPUs.) Everything
+// else uses the scalar kernels.
 
 #include <cstdlib>
 
@@ -52,30 +52,6 @@ namespace {
     return false;
 #endif
 }
-
-[[nodiscard]] bool cpu_has_avx512f() noexcept {
-#if defined(__GNUC__) || defined(__clang__)
-    __builtin_cpu_init();
-    // glibc clears this bit unless the OS has enabled the AVX-512 register state.
-    return __builtin_cpu_supports("avx512f") != 0;
-#elif defined(_MSC_VER)
-    int regs[4];
-    __cpuid(regs, 1);
-    const bool osxsave = (regs[2] & (1 << 27)) != 0;
-    if (!osxsave) {
-        return false;
-    }
-    // The OS must have enabled XMM(1), YMM(2), opmask(5), ZMM_Hi256(6), Hi16_ZMM(7).
-    const unsigned long long xcr0 = _xgetbv(0);
-    if ((xcr0 & 0xE6u) != 0xE6u) {
-        return false;
-    }
-    __cpuidex(regs, 7, 0);
-    return (regs[1] & (1 << 16)) != 0; // leaf 7 EBX bit 16 = AVX-512F
-#else
-    return false;
-#endif
-}
 #endif
 
 [[nodiscard]] ntt_fp_kernels select_kernels() noexcept {
@@ -86,13 +62,8 @@ namespace {
     }
     return ntt_fp_kernels{ntt_fp_forward_neon, ntt_fp_inverse_neon, ntt_fp_pointwise_neon};
 #elif BEMAN_BIG_INT_NTT_FP_X86
-    if (!force_scalar_requested()) {
-        if (cpu_has_avx512f()) {
-            return ntt_fp_kernels{ntt_fp_forward_avx512, ntt_fp_inverse_avx512, ntt_fp_pointwise_avx512};
-        }
-        if (cpu_has_avx2_fma()) {
-            return ntt_fp_kernels{ntt_fp_forward_avx2, ntt_fp_inverse_avx2, ntt_fp_pointwise_avx2};
-        }
+    if (!force_scalar_requested() && cpu_has_avx2_fma()) {
+        return ntt_fp_kernels{ntt_fp_forward_avx2, ntt_fp_inverse_avx2, ntt_fp_pointwise_avx2};
     }
     return scalar;
 #else
