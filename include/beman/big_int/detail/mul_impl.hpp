@@ -441,35 +441,52 @@ void square_toom_cook_8_5(const std::span<uint_multiprecision_t>       result,
 // ---------------------------------------------------------------------------
 // FFT (small-prime NTT) multiplication: the asymptotically-best tier, above
 // Toom-Cook 8.5. Operands are split into base-2^b coefficients, convolved via a
-// number-theoretic transform modulo two word-size primes, recombined with the
-// CRT, and carry-propagated into the product (see src/fft_mul.cpp, src/ntt.cpp).
-// The kernels work in std::uint64_t and take a uint64 workspace allocated by the
-// dispatcher, so they are independent of the library limb width.
+// number-theoretic transform modulo several word-size primes, recombined with the
+// CRT, and carry-propagated into the product. Two implementations, selected at
+// build time by BEMAN_BIG_INT_SIMD_MUL:
+//   * default (macro undefined): an INTEGER Montgomery transform over two ~62-bit
+//     primes (src/ntt.cpp, src/fft_mul.cpp). Pure integer arithmetic -- exact on
+//     every conforming compiler, with no floating-point-environment assumptions.
+//   * BEMAN_BIG_INT_SIMD_MUL defined: a double-precision FP transform over three
+//     ~50-bit primes with hand-written NEON/AVX2 kernels and runtime dispatch
+//     (src/ntt_fp_*.cpp, src/fft_mul_fp.cpp). Faster, but its exactness REQUIRES
+//     round-to-nearest and no FMA-contraction / fast-math. The build applies
+//     -ffp-contract=off (/fp:strict) to those TUs; opting in means accepting
+//     responsibility for that floating-point environment in your own build system.
 // ---------------------------------------------------------------------------
 
 // Bits per packed coefficient (b) is chosen per multiply: a larger b means fewer
-// coefficients -- a smaller, faster transform -- bounded by the requirement that
-// every convolution coefficient stay below the product of the two NTT primes
-// (~2^123.8) so the two-prime CRT recovers it exactly. This is the largest b we
-// try; 32 is the floor (always safe in the range the 2-adicity allows), so any
-// higher b is pure upside.
+// coefficients -- a smaller, faster transform. The cap of 50 is the FP-exactness
+// ceiling (a coefficient must be < 2^b <= 2^50 < a prime for the double-precision
+// modmul) and is safe for the integer path too. 32 is the floor; any higher b is
+// pure upside.
 inline constexpr unsigned fft_max_coeff_bits = 50;
+static_assert(fft_max_coeff_bits <= 50, "FP modmul exactness requires coefficients < 2^50");
 
 // Number of base-2^b coefficients an n-limb operand splits into.
 constexpr std::size_t fft_coeff_count(const std::size_t n_limbs, const unsigned b) noexcept {
     return (width_v<uint_multiprecision_t> * n_limbs + b - 1) / b; // ceil
 }
 
+// Bit budget for the CRT: a convolution coefficient must stay below the product of
+// the NTT primes. Two ~62-bit primes (~2^124) for the integer path; three ~50-bit
+// primes (~2^149) for the FP path.
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+inline constexpr std::size_t fft_crt_bits = 148;
+#else
+inline constexpr std::size_t fft_crt_bits = 123;
+#endif
+
 // Largest b in [32, fft_max_coeff_bits] for which an na-by-nb limb product's
-// convolution coefficients provably fit in two primes. The widest coefficient
+// convolution coefficients provably fit the prime product. The widest coefficient
 // sums min(na_coeff, nb_coeff) products of two b-bit values, so we need
-// min_coeff * (2^b-1)^2 < p0*p1; bit_width(min_coeff) + 2b <= 123 < log2(p0*p1)
+// min_coeff * (2^b-1)^2 < prime product; bit_width(min_coeff) + 2b <= fft_crt_bits
 // is a safe integer test. Always returns >= 32.
 constexpr unsigned fft_choose_coeff_bits(const std::size_t na, const std::size_t nb) noexcept {
     const std::size_t min_limbs = na < nb ? na : nb;
     for (unsigned b = fft_max_coeff_bits; b > 32; --b) {
         const std::size_t min_coeff = fft_coeff_count(min_limbs, b);
-        if (static_cast<std::size_t>(std::bit_width(min_coeff)) + 2 * b <= 123) {
+        if (static_cast<std::size_t>(std::bit_width(min_coeff)) + 2 * b <= fft_crt_bits) {
             return b;
         }
     }
@@ -485,42 +502,74 @@ constexpr std::size_t fft_transform_length(const std::size_t na, const std::size
     return std::bit_ceil(result_coeff);
 }
 
-// Workspace (in std::uint64_t) for multiply_fft: ca[N] + cb[N] + tw[N/2] +
-// res0[result_coeff], N = fft_transform_length(na, nb).
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+// FP path workspaces. Transform buffers are doubles (fca[N] + fcb[N] + ftw[N], the
+// per-level twiddle table uses N-1); the three primes' residues are uint64
+// (3 * result_coeff). N = fft_transform_length.
+constexpr std::size_t fft_mul_fp_storage_size(const std::size_t na, const std::size_t nb) noexcept {
+    return 3 * fft_transform_length(na, nb);
+}
+constexpr std::size_t fft_mul_int_storage_size(const std::size_t na, const std::size_t nb) noexcept {
+    const unsigned    b            = fft_choose_coeff_bits(na, nb);
+    const std::size_t result_coeff = fft_coeff_count(na, b) + fft_coeff_count(nb, b) - 1;
+    return 3 * result_coeff;
+}
+constexpr std::size_t square_fft_fp_storage_size(const std::size_t n_limbs) noexcept {
+    return 2 * fft_transform_length(n_limbs, n_limbs);
+}
+constexpr std::size_t square_fft_int_storage_size(const std::size_t n_limbs) noexcept {
+    const unsigned    b            = fft_choose_coeff_bits(n_limbs, n_limbs);
+    const std::size_t result_coeff = 2 * fft_coeff_count(n_limbs, b) - 1;
+    return 3 * result_coeff;
+}
+#else
+// Integer path workspace (std::uint64_t): ca[N] + cb[N] + tw[N/2] +
+// res0[result_coeff] for multiply; ca[N] + tw[N/2] + save[result_coeff] for square.
 constexpr std::size_t fft_mul_storage_size(const std::size_t na, const std::size_t nb) noexcept {
     const unsigned    b            = fft_choose_coeff_bits(na, nb);
     const std::size_t n            = fft_transform_length(na, nb);
     const std::size_t result_coeff = fft_coeff_count(na, b) + fft_coeff_count(nb, b) - 1;
     return 2 * n + n / 2 + result_coeff;
 }
-
-// Workspace (in std::uint64_t) for square_fft: ca[N] + tw[N/2] + save[result_coeff].
 constexpr std::size_t square_fft_storage_size(const std::size_t n_limbs) noexcept {
     const unsigned    b            = fft_choose_coeff_bits(n_limbs, n_limbs);
     const std::size_t n            = fft_transform_length(n_limbs, n_limbs);
     const std::size_t result_coeff = 2 * fft_coeff_count(n_limbs, b) - 1;
     return n + n / 2 + result_coeff;
 }
+#endif
 
 // Minimum number of limbs (of the smaller operand) for FFT to beat Toom-Cook.
-// Measured via multiplication_stress_bench (AppleClang, release, 2026-06-05) with
-// the adaptive base-2^b packing (b ~ 50): FFT is ~2x faster than before, so it now
-// overtakes Toom from ~4000 limbs. 4500 is just past the crossover, where FFT wins
-// decisively (>20%, growing to ~2x) and keeps winning at every larger size. FFT
-// cost steps at transform-length (power-of-two) band boundaries; the chosen cutoff
-// sits above the one narrow dip (~3300-3850, just past a band-doubling) where Toom
-// is briefly faster, so the cutoff is clean. FFT supersedes Toom-6.5/8.5 above it.
+// Measured via multiplication_stress_bench (AppleClang, release) on Apple Silicon:
+// FFT overtakes Toom from ~4000 limbs; 4500 is just past the crossover, winning
+// decisively (>20%) and at every larger size. FFT cost steps at transform-length
+// (power-of-two) band boundaries; the cutoff sits above the one narrow dip
+// (~3300-3850) where Toom is briefly faster, so it is clean. With the FP+SIMD path
+// (AVX2 ~4.5x over scalar) the native-x86 crossover is well below 4500, so this is
+// conservative there but always safe (FFT wins above it on every target); a
+// dispatch-aware per-ISA cutoff is future work wanting native-x86 bench data.
 inline constexpr std::size_t fft_mul_cutoff = 4500;
 
 // Squaring crossover, measured the same way and essentially identical (~4000):
 // square-FFT overtakes square-Toom from ~4000 limbs, decisive (>20%) from 4500.
 inline constexpr std::size_t square_fft_cutoff = 4500;
 
-// FFT kernels (defined in src/fft_mul.cpp). Operands may be untrimmed; `result`
-// must have space for a.size()+b.size() limbs and must NOT alias `a`/`b`.
-// `workspace` is a std::uint64_t scratch span sized by fft_mul_storage_size /
-// square_fft_storage_size. Writes exactly a.size()+b.size() (resp. 2*a.size())
-// limbs; the dispatcher trims.
+// FFT kernels. Operands may be untrimmed; `result` must have space for
+// a.size()+b.size() limbs and must NOT alias `a`/`b`; it writes exactly that many
+// (resp. 2*a.size()) limbs and the dispatcher trims. Workspaces are sized by the
+// *_storage_size helpers above.
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+void multiply_fft(std::span<uint_multiprecision_t>       result,
+                  std::span<const uint_multiprecision_t> a_untrimmed,
+                  std::span<const uint_multiprecision_t> b_untrimmed,
+                  std::span<double>                      fp_workspace,
+                  std::span<std::uint64_t>               int_workspace) noexcept;
+
+void square_fft(std::span<uint_multiprecision_t>       result,
+                std::span<const uint_multiprecision_t> a_untrimmed,
+                std::span<double>                      fp_workspace,
+                std::span<std::uint64_t>               int_workspace) noexcept;
+#else
 void multiply_fft(std::span<uint_multiprecision_t>       result,
                   std::span<const uint_multiprecision_t> a_untrimmed,
                   std::span<const uint_multiprecision_t> b_untrimmed,
@@ -529,6 +578,7 @@ void multiply_fft(std::span<uint_multiprecision_t>       result,
 void square_fft(std::span<uint_multiprecision_t>       result,
                 std::span<const uint_multiprecision_t> a_untrimmed,
                 std::span<std::uint64_t>               workspace) noexcept;
+#endif
 
 // ---------------------------------------------------------------------------
 // result <- a * p2 where p2 is a trimmed power of two: a shifted copy of `a`
@@ -600,15 +650,22 @@ std::size_t square_dispatch(const std::span<uint_multiprecision_t>       result,
         square_toom_cook_4(result.first(result_total), a, scratch);
     } else {
         // n >= square_toom_cook_6_5_cutoff: Toom-6.5 / Toom-8.5, or FFT once it
-        // overtakes at square_fft_cutoff. The FFT kernel works in std::uint64_t, so
+        // overtakes at square_fft_cutoff. The FFT kernel packs into 64-bit words, so
         // it is gated to 64-bit limbs; on a 32-bit build the branch is discarded and
         // execution falls through to the Toom chain.
         bool used_fft = false;
         if constexpr (width_v<uint_multiprecision_t> == 64) {
             if (n >= square_fft_cutoff) {
                 using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
-                std::vector<std::uint64_t, u64_alloc> workspace(square_fft_storage_size(n), u64_alloc(alloc));
-                square_fft(result.first(result_total), a, workspace);
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+                using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
+                std::vector<double, f64_alloc>        fp_ws(square_fft_fp_storage_size(n), f64_alloc(alloc));
+                std::vector<std::uint64_t, u64_alloc> int_ws(square_fft_int_storage_size(n), u64_alloc(alloc));
+                square_fft(result.first(result_total), a, fp_ws, int_ws);
+#else
+                std::vector<std::uint64_t, u64_alloc> ws(square_fft_storage_size(n), u64_alloc(alloc));
+                square_fft(result.first(result_total), a, ws);
+#endif
                 used_fft = true;
             }
         }
@@ -718,15 +775,24 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
             } else {
                 // min_size >= toom_cook_6_5_cutoff: Toom-6.5 / Toom-8.5, or FFT
                 // once it overtakes at fft_mul_cutoff. Gated to 64-bit limbs (the
-                // std::uint64_t FFT kernel); on a 32-bit build the branch is
-                // discarded and execution falls through to the Toom chain.
+                // FFT kernel packs into 64-bit words); on a 32-bit build the branch
+                // is discarded and execution falls through to the Toom chain.
                 bool used_fft = false;
                 if constexpr (width_v<uint_multiprecision_t> == 64) {
                     if (min_size >= fft_mul_cutoff) {
                         using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
-                        std::vector<std::uint64_t, u64_alloc> workspace(fft_mul_storage_size(a.size(), b.size()),
-                                                                        u64_alloc(alloc));
-                        multiply_fft(result.first(result_total), a, b, workspace);
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+                        using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
+                        std::vector<double, f64_alloc>        fp_ws(fft_mul_fp_storage_size(a.size(), b.size()),
+                                                                    f64_alloc(alloc));
+                        std::vector<std::uint64_t, u64_alloc> int_ws(fft_mul_int_storage_size(a.size(), b.size()),
+                                                                     u64_alloc(alloc));
+                        multiply_fft(result.first(result_total), a, b, fp_ws, int_ws);
+#else
+                        std::vector<std::uint64_t, u64_alloc> ws(fft_mul_storage_size(a.size(), b.size()),
+                                                                 u64_alloc(alloc));
+                        multiply_fft(result.first(result_total), a, b, ws);
+#endif
                         used_fft = true;
                     }
                 }
