@@ -539,20 +539,37 @@ constexpr std::size_t square_fft_storage_size(const std::size_t n_limbs) noexcep
 }
 #endif
 
-// Minimum number of limbs (of the smaller operand) for FFT to beat Toom-Cook.
-// Measured via multiplication_stress_bench (AppleClang, release) on Apple Silicon:
-// FFT overtakes Toom from ~4000 limbs; 4500 is just past the crossover, winning
-// decisively (>20%) and at every larger size. FFT cost steps at transform-length
-// (power-of-two) band boundaries; the cutoff sits above the one narrow dip
-// (~3300-3850) where Toom is briefly faster, so it is clean. With the FP+SIMD path
-// (AVX2 ~4.5x over scalar) the native-x86 crossover is well below 4500, so this is
-// conservative there but always safe (FFT wins above it on every target); a
-// dispatch-aware per-ISA cutoff is future work wanting native-x86 bench data.
-inline constexpr std::size_t fft_mul_cutoff = 4500;
-
-// Squaring crossover, measured the same way and essentially identical (~4000):
-// square-FFT overtakes square-Toom from ~4000 limbs, decisive (>20%) from 4500.
+// Minimum limb count (of the smaller operand) at which FFT overtakes Toom-Cook 8.5.
+// These crossovers were measured with multiplication_stress_bench (release) on
+// Apple Silicon (ARM64) and a native x86-64 box, and they vary strongly by BOTH the
+// transform (integer vs the BEMAN_BIG_INT_SIMD_MUL FP NTT) and the architecture.
+// FFT cost steps at power-of-two transform-length band boundaries, so each cutoff
+// sits just above the boundary where FFT first wins for the bulk of that band:
+//
+//   config                     fft_mul   square_fft
+//   integer, x86-64              24000      24000   x86's fast 64x64 mul makes Toom
+//                                                   dominate the scalar NTT to ~24k
+//   integer, AArch64 / other      4500       4500   NTT competitive with Toom here
+//   FP (SIMD), x86-64 AVX2        6000      11000   AVX2 makes the FFT viable early
+//   FP (SIMD), AArch64 NEON       6000       6000
+//
+// (On AArch64 the FP/NEON NTT is actually a little slower than the integer NTT -- the
+// 3-prime FP transform costs more than the 2-prime integer one and NEON's 2-wide does
+// not recover it -- so SIMD multiply mainly benefits x86-64.)
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+inline constexpr std::size_t fft_mul_cutoff = 6000;
+#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+inline constexpr std::size_t square_fft_cutoff = 11000;
+#else
+inline constexpr std::size_t square_fft_cutoff = 6000;
+#endif
+#elif defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+inline constexpr std::size_t fft_mul_cutoff    = 24000;
+inline constexpr std::size_t square_fft_cutoff = 24000;
+#else
+inline constexpr std::size_t fft_mul_cutoff    = 4500;
 inline constexpr std::size_t square_fft_cutoff = 4500;
+#endif
 
 // FFT kernels. Operands may be untrimmed; `result` must have space for
 // a.size()+b.size() limbs and must NOT alias `a`/`b`; it writes exactly that many

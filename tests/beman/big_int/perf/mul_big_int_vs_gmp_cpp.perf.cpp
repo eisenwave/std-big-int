@@ -6,6 +6,8 @@
 #include <boost/multiprecision/cpp_int.hpp>
 
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <random>
@@ -109,20 +111,25 @@ auto to_hex_string_bn(big_int value_to_convert) -> std::string {
 
 } // namespace local
 
-auto main() -> int {
+auto main(int argc, char** argv) -> int {
     auto result_total_is_ok = true;
 
-    constexpr auto max_trial = static_cast<std::uint32_t>(UINT32_C(0x4000));
-    auto           trial     = static_cast<std::uint32_t>(UINT32_C(0));
+    constexpr unsigned limb_bits{
+        static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
+
+    // argv[1] = operand width in limbs, argv[2] = trial count (both optional). The
+    // defaults reproduce the original single 512-limb, 0x4000-trial run; passing a
+    // size sweeps the big_int / cpp_int / gmp_int comparison table.
+    const unsigned      limbs{(argc > 1) ? static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10)) : 512U};
+    const std::uint32_t max_trial{(argc > 2) ? static_cast<std::uint32_t>(std::strtoul(argv[2], nullptr, 10))
+                                             : static_cast<std::uint32_t>(UINT32_C(0x4000))};
+    auto                trial = static_cast<std::uint32_t>(UINT32_C(0));
 
     std::uint64_t elapsed_total_muls_bn{};
     std::uint64_t elapsed_total_muls_gm{};
     std::uint64_t elapsed_total_muls_cp{};
 
-    constexpr unsigned limb_bits{
-        static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
-
-    constexpr unsigned length_in_bits{512U * limb_bits};
+    const unsigned length_in_bits{limbs * limb_bits};
 
     for (; ((trial < max_trial) && result_total_is_ok); ++trial) {
         const local::detail::str_pair_type str_pair{local::detail::get_hex_string_pair(length_in_bits)};
@@ -226,11 +233,17 @@ auto main() -> int {
     result_total_is_ok = ((trial == max_trial) && result_total_is_ok);
 
     {
+        const double avg_bn = (trial != 0U ? static_cast<double>(elapsed_total_muls_bn) / trial : 0.0) / 1000.0;
+        const double avg_gm = (trial != 0U ? static_cast<double>(elapsed_total_muls_gm) / trial : 0.0) / 1000.0;
+        const double avg_cp = (trial != 0U ? static_cast<double>(elapsed_total_muls_cp) / trial : 0.0) / 1000.0;
+
         std::stringstream strm;
 
         strm << '\n';
-        strm << "Summary                            : " << trial << " trial" << '\n';
+        strm << "Summary                            : " << trial << " trial, " << limbs << " limbs" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
+        strm << std::fixed << std::setprecision(1);
+        strm << "us per mul big_int / cpp_int / gmp : " << avg_bn << " / " << avg_cp << " / " << avg_gm << '\n';
 
         std::cout << strm.str() << std::endl;
     }
