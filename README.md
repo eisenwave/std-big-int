@@ -122,6 +122,31 @@ cmake --list-presets=workflow
 For details on building beman.big_int without using a CMake preset, refer to the
 [Contributing Guidelines](CONTRIBUTING.md).
 
+### Optional: SIMD-accelerated multiplication
+
+By default, multiplication of very large integers uses an exact integer
+number-theoretic transform for its FFT tier. This is correct on every conforming
+compiler and imposes no special build requirements.
+
+A faster double-precision floating-point transform with hand-written SIMD kernels
+(ARM NEON, x86 AVX2, selected at runtime) is available behind the CMake
+option `BEMAN_BIG_INT_SIMD_MUL` (default `OFF`):
+
+```bash
+cmake --preset gcc-release -DBEMAN_BIG_INT_SIMD_MUL=ON
+```
+
+> [!IMPORTANT]
+>
+> The SIMD path is exact **only** under the default IEEE round-to-nearest mode with
+> no fast-math and no floating-point contraction. When built with this project's
+> CMake, the required flags (`-ffp-contract=off -fno-fast-math`, or `/fp:strict` on
+> MSVC) are applied to the relevant translation units automatically. If you build
+> with a different build system you must guarantee that floating-point environment
+> yourself, or results may be silently incorrect. The default integer path has no
+> such requirement.
+
+
 ### Installation
 
 To install beman.big_int globally after building with the `gcc-release` preset, you can

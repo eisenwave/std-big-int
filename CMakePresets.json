@@ -116,6 +116,46 @@
       "cacheVariables": {
         "CMAKE_TOOLCHAIN_FILE": "infra/cmake/msvc-toolchain.cmake"
       }
+    },
+    {
+      "name": "gcc-release-simd",
+      "displayName": "GCC Release Build (SIMD multiply)",
+      "inherits": [
+        "gcc-release"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_SIMD_MUL": "ON"
+      }
+    },
+    {
+      "name": "llvm-debug-simd",
+      "displayName": "Clang Debug Build (SIMD multiply)",
+      "inherits": [
+        "llvm-debug"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_SIMD_MUL": "ON"
+      }
+    },
+    {
+      "name": "appleclang-debug-simd",
+      "displayName": "Appleclang Debug Build (SIMD multiply)",
+      "inherits": [
+        "appleclang-debug"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_SIMD_MUL": "ON"
+      }
+    },
+    {
+      "name": "msvc-release-simd",
+      "displayName": "MSVC Release Build (SIMD multiply)",
+      "inherits": [
+        "msvc-release"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_SIMD_MUL": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -179,6 +219,34 @@
       "inherits": [
         "_root-build"
       ]
+    },
+    {
+      "name": "gcc-release-simd",
+      "configurePreset": "gcc-release-simd",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "llvm-debug-simd",
+      "configurePreset": "llvm-debug-simd",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "appleclang-debug-simd",
+      "configurePreset": "appleclang-debug-simd",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "msvc-release-simd",
+      "configurePreset": "msvc-release-simd",
+      "inherits": [
+        "_root-build"
+      ]
     }
   ],
   "testPresets": [
@@ -232,6 +300,26 @@
       "name": "msvc-release",
       "inherits": "_test_base",
       "configurePreset": "msvc-release"
+    },
+    {
+      "name": "gcc-release-simd",
+      "inherits": "_test_base",
+      "configurePreset": "gcc-release-simd"
+    },
+    {
+      "name": "llvm-debug-simd",
+      "inherits": "_test_base",
+      "configurePreset": "llvm-debug-simd"
+    },
+    {
+      "name": "appleclang-debug-simd",
+      "inherits": "_test_base",
+      "configurePreset": "appleclang-debug-simd"
+    },
+    {
+      "name": "msvc-release-simd",
+      "inherits": "_test_base",
+      "configurePreset": "msvc-release-simd"
     }
   ],
   "workflowPresets": [
@@ -368,6 +456,74 @@
         {
           "type": "test",
           "name": "msvc-release"
+        }
+      ]
+    },
+    {
+      "name": "gcc-release-simd",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gcc-release-simd"
+        },
+        {
+          "type": "build",
+          "name": "gcc-release-simd"
+        },
+        {
+          "type": "test",
+          "name": "gcc-release-simd"
+        }
+      ]
+    },
+    {
+      "name": "llvm-debug-simd",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-debug-simd"
+        },
+        {
+          "type": "build",
+          "name": "llvm-debug-simd"
+        },
+        {
+          "type": "test",
+          "name": "llvm-debug-simd"
+        }
+      ]
+    },
+    {
+      "name": "appleclang-debug-simd",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "appleclang-debug-simd"
+        },
+        {
+          "type": "build",
+          "name": "appleclang-debug-simd"
+        },
+        {
+          "type": "test",
+          "name": "appleclang-debug-simd"
+        }
+      ]
+    },
+    {
+      "name": "msvc-release-simd",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msvc-release-simd"
+        },
+        {
+          "type": "build",
+          "name": "msvc-release-simd"
+        },
+        {
+          "type": "test",
+          "name": "msvc-release-simd"
         }
       ]
     }
