@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+#include <beman/big_int/detail/ntt_fp.hpp>
+
+// Runtime kernel selection. This TU is compiled at the baseline ISA (no -mavx*),
+// so it is always safe to run; it inspects the CPU once and caches the chosen
+// kernel set. On AArch64 NEON is baseline (no check). On x86-64 it prefers AVX-512F,
+// then AVX2+FMA, then scalar -- each chosen only after confirming the CPU features
+// (and that the OS enabled the YMM/ZMM register state), so wide instructions never
+// run on a CPU/OS that lacks them. (AVX-512 frequency downclocking is negligible on
+// current implementations -- Ice Lake+, Zen4/5 -- so preferring it is the right
+// default.) Everything else uses the scalar kernels.
+
+#include <cstdlib>
+
+#if BEMAN_BIG_INT_NTT_FP_X86 && defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+namespace beman::big_int::detail {
+
+namespace {
+
+// Setting BEMAN_BIG_INT_NTT_FP_FORCE_SCALAR (to a non-empty, non-"0" value) pins
+// the scalar kernels regardless of CPU features -- for A/B benchmarking the SIMD
+// speedup and for exercising the scalar fallback. Read once (the result is cached).
+[[nodiscard, maybe_unused]] bool force_scalar_requested() noexcept {
+    const char* const e = std::getenv("BEMAN_BIG_INT_NTT_FP_FORCE_SCALAR");
+    return e != nullptr && e[0] != '\0' && e[0] != '0';
+}
+
+#if BEMAN_BIG_INT_NTT_FP_X86
+[[nodiscard]] bool cpu_has_avx2_fma() noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_cpu_init();
+    return __builtin_cpu_supports("avx2") != 0 && __builtin_cpu_supports("fma") != 0;
+#elif defined(_MSC_VER)
+    int regs[4];
+    __cpuid(regs, 1);
+    const bool fma     = (regs[2] & (1 << 12)) != 0;
+    const bool osxsave = (regs[2] & (1 << 27)) != 0;
+    __cpuidex(regs, 7, 0);
+    const bool avx2 = (regs[1] & (1 << 5)) != 0;
+    bool       ymm  = false;
+    if (osxsave) {
+        const unsigned long long xcr0 = _xgetbv(0);
+        ymm                           = (xcr0 & 0x6u) == 0x6u; // XMM + YMM state enabled by the OS
+    }
+    return fma && avx2 && ymm;
+#else
+    return false;
+#endif
+}
+
+[[nodiscard]] bool cpu_has_avx512f() noexcept {
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_cpu_init();
+    // glibc clears this bit unless the OS has enabled the AVX-512 register state.
+    return __builtin_cpu_supports("avx512f") != 0;
+#elif defined(_MSC_VER)
+    int regs[4];
+    __cpuid(regs, 1);
+    const bool osxsave = (regs[2] & (1 << 27)) != 0;
+    if (!osxsave) {
+        return false;
+    }
+    // The OS must have enabled XMM(1), YMM(2), opmask(5), ZMM_Hi256(6), Hi16_ZMM(7).
+    const unsigned long long xcr0 = _xgetbv(0);
+    if ((xcr0 & 0xE6u) != 0xE6u) {
+        return false;
+    }
+    __cpuidex(regs, 7, 0);
+    return (regs[1] & (1 << 16)) != 0; // leaf 7 EBX bit 16 = AVX-512F
+#else
+    return false;
+#endif
+}
+#endif
+
+[[nodiscard]] ntt_fp_kernels select_kernels() noexcept {
+    const ntt_fp_kernels scalar{ntt_fp_forward_scalar, ntt_fp_inverse_scalar, ntt_fp_pointwise_scalar};
+#if BEMAN_BIG_INT_NTT_FP_ARM64
+    if (force_scalar_requested()) {
+        return scalar;
+    }
+    return ntt_fp_kernels{ntt_fp_forward_neon, ntt_fp_inverse_neon, ntt_fp_pointwise_neon};
+#elif BEMAN_BIG_INT_NTT_FP_X86
+    if (!force_scalar_requested()) {
+        if (cpu_has_avx512f()) {
+            return ntt_fp_kernels{ntt_fp_forward_avx512, ntt_fp_inverse_avx512, ntt_fp_pointwise_avx512};
+        }
+        if (cpu_has_avx2_fma()) {
+            return ntt_fp_kernels{ntt_fp_forward_avx2, ntt_fp_inverse_avx2, ntt_fp_pointwise_avx2};
+        }
+    }
+    return scalar;
+#else
+    return scalar;
+#endif
+}
+
+} // namespace
+
+const ntt_fp_kernels& ntt_fp_dispatch() noexcept {
+    static const ntt_fp_kernels kernels = select_kernels();
+    return kernels;
+}
+
+} // namespace beman::big_int::detail
