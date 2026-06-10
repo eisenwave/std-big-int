@@ -122,9 +122,17 @@ TEST(MulmodBnm1, DegenerateOperands) {
 
 TEST(MulmodBnm1, NextSizeProperties) {
     constexpr std::size_t thr = detail::multiply_mod_bnm1_cutoff;
-    for (std::size_t n = 1; n <= 4000; n = n < 64 ? n + 1 : n + 37) {
+    for (std::size_t n = 1; n <= detail::fft_cyclic_cutoff + 4000; n = n < 64 ? n + 1 : n + 37) {
         const std::size_t w = detail::multiply_mod_bnm1_next_size(n, thr);
         EXPECT_GE(w, n);
+        if (detail::width_v<uint_t> == 64 && n >= detail::fft_cyclic_cutoff) {
+            // Cyclic-tier sizes come from the NTT chooser: idempotent, with
+            // padding below min_w / 25 (b >= 26 needs 64 * min_w / b <= L
+            // coefficients; the bound is the chooser's static_assert).
+            EXPECT_EQ(detail::multiply_fft_cyclic_next_size(w).wrap_limbs, w) << "n=" << n;
+            EXPECT_LT(w, n + n / 25 + 1) << "n=" << n;
+            continue;
+        }
         // The recursion must reach the threshold by halving even sizes only.
         std::size_t x = w;
         while (x > thr) {
@@ -136,6 +144,27 @@ TEST(MulmodBnm1, NextSizeProperties) {
         // round-up adds less than that.
         EXPECT_LT(w, n + 2 * n / (thr - 1) + 2);
     }
+}
+
+TEST(MulmodBnm1, CyclicTierDifferential) {
+    if (detail::width_v<uint_t> != 64) {
+        GTEST_SKIP() << "the cyclic tier is gated to 64-bit limbs";
+    }
+    std::mt19937_64 rng{0xb34u};
+
+    // A chooser size at the production cutoff: the cyclic kernel runs.
+    const std::size_t w = detail::multiply_mod_bnm1_next_size(detail::fft_cyclic_cutoff + 17,
+                                                              detail::multiply_mod_bnm1_cutoff);
+    check_mulmod(random_limbs(w, rng), random_limbs(w, rng), w, 0);
+    check_mulmod(std::vector<uint_t>(w, limb_max), std::vector<uint_t>(w, limb_max), w, 0);
+    // Zero operand exercises the tier's short-circuit (the kernel itself
+    // requires nonzero operands).
+    check_mulmod(std::vector<uint_t>{0}, random_limbs(w, rng), w, 0);
+
+    // An even non-chooser size above the cutoff falls back to the CRT split.
+    const std::size_t w_split = w + 2;
+    ASSERT_NE(detail::multiply_fft_cyclic_next_size(w_split).wrap_limbs, w_split);
+    check_mulmod(random_limbs(w_split, rng), random_limbs(w_split, rng), w_split, 0);
 }
 
 } // namespace

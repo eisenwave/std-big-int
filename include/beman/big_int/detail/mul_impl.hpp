@@ -948,10 +948,18 @@ static_assert(multiply_mod_bnm1_cutoff >= 2, "the recursion must stop above sing
 
 // Smallest wrap size >= n that the recursion can halve all the way down to
 // the threshold without going odd (GMP's mpn_mulmod_bnm1_next_size shape).
+// At and above fft_cyclic_cutoff (64-bit limbs) sizes come from the cyclic
+// NTT chooser instead, so the wrapped product runs as one length-L
+// transform set rather than the CRT split.
 [[nodiscard]] constexpr std::size_t multiply_mod_bnm1_next_size(const std::size_t n,
                                                                 const std::size_t threshold) noexcept {
     if (n <= threshold) {
         return n;
+    }
+    if constexpr (width_v<uint_multiprecision_t> == 64) {
+        if (n >= fft_cyclic_cutoff) {
+            return multiply_fft_cyclic_next_size(n).wrap_limbs;
+        }
     }
     std::size_t chunk = 1;
     while ((n + chunk - 1) / chunk > threshold) {
@@ -1111,6 +1119,34 @@ void multiply_mod_bnm1(const std::span<uint_multiprecision_t>       r,
         fold_mod_bnm1(r, std::span<const uint_multiprecision_t>{prod.data(), p_len});
         scratch.deallocate(p_len);
         return;
+    }
+
+    // Cyclic NTT tier: one length-L transform set computes the wrapped
+    // product directly when w is a chooser size (next_size produces exactly
+    // these above the cutoff). Transform workspaces live on the heap like
+    // multiply_dispatch's FFT branch, so the scratch model is untouched.
+    // The test-only override keeps forcing the CRT recursion.
+    if constexpr (width_v<uint_multiprecision_t> == 64) {
+        if (cutoff_override == 0 && w >= fft_cyclic_cutoff) {
+            const fft_cyclic_params params = multiply_fft_cyclic_next_size(w);
+            if (params.wrap_limbs == w) {
+                if (is_span_zero(a) || is_span_zero(b)) {
+                    std::ranges::fill(r, uint_multiprecision_t{0});
+                    return;
+                }
+                using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+                using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
+                std::vector<double, f64_alloc>        fp_ws(fft_cyclic_fp_storage_size(params), f64_alloc(alloc));
+                std::vector<std::uint64_t, u64_alloc> int_ws(fft_cyclic_int_storage_size(params), u64_alloc(alloc));
+                multiply_fft_cyclic(r, a, b, params, fp_ws, int_ws);
+#else
+                std::vector<std::uint64_t, u64_alloc> ws(fft_cyclic_storage_size(params), u64_alloc(alloc));
+                multiply_fft_cyclic(r, a, b, params, ws);
+#endif
+                return;
+            }
+        }
     }
 
     const std::size_t h = w / 2;

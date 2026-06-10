@@ -238,6 +238,20 @@ TEST(DivisionBarrettExercise, DispatchGateBoundaries) {
     }
 }
 
+TEST(DivisionBarrettExercise, CyclicMulmodTier) {
+    if (detail::width_v<uint_t> != 64) {
+        GTEST_SKIP() << "the cyclic mulmod tier is gated to 64-bit limbs";
+    }
+    // Divisor sized so the block wrap w = multiply_mod_bnm1_next_size(s + 1)
+    // comes from the cyclic NTT chooser (s + 1 >= fft_cyclic_cutoff). The
+    // chooser pads w past s + 1, exercising the residual fold and undershoot
+    // bounds under a padded wrap on both the reciprocal and the block march.
+    std::mt19937_64   rng{0xba99eau};
+    const std::size_t s = detail::fft_cyclic_cutoff + 40;
+    check_division(random_limbs(2 * s + 173, rng), random_limbs(s, rng), 0);
+    check_division(std::vector<uint_t>(3 * s + 7, limb_max), std::vector<uint_t>(s, limb_max), 0);
+}
+
 TEST(DivisionBarrettExercise, DefaultReciprocalThreshold) {
     // Default Newton threshold, sizes that take one or two real levels, plus
     // long block marches and a single-block tail.
