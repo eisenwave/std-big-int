@@ -641,12 +641,32 @@ inline constexpr std::size_t fft_mul_cutoff    = 4500;
 inline constexpr std::size_t square_fft_cutoff = 4500;
 #endif
 
-// Entry size for the cyclic NTT tier of multiply_mod_bnm1: above it the
-// wrapped product runs one length-L transform set instead of the CRT split,
-// whose internal products fall below the linear FFT cutoff and surrender its
-// advantage. Provisionally tied to the linear FFT cutoff per configuration;
-// tuned via division_kernel_bench / division_stress_bench.
-inline constexpr std::size_t fft_cyclic_cutoff = fft_mul_cutoff;
+// Entry size for the cyclic NTT tier of multiply_mod_bnm1: at and above it
+// the wrapped product runs one length-L transform set instead of the CRT
+// split, whose internal products fall below the linear FFT cutoff and
+// surrender its advantage. Tuned with division_kernel_bench's
+// cyclic_over_crt sweep (direct kernel vs forced CRT split at chooser
+// sizes, including the b = 26 band bottoms, which are the tier's least
+// efficient coefficient widths), release builds, 2026-06-10:
+//
+//   config                    cutoff   worst ratio at/above; first loser below
+//   integer, AArch64 (M4)       2048   0.98 at w=3328; w=1664 loses at 1.29
+//   integer, x86-64 (11900K)   36864   0.86 at w=36864, 0.77 at the w=53248
+//                                      band bottom; w=32768 is break-even and
+//                                      w=26624 loses at 1.29 (Toom dominates
+//                                      the scalar NTT until the CRT split's
+//                                      internal products near fft_mul_cutoff)
+//   FP (SIMD), x86-64 AVX2      8192   0.93 at w=8192, 0.82 at the w=13312
+//                                      band bottom; w=6656 loses at 1.24
+//                                      (AArch64 SIMD builds, test-only, share
+//                                      the value)
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+inline constexpr std::size_t fft_cyclic_cutoff = 8192;
+#elif defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+inline constexpr std::size_t fft_cyclic_cutoff = 36864;
+#else
+inline constexpr std::size_t fft_cyclic_cutoff = 2048;
+#endif
 
 // FFT kernels. Operands may be untrimmed; `result` must have space for
 // a.size()+b.size() limbs and must NOT alias `a`/`b`; it writes exactly that many

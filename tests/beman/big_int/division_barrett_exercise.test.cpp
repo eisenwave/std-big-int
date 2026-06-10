@@ -205,11 +205,15 @@ TEST(DivisionBarrettExercise, DispatchGateBoundaries) {
     // Shapes straddling the barrett_march gate route through divide_dispatch;
     // both sides of the boundary must agree with the direct
     // divide_burnikel_ziegler reference.
-    std::mt19937_64 rng{0x9a7e5u};
+    constexpr std::size_t m8 = detail::barrett_march8_cutoff;
+    std::mt19937_64       rng{0x9a7e5u};
     for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{512, 16 * 512},     // at the march gate
                               {512, 16 * 512 - 1},                                    // one below
                               {520, 16 * 520 + 7},                                    // above, unaligned
-                              {511, 16 * 511}}) {                                     // divisor below cutoff
+                              {511, 16 * 511},                                        // divisor below cutoff
+                              {m8, 8 * m8},                                           // at the march8 gate
+                              {m8, 8 * m8 - 1},                                       // one below the m/8 line
+                              {m8 - 1, 8 * (m8 - 1)}}) {                              // divisor below march8
         const auto dividend = random_limbs(m, rng);
         const auto divisor  = random_limbs(s, rng);
         const auto a_view   = std::span<const uint_t>{dividend};

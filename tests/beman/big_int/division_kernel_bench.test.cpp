@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -198,6 +199,59 @@ double mulmod_ratio(const std::size_t n) {
     return best_mm / best_full;
 }
 
+// Direct cyclic NTT kernel (workspaces allocated per call, mirroring the
+// production tier) versus the CRT split forced via cutoff_override, at the
+// same chooser wrap size. The crossover locates fft_cyclic_cutoff; sizes
+// below the linear FFT cutoff are probed too, because the cyclic transform
+// can pay before the full product does.
+double cyclic_over_crt(const std::size_t min_w, std::size_t& wrap_out) {
+    namespace bd = ::beman::big_int::detail;
+
+    const bd::fft_cyclic_params params = bd::multiply_fft_cyclic_next_size(min_w);
+    const std::size_t           w      = params.wrap_limbs;
+    wrap_out                           = w;
+
+    std::vector<uint_t> a(w);
+    std::vector<uint_t> b(w);
+    fill_random(a);
+    fill_random(b);
+    std::vector<uint_t> out(w, 0);
+    const auto          a_view = std::span<const uint_t>{a};
+    const auto          b_view = std::span<const uint_t>{b};
+    std_allocator       alloc;
+    const unsigned      iters = static_cast<unsigned>(std::clamp<std::size_t>(2'000'000 / w, 1, 64));
+
+    double best_cyc = 1.0e300;
+    double best_crt = 1.0e300;
+    for (unsigned rep = 0; rep < reps_per_point; ++rep) {
+        {
+            const stopwatch sw{};
+            for (unsigned i = 0; i < iters; ++i) {
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+                std::vector<double>        fp_ws(bd::fft_cyclic_fp_storage_size(params));
+                std::vector<std::uint64_t> int_ws(bd::fft_cyclic_int_storage_size(params));
+                bd::multiply_fft_cyclic(std::span<uint_t>{out}, a_view, b_view, params, std::span<double>{fp_ws},
+                                        std::span<std::uint64_t>{int_ws});
+#else
+                std::vector<std::uint64_t> ws(bd::fft_cyclic_storage_size(params));
+                bd::multiply_fft_cyclic(std::span<uint_t>{out}, a_view, b_view, params, std::span<std::uint64_t>{ws});
+#endif
+            }
+            best_cyc = std::min(best_cyc, stopwatch::elapsed_time<double>(sw));
+        }
+        {
+            scratch_for_test scratch(bd::multiply_mod_bnm1_storage_size(w), alloc);
+            const stopwatch  sw{};
+            for (unsigned i = 0; i < iters; ++i) {
+                bd::multiply_mod_bnm1(std::span<uint_t>{out}, a_view, b_view, scratch, alloc,
+                                      bd::multiply_mod_bnm1_cutoff);
+            }
+            best_crt = std::min(best_crt, stopwatch::elapsed_time<double>(sw));
+        }
+    }
+    return best_cyc / best_crt;
+}
+
 void run_all() {
     std::cout << "kernel,param,value\n";
 
@@ -224,6 +278,21 @@ void run_all() {
     for (const std::size_t n :
          {std::size_t{4096}, std::size_t{16384}, std::size_t{65536}, std::size_t{262144}}) {
         emit("mulmod_over_full", n, mulmod_ratio(n));
+        std::cout.flush();
+    }
+
+    // The param column is the chooser wrap size the probe actually ran.
+    // 1664, 3328, 6656, and 13312 are b = 26 band bottoms (the chooser's
+    // least efficient coefficient width); the rest alternate b = 32 / b = 48
+    // sizes.
+    for (const std::size_t min_w : {std::size_t{512}, std::size_t{1024}, std::size_t{1536}, std::size_t{1664},
+                                    std::size_t{2048}, std::size_t{3072}, std::size_t{3328}, std::size_t{4096},
+                                    std::size_t{6144}, std::size_t{6656}, std::size_t{8192}, std::size_t{12288},
+                                    std::size_t{13312}, std::size_t{16384}, std::size_t{24576},
+                                    std::size_t{32768}}) {
+        std::size_t  w     = 0;
+        const double ratio = cyclic_over_crt(min_w, w);
+        emit("cyclic_over_crt", w, ratio);
         std::cout.flush();
     }
 }

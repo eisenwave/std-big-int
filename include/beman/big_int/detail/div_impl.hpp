@@ -14,6 +14,7 @@
 #include <bit>
 #include <compare>
 #include <cstddef>
+#include <limits>
 #include <span>
 
 namespace beman::big_int::detail {
@@ -556,29 +557,58 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
 // divide-and-conquer division.
 //
 // With the q_hat * d_hat subtrahend and the reciprocal's residual checks
-// going through multiply_mod_bnm1 wraparound products, Barrett wins two
-// measured regions on an M4 Max (2026-06-10, division_stress_bench plus
-// larger probes): long block marches -- dividend at least 16x a 512+-limb
-// divisor -- run at 0.81-0.95x of divide_burnikel_ziegler, and gigantic
-// near-balanced divisions cross over around 256k limbs (0.91x at
-// 262144/131072). Below those bounds the divide-and-conquer recursion's
-// ~2-multiplications-per-block cost still beats the reciprocal setup, so
-// divide_dispatch gates accordingly. The remaining lever for a broader win
-// is a cyclic-convolution entry point in the NTT itself (transform length w
-// instead of 2w), which would stop the wraparound's internal products from
-// falling below the FFT cutoff. reciprocal_span also serves future
-// radix-conversion and invariant-divisor work.
+// going through multiply_mod_bnm1 wraparound products -- which ride the
+// cyclic NTT tier above fft_cyclic_cutoff -- Barrett beats
+// divide_burnikel_ziegler on deep block marches everywhere, and on
+// progressively shallower shapes as the operands grow. The win regions vary
+// strongly by architecture and NTT configuration (the x86-64 scalar integer
+// NTT in particular cannot carry the near-balanced shapes), so the gates
+// are per-arch below. reciprocal_span also serves future radix-conversion
+// and invariant-divisor work.
 // ---------------------------------------------------------------------------
 
-// Gates for the Barrett tier, from the measured win regions above: marches
-// need the divisor at this size and the dividend 16x larger; near-balanced
-// shapes need a dividend of this size with the quotient at least the
-// divisor.
-inline constexpr std::size_t barrett_march_cutoff    = 512;
+// Gates for the Barrett tier. divide_dispatch routes to Barrett when any of
+// the four shape rules pass; each rule's constants come from
+// division_stress_bench plus direct divide_barrett-vs-divide_burnikel_ziegler
+// probes (release builds, min-of-reps, M4 Max and i9-11900K, 2026-06-10):
+//
+//   march    (m/16 >= s, s >= march_cutoff):    0.81-0.95x everywhere from
+//            512-limb divisors up; unchanged from the phase C tuning.
+//   march8   (m/8 >= s, s >= march8_cutoff):    pays once the divisor wrap
+//            rides the cyclic NTT (AArch64: 0.93 at 16384/2048) or, on
+//            x86-64, once the reciprocal amortizes anyway (0.94-0.97 at
+//            32768/4096, 0.81-0.95 at 65536/8192, ~1.00 at 16384/2048).
+//   quarter  (m/4 >= s, m >= quarter_cutoff):   0.57-0.67x (M4) and
+//            0.62-0.82x (11900K FP/AVX2) from m = 49152; break-even or worse
+//            at m = 32768 on both. The x86-64 integer NTT loses these
+//            shapes (1.04-1.29) -- disabled there.
+//   balanced (m - s >= s, m >= balanced_cutoff): M4 crosses between m =
+//            98304 (1.00) and 131072 (0.89, then 0.79/0.64 at 262144/524288).
+//            11900K FP/AVX2 is break-even-to-winning at 131072 (1.00 probe,
+//            0.94 bench) and agreed-winning from 196608 (0.97/0.88; 0.84 at
+//            262144) -- gated at the agreed point. The 11900K integer NTT
+//            loses 1.29 at 262144 and first wins at 524288 (0.95).
+#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+inline constexpr std::size_t barrett_march_cutoff  = 512;
+inline constexpr std::size_t barrett_march8_cutoff = 4096;
+    #if defined(BEMAN_BIG_INT_SIMD_MUL)
+inline constexpr std::size_t barrett_quarter_cutoff  = 49152;
 inline constexpr std::size_t barrett_balanced_cutoff = 196608;
+    #else
+inline constexpr std::size_t barrett_quarter_cutoff  = std::numeric_limits<std::size_t>::max();
+inline constexpr std::size_t barrett_balanced_cutoff = 524288;
+    #endif
+#else
+inline constexpr std::size_t barrett_march_cutoff    = 512;
+inline constexpr std::size_t barrett_march8_cutoff   = 2048;
+inline constexpr std::size_t barrett_quarter_cutoff  = 49152;
+inline constexpr std::size_t barrett_balanced_cutoff = 131072;
+#endif
 
 static_assert(barrett_march_cutoff >= burnikel_ziegler_cutoff,
               "the dispatch chain assumes Barrett sits above the divide-and-conquer tier");
+static_assert(barrett_march8_cutoff >= barrett_march_cutoff,
+              "the half-depth march rule must not undercut the full-depth one");
 
 // Below this divisor size the reciprocal comes straight from the schoolbook
 // division of B^{2n} - 1; above it one Newton level halves the problem.
@@ -967,8 +997,10 @@ constexpr void divide_dispatch(const std::span<uint_multiprecision_t>       quot
         const std::size_t s = divisor.size();
 
         const bool barrett_march    = s >= barrett_march_cutoff && m / 16 >= s;
+        const bool barrett_march8   = s >= barrett_march8_cutoff && m / 8 >= s;
+        const bool barrett_quarter  = m >= barrett_quarter_cutoff && m / 4 >= s;
         const bool barrett_balanced = m >= barrett_balanced_cutoff && m - s >= s;
-        if (barrett_march || barrett_balanced) {
+        if (barrett_march || barrett_march8 || barrett_quarter || barrett_balanced) {
             divide_barrett(quotient, remainder, dividend, divisor, alloc);
             return;
         }
