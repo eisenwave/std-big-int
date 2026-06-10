@@ -2807,7 +2807,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     const std::size_t m_div = divisor_trim.size();
     const std::size_t q_cap = n_div - m_div + 1;
     const std::size_t r_cap = n_div + 1;
-    const std::size_t t_cap = n_div + 1;
+    const std::size_t t_cap = detail::divide_unsigned_storage_size(n_div, m_div);
 
     if (want_quotient) {
         // *this will hold the quotient.

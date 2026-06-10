@@ -28,11 +28,27 @@ enum class division_op : unsigned char {
     div_rem,
 };
 
+// Scratch limbs divide_unsigned needs internally: the shifted dividend copy
+// (dividend.size() + 1) plus the shifted divisor copy (divisor.size();
+// allocated only when the divisor is unnormalized, but budgeted always).
+constexpr std::size_t divide_unsigned_storage_size(const std::size_t dividend_limbs,
+                                                   const std::size_t divisor_limbs) noexcept {
+    return dividend_limbs + 1 + divisor_limbs;
+}
+
 // ---------------------------------------------------------------------------
-// Multi-limb long division (Boost hybrid).
+// Multi-limb schoolbook division: Knuth Algorithm D with the Moller-Granlund
+// 3/2 quotient step. The divisor's top bit is normalized into place once,
+// then each quotient digit costs one div_3by2_preinv on the top three
+// remainder limbs plus one fused submul pass over the rest; the add-back
+// correction triggers with probability ~1/B per digit.
 //
-// Writes the quotient to `quotient` and the remainder to `remainder`.
-// Both buffers are left unnormalized
+// Writes the quotient to `quotient` and the remainder to `remainder`; both
+// output spans are fully written (zero above the significant limbs).
+// Preconditions: trimmed operands, divisor.size() >= 2, dividend.size() >=
+// divisor.size(), quotient.size() >= dividend.size() - divisor.size() + 1,
+// remainder.size() >= dividend.size() + 1, no aliasing, and `scratch`
+// provides at least divide_unsigned_storage_size(...) limbs.
 // ---------------------------------------------------------------------------
 constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quotient,
                                const std::span<uint_multiprecision_t>       remainder,
@@ -52,217 +68,96 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
     BEMAN_BIG_INT_DEBUG_ASSERT(remainder.data() != divisor.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(quotient.data() != remainder.data());
 
-    constexpr uint_multiprecision_t max_limb = static_cast<uint_multiprecision_t>(0) - 1;
+    const std::size_t n = divisor.size();
+    const std::size_t m = dividend.size();
 
-    const std::size_t y_order = divisor.size() - 1;
-    std::size_t       r_order = dividend.size() - 1;
+    const unsigned shift = static_cast<unsigned>(std::countl_zero(divisor.back()));
 
-    // quotient = 0
-    std::ranges::fill(quotient, uint_multiprecision_t{0});
+    // Normalized divisor view (top bit set).
+    std::span<const uint_multiprecision_t> d = divisor;
+    if (shift != 0) {
+        const std::span<uint_multiprecision_t> d_norm = scratch.allocate(n);
+        std::ranges::copy(divisor, d_norm.begin());
+        const std::size_t d_size = shift_left_n(d_norm, n, shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(d_size == n);
+        d = d_norm.first(d_size);
+    }
+    const uint_multiprecision_t d1   = d[n - 1];
+    const uint_multiprecision_t d0   = d[n - 2];
+    const uint_multiprecision_t dinv = reciprocal_word_3by2(d1, d0);
 
-    // remainder = dividend, zero-padded up to remainder.size().
-    std::ranges::copy(dividend, remainder.begin());
-    if (remainder.size() > dividend.size()) {
-        std::ranges::fill(remainder.subspan(dividend.size()), uint_multiprecision_t{0});
+    // Working copy of the dividend, shifted in step with the divisor and
+    // extended by one limb; reduced in place to the remainder.
+    const std::span<uint_multiprecision_t> u = scratch.allocate(m + 1);
+    std::ranges::copy(dividend, u.begin());
+    u[m] = 0;
+    if (shift != 0) {
+        const std::size_t u_size = shift_left_n(u, m, shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(u_size <= m + 1);
     }
 
-    // Fast path: 2 limb / 2 limb.
-    if (r_order == 1) {
-        // The precondition divisor.back() != 0 ensures divisor[1] != 0,
-        // so the quotient fits in a single limb.
-        const wide<uint_multiprecision_t> a{.low_bits = remainder[0], .high_bits = remainder[1]};
-        const wide<uint_multiprecision_t> b{.low_bits = divisor[0], .high_bits = divisor[1]};
-        const auto [q, r] = divide_wide_by_wide(a, b);
-        quotient[0]       = q;
-        if (quotient.size() > 1) {
-            quotient[1] = 0;
+    // Loop invariant entering digit j: the remainder so far is the n-limb
+    // value <top : u[j+n-1 .. j+1]> and is strictly below the divisor (at
+    // entry the extended top limb u[m] is below 2^shift <= B/2 <= d1).
+    uint_multiprecision_t top = u[m];
+    for (std::size_t j = m - n + 1; j-- > 0;) {
+        uint_multiprecision_t q;
+        if (top == d1 && u[j + n - 1] == d0) {
+            // Saturated estimate: with the window's top pair equal to the
+            // divisor's, q = B - 1 subtracts cleanly into [0, d) with no
+            // correction (window < B*d and window >= (B-1)*d here).
+            q                              = static_cast<uint_multiprecision_t>(~static_cast<uint_multiprecision_t>(0));
+            const uint_multiprecision_t cy = submul_single_limb(u.subspan(j, n), d, q);
+            BEMAN_BIG_INT_DEBUG_ASSERT(cy == top);
+            top = u[j + n - 1];
+        } else {
+            const auto step = div_3by2_preinv(top, u[j + n - 1], u[j + n - 2], d1, d0, dinv);
+            q               = step.quotient;
+
+            uint_multiprecision_t r1 = step.remainder.high_bits;
+            uint_multiprecision_t r0 = step.remainder.low_bits;
+
+            if (n > 2) {
+                // Subtract q times the divisor's low limbs; the borrow lands
+                // at the position r0 tracks.
+                const uint_multiprecision_t cy = submul_single_limb(u.subspan(j, n - 2), d.first(n - 2), q);
+                const auto [s0, b0]            = borrowing_sub(r0, cy);
+                r0                             = s0;
+                const auto [s1, b1]            = borrowing_sub(r1, uint_multiprecision_t{0}, b0);
+                r1                             = s1;
+                if (b1) {
+                    // The 3/2 estimate is one too large (probability ~1/B):
+                    // add the divisor back once.
+                    --q;
+                    const bool carry =
+                        add_unsigned_spans(u.subspan(j, n - 2), u.subspan(j, n - 2), d.first(n - 2));
+                    const auto [a0, c0] = carrying_add(r0, d0, carry);
+                    r0                  = a0;
+                    const auto [a1, c1] = carrying_add(r1, d1, c0);
+                    r1                  = a1;
+                    BEMAN_BIG_INT_DEBUG_ASSERT(c1);
+                }
+            }
+            u[j + n - 2] = r0;
+            top          = r1;
         }
-        remainder[0] = r.low_bits;
-        remainder[1] = r.high_bits;
-        for (std::size_t i = 2; i < remainder.size(); ++i) {
-            remainder[i] = 0;
-        }
-        return;
+        quotient[j] = q;
     }
 
-    // Scratch buffer for the fused multiply-shift result `t`.
-    // Needs at most dividend.size() + 1 limbs.
-    const std::size_t                      t_cap  = dividend.size() + 1;
-    const std::span<uint_multiprecision_t> t_full = scratch.allocate(t_cap);
+    // Remainder: materialize the in-register top limb, undo the
+    // normalization shift, and copy out.
+    u[n - 1] = top;
+    if (shift != 0) {
+        const uint_multiprecision_t dropped = shift_right_n(u.first(n), shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(dropped == 0);
+    }
+    std::ranges::copy(u.first(n), remainder.begin());
+    std::ranges::fill(remainder.subspan(n), uint_multiprecision_t{0});
+    std::ranges::fill(quotient.subspan(m - n + 1), uint_multiprecision_t{0});
 
-    bool        r_neg      = false;
-    bool        first_pass = true;
-    std::size_t quot_size  = dividend.size() - divisor.size() + 1;
-
-    do {
-        // Retain the original top for future sizing comparison
-        const std::size_t rem_top_orig = r_order;
-
-        // ------------------------------------------------------------------
-        // Estimate q̂.
-        // ------------------------------------------------------------------
-        uint_multiprecision_t guess = 1;
-        if ((remainder[r_order] <= divisor[y_order]) && (r_order > 0)) {
-            // Top remainder limb <= top divisor limb: safe single-limb divide
-            // (remainder_top, remainder_top-1) / divisor_top.
-            const wide<uint_multiprecision_t> num{.low_bits = remainder[r_order - 1], .high_bits = remainder[r_order]};
-            const uint_multiprecision_t       den = divisor[y_order];
-            if (num.high_bits < den) {
-                const auto [v, _] = narrowing_div(num, den);
-                guess             = v;
-                --r_order;
-            }
-            // else: q̂ stays at 1; r_order stays.
-        } else if (r_order == 0) {
-            // Only possible when y_order == 0, but our precondition says
-            // divisor.size() >= 2 so y_order >= 1. This branch is defensive.
-            guess = remainder[0] / divisor[y_order];
-        } else {
-            // remainder[r_order] > divisor[y_order]. Use top-two-limbs of each
-            // to compute a tighter q̂.
-            const wide<uint_multiprecision_t> num_wide{.low_bits  = remainder[r_order - 1],
-                                                       .high_bits = remainder[r_order]};
-            const wide<uint_multiprecision_t> den_wide{.low_bits  = (y_order > 0) ? divisor[y_order - 1]
-                                                                                  : uint_multiprecision_t{0},
-                                                       .high_bits = divisor[y_order]};
-            BEMAN_BIG_INT_DEBUG_ASSERT(den_wide.high_bits != 0);
-            guess = divide_wide_by_wide(num_wide, den_wide).quotient;
-        }
-        BEMAN_BIG_INT_DEBUG_ASSERT(guess != 0);
-
-        // ------------------------------------------------------------------
-        // Fold guess into quotient[shift..].
-        // ------------------------------------------------------------------
-        const std::size_t shift = r_order - y_order;
-        if (r_neg) {
-            if (quotient[shift] > guess) {
-                quotient[shift] -= guess;
-            } else {
-                uint_multiprecision_t sub    = guess;
-                bool                  borrow = false;
-                for (std::size_t i = shift; i < quotient.size(); ++i) {
-                    const auto [v, bout] = borrowing_sub(quotient[i], sub, borrow);
-                    quotient[i]          = v;
-                    borrow               = bout;
-                    sub                  = 0;
-                    if (!borrow) {
-                        break;
-                    }
-                }
-                BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
-            }
-        } else {
-            if (max_limb - quotient[shift] > guess) {
-                quotient[shift] += guess;
-            } else {
-                uint_multiprecision_t add   = guess;
-                bool                  carry = false;
-                for (std::size_t i = shift; i < quotient.size(); ++i) {
-                    const auto [v, cout] = carrying_add(quotient[i], add, carry);
-                    quotient[i]          = v;
-                    carry                = cout;
-                    add                  = 0;
-                    if (!carry) {
-                        break;
-                    }
-                }
-                BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
-            }
-        }
-
-        // ------------------------------------------------------------------
-        // t := (divisor * guess) << (shift * limb_bits). O(n) fused.
-        // ------------------------------------------------------------------
-        for (std::size_t i = 0; i < shift; ++i) {
-            t_full[i] = 0;
-        }
-
-        uint_multiprecision_t mul_carry = 0;
-        for (std::size_t i = 0; i < divisor.size(); ++i) {
-            const auto [lo, hi]     = widening_mul(divisor[i], guess);
-            const auto [sum, carry] = carrying_add(lo, mul_carry);
-            t_full[i + shift]       = sum;
-            mul_carry               = hi + static_cast<uint_multiprecision_t>(carry);
-        }
-        std::size_t t_size = divisor.size() + shift;
-        if (mul_carry != 0) {
-            BEMAN_BIG_INT_DEBUG_ASSERT(t_size < t_cap);
-            t_full[t_size] = mul_carry;
-            ++t_size;
-        }
-        // Trim zero high limbs of t.
-        while (t_size > 1 && t_full[t_size - 1] == 0) {
-            --t_size;
-        }
-        const std::span<const uint_multiprecision_t> t_view{t_full.data(), t_size};
-
-        // Compare remainder against t_view and update remainder accordingly.
-        const std::size_t rem_logical_size = std::max(rem_top_orig + 1, t_size);
-        BEMAN_BIG_INT_DEBUG_ASSERT(rem_logical_size <= remainder.size());
-        const std::span<const uint_multiprecision_t> rem_view{remainder.data(), rem_logical_size};
-        const std::strong_ordering                   cmp = compare_unsigned_spans(rem_view, t_view);
-        if (cmp == std::strong_ordering::greater) {
-            static_cast<void>(subtract_unsigned_spans(remainder.first(rem_logical_size), rem_view, t_view));
-        } else {
-            // rem <= t implies rem has no nonzero limbs past t_size-1, so
-            // rem_logical_size == t_size (else rem would be strictly larger).
-            BEMAN_BIG_INT_DEBUG_ASSERT(rem_logical_size == t_size);
-            bool borrow = false;
-            for (std::size_t i = 0; i < t_size; ++i) {
-                const auto ri     = remainder[i];
-                const auto [v, b] = borrowing_sub(t_view[i], ri, borrow);
-                remainder[i]      = v;
-                borrow            = b;
-            }
-            BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
-            // Zero any remainder limbs past the new size.
-            for (std::size_t i = t_size; i < remainder.size(); ++i) {
-                remainder[i] = 0;
-            }
-            r_neg = !r_neg;
-        }
-
-        // First iteration: strip conservatively-sized zero top of quotient.
-        if (first_pass) {
-            first_pass = false;
-            while (quot_size > 1 && quotient[quot_size - 1] == 0) {
-                --quot_size;
-            }
-        }
-
-        // Recompute r_order from the full remainder span (the t - rem swap
-        // can grow r_order by one limb).
-        std::size_t new_r_order = remainder.size() - 1;
-        while (new_r_order > 0 && remainder[new_r_order] == 0) {
-            --new_r_order;
-        }
-        r_order = new_r_order;
-
-        if (r_order < y_order) {
-            break;
-        }
-    } while ((r_order > y_order) ||
-             (compare_unsigned_spans(std::span<const uint_multiprecision_t>{remainder.data(), r_order + 1}, divisor) !=
-              std::strong_ordering::less));
-
-    scratch.deallocate(t_cap);
-
-    // ------------------------------------------------------------------
-    // Final adjustment: if r_neg and remainder != 0, we overshot by one.
-    // quotient -= 1; remainder := divisor - remainder.
-    // ------------------------------------------------------------------
-    const bool remainder_is_zero =
-        std::ranges::all_of(remainder, [](const uint_multiprecision_t x) { return x == 0; });
-    if (r_neg && !remainder_is_zero) {
-        static_cast<void>(decrement_span(quotient));
-        bool borrow = false;
-        for (std::size_t i = 0; i < remainder.size(); ++i) {
-            const auto di     = i < divisor.size() ? divisor[i] : uint_multiprecision_t{0};
-            const auto [v, b] = borrowing_sub(di, remainder[i], borrow);
-            remainder[i]      = v;
-            borrow            = b;
-        }
-        BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+    scratch.deallocate(m + 1);
+    if (shift != 0) {
+        scratch.deallocate(n);
     }
 }
 
@@ -305,20 +200,19 @@ static_assert(burnikel_ziegler_cutoff >= 2,
 //   - normalized divisor:        n limbs
 //   - shifted working dividend:  t*n limbs
 //   - quotient blocks:           (t-1)*n limbs
-//   - recursion high-water:      max(n, 5*threshold + 3) limbs
+//   - recursion high-water:      max(n, 6*threshold + 3) limbs
 // The recursion term is exact by construction: a D_3n/2n frame allocates its
 // single q*b2 product (2h <= n limbs) only after its recursive call has fully
 // returned and rewound (LIFO), so product buffers never stack; a leaf needs
-// q(j+1) + r(2j+1) + divide_unsigned's internal 2j+2 with j <= threshold.
-// Unlike the multiplication heuristics this bound is deterministic (the
-// allocation sizes depend only on operand sizes, never values); instrumented
-// peaks in division_scratch_peak.test.cpp match the model exactly, topping
-// out at peak/budget ~0.999 (measured 2026-06-10, shapes up to 4000x512),
-// with the +8 slack as the only headroom.
+// q(j+1) + r(2j+1) + divide_unsigned's internal (2j+2) + j with
+// j <= threshold. Unlike the multiplication heuristics this bound is
+// deterministic (the allocation sizes depend only on operand sizes, never
+// values); instrumented peaks in division_scratch_peak.test.cpp match the
+// model exactly, with the +8 slack as the only headroom.
 constexpr std::size_t burnikel_ziegler_storage_size(const std::size_t block_limbs,
                                                     const std::size_t blocks,
                                                     const std::size_t threshold) noexcept {
-    return 2 * blocks * block_limbs + std::max(block_limbs, 5 * threshold + 3) + 8;
+    return 2 * blocks * block_limbs + std::max(block_limbs, 6 * threshold + 3) + 8;
 }
 
 // ---------------------------------------------------------------------------
@@ -660,8 +554,8 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
 // always takes the schoolbook kernel for the same reason multiply_dispatch
 // avoids its recursive tiers there (consteval step limits).
 // Same contract as divide_unsigned. `scratch` must provide at least
-// dividend.size() + 1 limbs for the schoolbook path; the divide-and-conquer
-// path sizes and owns its own workspace through `alloc`.
+// divide_unsigned_storage_size(...) limbs for the schoolbook path; the
+// divide-and-conquer path sizes and owns its own workspace through `alloc`.
 // ---------------------------------------------------------------------------
 template <class Allocator>
 constexpr void divide_dispatch(const std::span<uint_multiprecision_t>       quotient,

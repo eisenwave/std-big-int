@@ -109,12 +109,11 @@ double measure_division(const std::size_t m, const std::size_t s, Algo algo) {
 }
 
 double run_schoolbook_at(const std::size_t m, const std::size_t s) {
-    return measure_division(
-        m, s, [](const auto q, const auto r, const auto a, const auto b) {
-            std_allocator    alloc;
-            scratch_for_test scratch(a.size() + 1, alloc);
-            ::beman::big_int::detail::divide_unsigned(q, r, a, b, scratch);
-        });
+    return measure_division(m, s, [](const auto q, const auto r, const auto a, const auto b) {
+        std_allocator    alloc;
+        scratch_for_test scratch(::beman::big_int::detail::divide_unsigned_storage_size(a.size(), b.size()), alloc);
+        ::beman::big_int::detail::divide_unsigned(q, r, a, b, scratch);
+    });
 }
 
 double run_burnikel_ziegler_at(const std::size_t m, const std::size_t s) {

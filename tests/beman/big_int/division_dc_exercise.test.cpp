@@ -90,7 +90,7 @@ void check_division(const std::vector<uint_t>& dividend, const std::vector<uint_
     std::vector<uint_t> q_ref(m - s + 1, 0);
     std::vector<uint_t> r_ref(m + 1, 0);
     {
-        detail::scratch_allocator<std::allocator<uint_t>> scratch(m + 1, alloc);
+        detail::scratch_allocator<std::allocator<uint_t>> scratch(detail::divide_unsigned_storage_size(m, s), alloc);
         detail::divide_unsigned(std::span<uint_t>{q_ref}, std::span<uint_t>{r_ref}, a_view, b_view, scratch);
     }
 
