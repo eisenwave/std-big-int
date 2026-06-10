@@ -833,6 +833,244 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
 
+// ---------------------------------------------------------------------------
+// Wraparound multiplication: a * b mod (B^w - 1), the GMP mulmod_bnm1
+// lineage. B^w == 1 (mod B^w - 1), so the full 2w-limb product folds in half;
+// computing it via the CRT split
+//   mod (B^h - 1)  (recursive)   x   mod (B^h + 1)  (one h x h product)
+// with a multiplication-free reassembly makes a wrapped product cost about
+// half a full multiplication. Used by the Barrett division tier, where the
+// subtrahend's true value is known to be small so only its residue matters.
+// ---------------------------------------------------------------------------
+
+// Below this wrap size the plain product plus a fold wins.
+inline constexpr std::size_t multiply_mod_bnm1_cutoff = 16;
+
+static_assert(multiply_mod_bnm1_cutoff >= 2, "the recursion must stop above single-limb wraps");
+
+// Smallest wrap size >= n that the recursion can halve all the way down to
+// the threshold without going odd (GMP's mpn_mulmod_bnm1_next_size shape).
+[[nodiscard]] constexpr std::size_t multiply_mod_bnm1_next_size(const std::size_t n,
+                                                                const std::size_t threshold) noexcept {
+    if (n <= threshold) {
+        return n;
+    }
+    std::size_t chunk = 1;
+    while ((n + chunk - 1) / chunk > threshold) {
+        chunk <<= 1;
+    }
+    return ((n + chunk - 1) / chunk) * chunk;
+}
+
+// Scratch upper bound for multiply_mod_bnm1 at wrap size w: the recursion
+// holds the two h-limb folded inputs across its recursive call, then frees
+// them before the mod-(B^h + 1) stage's three (h+1)-limb values and 2h-limb
+// product; the basecase needs the full 2w-limb product. Validated by the
+// instrumented probe in mulmod_bnm1.test.cpp.
+constexpr std::size_t multiply_mod_bnm1_storage_size(const std::size_t w) noexcept { return 3 * w + 16; }
+
+// dst = src mod (B^w - 1) with w = dst.size(), semi-canonical (the all-ones
+// pattern, equal to the modulus, may appear and means zero).
+// Requires src.size() <= 2 * w.
+constexpr void fold_mod_bnm1(const std::span<uint_multiprecision_t>       dst,
+                             const std::span<const uint_multiprecision_t> src) noexcept {
+    const std::size_t w = dst.size();
+    BEMAN_BIG_INT_DEBUG_ASSERT(src.size() <= 2 * w);
+
+    const std::size_t lo = std::min(w, src.size());
+    std::ranges::copy(src.first(lo), dst.begin());
+    std::ranges::fill(dst.subspan(lo), uint_multiprecision_t{0});
+    if (src.size() > w) {
+        if (add_unsigned_spans(dst, dst, src.subspan(w))) {
+            // B^w == 1: fold the carry back in; if that wraps too, the value
+            // was B^w == 1 exactly.
+            if (increment_span(dst)) {
+                dst[0] = 1;
+            }
+        }
+    }
+}
+
+// dst = src mod (B^h + 1) with h + 1 = dst.size(), canonical in [0, B^h]
+// (so dst's top limb is 0 or 1, and 1 forces the rest to zero).
+// Requires src.size() <= 2 * h.
+constexpr void fold_mod_bnp1(const std::span<uint_multiprecision_t>       dst,
+                             const std::span<const uint_multiprecision_t> src) noexcept {
+    const std::size_t h = dst.size() - 1;
+    BEMAN_BIG_INT_DEBUG_ASSERT(h >= 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(src.size() <= 2 * h);
+
+    // B^h == -1: value = lo - hi.
+    const auto lo = src.first(std::min(h, src.size()));
+    const auto hi = src.size() > h ? src.subspan(h) : std::span<const uint_multiprecision_t>{};
+
+    if (compare_unsigned_spans(lo, hi) != std::strong_ordering::less) {
+        std::ranges::copy(lo, dst.begin());
+        std::ranges::fill(dst.subspan(lo.size()), uint_multiprecision_t{0});
+        subtract_unsigned_spans(dst.first(h), dst.first(h), hi);
+        return;
+    }
+
+    // lo < hi: value = lo - hi + B^h + 1; the wrapped subtraction already
+    // adds B^h, so only the +1 remains. If that carries the value is exactly
+    // B^h (lo - hi == -1).
+    std::ranges::copy(lo, dst.begin());
+    std::ranges::fill(dst.subspan(lo.size()), uint_multiprecision_t{0});
+    const bool borrow = subtract_unsigned_spans_borrow_out(dst.first(h), dst.first(h), hi);
+    BEMAN_BIG_INT_DEBUG_ASSERT(borrow);
+    dst[h] = increment_span(dst.first(h)) ? 1 : 0;
+}
+
+// r = a * b mod (B^h + 1) with h + 1 = r.size(); a and b canonical in
+// [0, B^h] as produced by fold_mod_bnp1. One full h x h product plus a
+// signed fold; operands equal to B^h itself (== -1) shortcut to a negation.
+template <class Allocator>
+void multiply_mod_bnp1(const std::span<uint_multiprecision_t>       r,
+                       const std::span<const uint_multiprecision_t> a,
+                       const std::span<const uint_multiprecision_t> b,
+                       scratch_allocator_base&                      scratch,
+                       Allocator&                                   alloc) {
+    const std::size_t h = r.size() - 1;
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() == h + 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(b.size() == h + 1);
+
+    const auto negate_into = [&](const std::span<const uint_multiprecision_t> x) {
+        // r = (B^h + 1) - x for x in (0, B^h], r = 0 for x == 0.
+        if (is_span_zero(x)) {
+            std::ranges::fill(r, uint_multiprecision_t{0});
+            return;
+        }
+        std::ranges::fill(r, uint_multiprecision_t{0});
+        r[0] = 1;
+        r[h] = 1;
+        subtract_unsigned_spans(r, r, x);
+    };
+
+    if (a[h] != 0) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(is_span_zero(a.first(h)));
+        negate_into(b);
+        return;
+    }
+    if (b[h] != 0) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(is_span_zero(b.first(h)));
+        negate_into(a);
+        return;
+    }
+
+    const std::span<uint_multiprecision_t> prod = scratch.allocate(2 * h);
+    std::ranges::fill(prod, uint_multiprecision_t{0});
+    multiply_dispatch(prod, a.first(h), b.first(h), alloc);
+    fold_mod_bnp1(r, prod);
+    scratch.deallocate(2 * h);
+}
+
+// ---------------------------------------------------------------------------
+// r = a * b mod (B^w - 1) with w = r.size(), semi-canonical (all-ones means
+// zero). a.size() and b.size() must be at most w (fold larger operands
+// first); r must not alias the inputs. `scratch` provides
+// multiply_mod_bnm1_storage_size(w) limbs.
+// Odd wrap sizes fall back to the plain product (size via
+// multiply_mod_bnm1_next_size to keep the recursion even).
+// `cutoff_override` is a test-only escape hatch forcing deep recursion.
+// ---------------------------------------------------------------------------
+template <class Allocator>
+void multiply_mod_bnm1(const std::span<uint_multiprecision_t>       r,
+                       const std::span<const uint_multiprecision_t> a,
+                       const std::span<const uint_multiprecision_t> b,
+                       scratch_allocator_base&                      scratch,
+                       Allocator&                                   alloc,
+                       const std::size_t                            cutoff_override = 0) {
+    const std::size_t w = r.size();
+    BEMAN_BIG_INT_DEBUG_ASSERT(w >= 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() <= w);
+    BEMAN_BIG_INT_DEBUG_ASSERT(b.size() <= w);
+    BEMAN_BIG_INT_DEBUG_ASSERT(r.data() != a.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(r.data() != b.data());
+
+    const std::size_t cutoff = cutoff_override != 0 ? cutoff_override : multiply_mod_bnm1_cutoff;
+
+    // Plain product when the wrap cannot engage (no wraparound, odd size, or
+    // too small to be worth the CRT split).
+    if (w <= cutoff || (w % 2) != 0 || a.size() + b.size() <= w) {
+        const std::size_t                      p_len = a.size() + b.size();
+        const std::span<uint_multiprecision_t> prod  = scratch.allocate(p_len);
+        std::ranges::fill(prod, uint_multiprecision_t{0});
+        multiply_dispatch(prod, a, b, alloc);
+        fold_mod_bnm1(r, std::span<const uint_multiprecision_t>{prod.data(), p_len});
+        scratch.deallocate(p_len);
+        return;
+    }
+
+    const std::size_t h = w / 2;
+
+    // Half 1 (recursive): rm1 = a*b mod (B^h - 1), built into r's low half.
+    {
+        const std::span<uint_multiprecision_t> am1 = scratch.allocate(h);
+        const std::span<uint_multiprecision_t> bm1 = scratch.allocate(h);
+        fold_mod_bnm1(am1, a);
+        fold_mod_bnm1(bm1, b);
+        multiply_mod_bnm1(r.first(h),
+                          std::span<const uint_multiprecision_t>{am1.data(), h},
+                          std::span<const uint_multiprecision_t>{bm1.data(), h},
+                          scratch,
+                          alloc,
+                          cutoff_override);
+        scratch.deallocate(h);
+        scratch.deallocate(h);
+    }
+
+    // Half 2: rp1 = a*b mod (B^h + 1).
+    const std::span<uint_multiprecision_t> ap1 = scratch.allocate(h + 1);
+    const std::span<uint_multiprecision_t> bp1 = scratch.allocate(h + 1);
+    const std::span<uint_multiprecision_t> rp1 = scratch.allocate(h + 1);
+    fold_mod_bnp1(ap1, a);
+    fold_mod_bnp1(bp1, b);
+    multiply_mod_bnp1(rp1,
+                      std::span<const uint_multiprecision_t>{ap1.data(), h + 1},
+                      std::span<const uint_multiprecision_t>{bp1.data(), h + 1},
+                      scratch,
+                      alloc);
+
+    // CRT: r = rm1 + t * (B^h - 1) with t = (rm1 - rp1) / 2 mod (B^h + 1).
+    // Reuse ap1's buffer for t.
+    const std::span<uint_multiprecision_t> t = ap1;
+    {
+        std::ranges::copy(r.first(h), t.begin());
+        t[h] = 0;
+        if (compare_unsigned_spans(t.first(h), rp1) == std::strong_ordering::less) {
+            // t = rm1 + (B^h + 1) before the subtraction.
+            t[h] = increment_span(t.first(h)) ? 2 : 1;
+        }
+        subtract_unsigned_spans(t, t, rp1);
+        if ((t[0] & 1u) != 0) {
+            // Make the value even by adding B^h + 1 once more before halving.
+            t[h] = static_cast<uint_multiprecision_t>(t[h] + (increment_span(t.first(h)) ? 1 : 0) + 1);
+        }
+        const uint_multiprecision_t dropped = shift_right_n(t, 1u);
+        BEMAN_BIG_INT_DEBUG_ASSERT(dropped == 0);
+        BEMAN_BIG_INT_DEBUG_ASSERT(t[h] <= 1);
+    }
+
+    // Assemble in place: r = [rm1 | t_low] (+ 1 if t's top limb carries the
+    // B^w == 1 wrap), then a modular subtraction of t.
+    std::ranges::copy(t.first(h), r.begin() + static_cast<std::ptrdiff_t>(h));
+    if (t[h] != 0) {
+        if (increment_span(r)) {
+            r[0] = 1;
+        }
+    }
+    if (subtract_unsigned_spans_borrow_out(r, r, std::span<const uint_multiprecision_t>{t.data(), h + 1})) {
+        // Wrapped past zero: -B^w == -1 (mod B^w - 1).
+        [[maybe_unused]] const bool all_zero = decrement_span(r);
+    }
+
+    scratch.deallocate(h + 1);
+    scratch.deallocate(h + 1);
+    scratch.deallocate(h + 1);
+}
+
 } // namespace beman::big_int::detail
 
 #endif // BEMAN_BIG_INT_MUL_IMPL_HPP
