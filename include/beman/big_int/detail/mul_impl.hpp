@@ -539,6 +539,76 @@ constexpr std::size_t square_fft_storage_size(const std::size_t n_limbs) noexcep
 }
 #endif
 
+// ---------------------------------------------------------------------------
+// Cyclic NTT product sizes: a * b mod (2^(64w) - 1) computed with a
+// transform of length L instead of the linear product's ~2L, by packing into
+// uniform base 2^b with b * L == 64 * w exactly -- the transform's natural
+// wraparound (mod x^L - 1) is then the value wraparound. Each output
+// coefficient sums exactly L products of b-bit values, so the CRT bound
+// uses L itself rather than the linear path's operand coefficient count.
+// ---------------------------------------------------------------------------
+
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
+
+struct fft_cyclic_params {
+    std::size_t wrap_limbs; // w: the modulus is 2^(64w) - 1
+    std::size_t length;     // L = 64 * w / b, a power of two
+    unsigned    coeff_bits; // b, in [26, fft_max_coeff_bits]
+};
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
+
+// Smallest cyclic-capable wrap size >= min_w, with its packing. L ascends in
+// powers of two (>= 64, so b * L is automatically a multiple of 64); for
+// each L the smallest usable b is ceil(64 * min_w / L), admissible while it
+// clears the cyclic CRT bound bit_width(L) + 2b <= fft_crt_bits. b lands in
+// [26, 50] (the 26 floor keeps the search dense: the [32, 50] band's ratio
+// is below 2, which would leave uncoverable wrap-size gaps); worst-case
+// padding is under min_w / 25 (4%), and exactly zero when min_w is a power
+// of two.
+[[nodiscard]] constexpr fft_cyclic_params multiply_fft_cyclic_next_size(const std::size_t min_w) noexcept {
+    constexpr std::size_t b_floor = 26;
+    for (std::size_t length = 64;; length <<= 1) {
+        const std::size_t b_cap = std::min<std::size_t>(
+            fft_max_coeff_bits, (fft_crt_bits - static_cast<std::size_t>(std::bit_width(length))) / 2);
+        const std::size_t b = std::max<std::size_t>(b_floor, (64 * min_w + length - 1) / length);
+        if (b <= b_cap) {
+            return {.wrap_limbs = b * (length / 64), .length = length, .coeff_bits = static_cast<unsigned>(b)};
+        }
+    }
+}
+
+// Compile-time properties the Barrett wiring relies on: growth, exact
+// b*L == 64*w packing, the b range, idempotency (so a chooser size fed back
+// in reproduces itself), the padding bound, and power-of-two lengths.
+consteval bool fft_cyclic_next_size_properties() {
+    for (std::size_t w = 1; w <= (std::size_t{1} << 22); w = w * 7 / 4 + 13) {
+        const fft_cyclic_params p = multiply_fft_cyclic_next_size(w);
+        const bool              ok =
+            p.wrap_limbs >= w && 64 * p.wrap_limbs == static_cast<std::size_t>(p.coeff_bits) * p.length &&
+            p.coeff_bits >= 26 && p.coeff_bits <= fft_max_coeff_bits && std::has_single_bit(p.length) &&
+            multiply_fft_cyclic_next_size(p.wrap_limbs).wrap_limbs == p.wrap_limbs &&
+            p.wrap_limbs < w + w / 25 + 64;
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+static_assert(fft_cyclic_next_size_properties());
+
+// Workspace sizes for the cyclic kernels (length-L transforms; the residue
+// coefficient count equals L exactly).
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+constexpr std::size_t fft_cyclic_fp_storage_size(const fft_cyclic_params& p) noexcept { return 3 * p.length; }
+constexpr std::size_t fft_cyclic_int_storage_size(const fft_cyclic_params& p) noexcept { return 3 * p.length; }
+#else
+constexpr std::size_t fft_cyclic_storage_size(const fft_cyclic_params& p) noexcept {
+    return 2 * p.length + p.length / 2 + p.length;
+}
+#endif
+
 // Minimum limb count (of the smaller operand) at which FFT overtakes Toom-Cook 8.5.
 // These crossovers were measured with multiplication_stress_bench (release) on
 // Apple Silicon (ARM64) and a native x86-64 box, and they vary strongly by BOTH the
@@ -570,6 +640,13 @@ inline constexpr std::size_t square_fft_cutoff = 24000;
 inline constexpr std::size_t fft_mul_cutoff    = 4500;
 inline constexpr std::size_t square_fft_cutoff = 4500;
 #endif
+
+// Entry size for the cyclic NTT tier of multiply_mod_bnm1: above it the
+// wrapped product runs one length-L transform set instead of the CRT split,
+// whose internal products fall below the linear FFT cutoff and surrender its
+// advantage. Provisionally tied to the linear FFT cutoff per configuration;
+// tuned via division_kernel_bench / division_stress_bench.
+inline constexpr std::size_t fft_cyclic_cutoff = fft_mul_cutoff;
 
 // FFT kernels. Operands may be untrimmed; `result` must have space for
 // a.size()+b.size() limbs and must NOT alias `a`/`b`; it writes exactly that many
