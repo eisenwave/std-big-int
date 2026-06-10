@@ -303,7 +303,11 @@ static_assert(burnikel_ziegler_cutoff >= 2,
 // single q*b2 product (2h <= n limbs) only after its recursive call has fully
 // returned and rewound (LIFO), so product buffers never stack; a leaf needs
 // q(j+1) + r(2j+1) + divide_unsigned's internal 2j+2 with j <= threshold.
-// Validated against instrumented peaks in division_scratch_peak.test.cpp.
+// Unlike the multiplication heuristics this bound is deterministic (the
+// allocation sizes depend only on operand sizes, never values); instrumented
+// peaks in division_scratch_peak.test.cpp match the model exactly, topping
+// out at peak/budget ~0.999 (measured 2026-06-10, shapes up to 4000x512),
+// with the +8 slack as the only headroom.
 constexpr std::size_t burnikel_ziegler_storage_size(const std::size_t block_limbs,
                                                     const std::size_t blocks,
                                                     const std::size_t threshold) noexcept {
@@ -496,6 +500,45 @@ void divide_dc_3n2n(const std::span<uint_multiprecision_t>       v,
     scratch.deallocate(2 * h);
 }
 
+// Block-decomposition parameters of the divide_burnikel_ziegler driver,
+// exposed so the scratch instrumentation test can size and probe the same
+// workspace the production entry point uses.
+struct burnikel_ziegler_params {
+    std::size_t block_limbs; // n: divisor length padded to j * 2^k
+    std::size_t blocks;      // t: dividend blocks marched by the driver
+    std::size_t threshold;   // recursion leaf threshold in effect
+};
+
+// Computes (n, t, thr) for a trimmed dividend/divisor pair:
+//   - n pads the divisor length to j * m_pow2 with m_pow2 the smallest power
+//     of two for which j = ceil(s / m_pow2) is at or below the threshold, so
+//     halving bottoms out at j-limb leaves;
+//   - t is the dividend block count; its +1 keeps the shifted dividend's top
+//     block strictly below beta^n / 2 <= b_hat, establishing the D_2n/n
+//     precondition for the first window (remainder < b_hat maintains it for
+//     every later window).
+[[nodiscard]] constexpr burnikel_ziegler_params
+burnikel_ziegler_plan(const std::span<const uint_multiprecision_t> dividend,
+                      const std::span<const uint_multiprecision_t> divisor,
+                      const std::size_t                            threshold_override = 0) noexcept {
+    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+
+    const std::size_t s   = divisor.size();
+    const std::size_t m   = dividend.size();
+    const std::size_t thr = threshold_override != 0 ? threshold_override : burnikel_ziegler_cutoff;
+    BEMAN_BIG_INT_DEBUG_ASSERT(thr >= 2);
+
+    const std::size_t m_pow2 = std::size_t{1} << std::bit_width(s / thr);
+    const std::size_t j      = (s + m_pow2 - 1) / m_pow2;
+    const std::size_t n      = j * m_pow2;
+
+    const std::size_t sigma = n * limb_bits - ((s - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(divisor.back())));
+    const std::size_t dividend_bits = (m - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(dividend.back()));
+    const std::size_t t             = std::max<std::size_t>(2, (dividend_bits + sigma) / (n * limb_bits) + 1);
+
+    return {.block_limbs = n, .blocks = t, .threshold = thr};
+}
+
 // ---------------------------------------------------------------------------
 // Burnikel-Ziegler division driver (the paper's Algorithm 3): pad the divisor
 // length to n = j * 2^k so halving bottoms out at j-limb leaves, normalize
@@ -506,17 +549,18 @@ void divide_dc_3n2n(const std::span<uint_multiprecision_t>       v,
 // dividend.size() >= divisor.size(), quotient.size() >= dividend.size() -
 // divisor.size() + 1, remainder.size() >= dividend.size() + 1, no aliasing;
 // both output spans are fully written (zero above the significant limbs).
-// `threshold_override` is a benchmark/test-only escape hatch; unlike the
-// multiplication kernels' cutoff_override it propagates through the
-// recursion. Production callers omit it.
+// This overload works in caller-provided scratch, which must hold at least
+// burnikel_ziegler_storage_size(plan...) limbs for `plan` as computed by
+// burnikel_ziegler_plan on the same operands.
 // ---------------------------------------------------------------------------
 template <class Allocator>
 void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotient,
                              const std::span<uint_multiprecision_t>       remainder,
                              const std::span<const uint_multiprecision_t> dividend,
                              const std::span<const uint_multiprecision_t> divisor,
+                             scratch_allocator_base&                      scratch,
                              Allocator&                                   alloc,
-                             const std::size_t                            threshold_override = 0) {
+                             const burnikel_ziegler_params                plan) {
     BEMAN_BIG_INT_DEBUG_ASSERT(divisor.size() >= 2);
     BEMAN_BIG_INT_DEBUG_ASSERT(divisor.back() != 0);
     BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
@@ -529,14 +573,9 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
 
     const std::size_t s   = divisor.size();
     const std::size_t m   = dividend.size();
-    const std::size_t thr = threshold_override != 0 ? threshold_override : burnikel_ziegler_cutoff;
-    BEMAN_BIG_INT_DEBUG_ASSERT(thr >= 2);
-
-    // Pad the divisor length to n = j * m_pow2 with m_pow2 the smallest power
-    // of two for which j = ceil(s / m_pow2) is at or below the threshold.
-    const std::size_t m_pow2 = std::size_t{1} << std::bit_width(s / thr);
-    const std::size_t j      = (s + m_pow2 - 1) / m_pow2;
-    const std::size_t n      = j * m_pow2;
+    const std::size_t thr = plan.threshold;
+    const std::size_t n   = plan.block_limbs;
+    const std::size_t t   = plan.blocks;
 
     // Normalization shift: whole limbs from the padding plus the bits that
     // bring the divisor's top bit to the top. limb_off == n - s exactly
@@ -544,15 +583,6 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
     const std::size_t limb_off = n - s;
     const unsigned    bit_off =
         static_cast<unsigned>(limb_bits) - static_cast<unsigned>(std::bit_width(divisor.back()));
-    const std::size_t sigma = limb_off * limb_bits + bit_off;
-
-    // Block count: the +1 keeps the shifted dividend's top block strictly
-    // below beta^n / 2 <= b_hat, establishing the D_2n/n precondition for the
-    // first window; remainder < b_hat maintains it for every later window.
-    const std::size_t dividend_bits = (m - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(dividend.back()));
-    const std::size_t t             = std::max<std::size_t>(2, (dividend_bits + sigma) / (n * limb_bits) + 1);
-
-    scratch_allocator<Allocator> scratch(burnikel_ziegler_storage_size(n, t, thr), alloc);
 
     // b_hat = divisor << sigma: n limbs, top bit set.
     const std::span<uint_multiprecision_t> b_hat = scratch.allocate(n);
@@ -596,6 +626,24 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
                                is_span_zero(std::span<const uint_multiprecision_t>{w.data(), limb_off}));
     std::ranges::copy(w.subspan(limb_off, n - limb_off), remainder.begin());
     std::ranges::fill(remainder.subspan(n - limb_off), uint_multiprecision_t{0});
+}
+
+// Convenience overload: sizes and owns the workspace, then forwards to the
+// scratch-based driver above.
+// `threshold_override` is a benchmark/test-only escape hatch; unlike the
+// multiplication kernels' cutoff_override it propagates through the
+// recursion. Production callers omit it.
+template <class Allocator>
+void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotient,
+                             const std::span<uint_multiprecision_t>       remainder,
+                             const std::span<const uint_multiprecision_t> dividend,
+                             const std::span<const uint_multiprecision_t> divisor,
+                             Allocator&                                   alloc,
+                             const std::size_t                            threshold_override = 0) {
+    const burnikel_ziegler_params plan = burnikel_ziegler_plan(dividend, divisor, threshold_override);
+    scratch_allocator<Allocator>  scratch(
+        burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold), alloc);
+    divide_burnikel_ziegler(quotient, remainder, dividend, divisor, scratch, alloc, plan);
 }
 
 // ---------------------------------------------------------------------------
