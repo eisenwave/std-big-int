@@ -961,7 +961,9 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
 // subtrahend's true value is known to be small so only its residue matters.
 // ---------------------------------------------------------------------------
 
-// Below this wrap size the plain product plus a fold wins.
+// Below this wrap size the plain product plus a fold wins. Re-validated on
+// both tuning machines 2026-06-10: a floor of 8 ties within 2%, 32 and up
+// lose 2-25% at wraps of 32-256 limbs; not worth a per-arch split.
 inline constexpr std::size_t multiply_mod_bnm1_cutoff = 16;
 
 static_assert(multiply_mod_bnm1_cutoff >= 2, "the recursion must stop above single-limb wraps");

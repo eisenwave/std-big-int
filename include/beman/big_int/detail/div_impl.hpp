@@ -176,17 +176,28 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
 // quotient length (dividend limbs - divisor limbs) for entering it; below
 // either bound the schoolbook kernel wins. Java's BigInteger draws the same
 // divisor line at 80 32-bit words. Tuned via division_stress_bench medians
-// and re-confirmed after the Knuth-D preinv basecase replacement (M4 Max,
-// 2026-06-10): the two paths sit at parity right at the gates, the
-// quotient-gate crossover measures 8-10 limbs, and below the divisor gate
-// schoolbook now wins every shape (the old near-balanced sub-cutoff wins
-// came from the wrapper's normalization, which the preinv basecase does
-// itself). Beyond the gates divide-and-conquer pulls ahead monotonically:
-// ~1.2x at a 2x-cutoff balanced division, ~2.2x at 512 limbs, ~7.5x at
-// 8192 limbs.
+// and direct probes, per architecture (2026-06-10):
+//   - AArch64 (M4 Max): parity right at 40/10 (re-confirmed after the
+//     Knuth-D preinv basecase replacement; the quotient-gate crossover
+//     measures 8-10 limbs). Beyond the gates divide-and-conquer pulls ahead
+//     monotonically: ~1.2x at a 2x-cutoff balanced division, ~2.2x at 512
+//     limbs, ~7.5x at 8192.
+//   - x86-64 (11900K): the preinv basecase rides the 1-instruction 64x64
+//     mul and fast div so far that divide-and-conquer first wins a balanced
+//     shape at ~144-160 divisor limbs (1.02-1.06; schoolbook wins 0.86-0.99
+//     through 128) and needs ~64 quotient limbs at a 192-256-limb divisor
+//     (0.94 at 48, 1.01 at 64). The same constant is the recursion leaf,
+//     consistent with the same data.
+// The 32-bit-limb values are scaled from the 64-bit AArch64 line (Java's
+// precedent); no 32-bit hardware target has been measured.
 #if BEMAN_BIG_INT_LIMB_WIDTH == 64
+    #if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+inline constexpr std::size_t burnikel_ziegler_cutoff = 160;
+inline constexpr std::size_t burnikel_ziegler_offset = 64;
+    #else
 inline constexpr std::size_t burnikel_ziegler_cutoff = 40;
 inline constexpr std::size_t burnikel_ziegler_offset = 10;
+    #endif
 #else
 inline constexpr std::size_t burnikel_ziegler_cutoff = 80;
 inline constexpr std::size_t burnikel_ziegler_offset = 20;
@@ -612,7 +623,16 @@ static_assert(barrett_march8_cutoff >= barrett_march_cutoff,
 
 // Below this divisor size the reciprocal comes straight from the schoolbook
 // division of B^{2n} - 1; above it one Newton level halves the problem.
+// Leaf-threshold probes (2026-06-10, {32..1024} at n = 256..4096): AArch64
+// is flat within ~2% from 32 to 128 with 64 never worse than 1% off best;
+// x86-64's strong schoolbook prefers 512 (7-8% faster whole-reciprocal at
+// n = 512-1024, the common Barrett divisor sizes; pure schoolbook only
+// loses from n = 1024 up).
+#if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+inline constexpr std::size_t reciprocal_span_cutoff = 512;
+#else
 inline constexpr std::size_t reciprocal_span_cutoff = 64;
+#endif
 
 static_assert(reciprocal_span_cutoff >= 2, "the reciprocal basecase divides by at least 2 limbs");
 

@@ -382,13 +382,14 @@ TEST(Pmr, DivisionAndModulusSameResource) {
 }
 
 TEST(Pmr, DivideAndConquerDivisionSameResource) {
-    // Operand sizes above the burnikel_ziegler_cutoff/offset gates. Compound
+    // Operand sizes above the burnikel_ziegler_cutoff/offset gates on every
+    // architecture (the x86-64 gates sit at 160/64 limbs). Compound
     // assignment divides through *this, so the divide-and-conquer working
     // memory must flow through the configured resource (counting_resource
     // fails the test on any leak at destruction).
     counting_resource cr;
-    const big_int     ref_a = ((1_n << 5400) + 987654321_n) * ((1_n << 911) + 12345_n);
-    const big_int     ref_b = (1_n << 2700) + 192837465_n;
+    const big_int     ref_a = ((1_n << 25600) + 987654321_n) * ((1_n << 4801) + 12345_n);
+    const big_int     ref_b = (1_n << 12800) + 192837465_n;
 
     const pmr_big_int b{ref_b, &cr};
 
