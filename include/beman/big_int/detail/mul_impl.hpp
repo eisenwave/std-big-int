@@ -891,6 +891,18 @@ constexpr void fold_mod_bnm1(const std::span<uint_multiprecision_t>       dst,
     }
 }
 
+// dst = (dst + addend) mod (B^w - 1) with w = dst.size(), semi-canonical.
+// addend.size() <= w.
+constexpr void add_mod_bnm1(const std::span<uint_multiprecision_t>       dst,
+                            const std::span<const uint_multiprecision_t> addend) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(addend.size() <= dst.size());
+    if (add_unsigned_spans(dst, dst, addend)) {
+        if (increment_span(dst)) {
+            dst[0] = 1;
+        }
+    }
+}
+
 // dst = src mod (B^h + 1) with h + 1 = dst.size(), canonical in [0, B^h]
 // (so dst's top limb is 0 or 1, and 1 forces the rest to zero).
 // Requires src.size() <= 2 * h.

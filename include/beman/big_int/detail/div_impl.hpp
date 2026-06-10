@@ -555,21 +555,30 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
 // each n-limb quotient block then costs two multiplications instead of a
 // divide-and-conquer division.
 //
-// NOT wired into divide_dispatch. Measured on an M4 Max (2026-06-10,
-// division_stress_bench plus larger one-off probes), this
-// plain-multiplication formulation still trails divide_burnikel_ziegler at
-// every balanced shape up to 128k limbs (1.10x behind there, converging too
-// slowly to gate on) and only edges ahead by 3-7% on very long block
-// marches (divisor >= ~1024 limbs with >= ~64 blocks). Outside the deep-FFT
-// regime the divide-and-conquer recursion telescopes to ~2 multiplications
-// per block -- the same as Barrett's two full products -- so the reciprocal
-// setup never pays for itself. The known path to flipping this: wraparound
-// block products (a mulmod_bnm1 cuts ~2*M(n) per block to ~1.2*M(n)) and an
-// approximate reciprocal with a tight error bound instead of the
-// verified-exact Newton ladder. Until then these are fully tested building
-// blocks; reciprocal_span also serves future radix-conversion and
-// invariant-divisor work.
+// With the q_hat * d_hat subtrahend and the reciprocal's residual checks
+// going through multiply_mod_bnm1 wraparound products, Barrett wins two
+// measured regions on an M4 Max (2026-06-10, division_stress_bench plus
+// larger probes): long block marches -- dividend at least 16x a 512+-limb
+// divisor -- run at 0.81-0.95x of divide_burnikel_ziegler, and gigantic
+// near-balanced divisions cross over around 256k limbs (0.91x at
+// 262144/131072). Below those bounds the divide-and-conquer recursion's
+// ~2-multiplications-per-block cost still beats the reciprocal setup, so
+// divide_dispatch gates accordingly. The remaining lever for a broader win
+// is a cyclic-convolution entry point in the NTT itself (transform length w
+// instead of 2w), which would stop the wraparound's internal products from
+// falling below the FFT cutoff. reciprocal_span also serves future
+// radix-conversion and invariant-divisor work.
 // ---------------------------------------------------------------------------
+
+// Gates for the Barrett tier, from the measured win regions above: marches
+// need the divisor at this size and the dividend 16x larger; near-balanced
+// shapes need a dividend of this size with the quotient at least the
+// divisor.
+inline constexpr std::size_t barrett_march_cutoff    = 512;
+inline constexpr std::size_t barrett_balanced_cutoff = 196608;
+
+static_assert(barrett_march_cutoff >= burnikel_ziegler_cutoff,
+              "the dispatch chain assumes Barrett sits above the divide-and-conquer tier");
 
 // Below this divisor size the reciprocal comes straight from the schoolbook
 // division of B^{2n} - 1; above it one Newton level halves the problem.
@@ -580,11 +589,12 @@ static_assert(reciprocal_span_cutoff >= 2, "the reciprocal basecase divides by a
 // Scratch upper bound for reciprocal_span at divisor size n with leaf
 // threshold `threshold`: one Newton level holds T(n+h+1) plus the correction
 // product (n+h+2) with h = ceil(n/2), then frees both before the
-// verification product (2n+1); deeper levels are fully rewound first (LIFO),
-// and the basecase needs ones(2t) + q(t+1) + r(2t+1) + the schoolbook's
-// internal (3t+1) with t <= threshold.
+// wrapped-residual stage (two wrap-size buffers plus multiply_mod_bnm1's
+// needs, about 5 * wv + 16 with wv slightly above n); deeper levels are
+// fully rewound first (LIFO), and the basecase needs ones(2t) + q(t+1) +
+// r(2t+1) + the schoolbook's internal (3t+1) with t <= threshold.
 constexpr std::size_t reciprocal_span_storage_size(const std::size_t n, const std::size_t threshold) noexcept {
-    return 3 * n + 8 * threshold + 16;
+    return 6 * n + 8 * threshold + 32;
 }
 
 // ---------------------------------------------------------------------------
@@ -691,38 +701,59 @@ void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
     scratch.deallocate(c_len);
     scratch.deallocate(t_len);
 
-    // Exact residual fix: drive d * X into (B^{2n} - 1 - d, B^{2n} - 1].
-    // v = d * X over 2n + 1 limbs; v exceeds B^{2n} - 1 exactly when its top
-    // limb is nonzero.
-    const std::size_t                      v_len = 2 * n + 1;
-    const std::span<uint_multiprecision_t> v     = scratch.allocate(v_len);
-    std::ranges::fill(v, uint_multiprecision_t{0});
-    multiply_dispatch(v.first(2 * n), d, inverse, alloc);
-    add_shifted(v, n, d);
+    // Exact residual fix, carried out on residues mod B^wv - 1: the true
+    // residual R' = B^{2n} - 1 - d * X lies in (-9 * B^n, B^n), far below
+    // the modulus, so its residue identifies its value and sign exactly,
+    // and the wrapped product costs well under a full multiplication.
+    const std::size_t                      wv  = multiply_mod_bnm1_next_size(n + 1, multiply_mod_bnm1_cutoff);
+    const std::span<uint_multiprecision_t> v   = scratch.allocate(wv);
+    const std::span<uint_multiprecision_t> res = scratch.allocate(wv);
+
+    // v = d * X mod (B^wv - 1) = d * I + d * B^n; the shifted part is a
+    // carry-free rotation of d's limbs within the wrap.
+    multiply_mod_bnm1(v, d, std::span<const uint_multiprecision_t>{inverse.data(), n}, scratch, alloc);
+    std::ranges::fill(res, uint_multiprecision_t{0});
+    for (std::size_t i = 0; i < n; ++i) {
+        res[(n + i) % wv] = d[i];
+    }
+    add_mod_bnm1(v, std::span<const uint_multiprecision_t>{res.data(), wv});
+
+    // target = (B^{2n} - 1) mod (B^wv - 1) = B^{(2n) mod wv} - 1: a run of
+    // all-ones limbs.
+    const std::size_t r2 = (2 * n) % wv;
+    std::ranges::fill(res.first(r2), max_limb);
+    std::ranges::fill(res.subspan(r2), uint_multiprecision_t{0});
+
+    // res = (target - v) mod (B^wv - 1), congruent to R'.
+    if (subtract_unsigned_spans_borrow_out(res, res, std::span<const uint_multiprecision_t>{v.data(), wv})) {
+        // Wrapped past zero: -B^wv == -1 (mod B^wv - 1).
+        [[maybe_unused]] const bool all_zero = decrement_span(res);
+    }
+
+    // Sign disambiguation by range: an undershooting candidate leaves a
+    // non-negative residual of at most ~11 * B^n (limb n at most 11), while
+    // an overshooting one maps to at least B^wv - 1 - 10 * B^n, whose limbs
+    // above n are saturated (or, when wv == n + 1, whose limb n is within
+    // 11 of the limb maximum). 64 splits the gap with room to spare.
+    const auto is_negative = [&]() { return !is_span_zero(res.subspan(n + 1)) || res[n] > 64; };
 
     [[maybe_unused]] int fixes = 0;
-    while (v[2 * n] != 0) {
+    while (is_negative()) {
         const bool borrow = decrement_span(inverse);
         BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
-        const bool v_borrow = subtract_unsigned_spans_borrow_out(v, v, d);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!v_borrow);
+        add_mod_bnm1(res, d);
         ++fixes;
-        BEMAN_BIG_INT_DEBUG_ASSERT(fixes <= 8);
+        BEMAN_BIG_INT_DEBUG_ASSERT(fixes <= 16);
     }
-
-    // R = (B^{2n} - 1) - v is the limb-wise complement of v's low 2n limbs
-    // (all-ones minus anything borrows nowhere); push it below d.
-    for (std::size_t i = 0; i < 2 * n; ++i) {
-        v[i] = static_cast<uint_multiprecision_t>(max_limb - v[i]);
-    }
-    while (compare_unsigned_spans(v.first(2 * n), d) != std::strong_ordering::less) {
+    while (compare_unsigned_spans(res, d) != std::strong_ordering::less) {
         const bool carry = increment_span(inverse);
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
-        subtract_unsigned_spans(v.first(2 * n), v.first(2 * n), d);
+        subtract_unsigned_spans(res, res, d);
         ++fixes;
-        BEMAN_BIG_INT_DEBUG_ASSERT(fixes <= 8);
+        BEMAN_BIG_INT_DEBUG_ASSERT(fixes <= 16);
     }
-    scratch.deallocate(v_len);
+    scratch.deallocate(wv);
+    scratch.deallocate(wv);
 }
 
 // Dividend block count of the Barrett driver (no limb padding: block size is
@@ -747,15 +778,19 @@ void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
 //   - shifted working dividend:  blocks*n limbs
 //   - quotient blocks:           (blocks-1)*n limbs
 //   - reciprocal:                n limbs
-//   - max(reciprocal_span scratch, the two standing 2n-limb block products)
-// The reciprocal scratch is fully rewound before the block products are
+//   - max(reciprocal_span scratch, the block stage: the 2n-limb estimate
+//     product, two wrap-size buffers, and multiply_mod_bnm1's own needs)
+// The reciprocal scratch is fully rewound before the block buffers are
 // allocated (LIFO), so the two never coexist. Deterministic like the
 // Burnikel-Ziegler bound; validated in division_scratch_peak.test.cpp.
 constexpr std::size_t barrett_storage_size(const std::size_t block_limbs,
                                            const std::size_t blocks,
                                            const std::size_t invert_threshold) noexcept {
+    const std::size_t w = multiply_mod_bnm1_next_size(block_limbs + 1, multiply_mod_bnm1_cutoff);
     return (2 * blocks + 1) * block_limbs +
-           std::max(reciprocal_span_storage_size(block_limbs, invert_threshold), 4 * block_limbs) + 8;
+           std::max(reciprocal_span_storage_size(block_limbs, invert_threshold),
+                    2 * block_limbs + 2 * w + multiply_mod_bnm1_storage_size(w)) +
+           8;
 }
 
 // ---------------------------------------------------------------------------
@@ -821,8 +856,15 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
     reciprocal_span(inv, d, scratch, alloc, invert_override);
     const auto inv_view = std::span<const uint_multiprecision_t>{inv.data(), inv.size()};
 
-    const std::span<uint_multiprecision_t> p = scratch.allocate(2 * n);
-    const std::span<uint_multiprecision_t> g = scratch.allocate(2 * n);
+    // The estimate product stays full (its high half is needed exactly); the
+    // q_hat * d_hat subtrahend only matters mod B^wrap - 1 because the true
+    // R = U - q_hat * d_hat is known to be below 5 * B^n < B^wrap - 1.
+    const std::size_t wrap = multiply_mod_bnm1_next_size(n + 1, multiply_mod_bnm1_cutoff);
+    const std::span<uint_multiprecision_t> p  = scratch.allocate(2 * n);
+    const std::span<uint_multiprecision_t> tw = scratch.allocate(wrap);
+    const std::span<uint_multiprecision_t> uf = scratch.allocate(wrap);
+    constexpr uint_multiprecision_t        max_limb =
+        static_cast<uint_multiprecision_t>(~static_cast<uint_multiprecision_t>(0));
 
     // March the windows from the top down; window i leaves its remainder in
     // w[i*n..(i+1)*n), the high half of window i-1.
@@ -837,11 +879,27 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
         const bool q_carry = add_unsigned_spans(q_block, u_hi, std::span<const uint_multiprecision_t>{p.data() + n, n});
         BEMAN_BIG_INT_DEBUG_ASSERT(!q_carry);
 
-        // R = U - q_hat * d_hat; q_hat <= q keeps this non-negative.
-        std::ranges::fill(g, uint_multiprecision_t{0});
-        multiply_dispatch(g, std::span<const uint_multiprecision_t>{q_block.data(), n}, d, alloc);
-        const bool under = subtract_unsigned_spans_borrow_out(window, window, g);
-        BEMAN_BIG_INT_DEBUG_ASSERT(!under);
+        // R = (U - q_hat * d_hat) mod (B^wrap - 1), recovered exactly from
+        // its residue: tw = the wrapped subtrahend, uf = the folded window.
+        multiply_mod_bnm1(tw, std::span<const uint_multiprecision_t>{q_block.data(), n}, d, scratch, alloc);
+        fold_mod_bnm1(uf, std::span<const uint_multiprecision_t>{window.data(), 2 * n});
+        if (subtract_unsigned_spans_borrow_out(uf, uf, std::span<const uint_multiprecision_t>{tw.data(), wrap})) {
+            // Wrapped past zero: -B^wrap == -1 (mod B^wrap - 1).
+            [[maybe_unused]] const bool all_zero = decrement_span(uf);
+        }
+        if (uf.front() == max_limb &&
+            std::ranges::all_of(uf, [](const uint_multiprecision_t x) { return x == max_limb; })) {
+            // The all-ones pattern equals the modulus and means R = 0.
+            std::ranges::fill(uf, uint_multiprecision_t{0});
+        }
+        BEMAN_BIG_INT_DEBUG_ASSERT(wrap >= n + 1 && wrap <= 2 * n);
+        BEMAN_BIG_INT_DEBUG_ASSERT(is_span_zero(uf.subspan(n + 1)));
+        BEMAN_BIG_INT_DEBUG_ASSERT(uf[n] <= 4);
+
+        // Write R back into the window (it fits n + 1 limbs with the top at
+        // most 4 before corrections).
+        std::ranges::copy(uf, window.begin());
+        std::ranges::fill(window.subspan(wrap), uint_multiprecision_t{0});
 
         // q - q_hat <= 4: add the divisor back accordingly.
         [[maybe_unused]] int corrections = 0;
@@ -855,7 +913,8 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
         BEMAN_BIG_INT_DEBUG_ASSERT(is_span_zero(window.subspan(n)));
     }
 
-    scratch.deallocate(2 * n);
+    scratch.deallocate(wrap);
+    scratch.deallocate(wrap);
     scratch.deallocate(2 * n);
 
     // Quotient blocks concatenate exactly; trim and copy out.
@@ -906,8 +965,16 @@ constexpr void divide_dispatch(const std::span<uint_multiprecision_t>       quot
                                scratch_allocator_base&                      scratch,
                                Allocator&                                   alloc) {
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-        if (divisor.size() >= burnikel_ziegler_cutoff &&
-            dividend.size() - divisor.size() >= burnikel_ziegler_offset) {
+        const std::size_t m = dividend.size();
+        const std::size_t s = divisor.size();
+
+        const bool barrett_march    = s >= barrett_march_cutoff && m / 16 >= s;
+        const bool barrett_balanced = m >= barrett_balanced_cutoff && m - s >= s;
+        if (barrett_march || barrett_balanced) {
+            divide_barrett(quotient, remainder, dividend, divisor, alloc);
+            return;
+        }
+        if (s >= burnikel_ziegler_cutoff && m - s >= burnikel_ziegler_offset) {
             divide_burnikel_ziegler(quotient, remainder, dividend, divisor, alloc);
             return;
         }

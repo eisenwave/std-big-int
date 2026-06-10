@@ -200,6 +200,43 @@ TEST(DivisionBarrettExercise, LongZeroRunsInDividend) {
     }
 }
 
+TEST(DivisionBarrettExercise, DispatchGateBoundaries) {
+    // Shapes straddling the barrett_march gate route through divide_dispatch;
+    // both sides of the boundary must agree with the direct
+    // divide_burnikel_ziegler reference.
+    std::mt19937_64 rng{0x9a7e5u};
+    for (const auto [s, m] : {std::pair<std::size_t, std::size_t>{512, 16 * 512},     // at the march gate
+                              {512, 16 * 512 - 1},                                    // one below
+                              {520, 16 * 520 + 7},                                    // above, unaligned
+                              {511, 16 * 511}}) {                                     // divisor below cutoff
+        const auto dividend = random_limbs(m, rng);
+        const auto divisor  = random_limbs(s, rng);
+        const auto a_view   = std::span<const uint_t>{dividend};
+        const auto b_view   = std::span<const uint_t>{divisor};
+
+        std::allocator<uint_t> alloc;
+        std::vector<uint_t>    q_disp(m - s + 1, 0);
+        std::vector<uint_t>    r_disp(m + 1, 0);
+        {
+            detail::scratch_allocator<std::allocator<uint_t>> scratch(
+                detail::divide_unsigned_storage_size(m, s), alloc);
+            detail::divide_dispatch(std::span<uint_t>{q_disp}, std::span<uint_t>{r_disp}, a_view, b_view, scratch,
+                                    alloc);
+        }
+
+        std::vector<uint_t> q_ref(m - s + 1, 0);
+        std::vector<uint_t> r_ref(m + 1, 0);
+        detail::divide_burnikel_ziegler(std::span<uint_t>{q_ref}, std::span<uint_t>{r_ref}, a_view, b_view, alloc);
+
+        EXPECT_EQ(detail::compare_unsigned_spans(std::span<const uint_t>{q_disp}, std::span<const uint_t>{q_ref}),
+                  std::strong_ordering::equal)
+            << "m=" << m << " s=" << s;
+        EXPECT_EQ(detail::compare_unsigned_spans(std::span<const uint_t>{r_disp}, std::span<const uint_t>{r_ref}),
+                  std::strong_ordering::equal)
+            << "m=" << m << " s=" << s;
+    }
+}
+
 TEST(DivisionBarrettExercise, DefaultReciprocalThreshold) {
     // Default Newton threshold, sizes that take one or two real levels, plus
     // long block marches and a single-block tail.
