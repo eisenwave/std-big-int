@@ -563,12 +563,17 @@ submul_single_limb(const std::span<uint_multiprecision_t>       result,
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data() || a.empty());
 
+    // Owed at each position: a[i] * val + borrow <= (B-1)^2 + (B-1), so the
+    // carry folds into the high half without overflow; and when the limb
+    // subtraction borrows, that high half is at most B-2, so the running
+    // borrow always fits one limb.
+    // A four-way unroll with hoisted multiplies was measured 2026-06-10
+    // (division_kernel_bench): flat on an M4 Max and 3-7% SLOWER on an
+    // i9-11900K -- the compilers already schedule this form at the borrow
+    // chain's bound. Closing the remaining gap to hand-tuned kernels would
+    // take per-arch inline assembly, deliberately not used here.
     uint_multiprecision_t borrow = 0;
     for (std::size_t i = 0; i < a.size(); ++i) {
-        // Owed at this position: a[i] * val + borrow <= (B-1)^2 + (B-1), so
-        // the carry folds into the high half without overflow; and when the
-        // limb subtraction borrows, that high half is at most B-2, so the
-        // total borrow-out always fits one limb.
         const auto [lo, hi]   = widening_mul(a[i], val);
         const auto [low, c]   = carrying_add(lo, borrow);
         const auto [r_val, b] = borrowing_sub(result[i], low);
