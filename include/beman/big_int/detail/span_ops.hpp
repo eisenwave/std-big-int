@@ -170,6 +170,39 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size()});
 }
 
+// ---------------------------------------------------------------------------
+// Wraparound unsigned span subtraction: result = (a - b) mod B^a.size().
+// Unlike subtract_unsigned_spans, value(a) may be less than value(b); the
+// borrow out of the top limb is returned instead of asserted away.
+// Requires result.size() >= a.size() >= b.size(). `result` may alias `a`.
+// Writes exactly a.size() limbs; no trimming.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr bool
+subtract_unsigned_spans_borrow_out(const std::span<uint_multiprecision_t>       result,
+                                   const std::span<const uint_multiprecision_t> a,
+                                   const std::span<const uint_multiprecision_t> b) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b.size());
+
+    bool borrow = false;
+
+    // Overlap: both operands contribute.
+    for (std::size_t i = 0; i < b.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], b[i], borrow);
+        result[i]                      = r_value;
+        borrow                         = r_borrow;
+    }
+
+    // Tail of a: b is now zero.
+    for (std::size_t i = b.size(); i < a.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], uint_multiprecision_t{0}, borrow);
+        result[i]                      = r_value;
+        borrow                         = r_borrow;
+    }
+
+    return borrow;
+}
+
 // Void wrappers that discard the existing functions' returns and assert their
 // expected conditions. Their matching `void` return lets callers express the
 // sign-aware "result = a + b_signed" dispatch as a single ternary:
