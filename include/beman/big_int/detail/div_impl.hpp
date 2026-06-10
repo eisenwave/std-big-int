@@ -175,13 +175,14 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
 // quotient length (dividend limbs - divisor limbs) for entering it; below
 // either bound the schoolbook kernel wins. Java's BigInteger draws the same
 // divisor line at 80 32-bit words. Tuned via division_stress_bench medians
-// (M4 Max, 2026-06-10): the two paths sit at parity right at the gates, with
-// divide-and-conquer ahead monotonically beyond them (~1.6x at a 2x-cutoff
-// balanced division, ~4.5x at 512 limbs, ~12x at 4096); the quotient-gate
-// crossover measures 6-10 limbs depending on divisor size. Below the divisor
-// gate the wins exist only for near-balanced shapes and flip to losses at
-// short quotients, so the gate stays at Java's line until the Phase B
-// preinv basecase retune.
+// and re-confirmed after the Knuth-D preinv basecase replacement (M4 Max,
+// 2026-06-10): the two paths sit at parity right at the gates, the
+// quotient-gate crossover measures 8-10 limbs, and below the divisor gate
+// schoolbook now wins every shape (the old near-balanced sub-cutoff wins
+// came from the wrapper's normalization, which the preinv basecase does
+// itself). Beyond the gates divide-and-conquer pulls ahead monotonically:
+// ~1.2x at a 2x-cutoff balanced division, ~2.2x at 512 limbs, ~7.5x at
+// 8192 limbs.
 #if BEMAN_BIG_INT_LIMB_WIDTH == 64
 inline constexpr std::size_t burnikel_ziegler_cutoff = 40;
 inline constexpr std::size_t burnikel_ziegler_offset = 10;
