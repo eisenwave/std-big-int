@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <random>
@@ -108,8 +109,8 @@ TEST(DivisionBarrettExercise, RandomDeepRecursion) {
     std::mt19937_64 rng{0xba99e7u};
     for (const std::size_t thr : forced_thresholds) {
         for (int trial = 0; trial < 150; ++trial) {
-            const std::size_t s     = 2 + static_cast<std::size_t>(rng() % 30);
-            const std::size_t extra = static_cast<std::size_t>(rng() % 60);
+            const std::size_t s     = 2 + static_cast<std::uint32_t>(rng()) % 30;
+            const std::size_t extra = static_cast<std::uint32_t>(rng()) % 60;
             check_division(random_limbs(s + extra, rng), random_limbs(s, rng), thr);
         }
     }
@@ -117,7 +118,7 @@ TEST(DivisionBarrettExercise, RandomDeepRecursion) {
 
 TEST(DivisionBarrettExercise, AllMaxLimbs) {
     for (const std::size_t thr : forced_thresholds) {
-        for (const auto [s, m] : {std::pair<std::size_t, std::size_t>{2, 4}, {3, 9}, {5, 20}, {8, 16}, {13, 40}}) {
+        for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{2, 4}, {3, 9}, {5, 20}, {8, 16}, {13, 40}}) {
             check_division(std::vector<uint_t>(m, limb_max), std::vector<uint_t>(s, limb_max), thr);
         }
     }
@@ -150,9 +151,9 @@ TEST(DivisionBarrettExercise, MaximalRemainder) {
     std::mt19937_64 rng{0xfeee1u};
     for (const std::size_t thr : forced_thresholds) {
         for (int trial = 0; trial < 20; ++trial) {
-            const std::size_t   s         = 2 + static_cast<std::size_t>(rng() % 12);
+            const std::size_t   s         = 2 + static_cast<std::uint32_t>(rng()) % 12;
             const auto          b         = random_limbs(s, rng);
-            const auto          q         = random_limbs(1 + static_cast<std::size_t>(rng() % 20), rng);
+            const auto          q         = random_limbs(1 + static_cast<std::uint32_t>(rng()) % 20, rng);
             std::vector<uint_t> r         = b;
             const bool          underflow = detail::decrement_span(std::span<uint_t>{r});
             EXPECT_FALSE(underflow);
@@ -165,9 +166,9 @@ TEST(DivisionBarrettExercise, ExactMultiple) {
     std::mt19937_64 rng{0xac3eu};
     for (const std::size_t thr : forced_thresholds) {
         for (int trial = 0; trial < 20; ++trial) {
-            const std::size_t s = 2 + static_cast<std::size_t>(rng() % 12);
+            const std::size_t s = 2 + static_cast<std::uint32_t>(rng()) % 12;
             const auto        b = random_limbs(s, rng);
-            const auto        q = random_limbs(1 + static_cast<std::size_t>(rng() % 20), rng);
+            const auto        q = random_limbs(1 + static_cast<std::uint32_t>(rng()) % 20, rng);
             check_division(build_dividend(q, b, std::vector<uint_t>{0}), b, thr);
         }
     }
@@ -205,7 +206,7 @@ TEST(DivisionBarrettExercise, DispatchGateBoundaries) {
     // both sides of the boundary must agree with the direct
     // divide_burnikel_ziegler reference.
     std::mt19937_64 rng{0x9a7e5u};
-    for (const auto [s, m] : {std::pair<std::size_t, std::size_t>{512, 16 * 512},     // at the march gate
+    for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{512, 16 * 512},     // at the march gate
                               {512, 16 * 512 - 1},                                    // one below
                               {520, 16 * 520 + 7},                                    // above, unaligned
                               {511, 16 * 511}}) {                                     // divisor below cutoff
@@ -241,7 +242,7 @@ TEST(DivisionBarrettExercise, DefaultReciprocalThreshold) {
     // Default Newton threshold, sizes that take one or two real levels, plus
     // long block marches and a single-block tail.
     std::mt19937_64 rng{0xdefa18u};
-    for (const auto [s, m] : {std::pair<std::size_t, std::size_t>{100, 400},
+    for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{100, 400},
                               {128, 1000},
                               {200, 280},
                               {256, 520},

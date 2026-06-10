@@ -106,7 +106,7 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
             // Saturated estimate: with the window's top pair equal to the
             // divisor's, q = B - 1 subtracts cleanly into [0, d) with no
             // correction (window < B*d and window >= (B-1)*d here).
-            q                              = static_cast<uint_multiprecision_t>(~static_cast<uint_multiprecision_t>(0));
+            q                              = ~uint_multiprecision_t{0};
             const uint_multiprecision_t cy = submul_single_limb(u.subspan(j, n), d, q);
             BEMAN_BIG_INT_DEBUG_ASSERT(cy == top);
             top = u[j + n - 1];
@@ -343,7 +343,7 @@ void divide_dc_3n2n(const std::span<uint_multiprecision_t>       v,
                     scratch_allocator_base&                      scratch,
                     Allocator&                                   alloc,
                     const std::size_t                            threshold) {
-    constexpr uint_multiprecision_t max_limb = static_cast<uint_multiprecision_t>(0) - 1;
+    constexpr uint_multiprecision_t max_limb = ~uint_multiprecision_t{0};
 
     const std::size_t h = q.size();
     BEMAN_BIG_INT_DEBUG_ASSERT(v.size() == 3 * h);
@@ -617,8 +617,7 @@ void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
                      scratch_allocator_base&                      scratch,
                      Allocator&                                   alloc,
                      const std::size_t                            threshold_override = 0) {
-    constexpr uint_multiprecision_t max_limb =
-        static_cast<uint_multiprecision_t>(~static_cast<uint_multiprecision_t>(0));
+    constexpr uint_multiprecision_t max_limb = ~uint_multiprecision_t{0};
 
     const std::size_t n = d.size();
     BEMAN_BIG_INT_DEBUG_ASSERT(inverse.size() == n);
@@ -669,7 +668,7 @@ void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
     } else {
         // |E| = B^{n+h} - T = (all-ones - T) + 1; T > 0 because d != 0.
         for (std::size_t i = 0; i < n + h; ++i) {
-            t[i] = static_cast<uint_multiprecision_t>(max_limb - t[i]);
+            t[i] = max_limb - t[i];
         }
         const bool carry = increment_span(t.first(n + h));
         BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
@@ -863,8 +862,7 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
     const std::span<uint_multiprecision_t> p  = scratch.allocate(2 * n);
     const std::span<uint_multiprecision_t> tw = scratch.allocate(wrap);
     const std::span<uint_multiprecision_t> uf = scratch.allocate(wrap);
-    constexpr uint_multiprecision_t        max_limb =
-        static_cast<uint_multiprecision_t>(~static_cast<uint_multiprecision_t>(0));
+    constexpr uint_multiprecision_t        max_limb = ~uint_multiprecision_t{0};
 
     // March the windows from the top down; window i leaves its remainder in
     // w[i*n..(i+1)*n), the high half of window i-1.

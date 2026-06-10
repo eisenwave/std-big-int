@@ -545,13 +545,13 @@ TEST(WideOps, ReciprocalWordLimb) {
     constexpr T           max = std::numeric_limits<T>::max();
 
     check_reciprocal_word(top);
-    check_reciprocal_word(static_cast<T>(top + 1));
-    check_reciprocal_word(static_cast<T>(max - 1));
+    check_reciprocal_word(top + 1);
+    check_reciprocal_word(max - 1);
     check_reciprocal_word(max);
 
     std::mt19937_64 rng{0x42u};
     for (int i = 0; i < 10000; ++i) {
-        check_reciprocal_word(static_cast<T>(static_cast<T>(rng()) | top));
+        check_reciprocal_word(static_cast<T>(rng()) | top);
     }
 }
 
@@ -561,7 +561,7 @@ consteval bool ce_reciprocal_word() {
     using T                   = uint_multiprecision_t;
     constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
     constexpr T           max = std::numeric_limits<T>::max();
-    return reciprocal_word(static_cast<T>(T{1} << (w - 1))) == max && reciprocal_word(max) == 1;
+    return reciprocal_word(T{1} << (w - 1)) == max && reciprocal_word(max) == 1;
 }
 static_assert(ce_reciprocal_word());
 
@@ -619,7 +619,7 @@ TEST(WideOps, ReciprocalWord3by2Limb) {
 
     std::mt19937_64 rng{0x43u};
     for (int i = 0; i < 10000; ++i) {
-        const T d1 = static_cast<T>(static_cast<T>(rng()) | top);
+        const T d1 = static_cast<T>(rng()) | top;
         const T d0 = static_cast<T>(rng());
         check_reciprocal_word_3by2(d1, d0);
         EXPECT_EQ(reciprocal_word_3by2(d1, static_cast<T>(0)), reciprocal_word(d1));
@@ -656,14 +656,14 @@ TEST(WideOps, Div2by1PreinvLimb) {
     constexpr T           top = T{1} << (w - 1);
     constexpr T           max = std::numeric_limits<T>::max();
 
-    check_div_2by1(wide<T>{.low_bits = max, .high_bits = static_cast<T>(top - 1)}, top);
-    check_div_2by1(wide<T>{.low_bits = max, .high_bits = static_cast<T>(max - 1)}, max);
+    check_div_2by1(wide<T>{.low_bits = max, .high_bits = top - 1}, top);
+    check_div_2by1(wide<T>{.low_bits = max, .high_bits = max - 1}, max);
     check_div_2by1(wide<T>{.low_bits = 0, .high_bits = 0}, top);
 
     std::mt19937_64 rng{0x44u};
     for (int i = 0; i < 50000; ++i) {
-        const T d  = static_cast<T>(static_cast<T>(rng()) | top);
-        const T hi = static_cast<T>(static_cast<T>(rng()) % d);
+        const T d  = static_cast<T>(rng()) | top;
+        const T hi = static_cast<T>(rng()) % d;
         const T lo = static_cast<T>(rng());
         check_div_2by1(wide<T>{.low_bits = lo, .high_bits = hi}, d);
     }
@@ -675,7 +675,7 @@ consteval bool ce_div_2by1_preinv() {
     constexpr T           d = T{1} << (w - 1);
     // <d-1, max> / d: quotient max, remainder d - 1.
     const auto r = div_2by1_preinv(
-        wide<T>{.low_bits = std::numeric_limits<T>::max(), .high_bits = static_cast<T>(d - 1)},
+        wide<T>{.low_bits = std::numeric_limits<T>::max(), .high_bits = d - 1},
         d,
         reciprocal_word(d));
     return r.quotient == std::numeric_limits<T>::max() && r.remainder == d - 1;
@@ -744,16 +744,16 @@ TEST(WideOps, Div3by2PreinvLimb) {
 
     // Boundary shapes: top pair one below the divisor pair, zero low limbs,
     // saturated low limbs, minimal normalized divisor.
-    check_div_3by2(static_cast<T>(top - 1), max, max, top, static_cast<T>(0));
-    check_div_3by2(top, static_cast<T>(max - 1), max, top, max);
+    check_div_3by2(top - 1, max, max, top, static_cast<T>(0));
+    check_div_3by2(top, max - 1, max, top, max);
     check_div_3by2(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0), top, static_cast<T>(1));
-    check_div_3by2(static_cast<T>(max - 1), max, max, max, max);
+    check_div_3by2(max - 1, max, max, max, max);
 
     std::mt19937_64 rng{0x46u};
     for (int i = 0; i < 50000; ++i) {
-        const T d1 = static_cast<T>(static_cast<T>(rng()) | top);
+        const T d1 = static_cast<T>(rng()) | top;
         const T d0 = static_cast<T>(rng());
-        T       a2 = d1 == max ? static_cast<T>(rng()) : static_cast<T>(static_cast<T>(rng()) % (d1 + 1));
+        T       a2 = d1 == max ? static_cast<T>(rng()) : static_cast<T>(rng()) % (d1 + 1);
         T       a1 = static_cast<T>(rng());
         if (a2 > d1) {
             a2 = d1;
@@ -762,7 +762,7 @@ TEST(WideOps, Div3by2PreinvLimb) {
             if (d0 == 0) {
                 --a2;
             } else {
-                a1 = static_cast<T>(d0 - 1);
+                a1 = d0 - 1;
             }
         }
         check_div_3by2(a2, a1, static_cast<T>(rng()), d1, d0);
@@ -774,7 +774,7 @@ consteval bool ce_div_3by2_preinv() {
     constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
     constexpr T           top = T{1} << (w - 1);
     // <top-1, max, max> / <top, 0>: quotient max, remainder <top-1, max>.
-    const auto r = div_3by2_preinv(static_cast<T>(top - 1),
+    const auto r = div_3by2_preinv(top - 1,
                                    std::numeric_limits<T>::max(),
                                    std::numeric_limits<T>::max(),
                                    top,

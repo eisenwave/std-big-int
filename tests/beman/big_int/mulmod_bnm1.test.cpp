@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <random>
@@ -78,8 +79,8 @@ TEST(MulmodBnm1, SweepSmallWrapSizes) {
     for (std::size_t w = 1; w <= 40; ++w) {
         for (const std::size_t thr : {std::size_t{0}, std::size_t{2}, std::size_t{4}}) {
             for (int trial = 0; trial < 6; ++trial) {
-                const std::size_t an = 1 + static_cast<std::size_t>(rng() % w);
-                const std::size_t bn = 1 + static_cast<std::size_t>(rng() % w);
+                const std::size_t an = 1 + static_cast<std::uint32_t>(rng()) % w;
+                const std::size_t bn = 1 + static_cast<std::uint32_t>(rng()) % w;
                 check_mulmod(random_limbs(an, rng), random_limbs(bn, rng), w, thr);
             }
             // Full-width operands maximize the wraparound.
@@ -97,7 +98,7 @@ TEST(MulmodBnm1, LargerAndRoundedSizes) {
         ASSERT_GE(w, n);
         for (int trial = 0; trial < 3; ++trial) {
             check_mulmod(random_limbs(w, rng), random_limbs(w, rng), w, 0);
-            check_mulmod(random_limbs(n, rng), random_limbs(1 + static_cast<std::size_t>(rng() % n), rng), w, 0);
+            check_mulmod(random_limbs(n, rng), random_limbs(1 + static_cast<std::uint32_t>(rng()) % n, rng), w, 0);
         }
         check_mulmod(std::vector<uint_t>(w, limb_max), std::vector<uint_t>(w, limb_max), w, 0);
     }

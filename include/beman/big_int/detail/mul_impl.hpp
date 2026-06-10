@@ -1058,7 +1058,8 @@ void multiply_mod_bnm1(const std::span<uint_multiprecision_t>       r,
         subtract_unsigned_spans(t, t, rp1);
         if ((t[0] & 1u) != 0) {
             // Make the value even by adding B^h + 1 once more before halving.
-            t[h] = static_cast<uint_multiprecision_t>(t[h] + (increment_span(t.first(h)) ? 1 : 0) + 1);
+            const bool wrapped = increment_span(t.first(h));
+            t[h]               = t[h] + uint_multiprecision_t{1} + uint_multiprecision_t{wrapped};
         }
         const uint_multiprecision_t dropped = shift_right_n(t, 1u);
         BEMAN_BIG_INT_DEBUG_ASSERT(dropped == 0);

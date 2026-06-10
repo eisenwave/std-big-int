@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <random>
 #include <span>
@@ -87,7 +88,7 @@ TEST(DivisionScratchPeak, ProductionThresholdWithinBudget) {
         {2048, 1024},
     };
     double worst = 0.0;
-    for (const auto [m, s] : shapes) {
+    for (const auto& [m, s] : shapes) {
         for (int sample = 0; sample < 3; ++sample) {
             worst = std::max(worst, probe(m, s, 0));
         }
@@ -107,7 +108,7 @@ TEST(DivisionScratchPeak, ForcedDeepRecursionWithinBudget) {
         {40, 5}, // leaf temporaries dominate the recursion term here
     };
     for (const std::size_t thr : {std::size_t{2}, std::size_t{3}, std::size_t{4}, std::size_t{5}}) {
-        for (const auto [m, s] : shapes) {
+        for (const auto& [m, s] : shapes) {
             for (int sample = 0; sample < 3; ++sample) {
                 probe(m, s, thr);
             }
@@ -152,7 +153,7 @@ TEST(DivisionScratchPeak, BarrettWithinBudget) {
         {1024, 512},
     };
     for (const std::size_t thr : {std::size_t{0}, std::size_t{2}, std::size_t{5}}) {
-        for (const auto [m, s] : shapes) {
+        for (const auto& [m, s] : shapes) {
             for (int sample = 0; sample < 3; ++sample) {
                 probe_barrett(m, s, thr);
             }

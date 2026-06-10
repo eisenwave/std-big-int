@@ -541,7 +541,7 @@ divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
         cur           = next;
     }
     const auto qr = div_2by1_preinv(
-        wide<uint_multiprecision_t>{.low_bits = static_cast<uint_multiprecision_t>(cur << shift), .high_bits = r},
+        wide<uint_multiprecision_t>{.low_bits = cur << shift, .high_bits = r},
         d,
         v);
     quotient[0] = qr.quotient;

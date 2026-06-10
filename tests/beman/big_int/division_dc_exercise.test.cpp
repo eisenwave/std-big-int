@@ -16,6 +16,7 @@
 
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <random>
@@ -117,8 +118,8 @@ TEST(DivisionDcExercise, RandomDeepRecursion) {
     std::mt19937_64 rng(0xb16d1u);
     for (const std::size_t thr : forced_thresholds) {
         for (int trial = 0; trial < 200; ++trial) {
-            const std::size_t s     = 2 + static_cast<std::size_t>(rng() % 30);
-            const std::size_t extra = static_cast<std::size_t>(rng() % 40);
+            const std::size_t s     = 2 + static_cast<std::uint32_t>(rng()) % 30;
+            const std::size_t extra = static_cast<std::uint32_t>(rng()) % 40;
             check_division(random_limbs(s + extra, rng), random_limbs(s, rng), thr);
         }
     }
@@ -126,7 +127,7 @@ TEST(DivisionDcExercise, RandomDeepRecursion) {
 
 TEST(DivisionDcExercise, AllMaxLimbs) {
     for (const std::size_t thr : forced_thresholds) {
-        for (const auto [s, m] : {std::pair<std::size_t, std::size_t>{2, 4}, {3, 9}, {5, 20}, {8, 16}, {13, 40}}) {
+        for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{2, 4}, {3, 9}, {5, 20}, {8, 16}, {13, 40}}) {
             check_division(std::vector<uint_t>(m, limb_max), std::vector<uint_t>(s, limb_max), thr);
         }
     }
@@ -162,9 +163,9 @@ TEST(DivisionDcExercise, MaximalRemainder) {
     std::mt19937_64 rng(0xfeedu);
     for (const std::size_t thr : forced_thresholds) {
         for (int trial = 0; trial < 25; ++trial) {
-            const std::size_t   s = 2 + static_cast<std::size_t>(rng() % 12);
+            const std::size_t   s = 2 + static_cast<std::uint32_t>(rng()) % 12;
             const auto          b = random_limbs(s, rng);
-            const auto          q = random_limbs(1 + static_cast<std::size_t>(rng() % 20), rng);
+            const auto          q = random_limbs(1 + static_cast<std::uint32_t>(rng()) % 20, rng);
             std::vector<uint_t> r = b;
             const bool          underflow = detail::decrement_span(std::span<uint_t>{r});
             EXPECT_FALSE(underflow);
@@ -177,9 +178,9 @@ TEST(DivisionDcExercise, ExactMultiple) {
     std::mt19937_64 rng(0xac3du);
     for (const std::size_t thr : forced_thresholds) {
         for (int trial = 0; trial < 25; ++trial) {
-            const std::size_t s = 2 + static_cast<std::size_t>(rng() % 12);
+            const std::size_t s = 2 + static_cast<std::uint32_t>(rng()) % 12;
             const auto        b = random_limbs(s, rng);
-            const auto        q = random_limbs(1 + static_cast<std::size_t>(rng() % 20), rng);
+            const auto        q = random_limbs(1 + static_cast<std::uint32_t>(rng()) % 20, rng);
             check_division(build_dividend(q, b, std::vector<uint_t>{0}), b, thr);
         }
     }
@@ -245,7 +246,7 @@ TEST(DivisionDcExercise, DefaultThreshold) {
     // Production cutoff, sizes straddling it, including a single-block tail
     // (t == 2) and a long block march.
     std::mt19937_64 rng(0xdefa17u);
-    for (const auto [s, m] : {std::pair<std::size_t, std::size_t>{48, 120},
+    for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{48, 120},
                               {41, 62},
                               {64, 85},
                               {96, 400},
