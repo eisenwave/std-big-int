@@ -123,6 +123,13 @@ double run_burnikel_ziegler_at(const std::size_t m, const std::size_t s) {
     });
 }
 
+double run_barrett_at(const std::size_t m, const std::size_t s) {
+    return measure_division(m, s, [](const auto q, const auto r, const auto a, const auto b) {
+        std_allocator alloc;
+        ::beman::big_int::detail::divide_barrett(q, r, a, b, alloc);
+    });
+}
+
 void emit(const char* algorithm, const std::size_t m, const std::size_t s, const double ns) {
     std::cout << algorithm << ',' << m << ',' << s << ',' << local::iters_for(m, s) << ',' << std::fixed
               << std::setprecision(1) << ns << '\n';
@@ -131,14 +138,17 @@ void emit(const char* algorithm, const std::size_t m, const std::size_t s, const
 void run_sweep() {
     std::cout << "algorithm,dividend_limbs,divisor_limbs,iters,ns_per_div\n";
 
-    // Balanced 2n / n: the canonical shape for the cutoff.
-    constexpr std::size_t balanced[] = {16,  24,  32,  40,  48,   64,   80,   96,   128,  192, 256,
-                                        384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192};
+    // Balanced 2n / n: the canonical shape for the cutoffs.
+    constexpr std::size_t balanced[] = {16,  24,  32,  40,   48,   64,   80,   96,   128,  192,  256,  384,
+                                        512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384};
     for (const std::size_t n : balanced) {
         if (n <= 4096) {
             emit("schoolbook", 2 * n, n, run_schoolbook_at(2 * n, n));
         }
         emit("burnikel-ziegler", 2 * n, n, run_burnikel_ziegler_at(2 * n, n));
+        if (n >= 256) {
+            emit("barrett", 2 * n, n, run_barrett_at(2 * n, n));
+        }
         std::cout.flush();
     }
 
@@ -155,6 +165,17 @@ void run_sweep() {
     for (const std::size_t s : divisors) {
         emit("schoolbook", 4096, s, run_schoolbook_at(4096, s));
         emit("burnikel-ziegler", 4096, s, run_burnikel_ziegler_at(4096, s));
+        if (s >= 256) {
+            emit("barrett", 4096, s, run_barrett_at(4096, s));
+        }
+        std::cout.flush();
+    }
+
+    // Huge unbalanced marches where the reciprocal amortizes over many blocks.
+    constexpr std::size_t huge_divisors[] = {512, 1024, 2048, 4096};
+    for (const std::size_t s : huge_divisors) {
+        emit("burnikel-ziegler", 16384, s, run_burnikel_ziegler_at(16384, s));
+        emit("barrett", 16384, s, run_barrett_at(16384, s));
         std::cout.flush();
     }
 }

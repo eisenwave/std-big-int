@@ -553,8 +553,22 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
 // The divisor's exact scaled reciprocal X = B^n + I, with
 // I = floor((B^{2n} - 1) / D) - B^n, is computed once by Newton iteration;
 // each n-limb quotient block then costs two multiplications instead of a
-// divide-and-conquer division, shedding that recursion's log factor for
-// operands large enough to amortize the reciprocal.
+// divide-and-conquer division.
+//
+// NOT wired into divide_dispatch. Measured on an M4 Max (2026-06-10,
+// division_stress_bench plus larger one-off probes), this
+// plain-multiplication formulation still trails divide_burnikel_ziegler at
+// every balanced shape up to 128k limbs (1.10x behind there, converging too
+// slowly to gate on) and only edges ahead by 3-7% on very long block
+// marches (divisor >= ~1024 limbs with >= ~64 blocks). Outside the deep-FFT
+// regime the divide-and-conquer recursion telescopes to ~2 multiplications
+// per block -- the same as Barrett's two full products -- so the reciprocal
+// setup never pays for itself. The known path to flipping this: wraparound
+// block products (a mulmod_bnm1 cuts ~2*M(n) per block to ~1.2*M(n)) and an
+// approximate reciprocal with a tight error bound instead of the
+// verified-exact Newton ladder. Until then these are fully tested building
+// blocks; reciprocal_span also serves future radix-conversion and
+// invariant-divisor work.
 // ---------------------------------------------------------------------------
 
 // Below this divisor size the reciprocal comes straight from the schoolbook
@@ -710,16 +724,6 @@ void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
     }
     scratch.deallocate(v_len);
 }
-
-// Minimum divisor limbs and minimum quotient length for the Barrett path:
-// the reciprocal costs ~3 multiplications of divisor size, and each block
-// then saves the divide-and-conquer recursion's log factor, so both the
-// divisor and the quotient must be large. Tuned via division_stress_bench.
-inline constexpr std::size_t barrett_cutoff = 2000;
-inline constexpr std::size_t barrett_offset = 1000;
-
-static_assert(barrett_cutoff >= burnikel_ziegler_cutoff,
-              "the dispatch chain assumes Barrett sits above the divide-and-conquer tier");
 
 // Dividend block count of the Barrett driver (no limb padding: block size is
 // the divisor size; the +1 keeps the shifted dividend's top block strictly
@@ -892,8 +896,7 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
 // avoids its recursive tiers there (consteval step limits).
 // Same contract as divide_unsigned. `scratch` must provide at least
 // divide_unsigned_storage_size(...) limbs for the schoolbook path; the
-// divide-and-conquer and Barrett paths size and own their own workspaces
-// through `alloc`.
+// divide-and-conquer path sizes and owns its own workspace through `alloc`.
 // ---------------------------------------------------------------------------
 template <class Allocator>
 constexpr void divide_dispatch(const std::span<uint_multiprecision_t>       quotient,
@@ -903,10 +906,6 @@ constexpr void divide_dispatch(const std::span<uint_multiprecision_t>       quot
                                scratch_allocator_base&                      scratch,
                                Allocator&                                   alloc) {
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-        if (divisor.size() >= barrett_cutoff && dividend.size() - divisor.size() >= barrett_offset) {
-            divide_barrett(quotient, remainder, dividend, divisor, alloc);
-            return;
-        }
         if (divisor.size() >= burnikel_ziegler_cutoff &&
             dividend.size() - divisor.size() >= burnikel_ziegler_offset) {
             divide_burnikel_ziegler(quotient, remainder, dividend, divisor, alloc);
