@@ -637,6 +637,12 @@ template <unsigned_integer T>
 // B = 2^limb_bits. Computed with one narrowing division: the quotient of
 // <B-1-d, B-1> / d equals v, and B-1-d < d holds exactly when d is
 // normalized.
+// Deliberately NOT the divide-free Moller-Granlund Algorithm 2 table ladder
+// (GMP invert_limb): measured 2026-06-10 via division_kernel_bench, the
+// ladder's ~six serial multiplies LOST to this single division on both
+// tuning machines -- 8.0 ns vs 3.5 ns on an i9-11900K (fast hardware
+// divider) and 8.4 ns vs 6.4 ns on an M4 Max (whose __udivti3 path runs
+// ~28 cycles). Revisit only with evidence from a slow-divider target.
 template <unsigned_integer T>
 [[nodiscard]] constexpr T reciprocal_word(const T d) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT((d >> (width_v<T> - 1)) == 1);
