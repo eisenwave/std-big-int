@@ -31,12 +31,11 @@ enum class division_op : unsigned char {
 // Writes the quotient to `quotient` and the remainder to `remainder`.
 // Both buffers are left unnormalized
 // ---------------------------------------------------------------------------
-template <class Allocator>
 constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quotient,
                                const std::span<uint_multiprecision_t>       remainder,
                                const std::span<const uint_multiprecision_t> dividend,
                                const std::span<const uint_multiprecision_t> divisor,
-                               scratch_allocator<Allocator>&                scratch) noexcept {
+                               scratch_allocator_base&                      scratch) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(divisor.size() >= 2);
     BEMAN_BIG_INT_DEBUG_ASSERT(divisor.back() != 0);
     BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
