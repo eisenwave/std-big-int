@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <random>
 
 #include "testing.hpp"
 
@@ -509,5 +510,279 @@ TEST(WideOps, DivideWideByWidePortable) {
         }
     }
 }
+
+// ----- Moller-Granlund preinv division primitives -----
+
+using beman::big_int::detail::div_2by1_preinv;
+using beman::big_int::detail::div_3by2_preinv;
+using beman::big_int::detail::narrowing_div;
+using beman::big_int::detail::reciprocal_word;
+using beman::big_int::detail::reciprocal_word_3by2;
+using beman::big_int::detail::wide;
+using beman::big_int::detail::widening_mul;
+
+// v must equal floor((B^2 - 1) / d) - B, computed independently via wider_t.
+template <class T>
+void check_reciprocal_word(const T d) {
+    using W                 = beman::big_int::detail::wider_t<T>;
+    constexpr std::size_t w = beman::big_int::detail::width_v<T>;
+    const W all_ones        = static_cast<W>(static_cast<W>(0) - 1);
+    const T expected        = static_cast<T>(all_ones / d - (static_cast<W>(1) << w));
+    EXPECT_EQ(reciprocal_word(d), expected) << "d=" << d;
+}
+
+TEST(WideOps, ReciprocalWordExhaustive16) {
+    using T = std::uint16_t;
+    for (std::uint32_t d = 0x8000u; d <= 0xFFFFu; ++d) {
+        check_reciprocal_word(static_cast<T>(d));
+    }
+}
+
+TEST(WideOps, ReciprocalWordLimb) {
+    using T                   = uint_multiprecision_t;
+    constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
+    constexpr T           top = T{1} << (w - 1);
+    constexpr T           max = std::numeric_limits<T>::max();
+
+    check_reciprocal_word(top);
+    check_reciprocal_word(static_cast<T>(top + 1));
+    check_reciprocal_word(static_cast<T>(max - 1));
+    check_reciprocal_word(max);
+
+    std::mt19937_64 rng{0x42u};
+    for (int i = 0; i < 10000; ++i) {
+        check_reciprocal_word(static_cast<T>(static_cast<T>(rng()) | top));
+    }
+}
+
+// Compile-time spot checks: floor((B^2-1)/(B/2)) - B == B - 1 and
+// floor((B^2-1)/(B-1)) - B == 1.
+consteval bool ce_reciprocal_word() {
+    using T                   = uint_multiprecision_t;
+    constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
+    constexpr T           max = std::numeric_limits<T>::max();
+    return reciprocal_word(static_cast<T>(T{1} << (w - 1))) == max && reciprocal_word(max) == 1;
+}
+static_assert(ce_reciprocal_word());
+
+// The defining property of the 3/2 reciprocal, checked with limb arithmetic
+// only: (B + v) * <d1,d0> <= B^3 - 1 < (B + v + 1) * <d1,d0>.
+template <class T>
+void check_reciprocal_word_3by2(const T d1, const T d0) {
+    using beman::big_int::detail::carrying_add;
+    const T v = reciprocal_word_3by2(d1, d0);
+
+    // 4-limb accumulation of (B + v) * (d1*B + d0) = v*d0 + (v*d1 + d0)*B + d1*B^2.
+    const wide<T> p00   = widening_mul(v, d0);
+    const wide<T> p01   = widening_mul(v, d1);
+    const T       limb0 = p00.low_bits;
+    const auto    s1    = carrying_add(p00.high_bits, p01.low_bits);
+    const auto    s1b   = carrying_add(s1.value, d0);
+    const T       limb1 = s1b.value;
+    const auto    s2    = carrying_add(p01.high_bits, d1, s1.carry);
+    const auto    s2b   = carrying_add(s2.value, static_cast<T>(0), s1b.carry);
+    const T       limb2 = s2b.value;
+    const T       limb3 = static_cast<T>(static_cast<T>(s2.carry) + static_cast<T>(s2b.carry));
+
+    // <= B^3 - 1 is exactly "the product fits three limbs".
+    EXPECT_EQ(limb3, 0u) << "d1=" << d1 << " d0=" << d0;
+
+    // One more divisor must overflow the third limb.
+    const auto a0 = carrying_add(limb0, d0);
+    const auto a1 = carrying_add(limb1, d1, a0.carry);
+    const auto a2 = carrying_add(limb2, static_cast<T>(0), a1.carry);
+    EXPECT_TRUE(a2.carry) << "d1=" << d1 << " d0=" << d0;
+}
+
+TEST(WideOps, ReciprocalWord3by2Exhaustive16) {
+    using T = std::uint16_t;
+    for (std::uint32_t d1 = 0x8000u; d1 <= 0xFFFFu; ++d1) {
+        for (const std::uint32_t d0 : {0x0000u, 0x0001u, 0x7FFFu, 0x8000u, 0xABCDu, 0xFFFEu, 0xFFFFu}) {
+            check_reciprocal_word_3by2(static_cast<T>(d1), static_cast<T>(d0));
+        }
+        // A zero low limb must reduce exactly to the 2/1 reciprocal.
+        EXPECT_EQ(reciprocal_word_3by2(static_cast<T>(d1), static_cast<T>(0)), reciprocal_word(static_cast<T>(d1)));
+    }
+}
+
+TEST(WideOps, ReciprocalWord3by2Limb) {
+    using T                   = uint_multiprecision_t;
+    constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
+    constexpr T           top = T{1} << (w - 1);
+    constexpr T           max = std::numeric_limits<T>::max();
+
+    check_reciprocal_word_3by2(top, static_cast<T>(0));
+    check_reciprocal_word_3by2(top, static_cast<T>(1));
+    check_reciprocal_word_3by2(top, max);
+    check_reciprocal_word_3by2(max, max);
+    check_reciprocal_word_3by2(max, static_cast<T>(0));
+
+    std::mt19937_64 rng{0x43u};
+    for (int i = 0; i < 10000; ++i) {
+        const T d1 = static_cast<T>(static_cast<T>(rng()) | top);
+        const T d0 = static_cast<T>(rng());
+        check_reciprocal_word_3by2(d1, d0);
+        EXPECT_EQ(reciprocal_word_3by2(d1, static_cast<T>(0)), reciprocal_word(d1));
+    }
+}
+
+// div_2by1_preinv against the trusted narrowing_div.
+template <class T>
+void check_div_2by1(const wide<T> u, const T d) {
+    const T    v        = reciprocal_word(d);
+    const auto got      = div_2by1_preinv(u, d, v);
+    const auto expected = narrowing_div(u, d);
+    EXPECT_EQ(got.quotient, expected.quotient) << "u=<" << u.high_bits << ',' << u.low_bits << "> d=" << d;
+    EXPECT_EQ(got.remainder, expected.remainder) << "u=<" << u.high_bits << ',' << u.low_bits << "> d=" << d;
+}
+
+TEST(WideOps, Div2by1PreinvSweep16) {
+    using T = std::uint16_t;
+    // Full divisor range x a value grid; the 16-bit space is dense enough to
+    // hit the rare final-correction path.
+    for (std::uint32_t d = 0x8000u; d <= 0xFFFFu; ++d) {
+        for (const std::uint32_t hi : {0u, 1u, 0x7FFFu, d - 1u}) {
+            for (const std::uint32_t lo : {0u, 1u, 0x8000u, 0xFFFEu, 0xFFFFu}) {
+                check_div_2by1(wide<T>{.low_bits = static_cast<T>(lo), .high_bits = static_cast<T>(hi)},
+                               static_cast<T>(d));
+            }
+        }
+    }
+}
+
+TEST(WideOps, Div2by1PreinvLimb) {
+    using T                   = uint_multiprecision_t;
+    constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
+    constexpr T           top = T{1} << (w - 1);
+    constexpr T           max = std::numeric_limits<T>::max();
+
+    check_div_2by1(wide<T>{.low_bits = max, .high_bits = static_cast<T>(top - 1)}, top);
+    check_div_2by1(wide<T>{.low_bits = max, .high_bits = static_cast<T>(max - 1)}, max);
+    check_div_2by1(wide<T>{.low_bits = 0, .high_bits = 0}, top);
+
+    std::mt19937_64 rng{0x44u};
+    for (int i = 0; i < 50000; ++i) {
+        const T d  = static_cast<T>(static_cast<T>(rng()) | top);
+        const T hi = static_cast<T>(static_cast<T>(rng()) % d);
+        const T lo = static_cast<T>(rng());
+        check_div_2by1(wide<T>{.low_bits = lo, .high_bits = hi}, d);
+    }
+}
+
+consteval bool ce_div_2by1_preinv() {
+    using T                 = uint_multiprecision_t;
+    constexpr std::size_t w = beman::big_int::detail::width_v<T>;
+    constexpr T           d = T{1} << (w - 1);
+    // <d-1, max> / d: quotient max, remainder d - 1.
+    const auto r = div_2by1_preinv(
+        wide<T>{.low_bits = std::numeric_limits<T>::max(), .high_bits = static_cast<T>(d - 1)},
+        d,
+        reciprocal_word(d));
+    return r.quotient == std::numeric_limits<T>::max() && r.remainder == d - 1;
+}
+static_assert(ce_div_2by1_preinv());
+
+// div_3by2_preinv checked by reconstruction: q * <d1,d0> + R == <u2,u1,u0>
+// with R < <d1,d0>, using limb arithmetic only.
+template <class T>
+void check_div_3by2(const T u2, const T u1, const T u0, const T d1, const T d0) {
+    using beman::big_int::detail::carrying_add;
+
+    const T    v   = reciprocal_word_3by2(d1, d0);
+    const auto got = div_3by2_preinv(u2, u1, u0, d1, d0, v);
+    const T    q   = got.quotient;
+    const T    r0  = got.remainder.low_bits;
+    const T    r1  = got.remainder.high_bits;
+
+    EXPECT_TRUE(r1 < d1 || (r1 == d1 && r0 < d0))
+        << "u=<" << u2 << ',' << u1 << ',' << u0 << "> d=<" << d1 << ',' << d0 << '>';
+
+    // q * <d1,d0> accumulated over three limbs, plus R, must equal U.
+    const wide<T> p0 = widening_mul(q, d0);
+    const wide<T> p1 = widening_mul(q, d1);
+    T             l0 = p0.low_bits;
+    const auto    m1 = carrying_add(p0.high_bits, p1.low_bits);
+    T             l1 = m1.value;
+    T             l2 = static_cast<T>(p1.high_bits + static_cast<T>(m1.carry));
+
+    const auto a0 = carrying_add(l0, r0);
+    l0            = a0.value;
+    const auto a1 = carrying_add(l1, r1, a0.carry);
+    l1            = a1.value;
+    l2            = static_cast<T>(l2 + static_cast<T>(a1.carry));
+
+    EXPECT_EQ(l0, u0);
+    EXPECT_EQ(l1, u1);
+    EXPECT_EQ(l2, u2) << "u=<" << u2 << ',' << u1 << ',' << u0 << "> d=<" << d1 << ',' << d0 << '>';
+}
+
+TEST(WideOps, Div3by2PreinvSweep16) {
+    using T = std::uint16_t;
+    std::mt19937_64 rng{0x45u};
+    // Dense randomized sweep; at 16 bits the rare-correction branches fire.
+    for (int i = 0; i < 300000; ++i) {
+        const T d1 = static_cast<T>(static_cast<T>(rng()) | 0x8000u);
+        const T d0 = static_cast<T>(rng());
+        T       a2 = static_cast<T>(static_cast<T>(rng()) % (static_cast<std::uint32_t>(d1) + 1u));
+        T       a1 = static_cast<T>(rng());
+        if (a2 == d1 && a1 >= d0) {
+            if (d0 == 0) {
+                --a2;
+            } else {
+                a1 = static_cast<T>(d0 - 1);
+            }
+        }
+        check_div_3by2(a2, a1, static_cast<T>(rng()), d1, d0);
+    }
+}
+
+TEST(WideOps, Div3by2PreinvLimb) {
+    using T                   = uint_multiprecision_t;
+    constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
+    constexpr T           top = T{1} << (w - 1);
+    constexpr T           max = std::numeric_limits<T>::max();
+
+    // Boundary shapes: top pair one below the divisor pair, zero low limbs,
+    // saturated low limbs, minimal normalized divisor.
+    check_div_3by2(static_cast<T>(top - 1), max, max, top, static_cast<T>(0));
+    check_div_3by2(top, static_cast<T>(max - 1), max, top, max);
+    check_div_3by2(static_cast<T>(0), static_cast<T>(0), static_cast<T>(0), top, static_cast<T>(1));
+    check_div_3by2(static_cast<T>(max - 1), max, max, max, max);
+
+    std::mt19937_64 rng{0x46u};
+    for (int i = 0; i < 50000; ++i) {
+        const T d1 = static_cast<T>(static_cast<T>(rng()) | top);
+        const T d0 = static_cast<T>(rng());
+        T       a2 = d1 == max ? static_cast<T>(rng()) : static_cast<T>(static_cast<T>(rng()) % (d1 + 1));
+        T       a1 = static_cast<T>(rng());
+        if (a2 > d1) {
+            a2 = d1;
+        }
+        if (a2 == d1 && a1 >= d0) {
+            if (d0 == 0) {
+                --a2;
+            } else {
+                a1 = static_cast<T>(d0 - 1);
+            }
+        }
+        check_div_3by2(a2, a1, static_cast<T>(rng()), d1, d0);
+    }
+}
+
+consteval bool ce_div_3by2_preinv() {
+    using T                   = uint_multiprecision_t;
+    constexpr std::size_t w   = beman::big_int::detail::width_v<T>;
+    constexpr T           top = T{1} << (w - 1);
+    // <top-1, max, max> / <top, 0>: quotient max, remainder <top-1, max>.
+    const auto r = div_3by2_preinv(static_cast<T>(top - 1),
+                                   std::numeric_limits<T>::max(),
+                                   std::numeric_limits<T>::max(),
+                                   top,
+                                   static_cast<T>(0),
+                                   reciprocal_word_3by2(top, static_cast<T>(0)));
+    return r.quotient == std::numeric_limits<T>::max() && r.remainder.high_bits == top - 1 &&
+           r.remainder.low_bits == std::numeric_limits<T>::max();
+}
+static_assert(ce_div_3by2_preinv());
 
 } // namespace
