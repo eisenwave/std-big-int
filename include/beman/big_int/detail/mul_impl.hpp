@@ -663,6 +663,17 @@ void square_fft(std::span<uint_multiprecision_t>       result,
                 std::span<const uint_multiprecision_t> a_untrimmed,
                 std::span<double>                      fp_workspace,
                 std::span<std::uint64_t>               int_workspace) noexcept;
+
+// Cyclic kernel: result (exactly params.wrap_limbs limbs) = a * b mod
+// (2^(64w) - 1), semi-canonical (all-ones means zero). `params` must come
+// from multiply_fft_cyclic_next_size, and the operands must be at most w
+// limbs. 64-bit limbs only.
+void multiply_fft_cyclic(std::span<uint_multiprecision_t>       result,
+                         std::span<const uint_multiprecision_t> a_untrimmed,
+                         std::span<const uint_multiprecision_t> b_untrimmed,
+                         fft_cyclic_params                      params,
+                         std::span<double>                      fp_workspace,
+                         std::span<std::uint64_t>               int_workspace) noexcept;
 #else
 void multiply_fft(std::span<uint_multiprecision_t>       result,
                   std::span<const uint_multiprecision_t> a_untrimmed,
