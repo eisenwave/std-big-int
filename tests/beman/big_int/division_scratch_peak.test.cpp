@@ -115,4 +115,49 @@ TEST(DivisionScratchPeak, ForcedDeepRecursionWithinBudget) {
     }
 }
 
+// Same probe for the Barrett driver: budget from barrett_storage_size with
+// the matching block count and reciprocal threshold.
+void probe_barrett(const std::size_t dividend_limbs, const std::size_t divisor_limbs,
+                   const std::size_t invert_override) {
+    const auto dividend = random_limbs(dividend_limbs);
+    const auto divisor  = random_limbs(divisor_limbs);
+    const auto a_view   = std::span<const uint_t>{dividend};
+    const auto b_view   = std::span<const uint_t>{divisor};
+
+    std::vector<uint_t> quotient(dividend_limbs - divisor_limbs + 1, 0);
+    std::vector<uint_t> remainder(dividend_limbs + 1, 0);
+
+    const std::size_t thr = invert_override != 0 ? invert_override : detail::reciprocal_span_cutoff;
+    const std::size_t budget =
+        detail::barrett_storage_size(divisor_limbs, detail::barrett_blocks(a_view, b_view), thr);
+
+    std::allocator<uint_t> alloc;
+    scratch_for_test       scratch(3 * budget + 64, alloc);
+    detail::divide_barrett(
+        std::span<uint_t>{quotient}, std::span<uint_t>{remainder}, a_view, b_view, scratch, alloc, invert_override);
+
+    EXPECT_LE(scratch.peak(), budget) << "m=" << dividend_limbs << " s=" << divisor_limbs
+                                      << " inv_thr=" << invert_override;
+}
+
+TEST(DivisionScratchPeak, BarrettWithinBudget) {
+    constexpr std::pair<std::size_t, std::size_t> shapes[] = {
+        {12, 4},
+        {60, 24},
+        {101, 100},
+        {200, 96},
+        {400, 100},
+        {600, 128},
+        {1200, 50},
+        {1024, 512},
+    };
+    for (const std::size_t thr : {std::size_t{0}, std::size_t{2}, std::size_t{5}}) {
+        for (const auto [m, s] : shapes) {
+            for (int sample = 0; sample < 3; ++sample) {
+                probe_barrett(m, s, thr);
+            }
+        }
+    }
+}
+
 } // namespace
