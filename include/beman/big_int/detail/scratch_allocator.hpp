@@ -104,6 +104,15 @@ struct scratch_allocator : scratch_allocator_base {
         m_capacity      = cap;
 #endif
         m_base = std::to_address(m_owned_pointer);
+
+        // At constant evaluation the allocated limbs' lifetimes have not
+        // begun, so plain assignment into them (std::ranges::copy/fill in the
+        // algorithms) is ill-formed; start them here. Free at runtime.
+        if BEMAN_BIG_INT_IS_CONSTEVAL {
+            for (std::size_t i = 0; i < m_capacity; ++i) {
+                std::construct_at(m_base + i, uint_multiprecision_t{0});
+            }
+        }
     }
 
     constexpr ~scratch_allocator() {

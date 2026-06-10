@@ -103,23 +103,28 @@ struct wide<T> {
 
     [[nodiscard]] friend constexpr bool operator==(const wide& x, const wide& y) noexcept = default;
 
+    // The split/join fallbacks below also serve constant evaluation on the
+    // little-endian path: constexpr bit_cast involving _BitInt is not
+    // supported on every compiler (e.g. AppleClang).
     [[nodiscard]] static constexpr wide from_int(wider_t<T> x) noexcept {
         if constexpr (std::endian::native == std::endian::little) {
-            return std::bit_cast<wide>(x);
-        } else {
-            return {
-                .low_bits  = static_cast<T>(x),
-                .high_bits = static_cast<T>(x >> width_v<T>),
-            };
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+                return std::bit_cast<wide>(x);
+            }
         }
+        return {
+            .low_bits  = static_cast<T>(x),
+            .high_bits = static_cast<T>(x >> width_v<T>),
+        };
     }
 
     [[nodiscard]] constexpr wider_t<T> to_int() const noexcept {
         if constexpr (std::endian::native == std::endian::little) {
-            return std::bit_cast<wider_t<T>>(*this);
-        } else {
-            return (static_cast<wider_t<T>>(high_bits) << width_v<T>) | low_bits;
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+                return std::bit_cast<wider_t<T>>(*this);
+            }
         }
+        return (static_cast<wider_t<T>>(high_bits) << width_v<T>) | low_bits;
     }
 };
 
