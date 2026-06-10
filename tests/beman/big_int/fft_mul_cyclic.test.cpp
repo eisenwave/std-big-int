@@ -6,7 +6,8 @@
 // Covers every coefficient width the chooser can produce (b = 26..50,
 // including the sub-32 band that the linear path never uses), the spill fold
 // (all-max operands maximize the top coefficients), sub-w operands, and
-// semi-canonical edges.
+// semi-canonical edges. Runs against the FP kernel under
+// BEMAN_BIG_INT_SIMD_MUL and the two-prime integer kernel otherwise.
 
 #include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
@@ -27,8 +28,6 @@ namespace {
 namespace detail = beman::big_int::detail;
 using uint_t     = beman::big_int::uint_multiprecision_t;
 
-#if defined(BEMAN_BIG_INT_SIMD_MUL)
-
 constexpr uint_t limb_max = std::numeric_limits<uint_t>::max();
 
 void canonicalize(std::vector<uint_t>& v) {
@@ -48,6 +47,22 @@ std::vector<uint_t> random_limbs(const std::size_t size, std::mt19937_64& rng) {
     return v;
 }
 
+void run_kernel(std::span<uint_t>             got,
+                const std::vector<uint_t>&    a,
+                const std::vector<uint_t>&    b,
+                const detail::fft_cyclic_params params) {
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+    std::vector<double>        fp_ws(detail::fft_cyclic_fp_storage_size(params));
+    std::vector<std::uint64_t> int_ws(detail::fft_cyclic_int_storage_size(params));
+    detail::multiply_fft_cyclic(got, std::span<const uint_t>{a}, std::span<const uint_t>{b}, params,
+                                std::span<double>{fp_ws}, std::span<std::uint64_t>{int_ws});
+#else
+    std::vector<std::uint64_t> ws(detail::fft_cyclic_storage_size(params));
+    detail::multiply_fft_cyclic(got, std::span<const uint_t>{a}, std::span<const uint_t>{b}, params,
+                                std::span<std::uint64_t>{ws});
+#endif
+}
+
 void check_cyclic(const std::vector<uint_t>& a, const std::vector<uint_t>& b, const std::size_t min_w) {
     const detail::fft_cyclic_params params = detail::multiply_fft_cyclic_next_size(min_w);
     const std::size_t               w      = params.wrap_limbs;
@@ -61,11 +76,8 @@ void check_cyclic(const std::vector<uint_t>& a, const std::vector<uint_t>& b, co
     detail::fold_mod_bnm1(std::span<uint_t>{expected}, std::span<const uint_t>{prod});
     canonicalize(expected);
 
-    std::vector<uint_t>        got(w, 0);
-    std::vector<double>        fp_ws(detail::fft_cyclic_fp_storage_size(params));
-    std::vector<std::uint64_t> int_ws(detail::fft_cyclic_int_storage_size(params));
-    detail::multiply_fft_cyclic(std::span<uint_t>{got}, std::span<const uint_t>{a}, std::span<const uint_t>{b},
-                                params, std::span<double>{fp_ws}, std::span<std::uint64_t>{int_ws});
+    std::vector<uint_t> got(w, 0);
+    run_kernel(std::span<uint_t>{got}, a, b, params);
     canonicalize(got);
 
     EXPECT_TRUE(std::ranges::equal(got, expected))
@@ -108,13 +120,5 @@ TEST(FftMulCyclic, LargerLengthsAndShapes) {
         check_cyclic(std::vector<uint_t>(w, limb_max), random_limbs(w, rng), min_w);
     }
 }
-
-#else
-
-TEST(FftMulCyclic, IntegerPathPending) {
-    GTEST_SKIP() << "Cyclic kernel for the integer NTT configuration lands with the next commit";
-}
-
-#endif
 
 } // namespace
