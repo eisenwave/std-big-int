@@ -598,6 +598,34 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
     std::ranges::fill(remainder.subspan(n - limb_off), uint_multiprecision_t{0});
 }
 
+// ---------------------------------------------------------------------------
+// Top-level division dispatcher (counterpart of multiply_dispatch): the
+// divide-and-conquer path needs both a large divisor and a long quotient to
+// pay off; everything else takes the schoolbook kernel. Constant evaluation
+// always takes the schoolbook kernel for the same reason multiply_dispatch
+// avoids its recursive tiers there (consteval step limits).
+// Same contract as divide_unsigned. `scratch` must provide at least
+// dividend.size() + 1 limbs for the schoolbook path; the divide-and-conquer
+// path sizes and owns its own workspace through `alloc`.
+// ---------------------------------------------------------------------------
+template <class Allocator>
+constexpr void divide_dispatch(const std::span<uint_multiprecision_t>       quotient,
+                               const std::span<uint_multiprecision_t>       remainder,
+                               const std::span<const uint_multiprecision_t> dividend,
+                               const std::span<const uint_multiprecision_t> divisor,
+                               scratch_allocator_base&                      scratch,
+                               Allocator&                                   alloc) {
+    if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+        if (divisor.size() >= burnikel_ziegler_cutoff &&
+            dividend.size() - divisor.size() >= burnikel_ziegler_offset) {
+            divide_burnikel_ziegler(quotient, remainder, dividend, divisor, alloc);
+            return;
+        }
+    }
+
+    divide_unsigned(quotient, remainder, dividend, divisor, scratch);
+}
+
 } // namespace beman::big_int::detail
 
 #endif // BEMAN_BIG_INT_DIV_IMPL_HPP

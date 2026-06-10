@@ -2747,7 +2747,7 @@ constexpr uint_multiprecision_t basic_big_int<b, A>::divmod_in_place_short(const
 //   2) zero dividend,
 //   3) |dividend| < |divisor|,
 //   4) single-limb divisor
-// before falling through to `detail::divide_unsigned`.
+// before falling through to `detail::divide_dispatch`.
 template <std::size_t b, class A>
 template <std::size_t extent_a, std::size_t extent_b>
 constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
@@ -2818,8 +2818,12 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         detail::scratch_allocator<allocator_type> scratch(r_cap + t_cap, m_alloc);
         const std::span<uint_multiprecision_t>    rem_span = scratch.allocate(r_cap);
 
-        detail::divide_unsigned(
-            std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, rem_span, dividend_trim, divisor_trim, scratch);
+        detail::divide_dispatch(std::span<uint_multiprecision_t>{limb_ptr(), q_cap},
+                                rem_span,
+                                dividend_trim,
+                                divisor_trim,
+                                scratch,
+                                m_alloc);
 
         const std::size_t qsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
         unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
@@ -2842,8 +2846,12 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
     const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
 
-    detail::divide_unsigned(
-        quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
+    detail::divide_dispatch(quot_span,
+                            std::span<uint_multiprecision_t>{limb_ptr(), r_cap},
+                            dividend_trim,
+                            divisor_trim,
+                            scratch,
+                            m_alloc);
 
     const std::size_t rsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
     unchecked_set_limb_count(static_cast<std::uint32_t>(rsize));
