@@ -549,6 +549,169 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
 }
 
 // ---------------------------------------------------------------------------
+// Block-wise Barrett division (the GMP mu_div_qr lineage).
+// The divisor's exact scaled reciprocal X = B^n + I, with
+// I = floor((B^{2n} - 1) / D) - B^n, is computed once by Newton iteration;
+// each n-limb quotient block then costs two multiplications instead of a
+// divide-and-conquer division, shedding that recursion's log factor for
+// operands large enough to amortize the reciprocal.
+// ---------------------------------------------------------------------------
+
+// Below this divisor size the reciprocal comes straight from the schoolbook
+// division of B^{2n} - 1; above it one Newton level halves the problem.
+inline constexpr std::size_t reciprocal_span_cutoff = 64;
+
+static_assert(reciprocal_span_cutoff >= 2, "the reciprocal basecase divides by at least 2 limbs");
+
+// Scratch upper bound for reciprocal_span at divisor size n with leaf
+// threshold `threshold`: one Newton level holds T(n+h+1) plus the correction
+// product (n+h+2) with h = ceil(n/2), then frees both before the
+// verification product (2n+1); deeper levels are fully rewound first (LIFO),
+// and the basecase needs ones(2t) + q(t+1) + r(2t+1) + the schoolbook's
+// internal (3t+1) with t <= threshold.
+constexpr std::size_t reciprocal_span_storage_size(const std::size_t n, const std::size_t threshold) noexcept {
+    return 3 * n + 8 * threshold + 16;
+}
+
+// ---------------------------------------------------------------------------
+// Exact scaled reciprocal of a normalized divisor (the span counterpart of
+// reciprocal_word): writes the n limbs of I = floor((B^{2n} - 1) / d) - B^n
+// into `inverse`.
+// Newton iteration in the shape of MCA algorithm 3.5: the top-half
+// reciprocal seeds the candidate
+//   X ~= X_h * B^{n-h} + X_h * (B^{n+h} - d * X_h) / B^{2h},
+// which lands within a few ulps of the target; the exact residual
+// B^{2n} - 1 - d * X then pins it down. The fix loop is the correctness
+// argument, so no delicate per-level error analysis is load-bearing.
+// Preconditions: inverse.size() == d.size() >= 2, d.back()'s top bit set, no
+// aliasing; `scratch` provides reciprocal_span_storage_size(...) limbs.
+// `threshold_override` is a test-only escape hatch forcing deep recursion.
+// ---------------------------------------------------------------------------
+template <class Allocator>
+void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
+                     const std::span<const uint_multiprecision_t> d,
+                     scratch_allocator_base&                      scratch,
+                     Allocator&                                   alloc,
+                     const std::size_t                            threshold_override = 0) {
+    constexpr uint_multiprecision_t max_limb =
+        static_cast<uint_multiprecision_t>(~static_cast<uint_multiprecision_t>(0));
+
+    const std::size_t n = d.size();
+    BEMAN_BIG_INT_DEBUG_ASSERT(inverse.size() == n);
+    BEMAN_BIG_INT_DEBUG_ASSERT(n >= 2);
+    BEMAN_BIG_INT_DEBUG_ASSERT((d.back() >> (width_v<uint_multiprecision_t> - 1)) == 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(inverse.data() != d.data());
+
+    const std::size_t thr = threshold_override != 0 ? threshold_override : reciprocal_span_cutoff;
+    BEMAN_BIG_INT_DEBUG_ASSERT(thr >= 2);
+
+    if (n <= thr) {
+        // I is the low half of floor((B^{2n} - 1) / d); the quotient's top
+        // limb is exactly 1 because normalization keeps X in [B^n, 2B^n).
+        const std::span<uint_multiprecision_t> ones = scratch.allocate(2 * n);
+        std::ranges::fill(ones, max_limb);
+        const std::span<uint_multiprecision_t> q = scratch.allocate(n + 1);
+        const std::span<uint_multiprecision_t> r = scratch.allocate(2 * n + 1);
+        divide_unsigned(q, r, ones, d, scratch);
+        BEMAN_BIG_INT_DEBUG_ASSERT(q[n] == 1);
+        std::ranges::copy(q.first(n), inverse.begin());
+        scratch.deallocate(2 * n + 1);
+        scratch.deallocate(n + 1);
+        scratch.deallocate(2 * n);
+        return;
+    }
+
+    // Recursive top-half reciprocal, built directly into the high limbs of
+    // the output: the candidate is X_h * B^{n-h} plus a low correction.
+    const std::size_t h = (n + 1) / 2;
+    const std::size_t l = n - h;
+    reciprocal_span(inverse.subspan(l), d.subspan(l), scratch, alloc, threshold_override);
+    std::ranges::fill(inverse.first(l), uint_multiprecision_t{0});
+
+    // T = d * X_h = d * I_h + d * B^h over n + h + 1 limbs.
+    const std::size_t                      t_len = n + h + 1;
+    const std::span<uint_multiprecision_t> t     = scratch.allocate(t_len);
+    std::ranges::fill(t, uint_multiprecision_t{0});
+    multiply_dispatch(t.first(n + h), d, inverse.subspan(l), alloc);
+    add_shifted(t, h, d);
+
+    // E = B^{n+h} - T, |E| < 2 * B^n; T's limb n+h is 0 or 1, deciding the
+    // sign. Reuse t's buffer for |E|.
+    BEMAN_BIG_INT_DEBUG_ASSERT(t[n + h] <= 1);
+    const bool e_negative = t[n + h] != 0;
+    if (e_negative) {
+        // |E| = T - B^{n+h}: dropping the top limb is the whole subtraction.
+        t[n + h] = 0;
+    } else {
+        // |E| = B^{n+h} - T = (all-ones - T) + 1; T > 0 because d != 0.
+        for (std::size_t i = 0; i < n + h; ++i) {
+            t[i] = static_cast<uint_multiprecision_t>(max_limb - t[i]);
+        }
+        const bool carry = increment_span(t.first(n + h));
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+    }
+    const std::size_t e_size = trimmed_size_span(t.first(n + h));
+    BEMAN_BIG_INT_DEBUG_ASSERT(e_size <= n + 1);
+    const auto e_view = std::span<const uint_multiprecision_t>{t.data(), e_size};
+
+    // Correction = floor(X_h * |E| / B^{2h}) = (I_h * E + E * B^h) >> 2h limbs.
+    const std::size_t                      c_len = e_size + h + 1;
+    const std::span<uint_multiprecision_t> c     = scratch.allocate(c_len);
+    std::ranges::fill(c, uint_multiprecision_t{0});
+    multiply_dispatch(c.first(e_size + h), e_view, inverse.subspan(l), alloc);
+    add_shifted(c, h, e_view);
+    const auto corr = c_len > 2 * h ? std::span<const uint_multiprecision_t>{c.data() + 2 * h, c_len - 2 * h}
+                                    : std::span<const uint_multiprecision_t>{};
+
+    if (e_negative) {
+        // A borrow past the top would push X below B^n; clamp to the bottom
+        // of the range and let the residual fix recover.
+        if (subtract_unsigned_spans_borrow_out(inverse, inverse, corr)) {
+            std::ranges::fill(inverse, uint_multiprecision_t{0});
+        }
+    } else {
+        if (add_unsigned_spans(inverse, inverse, corr)) {
+            std::ranges::fill(inverse, max_limb);
+        }
+    }
+    scratch.deallocate(c_len);
+    scratch.deallocate(t_len);
+
+    // Exact residual fix: drive d * X into (B^{2n} - 1 - d, B^{2n} - 1].
+    // v = d * X over 2n + 1 limbs; v exceeds B^{2n} - 1 exactly when its top
+    // limb is nonzero.
+    const std::size_t                      v_len = 2 * n + 1;
+    const std::span<uint_multiprecision_t> v     = scratch.allocate(v_len);
+    std::ranges::fill(v, uint_multiprecision_t{0});
+    multiply_dispatch(v.first(2 * n), d, inverse, alloc);
+    add_shifted(v, n, d);
+
+    [[maybe_unused]] int fixes = 0;
+    while (v[2 * n] != 0) {
+        const bool borrow = decrement_span(inverse);
+        BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+        const bool v_borrow = subtract_unsigned_spans_borrow_out(v, v, d);
+        BEMAN_BIG_INT_DEBUG_ASSERT(!v_borrow);
+        ++fixes;
+        BEMAN_BIG_INT_DEBUG_ASSERT(fixes <= 8);
+    }
+
+    // R = (B^{2n} - 1) - v is the limb-wise complement of v's low 2n limbs
+    // (all-ones minus anything borrows nowhere); push it below d.
+    for (std::size_t i = 0; i < 2 * n; ++i) {
+        v[i] = static_cast<uint_multiprecision_t>(max_limb - v[i]);
+    }
+    while (compare_unsigned_spans(v.first(2 * n), d) != std::strong_ordering::less) {
+        const bool carry = increment_span(inverse);
+        BEMAN_BIG_INT_DEBUG_ASSERT(!carry);
+        subtract_unsigned_spans(v.first(2 * n), v.first(2 * n), d);
+        ++fixes;
+        BEMAN_BIG_INT_DEBUG_ASSERT(fixes <= 8);
+    }
+    scratch.deallocate(v_len);
+}
+
+// ---------------------------------------------------------------------------
 // Top-level division dispatcher (counterpart of multiply_dispatch): the
 // divide-and-conquer path needs both a large divisor and a long quotient to
 // pay off; everything else takes the schoolbook kernel. Constant evaluation
