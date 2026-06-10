@@ -164,7 +164,7 @@ def main_dc():
     cases = []
 
     cutoff = 40  # burnikel_ziegler_cutoff in 64-bit limbs
-    offset = 20  # burnikel_ziegler_offset in 64-bit limbs
+    offset = 10  # burnikel_ziegler_offset in 64-bit limbs
 
     # ---- 1. Dispatch gate boundaries ----
     for s, extra, name in [
