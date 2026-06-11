@@ -549,7 +549,16 @@ template <unsigned_integer T>
             if (!BEMAN_BIG_INT_IS_CONSTANT_PROPAGATED(y)) {
     #if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
                 T q, r;
-                __asm__("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
+                // volatile is load-bearing: a non-volatile asm counts as
+                // pure, and GCC at -O2 speculatively hoisted this above a
+                // caller's normalization branch (divide_unsigned_short via
+                // reciprocal_word), executing the div with an unnormalized
+                // divisor -- the quotient overflow traps with SIGFPE on x86.
+                // This has happened with GCC-14 in release mode
+                __asm__ volatile("div %[d]"
+                                 : "=a"(q), "=d"(r)
+                                 : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y)
+                                 : "cc");
                 return {.quotient = q, .remainder = r};
     #elif defined(_WIN32)
                 T r;
