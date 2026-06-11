@@ -715,6 +715,21 @@ void multiply_fft_cyclic(std::span<uint_multiprecision_t>       result,
 #endif
 
 // ---------------------------------------------------------------------------
+// Runtime multiplication tier ladders (src/mul_dispatch.cpp): operands must
+// be trimmed with at least two limbs; `result` pre-zeroed, sized for the
+// full product, non-aliasing. Kernel workspaces come from the type-erased
+// heap hooks. Returns the trimmed significant size.
+// ---------------------------------------------------------------------------
+std::size_t multiply_runtime(std::span<uint_multiprecision_t>       result,
+                             std::span<const uint_multiprecision_t> a,
+                             std::span<const uint_multiprecision_t> b,
+                             const scratch_heap_source&             heap);
+
+std::size_t square_runtime(std::span<uint_multiprecision_t>       result,
+                           std::span<const uint_multiprecision_t> a,
+                           const scratch_heap_source&             heap);
+
+// ---------------------------------------------------------------------------
 // result <- a * p2 where p2 is a trimmed power of two: a shifted copy of `a`
 // placed at limb offset p2.size() - 1, bit-shifted by countr_zero(p2.back()).
 // O(n) with no scratch, versus a full kernel dispatch (see GMP mpz_mul_2exp).
@@ -754,67 +769,8 @@ std::size_t square_dispatch(const std::span<uint_multiprecision_t>       result,
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= 2 * a.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
 
-    const std::size_t n            = a.size();
-    const std::size_t result_total = 2 * n;
-
-    // Tiny squares: plain schoolbook beats the three-pass squaring basecase.
-    if (n < square_long_cutoff) {
-        multiply_long(result.first(result_total), a, a);
-        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
-    }
-
-    // (2^k)^2 = 2^(2k): a shifted copy beats any squaring kernel.
-    if (is_power_of_two_span(a)) {
-        return multiply_power_of_two(result, a, a);
-    }
-
-    if (n < square_karatsuba_cutoff) {
-        square_long(result, a);
-        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
-    }
-
-    if (n < square_toom_cook_3_cutoff) {
-        scratch_allocator<Allocator> scratch(karatsuba_storage_size(n), alloc);
-        square_karatsuba(result.first(result_total), a, scratch);
-    } else if (n < square_toom_cook_4_cutoff) {
-        scratch_allocator<Allocator> scratch(toom_cook_3_storage_size(n), alloc);
-        square_toom_cook_3(result.first(result_total), a, scratch);
-    } else if (n < square_toom_cook_6_5_cutoff) {
-        scratch_allocator<Allocator> scratch(toom_cook_4_storage_size(n), alloc);
-        square_toom_cook_4(result.first(result_total), a, scratch);
-    } else {
-        // n >= square_toom_cook_6_5_cutoff: Toom-6.5 / Toom-8.5, or FFT once it
-        // overtakes at square_fft_cutoff. The FFT kernel packs into 64-bit words, so
-        // it is gated to 64-bit limbs; on a 32-bit build the branch is discarded and
-        // execution falls through to the Toom chain.
-        bool used_fft = false;
-        if constexpr (width_v<uint_multiprecision_t> == 64) {
-            if (n >= square_fft_cutoff) {
-                using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
-#if defined(BEMAN_BIG_INT_SIMD_MUL)
-                using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
-                std::vector<double, f64_alloc>        fp_ws(square_fft_fp_storage_size(n), f64_alloc(alloc));
-                std::vector<std::uint64_t, u64_alloc> int_ws(square_fft_int_storage_size(n), u64_alloc(alloc));
-                square_fft(result.first(result_total), a, fp_ws, int_ws);
-#else
-                std::vector<std::uint64_t, u64_alloc> ws(square_fft_storage_size(n), u64_alloc(alloc));
-                square_fft(result.first(result_total), a, ws);
-#endif
-                used_fft = true;
-            }
-        }
-        if (!used_fft) {
-            if (n < square_toom_cook_8_5_cutoff) {
-                scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(n), alloc);
-                square_toom_cook_6_5(result.first(result_total), a, scratch);
-            } else {
-                scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(n), alloc);
-                square_toom_cook_8_5(result.first(result_total), a, scratch);
-            }
-        }
-    }
-
-    return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
+    const scratch_allocator<Allocator> hooks(alloc);
+    return square_runtime(result, a, hooks.heap());
 }
 
 // ---------------------------------------------------------------------------
@@ -866,83 +822,12 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
         }
     }
 
-    // Choose an algorithm to use based off the tuned cutoffs.
-    // Avoid these at compile time because the recursion depth could blow up consteval limits;
-    // long multiplication works just fine in that case.
+    // The tier ladder lives in src/mul_dispatch.cpp; constant evaluation
+    // keeps long multiplication (the recursive tiers could blow up consteval
+    // step limits, and the kernels are runtime-compiled).
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-        // x * x and x *= x pass the same span twice, so squaring detection is
-        // a pointer compare that almost always fails fast for ordinary mul
-        if (a.data() == b.data() && a.size() == b.size()) {
-            return square_dispatch(result, a, alloc);
-        }
-
-        const std::size_t min_size = std::min(a.size(), b.size());
-        if (min_size >= karatsuba_cutoff) {
-            // Power-of-two operands reduce to a shifted copy of the other operand.
-            // This is only worth checking if we're about to do a big number mul anyway
-            if (is_power_of_two_span(b)) {
-                return multiply_power_of_two(result, a, b);
-            }
-            if (is_power_of_two_span(a)) {
-                return multiply_power_of_two(result, b, a);
-            }
-
-            const std::size_t s            = std::max(a.size(), b.size());
-            const std::size_t result_total = a.size() + b.size();
-
-            if (min_size < toom_cook_3_cutoff) {
-                const std::size_t storage_size = karatsuba_storage_size(s);
-                if (storage_size <= karatsuba_stack_threshold) {
-                    uint_multiprecision_t        stack_buf[karatsuba_stack_threshold];
-                    scratch_allocator<Allocator> scratch(stack_buf, karatsuba_stack_threshold, alloc);
-                    multiply_karatsuba(result.first(result_total), a, b, scratch);
-                } else {
-                    scratch_allocator<Allocator> scratch(storage_size, alloc);
-                    multiply_karatsuba(result.first(result_total), a, b, scratch);
-                }
-            } else if (min_size < toom_cook_4_cutoff) {
-                scratch_allocator<Allocator> scratch(toom_cook_3_storage_size(s), alloc);
-                multiply_toom_cook_3(result.first(result_total), a, b, scratch);
-            } else if (min_size < toom_cook_6_5_cutoff) {
-                scratch_allocator<Allocator> scratch(toom_cook_4_storage_size(s), alloc);
-                multiply_toom_cook_4(result.first(result_total), a, b, scratch);
-            } else {
-                // min_size >= toom_cook_6_5_cutoff: Toom-6.5 / Toom-8.5, or FFT
-                // once it overtakes at fft_mul_cutoff. Gated to 64-bit limbs (the
-                // FFT kernel packs into 64-bit words); on a 32-bit build the branch
-                // is discarded and execution falls through to the Toom chain.
-                bool used_fft = false;
-                if constexpr (width_v<uint_multiprecision_t> == 64) {
-                    if (min_size >= fft_mul_cutoff) {
-                        using u64_alloc =
-                            typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
-#if defined(BEMAN_BIG_INT_SIMD_MUL)
-                        using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
-                        std::vector<double, f64_alloc>        fp_ws(fft_mul_fp_storage_size(a.size(), b.size()),
-                                                                    f64_alloc(alloc));
-                        std::vector<std::uint64_t, u64_alloc> int_ws(fft_mul_int_storage_size(a.size(), b.size()),
-                                                                     u64_alloc(alloc));
-                        multiply_fft(result.first(result_total), a, b, fp_ws, int_ws);
-#else
-                        std::vector<std::uint64_t, u64_alloc> ws(fft_mul_storage_size(a.size(), b.size()),
-                                                                 u64_alloc(alloc));
-                        multiply_fft(result.first(result_total), a, b, ws);
-#endif
-                        used_fft = true;
-                    }
-                }
-                if (!used_fft) {
-                    if (min_size < toom_cook_8_5_cutoff) {
-                        scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(s), alloc);
-                        multiply_toom_cook_6_5(result.first(result_total), a, b, scratch);
-                    } else {
-                        scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(s), alloc);
-                        multiply_toom_cook_8_5(result.first(result_total), a, b, scratch);
-                    }
-                }
-            }
-            return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
-        }
+        const scratch_allocator<Allocator> hooks(alloc);
+        return multiply_runtime(result, a, b, hooks.heap());
     }
 
     // Long multiplication fallback

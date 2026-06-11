@@ -39,6 +39,7 @@ include(infra/cmake/beman-install-library.cmake)
 add_library(
     beman.big_int
     src/karatsuba.cpp
+    src/mul_dispatch.cpp
     src/toom_cook_3.cpp
     src/toom_cook_4.cpp
     src/toom_cook_6_5.cpp
