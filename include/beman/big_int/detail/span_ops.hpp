@@ -540,11 +540,8 @@ divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
         r             = qr.remainder;
         cur           = next;
     }
-    const auto qr = div_2by1_preinv(
-        wide<uint_multiprecision_t>{.low_bits = cur << shift, .high_bits = r},
-        d,
-        v);
-    quotient[0] = qr.quotient;
+    const auto qr = div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = cur << shift, .high_bits = r}, d, v);
+    quotient[0]   = qr.quotient;
     return qr.remainder >> shift;
 }
 
@@ -567,10 +564,9 @@ divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
 // 2^52, a redesign out of proportion to its modeled <= 1.4x basecase win
 // on one ISA family.
 // ---------------------------------------------------------------------------
-[[nodiscard]] constexpr uint_multiprecision_t
-submul_single_limb(const std::span<uint_multiprecision_t>       result,
-                   const std::span<const uint_multiprecision_t> a,
-                   const uint_multiprecision_t                  val) noexcept {
+[[nodiscard]] constexpr uint_multiprecision_t submul_single_limb(const std::span<uint_multiprecision_t>       result,
+                                                                 const std::span<const uint_multiprecision_t> a,
+                                                                 const uint_multiprecision_t val) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data() || a.empty());
 
@@ -589,7 +585,7 @@ submul_single_limb(const std::span<uint_multiprecision_t>       result,
         const auto [low, c]   = carrying_add(lo, borrow);
         const auto [r_val, b] = borrowing_sub(result[i], low);
         result[i]             = r_val;
-        borrow = hi + static_cast<uint_multiprecision_t>(c) + static_cast<uint_multiprecision_t>(b);
+        borrow                = hi + static_cast<uint_multiprecision_t>(c) + static_cast<uint_multiprecision_t>(b);
     }
     return borrow;
 }

@@ -42,21 +42,22 @@ std::vector<uint_t> random_limbs(const std::size_t size, std::mt19937_64& rng) {
     return v;
 }
 
-std::vector<uint_t> build_dividend(const std::vector<uint_t>& q, const std::vector<uint_t>& b,
-                                   const std::vector<uint_t>& r) {
+std::vector<uint_t>
+build_dividend(const std::vector<uint_t>& q, const std::vector<uint_t>& b, const std::vector<uint_t>& r) {
     std::allocator<uint_t> alloc;
     std::vector<uint_t>    product(q.size() + b.size() + 1, 0);
-    detail::multiply_dispatch(std::span<uint_t>{product}, std::span<const uint_t>{q}, std::span<const uint_t>{b},
-                              alloc);
-    const bool carry = detail::add_unsigned_spans(std::span<uint_t>{product}, std::span<const uint_t>{product},
-                                                  std::span<const uint_t>{r});
+    detail::multiply_dispatch(
+        std::span<uint_t>{product}, std::span<const uint_t>{q}, std::span<const uint_t>{b}, alloc);
+    const bool carry = detail::add_unsigned_spans(
+        std::span<uint_t>{product}, std::span<const uint_t>{product}, std::span<const uint_t>{r});
     EXPECT_FALSE(carry);
     product.resize(detail::trimmed_size_span(std::span<const uint_t>{product}));
     return product;
 }
 
-void check_division(const std::vector<uint_t>& dividend, const std::vector<uint_t>& divisor,
-                    const std::size_t invert_override) {
+void check_division(const std::vector<uint_t>& dividend,
+                    const std::vector<uint_t>& divisor,
+                    const std::size_t          invert_override) {
     ASSERT_GE(divisor.size(), 2u);
     ASSERT_NE(divisor.back(), 0u);
     ASSERT_NE(dividend.back(), 0u);
@@ -96,8 +97,8 @@ void check_division(const std::vector<uint_t>& dividend, const std::vector<uint_
     // q * b + r == a through the multiplication stack.
     std::vector<uint_t> product(q_mu.size() + s + 1, 0);
     detail::multiply_dispatch(std::span<uint_t>{product}, std::span<const uint_t>{q_mu}, b_view, alloc);
-    const bool carry = detail::add_unsigned_spans(std::span<uint_t>{product}, std::span<const uint_t>{product},
-                                                  std::span<const uint_t>{r_mu});
+    const bool carry = detail::add_unsigned_spans(
+        std::span<uint_t>{product}, std::span<const uint_t>{product}, std::span<const uint_t>{r_mu});
     EXPECT_FALSE(carry);
     EXPECT_EQ(detail::compare_unsigned_spans(std::span<const uint_t>{product}, a_view), std::strong_ordering::equal)
         << "identity mismatch at m=" << m << " s=" << s << " inv_thr=" << invert_override;
@@ -207,13 +208,13 @@ TEST(DivisionBarrettExercise, DispatchGateBoundaries) {
     // divide_burnikel_ziegler reference.
     constexpr std::size_t m8 = detail::barrett_march8_cutoff;
     std::mt19937_64       rng{0x9a7e5u};
-    for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{512, 16 * 512},     // at the march gate
-                              {512, 16 * 512 - 1},                                    // one below
-                              {520, 16 * 520 + 7},                                    // above, unaligned
-                              {511, 16 * 511},                                        // divisor below cutoff
-                              {m8, 8 * m8},                                           // at the march8 gate
-                              {m8, 8 * m8 - 1},                                       // one below the m/8 line
-                              {m8 - 1, 8 * (m8 - 1)}}) {                              // divisor below march8
+    for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{512, 16 * 512}, // at the march gate
+                               {512, 16 * 512 - 1},                                // one below
+                               {520, 16 * 520 + 7},                                // above, unaligned
+                               {511, 16 * 511},                                    // divisor below cutoff
+                               {m8, 8 * m8},                                       // at the march8 gate
+                               {m8, 8 * m8 - 1},                                   // one below the m/8 line
+                               {m8 - 1, 8 * (m8 - 1)}}) {                          // divisor below march8
         const auto dividend = random_limbs(m, rng);
         const auto divisor  = random_limbs(s, rng);
         const auto a_view   = std::span<const uint_t>{dividend};
@@ -223,10 +224,10 @@ TEST(DivisionBarrettExercise, DispatchGateBoundaries) {
         std::vector<uint_t>    q_disp(m - s + 1, 0);
         std::vector<uint_t>    r_disp(m + 1, 0);
         {
-            detail::scratch_allocator<std::allocator<uint_t>> scratch(
-                detail::divide_unsigned_storage_size(m, s), alloc);
-            detail::divide_dispatch(std::span<uint_t>{q_disp}, std::span<uint_t>{r_disp}, a_view, b_view, scratch,
-                                    alloc);
+            detail::scratch_allocator<std::allocator<uint_t>> scratch(detail::divide_unsigned_storage_size(m, s),
+                                                                      alloc);
+            detail::divide_dispatch(
+                std::span<uint_t>{q_disp}, std::span<uint_t>{r_disp}, a_view, b_view, scratch, alloc);
         }
 
         std::vector<uint_t> q_ref(m - s + 1, 0);
@@ -260,11 +261,8 @@ TEST(DivisionBarrettExercise, DefaultReciprocalThreshold) {
     // Default Newton threshold, sizes that take one or two real levels, plus
     // long block marches and a single-block tail.
     std::mt19937_64 rng{0xdefa18u};
-    for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{100, 400},
-                              {128, 1000},
-                              {200, 280},
-                              {256, 520},
-                              {300, 301}}) {
+    for (const auto& [s, m] :
+         {std::pair<std::size_t, std::size_t>{100, 400}, {128, 1000}, {200, 280}, {256, 520}, {300, 301}}) {
         check_division(random_limbs(m, rng), random_limbs(s, rng), 0);
     }
 }

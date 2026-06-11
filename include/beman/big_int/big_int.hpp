@@ -2859,12 +2859,8 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
     const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
 
-    detail::divide_dispatch(quot_span,
-                            std::span<uint_multiprecision_t>{limb_ptr(), r_cap},
-                            dividend_trim,
-                            divisor_trim,
-                            scratch,
-                            m_alloc);
+    detail::divide_dispatch(
+        quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch, m_alloc);
 
     const std::size_t rsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
     unchecked_set_limb_count(static_cast<std::uint32_t>(rsize));

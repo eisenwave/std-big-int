@@ -524,10 +524,10 @@ using beman::big_int::detail::widening_mul;
 // v must equal floor((B^2 - 1) / d) - B, computed independently via wider_t.
 template <class T>
 void check_reciprocal_word(const T d) {
-    using W                 = beman::big_int::detail::wider_t<T>;
-    constexpr std::size_t w = beman::big_int::detail::width_v<T>;
-    const W all_ones        = static_cast<W>(static_cast<W>(0) - 1);
-    const T expected        = static_cast<T>(all_ones / d - (static_cast<W>(1) << w));
+    using W                        = beman::big_int::detail::wider_t<T>;
+    constexpr std::size_t w        = beman::big_int::detail::width_v<T>;
+    const W               all_ones = static_cast<W>(static_cast<W>(0) - 1);
+    const T               expected = static_cast<T>(all_ones / d - (static_cast<W>(1) << w));
     EXPECT_EQ(reciprocal_word(d), expected) << "d=" << d;
 }
 
@@ -674,10 +674,8 @@ consteval bool ce_div_2by1_preinv() {
     constexpr std::size_t w = beman::big_int::detail::width_v<T>;
     constexpr T           d = T{1} << (w - 1);
     // <d-1, max> / d: quotient max, remainder d - 1.
-    const auto r = div_2by1_preinv(
-        wide<T>{.low_bits = std::numeric_limits<T>::max(), .high_bits = d - 1},
-        d,
-        reciprocal_word(d));
+    const auto r =
+        div_2by1_preinv(wide<T>{.low_bits = std::numeric_limits<T>::max(), .high_bits = d - 1}, d, reciprocal_word(d));
     return r.quotient == std::numeric_limits<T>::max() && r.remainder == d - 1;
 }
 static_assert(ce_div_2by1_preinv());

@@ -140,9 +140,9 @@ void run_sweep() {
 
     // Balanced 2n / n: the canonical shape for the cutoffs. The top sizes
     // bracket the Barrett balanced gate.
-    constexpr std::size_t balanced[] = {16,   24,   32,    40,    48,    64,    80,    96,     128,
-                                        192,  256,  384,   512,   768,   1024,  1536,  2048,   3072,
-                                        4096, 6144, 8192,  12288, 16384, 32768, 65536, 131072, 262144};
+    constexpr std::size_t balanced[] = {16,   24,   32,   40,    48,    64,    80,    96,     128,
+                                        192,  256,  384,  512,   768,   1024,  1536,  2048,   3072,
+                                        4096, 6144, 8192, 12288, 16384, 32768, 65536, 131072, 262144};
     for (const std::size_t n : balanced) {
         if (n <= 4096) {
             emit("schoolbook", 2 * n, n, run_schoolbook_at(2 * n, n));

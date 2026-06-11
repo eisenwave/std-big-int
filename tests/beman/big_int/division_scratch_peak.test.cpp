@@ -56,8 +56,7 @@ double probe(const std::size_t dividend_limbs, const std::size_t divisor_limbs, 
     std::vector<uint_t> remainder(dividend_limbs + 1, 0);
 
     const detail::burnikel_ziegler_params plan = detail::burnikel_ziegler_plan(a_view, b_view, threshold_override);
-    const std::size_t                     budget =
-        detail::burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold);
+    const std::size_t budget = detail::burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold);
 
     std::allocator<uint_t> alloc;
     scratch_for_test       scratch(3 * budget + 64, alloc);
@@ -118,7 +117,8 @@ TEST(DivisionScratchPeak, ForcedDeepRecursionWithinBudget) {
 
 // Same probe for the Barrett driver: budget from barrett_storage_size with
 // the matching block count and reciprocal threshold.
-void probe_barrett(const std::size_t dividend_limbs, const std::size_t divisor_limbs,
+void probe_barrett(const std::size_t dividend_limbs,
+                   const std::size_t divisor_limbs,
                    const std::size_t invert_override) {
     const auto dividend = random_limbs(dividend_limbs);
     const auto divisor  = random_limbs(divisor_limbs);

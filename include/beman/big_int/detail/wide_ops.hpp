@@ -694,9 +694,9 @@ template <unsigned_integer T>
 
     // <q1,q0> = (B + v) * u.high + u.low, with the +1 of the algorithm folded
     // into the high add (u.high + 1 cannot wrap: u.high < d <= B-1).
-    const wide<T> qw = widening_mul(v, u.high_bits);
+    const wide<T> qw          = widening_mul(v, u.high_bits);
     const auto [q0, q0_carry] = carrying_add(qw.low_bits, u.low_bits);
-    const T q1 = static_cast<T>(qw.high_bits + u.high_bits + static_cast<T>(q0_carry) + 1);
+    const T q1                = static_cast<T>(qw.high_bits + u.high_bits + static_cast<T>(q0_carry) + 1);
 
     T r = static_cast<T>(u.low_bits - widening_mul(q1, d).low_bits);
 
@@ -722,9 +722,9 @@ div_3by2_preinv(const T u2, const T u1, const T u0, const T d1, const T d0, cons
     BEMAN_BIG_INT_DEBUG_ASSERT(u2 < d1 || (u2 == d1 && u1 < d0));
 
     // <q1,q0> = v * u2 + <u2,u1>.
-    const wide<T> qw = widening_mul(v, u2);
+    const wide<T> qw          = widening_mul(v, u2);
     const auto [q0, q0_carry] = carrying_add(qw.low_bits, u1);
-    T q1 = static_cast<T>(qw.high_bits + u2 + static_cast<T>(q0_carry));
+    T q1                      = static_cast<T>(qw.high_bits + u2 + static_cast<T>(q0_carry));
 
     // <r1,r0> = <u1,u0> - q1 * <d1,d0> - <d1,d0>  (mod B^2), tracking only the
     // low two limbs: r1 = u1 - q1*d1 captures the high part exactly.
@@ -734,7 +734,7 @@ div_3by2_preinv(const T u2, const T u1, const T u0, const T d1, const T d0, cons
     T r0                      = s0;
     r1                        = static_cast<T>(r1 - d1 - static_cast<T>(s_borrow));
 
-    const wide<T> t = widening_mul(d0, q1);
+    const wide<T> t           = widening_mul(d0, q1);
     const auto [w0, w_borrow] = borrowing_sub(r0, t.low_bits);
     r0                        = w0;
     r1                        = static_cast<T>(r1 - t.high_bits - static_cast<T>(w_borrow));
@@ -743,8 +743,8 @@ div_3by2_preinv(const T u2, const T u1, const T u0, const T d1, const T d0, cons
 
     // Common correction, branch-free: if r1 >= q0 the candidate is one too
     // large; give back one divisor.
-    const T mask = static_cast<T>(static_cast<T>(0) - static_cast<T>(r1 >= q0));
-    q1           = static_cast<T>(q1 + mask);
+    const T mask           = static_cast<T>(static_cast<T>(0) - static_cast<T>(r1 >= q0));
+    q1                     = static_cast<T>(q1 + mask);
     const T add0           = static_cast<T>(mask & d0);
     const T add1           = static_cast<T>(mask & d1);
     const auto [a0, carry] = carrying_add(r0, add0);

@@ -39,8 +39,10 @@ void canonicalize(std::vector<uint_t>& v) {
     }
 }
 
-void check_mulmod(const std::vector<uint_t>& a, const std::vector<uint_t>& b, const std::size_t w,
-                  const std::size_t cutoff_override) {
+void check_mulmod(const std::vector<uint_t>& a,
+                  const std::vector<uint_t>& b,
+                  const std::size_t          w,
+                  const std::size_t          cutoff_override) {
     std::allocator<uint_t> alloc;
 
     // Oracle: full product folded once.
@@ -53,9 +55,12 @@ void check_mulmod(const std::vector<uint_t>& a, const std::vector<uint_t>& b, co
     std::vector<uint_t> got(w, 0);
     const std::size_t   budget = detail::multiply_mod_bnm1_storage_size(w);
     scratch_for_test    scratch(3 * budget + 64, alloc);
-    detail::multiply_mod_bnm1(
-        std::span<uint_t>{got}, std::span<const uint_t>{a}, std::span<const uint_t>{b}, scratch, alloc,
-        cutoff_override);
+    detail::multiply_mod_bnm1(std::span<uint_t>{got},
+                              std::span<const uint_t>{a},
+                              std::span<const uint_t>{b},
+                              scratch,
+                              alloc,
+                              cutoff_override);
     EXPECT_LE(scratch.peak(), budget) << "w=" << w << " thr=" << cutoff_override;
     canonicalize(got);
 
@@ -92,8 +97,13 @@ TEST(MulmodBnm1, SweepSmallWrapSizes) {
 
 TEST(MulmodBnm1, LargerAndRoundedSizes) {
     std::mt19937_64 rng{0xb32u};
-    for (const std::size_t n : {std::size_t{41}, std::size_t{48}, std::size_t{64}, std::size_t{100},
-                                std::size_t{129}, std::size_t{256}, std::size_t{1000}}) {
+    for (const std::size_t n : {std::size_t{41},
+                                std::size_t{48},
+                                std::size_t{64},
+                                std::size_t{100},
+                                std::size_t{129},
+                                std::size_t{256},
+                                std::size_t{1000}}) {
         const std::size_t w = detail::multiply_mod_bnm1_next_size(n, detail::multiply_mod_bnm1_cutoff);
         ASSERT_GE(w, n);
         for (int trial = 0; trial < 3; ++trial) {
@@ -153,8 +163,8 @@ TEST(MulmodBnm1, CyclicTierDifferential) {
     std::mt19937_64 rng{0xb34u};
 
     // A chooser size at the production cutoff: the cyclic kernel runs.
-    const std::size_t w = detail::multiply_mod_bnm1_next_size(detail::fft_cyclic_cutoff + 17,
-                                                              detail::multiply_mod_bnm1_cutoff);
+    const std::size_t w =
+        detail::multiply_mod_bnm1_next_size(detail::fft_cyclic_cutoff + 17, detail::multiply_mod_bnm1_cutoff);
     check_mulmod(random_limbs(w, rng), random_limbs(w, rng), w, 0);
     check_mulmod(std::vector<uint_t>(w, limb_max), std::vector<uint_t>(w, limb_max), w, 0);
     // Zero operand exercises the tier's short-circuit (the kernel itself

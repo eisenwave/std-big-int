@@ -458,7 +458,8 @@ using uint_t = uint_multiprecision_t;
 
 // Reference: the plain one-narrowing_div-per-limb loop the preinv version
 // replaced.
-uint_t reference_short(const std::span<uint_t> quotient, const std::span<const uint_t> dividend, const uint_t divisor) {
+uint_t
+reference_short(const std::span<uint_t> quotient, const std::span<const uint_t> dividend, const uint_t divisor) {
     uint_t remainder = 0;
     for (std::size_t i = dividend.size(); i-- > 0;) {
         const beman::big_int::detail::wide<uint_t> num{.low_bits = dividend[i], .high_bits = remainder};
@@ -497,7 +498,10 @@ TEST(DivisionShortPreinv, MatchesReferenceLoop) {
             check_short(dividend, 2);
             check_short(dividend, 10);
             check_short(dividend, static_cast<uint_multiprecision_t>(rng()) | 1u);
-            check_short(dividend, static_cast<uint_multiprecision_t>(rng()) | (uint_multiprecision_t{1} << (beman::big_int::detail::width_v<uint_multiprecision_t> - 1)));
+            check_short(
+                dividend,
+                static_cast<uint_multiprecision_t>(rng()) |
+                    (uint_multiprecision_t{1} << (beman::big_int::detail::width_v<uint_multiprecision_t> - 1)));
             check_short(dividend, uint_multiprecision_t{1} << 7);
             check_short(dividend, max);
             check_short(dividend, max - 1);
@@ -520,9 +524,8 @@ TEST(DivisionShortPreinv, InPlaceAliasing) {
     const uint_multiprecision_t        expected_r = short_div::reference_short(
         std::span<uint_multiprecision_t>{expected}, std::span<const uint_multiprecision_t>{original}, divisor);
 
-    const auto buf_span = std::span<uint_multiprecision_t>{buffer};
-    const uint_multiprecision_t got_r =
-        beman::big_int::detail::divide_unsigned_short(buf_span, buf_span, divisor);
+    const auto                  buf_span = std::span<uint_multiprecision_t>{buffer};
+    const uint_multiprecision_t got_r    = beman::big_int::detail::divide_unsigned_short(buf_span, buf_span, divisor);
 
     EXPECT_EQ(got_r, expected_r);
     EXPECT_TRUE(std::ranges::equal(buffer, expected));
@@ -575,7 +578,7 @@ TEST(SubmulSingleLimb, Boundaries) {
     constexpr auto max = std::numeric_limits<uint_t>::max();
 
     // val == 0 leaves the buffer untouched with no borrow.
-    std::vector<uint_t> r{1, 2, 3};
+    std::vector<uint_t>       r{1, 2, 3};
     const std::vector<uint_t> a{max, max, max};
     EXPECT_EQ(beman::big_int::detail::submul_single_limb(std::span<uint_t>{r}, std::span<const uint_t>{a}, 0), 0u);
     EXPECT_EQ(r[0], 1u);
@@ -594,8 +597,7 @@ TEST(SubmulSingleLimb, Boundaries) {
 
     // Empty `a` is a no-op.
     std::vector<uint_t> untouched{42};
-    EXPECT_EQ(beman::big_int::detail::submul_single_limb(
-                  std::span<uint_t>{untouched}, std::span<const uint_t>{}, max),
+    EXPECT_EQ(beman::big_int::detail::submul_single_limb(std::span<uint_t>{untouched}, std::span<const uint_t>{}, max),
               0u);
     EXPECT_EQ(untouched[0], 42u);
 }

@@ -40,8 +40,7 @@ void check_reciprocal(const std::vector<uint_t>& divisor, const std::size_t thre
     std::vector<uint_t> inverse(n);
     {
         const std::size_t thr = threshold_override != 0 ? threshold_override : detail::reciprocal_span_cutoff;
-        detail::scratch_allocator<std::allocator<uint_t>> scratch(detail::reciprocal_span_storage_size(n, thr),
-                                                                  alloc);
+        detail::scratch_allocator<std::allocator<uint_t>> scratch(detail::reciprocal_span_storage_size(n, thr), alloc);
         detail::reciprocal_span(std::span<uint_t>{inverse}, d_view, scratch, alloc, threshold_override);
     }
 
@@ -52,9 +51,8 @@ void check_reciprocal(const std::vector<uint_t>& divisor, const std::size_t thre
     detail::add_shifted(std::span<uint_t>{v}, n, d_view);
     EXPECT_EQ(v[2 * n], 0u) << "n=" << n << " thr=" << threshold_override;
 
-    const bool carry = detail::add_unsigned_spans(std::span<uint_t>{v.data(), 2 * n},
-                                                  std::span<const uint_t>{v.data(), 2 * n},
-                                                  d_view);
+    const bool carry = detail::add_unsigned_spans(
+        std::span<uint_t>{v.data(), 2 * n}, std::span<const uint_t>{v.data(), 2 * n}, d_view);
     EXPECT_TRUE(carry) << "n=" << n << " thr=" << threshold_override;
 
     // Cross-check against the all-ones quotient from the divide-and-conquer

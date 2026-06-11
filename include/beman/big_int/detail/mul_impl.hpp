@@ -585,11 +585,10 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 consteval bool fft_cyclic_next_size_properties() {
     for (std::size_t w = 1; w <= (std::size_t{1} << 22); w = w * 7 / 4 + 13) {
         const fft_cyclic_params p = multiply_fft_cyclic_next_size(w);
-        const bool              ok =
-            p.wrap_limbs >= w && 64 * p.wrap_limbs == static_cast<std::size_t>(p.coeff_bits) * p.length &&
-            p.coeff_bits >= 26 && p.coeff_bits <= fft_max_coeff_bits && std::has_single_bit(p.length) &&
-            multiply_fft_cyclic_next_size(p.wrap_limbs).wrap_limbs == p.wrap_limbs &&
-            p.wrap_limbs < w + w / 25 + 64;
+        const bool ok = p.wrap_limbs >= w && 64 * p.wrap_limbs == static_cast<std::size_t>(p.coeff_bits) * p.length &&
+                        p.coeff_bits >= 26 && p.coeff_bits <= fft_max_coeff_bits && std::has_single_bit(p.length) &&
+                        multiply_fft_cyclic_next_size(p.wrap_limbs).wrap_limbs == p.wrap_limbs &&
+                        p.wrap_limbs < w + w / 25 + 64;
         if (!ok) {
             return false;
         }

@@ -401,8 +401,7 @@ void multiply_fft_cyclic(const std::span<uint_multiprecision_t>       result,
     const std::size_t n = params.length;
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() == w);
     BEMAN_BIG_INT_DEBUG_ASSERT(a.size() <= w && b.size() <= w);
-    BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::size_t>(params.coeff_bits) * n ==
-                               width_v<uint_multiprecision_t> * w);
+    BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::size_t>(params.coeff_bits) * n == width_v<uint_multiprecision_t> * w);
     BEMAN_BIG_INT_DEBUG_ASSERT(fp_workspace.size() >= fft_cyclic_fp_storage_size(params));
     BEMAN_BIG_INT_DEBUG_ASSERT(int_workspace.size() >= fft_cyclic_int_storage_size(params));
     BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<std::uint64_t>(std::countr_zero(n)) <= fft_min_adicity());

@@ -55,22 +55,24 @@ std::size_t check_divappr(const std::vector<uint_t>& dividend, const std::vector
     std::vector<uint_t> r_ref(m + 1, 0);
     {
         scratch_for_test scratch(detail::divide_unsigned_storage_size(m, s), alloc);
-        detail::divide_unsigned(std::span<uint_t>{q_ref}, std::span<uint_t>{r_ref}, std::span<const uint_t>{dividend},
-                                std::span<const uint_t>{divisor}, scratch);
+        detail::divide_unsigned(std::span<uint_t>{q_ref},
+                                std::span<uint_t>{r_ref},
+                                std::span<const uint_t>{dividend},
+                                std::span<const uint_t>{divisor},
+                                scratch);
     }
 
     std::vector<uint_t> q_apx(m - s + 1, 0);
     {
         scratch_for_test scratch(detail::divide_unsigned_storage_size(m, s), alloc);
-        detail::divide_unsigned_approx(std::span<uint_t>{q_apx}, std::span<const uint_t>{dividend},
-                                       std::span<const uint_t>{divisor}, scratch);
+        detail::divide_unsigned_approx(
+            std::span<uint_t>{q_apx}, std::span<const uint_t>{dividend}, std::span<const uint_t>{divisor}, scratch);
     }
 
     // diff = q' - q, which must not borrow and must be at most 1.
-    std::vector<uint_t> diff = q_apx;
-    const bool borrow = detail::subtract_unsigned_spans_borrow_out(std::span<uint_t>{diff},
-                                                                   std::span<const uint_t>{diff},
-                                                                   std::span<const uint_t>{q_ref});
+    std::vector<uint_t> diff   = q_apx;
+    const bool          borrow = detail::subtract_unsigned_spans_borrow_out(
+        std::span<uint_t>{diff}, std::span<const uint_t>{diff}, std::span<const uint_t>{q_ref});
     EXPECT_FALSE(borrow) << "approximate quotient below the true quotient at m=" << m << " s=" << s;
     if (detail::is_span_zero(std::span<const uint_t>{diff})) {
         return 0;
@@ -103,12 +105,12 @@ TEST(DivisionDivappr, ConstructedPlusOne) {
     constexpr uint_t    top_bit = uint_t{1} << (detail::width_v<uint_t> - 1);
     std::vector<uint_t> d{limb_max, 0, top_bit};
 
-    std::vector<uint_t> n3d(4, 0); // 3 * d
+    std::vector<uint_t>    n3d(4, 0); // 3 * d
     std::allocator<uint_t> alloc;
-    detail::multiply_dispatch(std::span<uint_t>{n3d}, std::span<const uint_t>{std::vector<uint_t>{3}},
-                              std::span<const uint_t>{d}, alloc);
-    detail::subtract_unsigned_spans(std::span<uint_t>{n3d}, std::span<const uint_t>{n3d},
-                                    std::span<const uint_t>{std::vector<uint_t>{1}});
+    detail::multiply_dispatch(
+        std::span<uint_t>{n3d}, std::span<const uint_t>{std::vector<uint_t>{3}}, std::span<const uint_t>{d}, alloc);
+    detail::subtract_unsigned_spans(
+        std::span<uint_t>{n3d}, std::span<const uint_t>{n3d}, std::span<const uint_t>{std::vector<uint_t>{1}});
     ASSERT_EQ(detail::trimmed_size_span(std::span<const uint_t>{n3d}), 4u);
 
     EXPECT_EQ(check_divappr(n3d, d), 1u);
@@ -190,8 +192,8 @@ TEST(DivisionDivappr, ExactMultiplesAndNeighbors) {
                 const auto          d = random_limbs(s, rng);
                 const auto          q = random_limbs(qn, rng);
                 std::vector<uint_t> product(s + qn, 0);
-                detail::multiply_dispatch(std::span<uint_t>{product}, std::span<const uint_t>{q},
-                                          std::span<const uint_t>{d}, alloc);
+                detail::multiply_dispatch(
+                    std::span<uint_t>{product}, std::span<const uint_t>{q}, std::span<const uint_t>{d}, alloc);
                 product.resize(detail::trimmed_size_span(std::span<const uint_t>{product}));
                 if (product.size() <= s) {
                     continue;
@@ -200,12 +202,14 @@ TEST(DivisionDivappr, ExactMultiplesAndNeighbors) {
                 // and one above (remainder 1).
                 check_divappr(product, d);
                 std::vector<uint_t> above = product;
-                if (!detail::add_unsigned_spans(std::span<uint_t>{above}, std::span<const uint_t>{above},
+                if (!detail::add_unsigned_spans(std::span<uint_t>{above},
+                                                std::span<const uint_t>{above},
                                                 std::span<const uint_t>{std::vector<uint_t>{1}})) {
                     check_divappr(above, d);
                 }
                 std::vector<uint_t> below = product;
-                detail::subtract_unsigned_spans(std::span<uint_t>{below}, std::span<const uint_t>{below},
+                detail::subtract_unsigned_spans(std::span<uint_t>{below},
+                                                std::span<const uint_t>{below},
                                                 std::span<const uint_t>{std::vector<uint_t>{1}});
                 below.resize(detail::trimmed_size_span(std::span<const uint_t>{below}));
                 if (below.size() > s) {
@@ -223,8 +227,8 @@ TEST(DivisionDivappr, ExactMultiplesAndNeighbors) {
 
 // Runs both kernels on copies of `working` (2n limbs, high half < b) and
 // returns q' - q.
-std::size_t check_dc_divappr(const std::vector<uint_t>& working, const std::vector<uint_t>& b,
-                             const std::size_t threshold) {
+std::size_t
+check_dc_divappr(const std::vector<uint_t>& working, const std::vector<uint_t>& b, const std::size_t threshold) {
     const std::size_t n = b.size();
     EXPECT_EQ(working.size(), 2 * n);
     EXPECT_NE(b.back() >> (detail::width_v<uint_t> - 1), 0u);
@@ -236,22 +240,21 @@ std::size_t check_dc_divappr(const std::vector<uint_t>& working, const std::vect
     std::vector<uint_t> q_exact(n, 0);
     {
         scratch_for_test scratch(detail::burnikel_ziegler_storage_size(n, 2, thr) + 8 * n + 64, alloc);
-        detail::divide_dc_2n1n(std::span<uint_t>{a_exact}, std::span<const uint_t>{b}, std::span<uint_t>{q_exact},
-                               scratch, alloc, thr);
+        detail::divide_dc_2n1n(
+            std::span<uint_t>{a_exact}, std::span<const uint_t>{b}, std::span<uint_t>{q_exact}, scratch, alloc, thr);
     }
 
     std::vector<uint_t> a_appr = working;
     std::vector<uint_t> q_appr(n, 0);
     {
         scratch_for_test scratch(detail::burnikel_ziegler_storage_size(n, 2, thr) + 8 * n + 64, alloc);
-        detail::divide_dc_divappr(std::span<uint_t>{a_appr}, std::span<const uint_t>{b}, std::span<uint_t>{q_appr},
-                                  scratch, alloc, thr);
+        detail::divide_dc_divappr(
+            std::span<uint_t>{a_appr}, std::span<const uint_t>{b}, std::span<uint_t>{q_appr}, scratch, alloc, thr);
     }
 
-    std::vector<uint_t> diff = q_appr;
-    const bool borrow = detail::subtract_unsigned_spans_borrow_out(std::span<uint_t>{diff},
-                                                                   std::span<const uint_t>{diff},
-                                                                   std::span<const uint_t>{q_exact});
+    std::vector<uint_t> diff   = q_appr;
+    const bool          borrow = detail::subtract_unsigned_spans_borrow_out(
+        std::span<uint_t>{diff}, std::span<const uint_t>{diff}, std::span<const uint_t>{q_exact});
     EXPECT_FALSE(borrow) << "approximate dc quotient below the true quotient at n=" << n << " thr=" << thr;
     if (detail::is_span_zero(std::span<const uint_t>{diff})) {
         return 0;
@@ -290,8 +293,14 @@ TEST(DivisionDcDivappr, RandomWindows) {
     std::mt19937_64 rng{0x5b1u};
     std::size_t     max_diff = 0;
     for (const std::size_t thr : {std::size_t{0}, std::size_t{2}, std::size_t{3}, std::size_t{5}}) {
-        for (const std::size_t n : {std::size_t{4}, std::size_t{6}, std::size_t{8}, std::size_t{12},
-                                    std::size_t{16}, std::size_t{24}, std::size_t{48}, std::size_t{64}}) {
+        for (const std::size_t n : {std::size_t{4},
+                                    std::size_t{6},
+                                    std::size_t{8},
+                                    std::size_t{12},
+                                    std::size_t{16},
+                                    std::size_t{24},
+                                    std::size_t{48},
+                                    std::size_t{64}}) {
             for (int trial = 0; trial < 25; ++trial) {
                 const auto b = random_normalized_divisor(n, rng);
                 max_diff     = std::max(max_diff, check_dc_divappr(random_window(b, rng), b, thr));
@@ -368,8 +377,9 @@ TEST(DivisionDcDivappr, SaturationPatterns) {
 // divide_quotient: must equal the exact divmod quotient on every input.
 // ---------------------------------------------------------------------------
 
-void check_div_q(const std::vector<uint_t>& dividend, const std::vector<uint_t>& divisor,
-                 const std::size_t threshold) {
+void check_div_q(const std::vector<uint_t>& dividend,
+                 const std::vector<uint_t>& divisor,
+                 const std::size_t          threshold) {
     const std::size_t m = dividend.size();
     const std::size_t s = divisor.size();
 
@@ -377,13 +387,19 @@ void check_div_q(const std::vector<uint_t>& dividend, const std::vector<uint_t>&
 
     std::vector<uint_t> q_ref(m - s + 1, 0);
     std::vector<uint_t> r_ref(m + 1, 0);
-    detail::divide_burnikel_ziegler(std::span<uint_t>{q_ref}, std::span<uint_t>{r_ref},
-                                    std::span<const uint_t>{dividend}, std::span<const uint_t>{divisor}, alloc,
+    detail::divide_burnikel_ziegler(std::span<uint_t>{q_ref},
+                                    std::span<uint_t>{r_ref},
+                                    std::span<const uint_t>{dividend},
+                                    std::span<const uint_t>{divisor},
+                                    alloc,
                                     threshold);
 
     std::vector<uint_t> q_only(m - s + 1, 0);
-    detail::divide_quotient(std::span<uint_t>{q_only}, std::span<const uint_t>{dividend},
-                            std::span<const uint_t>{divisor}, alloc, threshold);
+    detail::divide_quotient(std::span<uint_t>{q_only},
+                            std::span<const uint_t>{dividend},
+                            std::span<const uint_t>{divisor},
+                            alloc,
+                            threshold);
 
     EXPECT_EQ(detail::compare_unsigned_spans(std::span<const uint_t>{q_only}, std::span<const uint_t>{q_ref}),
               std::strong_ordering::equal)
@@ -416,11 +432,11 @@ TEST(DivisionDivQ, ExactMultiplesHitTheVerifyPath) {
         for (const std::size_t s : {std::size_t{4}, std::size_t{9}, std::size_t{50}, std::size_t{128}}) {
             for (const std::size_t qn : {std::size_t{1}, std::size_t{6}, std::size_t{2 * s}}) {
                 for (int trial = 0; trial < 5; ++trial) {
-                    const auto          d = random_limbs(s, rng);
+                    const auto          d  = random_limbs(s, rng);
                     const auto          qv = random_limbs(qn, rng);
                     std::vector<uint_t> product(s + qn, 0);
-                    detail::multiply_dispatch(std::span<uint_t>{product}, std::span<const uint_t>{qv},
-                                              std::span<const uint_t>{d}, alloc);
+                    detail::multiply_dispatch(
+                        std::span<uint_t>{product}, std::span<const uint_t>{qv}, std::span<const uint_t>{d}, alloc);
                     product.resize(detail::trimmed_size_span(std::span<const uint_t>{product}));
                     if (product.size() < s) {
                         continue;
@@ -428,14 +444,16 @@ TEST(DivisionDivQ, ExactMultiplesHitTheVerifyPath) {
                     check_div_q(product, d, thr);
                     std::vector<uint_t> above = product;
                     above.push_back(0);
-                    detail::add_unsigned_spans(std::span<uint_t>{above}, std::span<const uint_t>{above},
+                    detail::add_unsigned_spans(std::span<uint_t>{above},
+                                               std::span<const uint_t>{above},
                                                std::span<const uint_t>{std::vector<uint_t>{1}});
                     above.resize(detail::trimmed_size_span(std::span<const uint_t>{above}));
                     if (above.size() >= s) {
                         check_div_q(above, d, thr);
                     }
                     std::vector<uint_t> below = product;
-                    detail::subtract_unsigned_spans(std::span<uint_t>{below}, std::span<const uint_t>{below},
+                    detail::subtract_unsigned_spans(std::span<uint_t>{below},
+                                                    std::span<const uint_t>{below},
                                                     std::span<const uint_t>{std::vector<uint_t>{1}});
                     below.resize(detail::trimmed_size_span(std::span<const uint_t>{below}));
                     if (below.size() >= s) {
@@ -458,14 +476,15 @@ TEST(DivisionDivQ, MaximalQuotientCorners) {
             const auto          d = random_limbs(s, rng);
             std::vector<uint_t> q_target(qn, limb_max);
             std::vector<uint_t> n_max(s + qn + 1, 0);
-            detail::multiply_dispatch(std::span<uint_t>{n_max}, std::span<const uint_t>{q_target},
-                                      std::span<const uint_t>{d}, alloc);
+            detail::multiply_dispatch(
+                std::span<uint_t>{n_max}, std::span<const uint_t>{q_target}, std::span<const uint_t>{d}, alloc);
             // + (d - 1)
             std::vector<uint_t> d_minus_1 = d;
-            detail::subtract_unsigned_spans(std::span<uint_t>{d_minus_1}, std::span<const uint_t>{d_minus_1},
+            detail::subtract_unsigned_spans(std::span<uint_t>{d_minus_1},
+                                            std::span<const uint_t>{d_minus_1},
                                             std::span<const uint_t>{std::vector<uint_t>{1}});
-            detail::add_unsigned_spans(std::span<uint_t>{n_max}, std::span<const uint_t>{n_max},
-                                       std::span<const uint_t>{d_minus_1});
+            detail::add_unsigned_spans(
+                std::span<uint_t>{n_max}, std::span<const uint_t>{n_max}, std::span<const uint_t>{d_minus_1});
             n_max.resize(detail::trimmed_size_span(std::span<const uint_t>{n_max}));
             if (n_max.size() >= s) {
                 check_div_q(n_max, d, 0);
@@ -492,8 +511,8 @@ TEST(DivisionDivQ, OperatorSlashAgreesWithDivRem) {
 
     for (const bool a_neg : {false, true}) {
         for (const bool b_neg : {false, true}) {
-            const big_int a = make(620, a_neg);
-            const big_int b = make(200, b_neg);
+            const big_int a  = make(620, a_neg);
+            const big_int b  = make(200, b_neg);
             const auto    qr = div_rem_to_zero(a, b);
             EXPECT_EQ(a / b, qr.quotient);
             EXPECT_EQ(b / a, big_int{0});

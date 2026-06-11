@@ -130,8 +130,7 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
                     // The 3/2 estimate is one too large (probability ~1/B):
                     // add the divisor back once.
                     --q;
-                    const bool carry =
-                        add_unsigned_spans(u.subspan(j, n - 2), u.subspan(j, n - 2), d.first(n - 2));
+                    const bool carry    = add_unsigned_spans(u.subspan(j, n - 2), u.subspan(j, n - 2), d.first(n - 2));
                     const auto [a0, c0] = carrying_add(r0, d0, carry);
                     r0                  = a0;
                     const auto [a1, c1] = carrying_add(r1, d1, c0);
@@ -251,12 +250,11 @@ constexpr void divide_unsigned_approx(const std::span<uint_multiprecision_t>    
             uint_multiprecision_t r0 = step.remainder.low_bits;
 
             if (t > 2) {
-                const uint_multiprecision_t cy =
-                    submul_single_limb(u.subspan(jb, t - 2), d.subspan(n - t, t - 2), q);
-                const auto [s0, b0] = borrowing_sub(r0, cy);
-                r0                  = s0;
-                const auto [s1, b1] = borrowing_sub(r1, uint_multiprecision_t{0}, b0);
-                r1                  = s1;
+                const uint_multiprecision_t cy = submul_single_limb(u.subspan(jb, t - 2), d.subspan(n - t, t - 2), q);
+                const auto [s0, b0]            = borrowing_sub(r0, cy);
+                r0                             = s0;
+                const auto [s1, b1]            = borrowing_sub(r1, uint_multiprecision_t{0}, b0);
+                r1                             = s1;
                 if (b1) {
                     --q;
                     const bool carry =
@@ -283,8 +281,9 @@ constexpr void divide_unsigned_approx(const std::span<uint_multiprecision_t>    
     for (std::size_t j = t - 2; j != 0; --j) {
         uint_multiprecision_t q;
         if (!exact || top >= d1) {
-            q                              = ~uint_multiprecision_t{0};
-            const uint_multiprecision_t cy = submul_single_limb(u.subspan(n - 2, j + 2), d.subspan(n - 2 - j, j + 2), q);
+            q = ~uint_multiprecision_t{0};
+            const uint_multiprecision_t cy =
+                submul_single_limb(u.subspan(n - 2, j + 2), d.subspan(n - 2 - j, j + 2), q);
             if (top != cy) {
                 if (exact && top < cy) {
                     // Saturation overshot: one add-back restores the window.
@@ -473,8 +472,7 @@ inline void divide_dc_basecase(const std::span<uint_multiprecision_t>       a,
     std::ranges::copy(q_tmp.first(q_copy), q.begin());
     std::ranges::fill(q.subspan(q_copy), uint_multiprecision_t{0});
 
-    BEMAN_BIG_INT_DEBUG_ASSERT(
-        is_span_zero(std::span<const uint_multiprecision_t>{r_tmp.data() + n, a_size + 1 - n}));
+    BEMAN_BIG_INT_DEBUG_ASSERT(is_span_zero(std::span<const uint_multiprecision_t>{r_tmp.data() + n, a_size + 1 - n}));
     std::ranges::copy(r_tmp.first(n), a.begin());
     std::ranges::fill(a.subspan(n), uint_multiprecision_t{0});
 
@@ -624,8 +622,7 @@ void divide_dc_3n2n(const std::span<uint_multiprecision_t>       v,
 // The differential suite measures the accumulation: observed maxima track
 // the level count minus one, so the +2 here is honest headroom.
 // ---------------------------------------------------------------------------
-[[nodiscard]] constexpr std::size_t divappr_quotient_slack(const std::size_t n,
-                                                           const std::size_t threshold) noexcept {
+[[nodiscard]] constexpr std::size_t divappr_quotient_slack(const std::size_t n, const std::size_t threshold) noexcept {
     std::size_t levels = 0;
     std::size_t m      = n;
     while (m >= threshold && (m % 2) == 0) {
@@ -740,7 +737,8 @@ burnikel_ziegler_plan(const std::span<const uint_multiprecision_t> dividend,
     const std::size_t j      = (s + m_pow2 - 1) / m_pow2;
     const std::size_t n      = j * m_pow2;
 
-    const std::size_t sigma = n * limb_bits - ((s - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(divisor.back())));
+    const std::size_t sigma =
+        n * limb_bits - ((s - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(divisor.back())));
     const std::size_t dividend_bits = (m - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(dividend.back()));
     const std::size_t t             = std::max<std::size_t>(2, (dividend_bits + sigma) / (n * limb_bits) + 1);
 
@@ -789,8 +787,7 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
     // bring the divisor's top bit to the top. limb_off == n - s exactly
     // because the trimmed divisor has (s-1)*limb_bits < bitlen <= s*limb_bits.
     const std::size_t limb_off = n - s;
-    const unsigned    bit_off =
-        static_cast<unsigned>(limb_bits) - static_cast<unsigned>(std::bit_width(divisor.back()));
+    const unsigned bit_off = static_cast<unsigned>(limb_bits) - static_cast<unsigned>(std::bit_width(divisor.back()));
 
     // b_hat = divisor << sigma: n limbs, top bit set.
     const std::span<uint_multiprecision_t> b_hat = scratch.allocate(n);
@@ -849,8 +846,8 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
                              Allocator&                                   alloc,
                              const std::size_t                            threshold_override = 0) {
     const burnikel_ziegler_params plan = burnikel_ziegler_plan(dividend, divisor, threshold_override);
-    scratch_allocator<Allocator>  scratch(
-        burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold), alloc);
+    scratch_allocator<Allocator>  scratch(burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold),
+                                          alloc);
     divide_burnikel_ziegler(quotient, remainder, dividend, divisor, scratch, alloc, plan);
 }
 
@@ -889,8 +886,7 @@ void divide_quotient_appr(const std::span<uint_multiprecision_t>       quotient,
     const std::size_t t   = plan.blocks;
 
     const std::size_t limb_off = n - s;
-    const unsigned    bit_off =
-        static_cast<unsigned>(limb_bits) - static_cast<unsigned>(std::bit_width(divisor.back()));
+    const unsigned bit_off = static_cast<unsigned>(limb_bits) - static_cast<unsigned>(std::bit_width(divisor.back()));
 
     // b_hat = divisor << sigma: n limbs, top bit set.
     const std::span<uint_multiprecision_t> b_hat = scratch.allocate(n);
@@ -970,8 +966,8 @@ void divide_quotient(const std::span<uint_multiprecision_t>       quotient,
     std::ranges::copy(dividend, padded.begin() + 1);
     const auto padded_view = std::span<const uint_multiprecision_t>{padded.data(), m + 1};
 
-    const burnikel_ziegler_params plan = burnikel_ziegler_plan(padded_view, divisor, threshold_override);
-    const std::size_t slack = divappr_quotient_slack(plan.block_limbs, plan.threshold);
+    const burnikel_ziegler_params plan  = burnikel_ziegler_plan(padded_view, divisor, threshold_override);
+    const std::size_t             slack = divappr_quotient_slack(plan.block_limbs, plan.threshold);
 
     scratch_allocator<Allocator> scratch(
         burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold) + (qn1 + 3) + (m + 2), alloc);
@@ -1381,10 +1377,10 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
     // The estimate product stays full (its high half is needed exactly); the
     // q_hat * d_hat subtrahend only matters mod B^wrap - 1 because the true
     // R = U - q_hat * d_hat is known to be below 5 * B^n < B^wrap - 1.
-    const std::size_t wrap = multiply_mod_bnm1_next_size(n + 1, multiply_mod_bnm1_cutoff);
-    const std::span<uint_multiprecision_t> p  = scratch.allocate(2 * n);
-    const std::span<uint_multiprecision_t> tw = scratch.allocate(wrap);
-    const std::span<uint_multiprecision_t> uf = scratch.allocate(wrap);
+    const std::size_t                      wrap     = multiply_mod_bnm1_next_size(n + 1, multiply_mod_bnm1_cutoff);
+    const std::span<uint_multiprecision_t> p        = scratch.allocate(2 * n);
+    const std::span<uint_multiprecision_t> tw       = scratch.allocate(wrap);
+    const std::span<uint_multiprecision_t> uf       = scratch.allocate(wrap);
     constexpr uint_multiprecision_t        max_limb = ~uint_multiprecision_t{0};
 
     // March the windows from the top down; window i leaves its remainder in
@@ -1397,7 +1393,8 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
         // q_hat = U_hi + high_half(U_hi * X) where X = B^n + I.
         std::ranges::fill(p, uint_multiprecision_t{0});
         multiply_dispatch(p, u_hi, inv_view, alloc);
-        const bool q_carry = add_unsigned_spans(q_block, u_hi, std::span<const uint_multiprecision_t>{p.data() + n, n});
+        const bool q_carry =
+            add_unsigned_spans(q_block, u_hi, std::span<const uint_multiprecision_t>{p.data() + n, n});
         BEMAN_BIG_INT_DEBUG_ASSERT(!q_carry);
 
         // R = (U - q_hat * d_hat) mod (B^wrap - 1), recovered exactly from
@@ -1462,9 +1459,9 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
                     const std::span<const uint_multiprecision_t> divisor,
                     Allocator&                                   alloc,
                     const std::size_t                            invert_override = 0) {
-    const std::size_t thr = invert_override != 0 ? invert_override : reciprocal_span_cutoff;
-    scratch_allocator<Allocator> scratch(
-        barrett_storage_size(divisor.size(), barrett_blocks(dividend, divisor), thr), alloc);
+    const std::size_t            thr = invert_override != 0 ? invert_override : reciprocal_span_cutoff;
+    scratch_allocator<Allocator> scratch(barrett_storage_size(divisor.size(), barrett_blocks(dividend, divisor), thr),
+                                         alloc);
     divide_barrett(quotient, remainder, dividend, divisor, scratch, alloc, invert_override);
 }
 

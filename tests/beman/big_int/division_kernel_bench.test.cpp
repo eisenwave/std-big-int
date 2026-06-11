@@ -190,8 +190,8 @@ double mulmod_ratio(const std::size_t n) {
             scratch_for_test scratch(::beman::big_int::detail::multiply_mod_bnm1_storage_size(w), alloc);
             const stopwatch  sw{};
             for (unsigned i = 0; i < iters; ++i) {
-                ::beman::big_int::detail::multiply_mod_bnm1(std::span<uint_t>{wrapped}, a_view, b_view, scratch,
-                                                            alloc);
+                ::beman::big_int::detail::multiply_mod_bnm1(
+                    std::span<uint_t>{wrapped}, a_view, b_view, scratch, alloc);
             }
             best_mm = std::min(best_mm, stopwatch::elapsed_time<double>(sw));
         }
@@ -230,7 +230,11 @@ double cyclic_over_crt(const std::size_t min_w, std::size_t& wrap_out) {
 #if defined(BEMAN_BIG_INT_SIMD_MUL)
                 std::vector<double>        fp_ws(bd::fft_cyclic_fp_storage_size(params));
                 std::vector<std::uint64_t> int_ws(bd::fft_cyclic_int_storage_size(params));
-                bd::multiply_fft_cyclic(std::span<uint_t>{out}, a_view, b_view, params, std::span<double>{fp_ws},
+                bd::multiply_fft_cyclic(std::span<uint_t>{out},
+                                        a_view,
+                                        b_view,
+                                        params,
+                                        std::span<double>{fp_ws},
                                         std::span<std::uint64_t>{int_ws});
 #else
                 std::vector<std::uint64_t> ws(bd::fft_cyclic_storage_size(params));
@@ -243,8 +247,8 @@ double cyclic_over_crt(const std::size_t min_w, std::size_t& wrap_out) {
             scratch_for_test scratch(bd::multiply_mod_bnm1_storage_size(w), alloc);
             const stopwatch  sw{};
             for (unsigned i = 0; i < iters; ++i) {
-                bd::multiply_mod_bnm1(std::span<uint_t>{out}, a_view, b_view, scratch, alloc,
-                                      bd::multiply_mod_bnm1_cutoff);
+                bd::multiply_mod_bnm1(
+                    std::span<uint_t>{out}, a_view, b_view, scratch, alloc, bd::multiply_mod_bnm1_cutoff);
             }
             best_crt = std::min(best_crt, stopwatch::elapsed_time<double>(sw));
         }
@@ -275,8 +279,8 @@ double div_q_ratio(const std::size_t n) {
         for (unsigned rep = 0; rep < 3; ++rep) {
             {
                 const stopwatch sw{};
-                ::beman::big_int::detail::divide_burnikel_ziegler(std::span<uint_t>{q}, std::span<uint_t>{r}, a_view,
-                                                                  b_view, alloc);
+                ::beman::big_int::detail::divide_burnikel_ziegler(
+                    std::span<uint_t>{q}, std::span<uint_t>{r}, a_view, b_view, alloc);
                 best_qr = std::min(best_qr, stopwatch::elapsed_time<double>(sw));
             }
             {
@@ -294,8 +298,13 @@ double div_q_ratio(const std::size_t n) {
 void run_all() {
     std::cout << "kernel,param,value\n";
 
-    for (const std::size_t n : {std::size_t{8}, std::size_t{16}, std::size_t{32}, std::size_t{40}, std::size_t{64},
-                                std::size_t{256}, std::size_t{4096}}) {
+    for (const std::size_t n : {std::size_t{8},
+                                std::size_t{16},
+                                std::size_t{32},
+                                std::size_t{40},
+                                std::size_t{64},
+                                std::size_t{256},
+                                std::size_t{4096}}) {
         emit("submul_ns_per_limb", n, submul_ns_per_limb(n));
         std::cout.flush();
     }
@@ -314,14 +323,18 @@ void run_all() {
     }
     std::cout.flush();
 
-    for (const std::size_t n :
-         {std::size_t{4096}, std::size_t{16384}, std::size_t{65536}, std::size_t{262144}}) {
+    for (const std::size_t n : {std::size_t{4096}, std::size_t{16384}, std::size_t{65536}, std::size_t{262144}}) {
         emit("mulmod_over_full", n, mulmod_ratio(n));
         std::cout.flush();
     }
 
-    for (const std::size_t n : {std::size_t{512}, std::size_t{1024}, std::size_t{2048}, std::size_t{4096},
-                                std::size_t{8192}, std::size_t{16384}, std::size_t{32768}}) {
+    for (const std::size_t n : {std::size_t{512},
+                                std::size_t{1024},
+                                std::size_t{2048},
+                                std::size_t{4096},
+                                std::size_t{8192},
+                                std::size_t{16384},
+                                std::size_t{32768}}) {
         emit("div_q_over_div_qr", n, div_q_ratio(n));
         std::cout.flush();
     }
@@ -330,10 +343,21 @@ void run_all() {
     // 1664, 3328, 6656, and 13312 are b = 26 band bottoms (the chooser's
     // least efficient coefficient width); the rest alternate b = 32 / b = 48
     // sizes.
-    for (const std::size_t min_w : {std::size_t{512}, std::size_t{1024}, std::size_t{1536}, std::size_t{1664},
-                                    std::size_t{2048}, std::size_t{3072}, std::size_t{3328}, std::size_t{4096},
-                                    std::size_t{6144}, std::size_t{6656}, std::size_t{8192}, std::size_t{12288},
-                                    std::size_t{13312}, std::size_t{16384}, std::size_t{24576},
+    for (const std::size_t min_w : {std::size_t{512},
+                                    std::size_t{1024},
+                                    std::size_t{1536},
+                                    std::size_t{1664},
+                                    std::size_t{2048},
+                                    std::size_t{3072},
+                                    std::size_t{3328},
+                                    std::size_t{4096},
+                                    std::size_t{6144},
+                                    std::size_t{6656},
+                                    std::size_t{8192},
+                                    std::size_t{12288},
+                                    std::size_t{13312},
+                                    std::size_t{16384},
+                                    std::size_t{24576},
                                     std::size_t{32768}}) {
         std::size_t  w     = 0;
         const double ratio = cyclic_over_crt(min_w, w);

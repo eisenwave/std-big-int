@@ -47,19 +47,23 @@ std::vector<uint_t> random_limbs(const std::size_t size, std::mt19937_64& rng) {
     return v;
 }
 
-void run_kernel(std::span<uint_t>             got,
-                const std::vector<uint_t>&    a,
-                const std::vector<uint_t>&    b,
+void run_kernel(std::span<uint_t>               got,
+                const std::vector<uint_t>&      a,
+                const std::vector<uint_t>&      b,
                 const detail::fft_cyclic_params params) {
 #if defined(BEMAN_BIG_INT_SIMD_MUL)
     std::vector<double>        fp_ws(detail::fft_cyclic_fp_storage_size(params));
     std::vector<std::uint64_t> int_ws(detail::fft_cyclic_int_storage_size(params));
-    detail::multiply_fft_cyclic(got, std::span<const uint_t>{a}, std::span<const uint_t>{b}, params,
-                                std::span<double>{fp_ws}, std::span<std::uint64_t>{int_ws});
+    detail::multiply_fft_cyclic(got,
+                                std::span<const uint_t>{a},
+                                std::span<const uint_t>{b},
+                                params,
+                                std::span<double>{fp_ws},
+                                std::span<std::uint64_t>{int_ws});
 #else
     std::vector<std::uint64_t> ws(detail::fft_cyclic_storage_size(params));
-    detail::multiply_fft_cyclic(got, std::span<const uint_t>{a}, std::span<const uint_t>{b}, params,
-                                std::span<std::uint64_t>{ws});
+    detail::multiply_fft_cyclic(
+        got, std::span<const uint_t>{a}, std::span<const uint_t>{b}, params, std::span<std::uint64_t>{ws});
 #endif
 }
 
@@ -80,9 +84,8 @@ void check_cyclic(const std::vector<uint_t>& a, const std::vector<uint_t>& b, co
     run_kernel(std::span<uint_t>{got}, a, b, params);
     canonicalize(got);
 
-    EXPECT_TRUE(std::ranges::equal(got, expected))
-        << "w=" << w << " L=" << params.length << " b=" << params.coeff_bits << " an=" << a.size()
-        << " bn=" << b.size();
+    EXPECT_TRUE(std::ranges::equal(got, expected)) << "w=" << w << " L=" << params.length << " b=" << params.coeff_bits
+                                                   << " an=" << a.size() << " bn=" << b.size();
 }
 
 TEST(FftMulCyclic, EveryCoefficientWidth) {

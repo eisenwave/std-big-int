@@ -43,14 +43,14 @@ std::vector<uint_t> random_limbs(const std::size_t size, std::mt19937_64& rng) {
 }
 
 // trimmed_q * b + r for building dividends with known quotient/remainder.
-std::vector<uint_t> build_dividend(const std::vector<uint_t>& q, const std::vector<uint_t>& b,
-                                   const std::vector<uint_t>& r) {
+std::vector<uint_t>
+build_dividend(const std::vector<uint_t>& q, const std::vector<uint_t>& b, const std::vector<uint_t>& r) {
     std::allocator<uint_t> alloc;
     std::vector<uint_t>    product(q.size() + b.size() + 1, 0);
-    detail::multiply_dispatch(std::span<uint_t>{product}, std::span<const uint_t>{q}, std::span<const uint_t>{b},
-                              alloc);
-    const bool carry =
-        detail::add_unsigned_spans(std::span<uint_t>{product}, std::span<const uint_t>{product}, std::span<const uint_t>{r});
+    detail::multiply_dispatch(
+        std::span<uint_t>{product}, std::span<const uint_t>{q}, std::span<const uint_t>{b}, alloc);
+    const bool carry = detail::add_unsigned_spans(
+        std::span<uint_t>{product}, std::span<const uint_t>{product}, std::span<const uint_t>{r});
     EXPECT_FALSE(carry);
     product.resize(detail::trimmed_size_span(std::span<const uint_t>{product}));
     return product;
@@ -58,8 +58,9 @@ std::vector<uint_t> build_dividend(const std::vector<uint_t>& q, const std::vect
 
 // Runs divide_burnikel_ziegler on (dividend, divisor), checks against the
 // schoolbook reference and the multiplication identity.
-void check_division(const std::vector<uint_t>& dividend, const std::vector<uint_t>& divisor,
-                    const std::size_t threshold_override) {
+void check_division(const std::vector<uint_t>& dividend,
+                    const std::vector<uint_t>& divisor,
+                    const std::size_t          threshold_override) {
     ASSERT_GE(divisor.size(), 2u);
     ASSERT_NE(divisor.back(), 0u);
     ASSERT_NE(dividend.back(), 0u);
@@ -74,8 +75,8 @@ void check_division(const std::vector<uint_t>& dividend, const std::vector<uint_
 
     std::vector<uint_t> q_bz(m - s + 1, 0);
     std::vector<uint_t> r_bz(m + 1, 0);
-    detail::divide_burnikel_ziegler(std::span<uint_t>{q_bz}, std::span<uint_t>{r_bz}, a_view, b_view, alloc,
-                                    threshold_override);
+    detail::divide_burnikel_ziegler(
+        std::span<uint_t>{q_bz}, std::span<uint_t>{r_bz}, a_view, b_view, alloc, threshold_override);
 
     // 0 <= r < b always.
     EXPECT_EQ(detail::compare_unsigned_spans(std::span<const uint_t>{r_bz}, b_view), std::strong_ordering::less);
@@ -105,8 +106,8 @@ void check_division(const std::vector<uint_t>& dividend, const std::vector<uint_
     // q * b + r == a through the well-tested multiplication stack.
     std::vector<uint_t> product(q_bz.size() + s + 1, 0);
     detail::multiply_dispatch(std::span<uint_t>{product}, std::span<const uint_t>{q_bz}, b_view, alloc);
-    const bool carry = detail::add_unsigned_spans(std::span<uint_t>{product}, std::span<const uint_t>{product},
-                                                  std::span<const uint_t>{r_bz});
+    const bool carry = detail::add_unsigned_spans(
+        std::span<uint_t>{product}, std::span<const uint_t>{product}, std::span<const uint_t>{r_bz});
     EXPECT_FALSE(carry);
     EXPECT_EQ(detail::compare_unsigned_spans(std::span<const uint_t>{product}, a_view), std::strong_ordering::equal)
         << "identity mismatch at m=" << m << " s=" << s << " thr=" << threshold_override;
@@ -163,10 +164,10 @@ TEST(DivisionDcExercise, MaximalRemainder) {
     std::mt19937_64 rng(0xfeedu);
     for (const std::size_t thr : forced_thresholds) {
         for (int trial = 0; trial < 25; ++trial) {
-            const std::size_t   s = 2 + static_cast<std::uint32_t>(rng()) % 12;
-            const auto          b = random_limbs(s, rng);
-            const auto          q = random_limbs(1 + static_cast<std::uint32_t>(rng()) % 20, rng);
-            std::vector<uint_t> r = b;
+            const std::size_t   s         = 2 + static_cast<std::uint32_t>(rng()) % 12;
+            const auto          b         = random_limbs(s, rng);
+            const auto          q         = random_limbs(1 + static_cast<std::uint32_t>(rng()) % 20, rng);
+            std::vector<uint_t> r         = b;
             const bool          underflow = detail::decrement_span(std::span<uint_t>{r});
             EXPECT_FALSE(underflow);
             check_division(build_dividend(q, b, r), b, thr);
@@ -246,12 +247,8 @@ TEST(DivisionDcExercise, DefaultThreshold) {
     // Production cutoff, sizes straddling it, including a single-block tail
     // (t == 2) and a long block march.
     std::mt19937_64 rng(0xdefa17u);
-    for (const auto& [s, m] : {std::pair<std::size_t, std::size_t>{48, 120},
-                              {41, 62},
-                              {64, 85},
-                              {96, 400},
-                              {100, 101},
-                              {128, 1000}}) {
+    for (const auto& [s, m] :
+         {std::pair<std::size_t, std::size_t>{48, 120}, {41, 62}, {64, 85}, {96, 400}, {100, 101}, {128, 1000}}) {
         check_division(random_limbs(m, rng), random_limbs(s, rng), 0);
     }
 }
