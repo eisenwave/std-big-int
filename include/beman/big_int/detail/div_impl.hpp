@@ -1229,7 +1229,7 @@ void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
 
     // v = d * X mod (B^wv - 1) = d * I + d * B^n; the shifted part is a
     // carry-free rotation of d's limbs within the wrap.
-    multiply_mod_bnm1(v, d, std::span<const uint_multiprecision_t>{inverse.data(), n}, scratch, alloc);
+    multiply_mod_bnm1(v, d, std::span<const uint_multiprecision_t>{inverse.data(), n}, scratch);
     std::ranges::fill(res, uint_multiprecision_t{0});
     for (std::size_t i = 0; i < n; ++i) {
         res[(n + i) % wv] = d[i];
@@ -1399,7 +1399,7 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
 
         // R = (U - q_hat * d_hat) mod (B^wrap - 1), recovered exactly from
         // its residue: tw = the wrapped subtrahend, uf = the folded window.
-        multiply_mod_bnm1(tw, std::span<const uint_multiprecision_t>{q_block.data(), n}, d, scratch, alloc);
+        multiply_mod_bnm1(tw, std::span<const uint_multiprecision_t>{q_block.data(), n}, d, scratch);
         fold_mod_bnm1(uf, std::span<const uint_multiprecision_t>{window.data(), 2 * n});
         if (subtract_unsigned_spans_borrow_out(uf, uf, std::span<const uint_multiprecision_t>{tw.data(), wrap})) {
             // Wrapped past zero: -B^wrap == -1 (mod B^wrap - 1).

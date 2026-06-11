@@ -59,7 +59,6 @@ void check_mulmod(const std::vector<uint_t>& a,
                               std::span<const uint_t>{a},
                               std::span<const uint_t>{b},
                               scratch,
-                              alloc,
                               cutoff_override);
     EXPECT_LE(scratch.peak(), budget) << "w=" << w << " thr=" << cutoff_override;
     canonicalize(got);

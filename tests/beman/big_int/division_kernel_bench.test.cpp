@@ -190,8 +190,7 @@ double mulmod_ratio(const std::size_t n) {
             scratch_for_test scratch(::beman::big_int::detail::multiply_mod_bnm1_storage_size(w), alloc);
             const stopwatch  sw{};
             for (unsigned i = 0; i < iters; ++i) {
-                ::beman::big_int::detail::multiply_mod_bnm1(
-                    std::span<uint_t>{wrapped}, a_view, b_view, scratch, alloc);
+                ::beman::big_int::detail::multiply_mod_bnm1(std::span<uint_t>{wrapped}, a_view, b_view, scratch);
             }
             best_mm = std::min(best_mm, stopwatch::elapsed_time<double>(sw));
         }
@@ -247,8 +246,8 @@ double cyclic_over_crt(const std::size_t min_w, std::size_t& wrap_out) {
             scratch_for_test scratch(bd::multiply_mod_bnm1_storage_size(w), alloc);
             const stopwatch  sw{};
             for (unsigned i = 0; i < iters; ++i) {
-                bd::multiply_mod_bnm1(
-                    std::span<uint_t>{out}, a_view, b_view, scratch, alloc, bd::multiply_mod_bnm1_cutoff);
+                bd::multiply_mod_bnm1(std::span<uint_t>{out}, a_view, b_view, scratch,
+                                      bd::multiply_mod_bnm1_cutoff);
             }
             best_crt = std::min(best_crt, stopwatch::elapsed_time<double>(sw));
         }

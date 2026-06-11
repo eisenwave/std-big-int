@@ -192,4 +192,31 @@ std::size_t multiply_runtime(const std::span<uint_multiprecision_t>       result
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
 
+std::size_t multiply_runtime_any(const std::span<uint_multiprecision_t>       result,
+                                 const std::span<const uint_multiprecision_t> a_untrimmed,
+                                 const std::span<const uint_multiprecision_t> b_untrimmed,
+                                 const scratch_heap_source&                   heap) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!a_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(!b_untrimmed.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a_untrimmed.size() + b_untrimmed.size());
+
+    const auto a = a_untrimmed.first(trimmed_size_span(a_untrimmed));
+    const auto b = b_untrimmed.first(trimmed_size_span(b_untrimmed));
+
+    if (a.size() == 1 && b.size() == 1) {
+        const auto [lo, hi] = widening_mul(a[0], b[0]);
+        result[0]           = lo;
+        result[1]           = hi;
+        return hi != 0 ? 2 : 1;
+    }
+    if (a.size() == 1) {
+        return multiply_single_limb(result, b, a[0]);
+    }
+    if (b.size() == 1) {
+        return multiply_single_limb(result, a, b[0]);
+    }
+
+    return multiply_runtime(result, a, b, heap);
+}
+
 } // namespace beman::big_int::detail
