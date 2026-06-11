@@ -61,7 +61,7 @@ double probe(const std::size_t dividend_limbs, const std::size_t divisor_limbs, 
     std::allocator<uint_t> alloc;
     scratch_for_test       scratch(3 * budget + 64, alloc);
     detail::divide_burnikel_ziegler(
-        std::span<uint_t>{quotient}, std::span<uint_t>{remainder}, a_view, b_view, scratch, alloc, plan);
+        std::span<uint_t>{quotient}, std::span<uint_t>{remainder}, a_view, b_view, scratch, plan);
 
     EXPECT_LE(scratch.peak(), budget) << "m=" << dividend_limbs << " s=" << divisor_limbs
                                       << " thr=" << threshold_override << " n=" << plan.block_limbs
@@ -135,7 +135,7 @@ void probe_barrett(const std::size_t dividend_limbs,
     std::allocator<uint_t> alloc;
     scratch_for_test       scratch(3 * budget + 64, alloc);
     detail::divide_barrett(
-        std::span<uint_t>{quotient}, std::span<uint_t>{remainder}, a_view, b_view, scratch, alloc, invert_override);
+        std::span<uint_t>{quotient}, std::span<uint_t>{remainder}, a_view, b_view, scratch, invert_override);
 
     EXPECT_LE(scratch.peak(), budget) << "m=" << dividend_limbs << " s=" << divisor_limbs
                                       << " inv_thr=" << invert_override;

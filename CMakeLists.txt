@@ -38,6 +38,7 @@ include(infra/cmake/beman-install-library.cmake)
 
 add_library(
     beman.big_int
+    src/divide.cpp
     src/karatsuba.cpp
     src/mul_dispatch.cpp
     src/mulmod_bnm1.cpp

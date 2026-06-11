@@ -241,7 +241,7 @@ check_dc_divappr(const std::vector<uint_t>& working, const std::vector<uint_t>& 
     {
         scratch_for_test scratch(detail::burnikel_ziegler_storage_size(n, 2, thr) + 8 * n + 64, alloc);
         detail::divide_dc_2n1n(
-            std::span<uint_t>{a_exact}, std::span<const uint_t>{b}, std::span<uint_t>{q_exact}, scratch, alloc, thr);
+            std::span<uint_t>{a_exact}, std::span<const uint_t>{b}, std::span<uint_t>{q_exact}, scratch, thr);
     }
 
     std::vector<uint_t> a_appr = working;
@@ -249,7 +249,7 @@ check_dc_divappr(const std::vector<uint_t>& working, const std::vector<uint_t>& 
     {
         scratch_for_test scratch(detail::burnikel_ziegler_storage_size(n, 2, thr) + 8 * n + 64, alloc);
         detail::divide_dc_divappr(
-            std::span<uint_t>{a_appr}, std::span<const uint_t>{b}, std::span<uint_t>{q_appr}, scratch, alloc, thr);
+            std::span<uint_t>{a_appr}, std::span<const uint_t>{b}, std::span<uint_t>{q_appr}, scratch, thr);
     }
 
     std::vector<uint_t> diff   = q_appr;

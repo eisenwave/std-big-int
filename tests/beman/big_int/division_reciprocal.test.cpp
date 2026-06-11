@@ -41,7 +41,7 @@ void check_reciprocal(const std::vector<uint_t>& divisor, const std::size_t thre
     {
         const std::size_t thr = threshold_override != 0 ? threshold_override : detail::reciprocal_span_cutoff;
         detail::scratch_allocator<std::allocator<uint_t>> scratch(detail::reciprocal_span_storage_size(n, thr), alloc);
-        detail::reciprocal_span(std::span<uint_t>{inverse}, d_view, scratch, alloc, threshold_override);
+        detail::reciprocal_span(std::span<uint_t>{inverse}, d_view, scratch, threshold_override);
     }
 
     // Reconstruction: v = d * (B^n + I) must keep its top limb zero
