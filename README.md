@@ -212,3 +212,17 @@ include an appropriate `beman.big_int` header from your source code.
 > `beman.big_int` headers are to be included with the `beman/big_int/` prefix.
 > Altering include search paths to spell the include target another way (e.g.
 > `#include <big_int.hpp>`) is unsupported.
+
+## References
+
+[1] R. P. Brent and P. Zimmermann, *Modern Computer Arithmetic*, Cambridge Monographs on Applied and Computational Mathematics, vol. 18. Cambridge, U.K.: Cambridge University Press, 2011.
+
+[2] D. E. Knuth, *The Art of Computer Programming, Vol. 2: Seminumerical Algorithms*, 3rd ed. Boston, MA, USA: Addison-Wesley, 1997.
+
+[3] J. Arndt, *Matters Computational: Ideas, Algorithms, Source Code*. Berlin, Germany: Springer-Verlag, 2011.
+
+[4] C. Burnikel and J. Ziegler, "Fast recursive division," Max-Planck-Institut für Informatik, Saarbrücken, Germany, Tech. Rep. MPI-I-98-1-022, Oct. 1998.
+
+[5] M. Bodrato, "Towards optimal Toom-Cook multiplication for univariate and multivariate polynomials in characteristic 2 and 0," in *Proc. 1st Int. Workshop Arithmetic of Finite Fields (WAIFI 2007)*, ser. Lecture Notes in Computer Science, C. Carlet and B. Sunar, Eds., vol. 4547. Berlin, Germany: Springer, Jun. 2007, pp. 116–133.
+
+[6] M. Bodrato, "High degree Toom'n'half for balanced and unbalanced multiplication," in *Proc. 20th IEEE Symp. Computer Arithmetic (ARITH 2011)*, E. Antelo, D. Hough, and P. Ienne, Eds. Washington, DC, USA: IEEE Computer Society, Jul. 2011, pp. 15–22.
