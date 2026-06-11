@@ -163,6 +163,195 @@ constexpr void divide_unsigned(const std::span<uint_multiprecision_t>       quot
 }
 
 // ---------------------------------------------------------------------------
+// Approximate schoolbook quotient (the GMP sbpi1_divappr_q idea): the same
+// normalized Knuth-D / 3-by-2 loop as divide_unsigned, but the divisor is
+// truncated up front to one limb more than the quotient length, and once
+// the quotient has as many digits left as the truncated divisor the update
+// window shrinks by a divisor limb per digit instead of marching -- the low
+// remainder limbs that exact division maintains are simply never touched,
+// making the tail triangular instead of rectangular. No remainder is
+// produced.
+//
+// Both truncations only ever make the computed digits too LARGE (low
+// divisor limbs that would have been subtracted are dropped), and once the
+// running top limb can no longer prove a digit exact the remaining digits
+// saturate to B - 1; the classical bound for this construction is
+//   q <= q' <= q + 1
+// which the differential suite asserts. Preconditions: as divide_unsigned,
+// plus divisor.size() >= 3 and dividend.size() > divisor.size().
+// ---------------------------------------------------------------------------
+constexpr void divide_unsigned_approx(const std::span<uint_multiprecision_t>       quotient,
+                                      const std::span<const uint_multiprecision_t> dividend,
+                                      const std::span<const uint_multiprecision_t> divisor,
+                                      scratch_allocator_base&                      scratch) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.size() >= 3);
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.size() > divisor.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size() - divisor.size() + 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.data() != dividend.data());
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.data() != divisor.data());
+
+    const std::size_t n = divisor.size();
+    const std::size_t m = dividend.size();
+
+    const unsigned shift = static_cast<unsigned>(std::countl_zero(divisor.back()));
+
+    // Normalized divisor view (top bit set).
+    std::span<const uint_multiprecision_t> d = divisor;
+    if (shift != 0) {
+        const std::span<uint_multiprecision_t> d_norm = scratch.allocate(n);
+        std::ranges::copy(divisor, d_norm.begin());
+        const std::size_t d_size = shift_left_n(d_norm, n, shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(d_size == n);
+        d = d_norm.first(d_size);
+    }
+    const uint_multiprecision_t d1   = d[n - 1];
+    const uint_multiprecision_t d0   = d[n - 2];
+    const uint_multiprecision_t dinv = reciprocal_word_3by2(d1, d0);
+
+    // Only the top t divisor limbs can influence the quotient by more than
+    // one ulp. Every digit here is a full 3-by-2 step (there is no separate
+    // 0/1 top-compare digit), so the divisor must keep one limb more than
+    // the m - n + 1 quotient digits: the dropped tail E < B^(n-t) then
+    // contributes q * E / D < 2 * B^((m-n+1) - t) <= 2/B to the quotient.
+    // The digit windows below align so the effective divisor keeps its top
+    // two limbs (d1, d0) at every step.
+    const std::size_t t = std::min(n, m - n + 2);
+
+    // Working copy of the dividend, shifted in step with the divisor and
+    // extended by one limb. Only the limbs at and above the fixed tail base
+    // n - 2 are ever updated.
+    const std::span<uint_multiprecision_t> u = scratch.allocate(m + 1);
+    std::ranges::copy(dividend, u.begin());
+    u[m] = 0;
+    if (shift != 0) {
+        const std::size_t u_size = shift_left_n(u, m, shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(u_size <= m + 1);
+    }
+
+    uint_multiprecision_t top = u[m];
+
+    // Full-width digits (j = m - n down to t - 1): the window
+    // u[j + n - t .. j + n) still covers the whole effective divisor, so the
+    // body is divide_unsigned's with the operands' low limbs cut off.
+    for (std::size_t j = m - n; j + 1 >= t; --j) {
+        const std::size_t     jb = j + (n - t); // window base
+        uint_multiprecision_t q;
+        if (top == d1 && u[j + n - 1] == d0) {
+            q                              = ~uint_multiprecision_t{0};
+            const uint_multiprecision_t cy = submul_single_limb(u.subspan(jb, t), d.subspan(n - t, t), q);
+            BEMAN_BIG_INT_DEBUG_ASSERT(cy == top);
+            top = u[j + n - 1];
+        } else {
+            const auto step = div_3by2_preinv(top, u[j + n - 1], u[j + n - 2], d1, d0, dinv);
+            q               = step.quotient;
+
+            uint_multiprecision_t r1 = step.remainder.high_bits;
+            uint_multiprecision_t r0 = step.remainder.low_bits;
+
+            if (t > 2) {
+                const uint_multiprecision_t cy =
+                    submul_single_limb(u.subspan(jb, t - 2), d.subspan(n - t, t - 2), q);
+                const auto [s0, b0] = borrowing_sub(r0, cy);
+                r0                  = s0;
+                const auto [s1, b1] = borrowing_sub(r1, uint_multiprecision_t{0}, b0);
+                r1                  = s1;
+                if (b1) {
+                    --q;
+                    const bool carry =
+                        add_unsigned_spans(u.subspan(jb, t - 2), u.subspan(jb, t - 2), d.subspan(n - t, t - 2));
+                    const auto [a0, c0] = carrying_add(r0, d0, carry);
+                    r0                  = a0;
+                    const auto [a1, c1] = carrying_add(r1, d1, c0);
+                    r1                  = a1;
+                    BEMAN_BIG_INT_DEBUG_ASSERT(c1);
+                }
+            }
+            u[j + n - 2] = r0;
+            top          = r1;
+        }
+        quotient[j] = q;
+    }
+
+    // Shrinking tail: digit j uses the top j + 2 divisor limbs over the
+    // fixed-base window u[n - 2 .. j + n); each digit drops one more low
+    // divisor limb. Once `exact` goes false the top limb can no longer
+    // distinguish a correct digit from an overshoot and every remaining
+    // digit saturates -- by then only the +1 final-quotient slack is left.
+    bool exact = true;
+    for (std::size_t j = t - 2; j != 0; --j) {
+        uint_multiprecision_t q;
+        if (!exact || top >= d1) {
+            q                              = ~uint_multiprecision_t{0};
+            const uint_multiprecision_t cy = submul_single_limb(u.subspan(n - 2, j + 2), d.subspan(n - 2 - j, j + 2), q);
+            if (top != cy) {
+                if (exact && top < cy) {
+                    // Saturation overshot: one add-back restores the window.
+                    --q;
+                    const bool carry = add_unsigned_spans(
+                        u.subspan(n - 2, j + 2), u.subspan(n - 2, j + 2), d.subspan(n - 2 - j, j + 2));
+                    BEMAN_BIG_INT_DEBUG_ASSERT(carry);
+                } else {
+                    // The remainder no longer fits the window: every digit
+                    // from here down is at least B - 1 up to the +1 slack.
+                    exact = false;
+                }
+            }
+            top = u[j + n - 1];
+        } else {
+            const auto step = div_3by2_preinv(top, u[j + n - 1], u[j + n - 2], d1, d0, dinv);
+            q               = step.quotient;
+
+            uint_multiprecision_t r1 = step.remainder.high_bits;
+            uint_multiprecision_t r0 = step.remainder.low_bits;
+
+            const uint_multiprecision_t cy = submul_single_limb(u.subspan(n - 2, j), d.subspan(n - 2 - j, j), q);
+            const auto [s0, b0]            = borrowing_sub(r0, cy);
+            r0                             = s0;
+            const auto [s1, b1]            = borrowing_sub(r1, uint_multiprecision_t{0}, b0);
+            r1                             = s1;
+            if (b1) {
+                --q;
+                const bool carry =
+                    add_unsigned_spans(u.subspan(n - 2, j), u.subspan(n - 2, j), d.subspan(n - 2 - j, j));
+                const auto [a0, c0] = carrying_add(r0, d0, carry);
+                r0                  = a0;
+                const auto [a1, c1] = carrying_add(r1, d1, c0);
+                r1                  = a1;
+                BEMAN_BIG_INT_DEBUG_ASSERT(c1);
+            }
+            u[j + n - 2] = r0;
+            top          = r1;
+        }
+        quotient[j] = q;
+    }
+
+    // Final digit: a bare 3-by-2 against (d1, d0).
+    {
+        uint_multiprecision_t q;
+        if (!exact || top >= d1) {
+            q                              = ~uint_multiprecision_t{0};
+            const uint_multiprecision_t cy = submul_single_limb(u.subspan(n - 2, 2), d.subspan(n - 2, 2), q);
+            if (top != cy && exact && top < cy) {
+                --q;
+            }
+        } else {
+            const auto step = div_3by2_preinv(top, u[n - 1], u[n - 2], d1, d0, dinv);
+            q               = step.quotient;
+        }
+        quotient[0] = q;
+    }
+
+    std::ranges::fill(quotient.subspan(m - n + 1), uint_multiprecision_t{0});
+
+    scratch.deallocate(m + 1);
+    if (shift != 0) {
+        scratch.deallocate(n);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Burnikel-Ziegler divide-and-conquer division.
 // Reference: C. Burnikel, J. Ziegler, "Fast Recursive Division",
 // MPI-I-98-1-022 (1998); structure mirrors OpenJDK's MutableBigInteger.
