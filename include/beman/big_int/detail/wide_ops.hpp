@@ -103,23 +103,28 @@ struct wide<T> {
 
     [[nodiscard]] friend constexpr bool operator==(const wide& x, const wide& y) noexcept = default;
 
+    // The split/join fallbacks below also serve constant evaluation on the
+    // little-endian path: constexpr bit_cast involving _BitInt is not
+    // supported on every compiler (e.g. AppleClang).
     [[nodiscard]] static constexpr wide from_int(wider_t<T> x) noexcept {
         if constexpr (std::endian::native == std::endian::little) {
-            return std::bit_cast<wide>(x);
-        } else {
-            return {
-                .low_bits  = static_cast<T>(x),
-                .high_bits = static_cast<T>(x >> width_v<T>),
-            };
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+                return std::bit_cast<wide>(x);
+            }
         }
+        return {
+            .low_bits  = static_cast<T>(x),
+            .high_bits = static_cast<T>(x >> width_v<T>),
+        };
     }
 
     [[nodiscard]] constexpr wider_t<T> to_int() const noexcept {
         if constexpr (std::endian::native == std::endian::little) {
-            return std::bit_cast<wider_t<T>>(*this);
-        } else {
-            return (static_cast<wider_t<T>>(high_bits) << width_v<T>) | low_bits;
+            if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+                return std::bit_cast<wider_t<T>>(*this);
+            }
         }
+        return (static_cast<wider_t<T>>(high_bits) << width_v<T>) | low_bits;
     }
 };
 
@@ -544,7 +549,13 @@ template <unsigned_integer T>
             if (!BEMAN_BIG_INT_IS_CONSTANT_PROPAGATED(y)) {
     #if defined(BEMAN_BIG_INT_GNUC) && (defined(__x86_64__) || defined(__i386__))
                 T q, r;
-                __asm__("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
+                // volatile is load-bearing: a non-volatile asm counts as
+                // pure, and GCC at -O2 speculatively hoisted this above a
+                // caller's normalization branch (divide_unsigned_short via
+                // reciprocal_word), executing the div with an unnormalized
+                // divisor -- the quotient overflow traps with SIGFPE on x86.
+                // This has happened with GCC-14 in release mode
+                __asm__ volatile("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
                 return {.quotient = q, .remainder = r};
     #elif defined(_WIN32)
                 T r;
@@ -618,6 +629,143 @@ template <unsigned_integer T>
     } else {
         return divide_wide_by_wide_portable(a, b);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Division by invariant (precomputed-reciprocal) divisors.
+// Reference: N. Moller, T. Granlund, "Improved division by invariant
+// integers", IEEE Transactions on Computers 60(2), 2011; the formulations
+// below match GMP's udiv_qrnnd_preinv / invert_pi1 / udiv_qr_3by2.
+// All routines require the divisor's top bit set ("normalized").
+// ---------------------------------------------------------------------------
+
+// 2/1 reciprocal of a normalized divisor: v = floor((B^2 - 1) / d) - B where
+// B = 2^limb_bits. Computed with one narrowing division: the quotient of
+// <B-1-d, B-1> / d equals v, and B-1-d < d holds exactly when d is
+// normalized.
+// Deliberately NOT the divide-free Moller-Granlund Algorithm 2 table ladder
+// (GMP invert_limb): measured 2026-06-10 via division_kernel_bench, the
+// ladder's ~six serial multiplies LOST to this single division on both
+// tuning machines -- 8.0 ns vs 3.5 ns on an i9-11900K (fast hardware
+// divider) and 8.4 ns vs 6.4 ns on an M4 Max (whose __udivti3 path runs
+// ~28 cycles). Revisit only with evidence from a slow-divider target.
+template <unsigned_integer T>
+[[nodiscard]] constexpr T reciprocal_word(const T d) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT((d >> (width_v<T> - 1)) == 1);
+    constexpr T max_limb = static_cast<T>(~static_cast<T>(0));
+    return narrowing_div(wide<T>{.low_bits = max_limb, .high_bits = static_cast<T>(max_limb - d)}, d).quotient;
+}
+
+// 3/2 reciprocal of a normalized two-limb divisor <d1,d0>:
+//   v = floor((B^3 - 1) / <d1,d0>) - B
+// computed by refining reciprocal_word(d1) for the low limb (Moller-Granlund
+// Algorithm 6 / GMP invert_pi1).
+template <unsigned_integer T>
+[[nodiscard]] constexpr T reciprocal_word_3by2(const T d1, const T d0) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT((d1 >> (width_v<T> - 1)) == 1);
+
+    // widening_mul(...).low_bits is the promotion-safe mod-B product (a plain
+    // `*` on sub-int limb types would overflow the promoted int).
+    T v = reciprocal_word(d1);
+    T p = widening_mul(d1, v).low_bits;
+    p   = static_cast<T>(p + d0);
+    if (p < d0) {
+        --v;
+        const bool ge = p >= d1;
+        p             = static_cast<T>(p - d1);
+        if (ge) {
+            --v;
+            p = static_cast<T>(p - d1);
+        }
+    }
+    const wide<T> t = widening_mul(d0, v);
+    p               = static_cast<T>(p + t.high_bits);
+    if (p < t.high_bits) {
+        --v;
+        if (p > d1 || (p == d1 && t.low_bits >= d0)) {
+            --v;
+        }
+    }
+    return v;
+}
+
+// Divides <u.high_bits, u.low_bits> by the normalized divisor `d` using its
+// precomputed reciprocal `v` (Moller-Granlund Algorithm 4): two multiplies
+// and a branch-light correction instead of a hardware divide.
+// Precondition: u.high_bits < d, so the quotient fits one limb.
+template <unsigned_integer T>
+[[nodiscard]] constexpr div_result<T> div_2by1_preinv(const wide<T> u, const T d, const T v) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT((d >> (width_v<T> - 1)) == 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(u.high_bits < d);
+
+    // <q1,q0> = (B + v) * u.high + u.low, with the +1 of the algorithm folded
+    // into the high add (u.high + 1 cannot wrap: u.high < d <= B-1).
+    const wide<T> qw          = widening_mul(v, u.high_bits);
+    const auto [q0, q0_carry] = carrying_add(qw.low_bits, u.low_bits);
+    const T q1                = static_cast<T>(qw.high_bits + u.high_bits + static_cast<T>(q0_carry) + 1);
+
+    T r = static_cast<T>(u.low_bits - widening_mul(q1, d).low_bits);
+
+    // Candidate is off by at most one in each direction; the first adjustment
+    // is taken often enough to be worth keeping branch-free.
+    const T mask = static_cast<T>(static_cast<T>(0) - static_cast<T>(r > q0));
+    const T q    = static_cast<T>(q1 + mask);
+    r            = static_cast<T>(r + (mask & d));
+    if (r >= d) { // unlikely
+        return {static_cast<T>(q + 1), static_cast<T>(r - d)};
+    }
+    return {q, r};
+}
+
+// Divides <u2,u1,u0> by the normalized two-limb divisor <d1,d0> using its
+// precomputed 3/2 reciprocal `v` (Moller-Granlund Algorithm 5 / GMP
+// udiv_qr_3by2). Returns one quotient limb and the two-limb remainder.
+// Precondition: <u2,u1> < <d1,d0>, so the quotient fits one limb.
+template <unsigned_integer T>
+[[nodiscard]] constexpr wide_div_result<T>
+div_3by2_preinv(const T u2, const T u1, const T u0, const T d1, const T d0, const T v) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT((d1 >> (width_v<T> - 1)) == 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(u2 < d1 || (u2 == d1 && u1 < d0));
+
+    // <q1,q0> = v * u2 + <u2,u1>.
+    const wide<T> qw          = widening_mul(v, u2);
+    const auto [q0, q0_carry] = carrying_add(qw.low_bits, u1);
+    T q1                      = static_cast<T>(qw.high_bits + u2 + static_cast<T>(q0_carry));
+
+    // <r1,r0> = <u1,u0> - q1 * <d1,d0> - <d1,d0>  (mod B^2), tracking only the
+    // low two limbs: r1 = u1 - q1*d1 captures the high part exactly.
+    T r1 = static_cast<T>(u1 - widening_mul(q1, d1).low_bits);
+
+    const auto [s0, s_borrow] = borrowing_sub(u0, d0);
+    T r0                      = s0;
+    r1                        = static_cast<T>(r1 - d1 - static_cast<T>(s_borrow));
+
+    const wide<T> t           = widening_mul(d0, q1);
+    const auto [w0, w_borrow] = borrowing_sub(r0, t.low_bits);
+    r0                        = w0;
+    r1                        = static_cast<T>(r1 - t.high_bits - static_cast<T>(w_borrow));
+
+    ++q1;
+
+    // Common correction, branch-free: if r1 >= q0 the candidate is one too
+    // large; give back one divisor.
+    const T mask           = static_cast<T>(static_cast<T>(0) - static_cast<T>(r1 >= q0));
+    q1                     = static_cast<T>(q1 + mask);
+    const T add0           = static_cast<T>(mask & d0);
+    const T add1           = static_cast<T>(mask & d1);
+    const auto [a0, carry] = carrying_add(r0, add0);
+    r0                     = a0;
+    r1                     = static_cast<T>(r1 + add1 + static_cast<T>(carry));
+
+    // Rare final correction.
+    if (r1 > d1 || (r1 == d1 && r0 >= d0)) { // unlikely
+        ++q1;
+        const auto [f0, f_borrow] = borrowing_sub(r0, d0);
+        r0                        = f0;
+        r1                        = static_cast<T>(r1 - d1 - static_cast<T>(f_borrow));
+    }
+
+    return {q1, {.low_bits = r0, .high_bits = r1}};
 }
 
 } // namespace beman::big_int::detail

@@ -2747,7 +2747,7 @@ constexpr uint_multiprecision_t basic_big_int<b, A>::divmod_in_place_short(const
 //   2) zero dividend,
 //   3) |dividend| < |divisor|,
 //   4) single-limb divisor
-// before falling through to `detail::divide_unsigned`.
+// before falling through to `detail::divide_dispatch`.
 template <std::size_t b, class A>
 template <std::size_t extent_a, std::size_t extent_b>
 constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
@@ -2797,7 +2797,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         if (rem_limb == 0) {
             return {};
         }
-        basic_big_int remainder = rem_limb;
+        basic_big_int remainder{rem_limb, m_alloc};
         remainder.unchecked_set_sign(dividend_neg);
         return remainder;
     }
@@ -2807,7 +2807,23 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     const std::size_t m_div = divisor_trim.size();
     const std::size_t q_cap = n_div - m_div + 1;
     const std::size_t r_cap = n_div + 1;
-    const std::size_t t_cap = n_div + 1;
+    const std::size_t t_cap = detail::divide_unsigned_storage_size(n_div, m_div);
+
+    if (op == detail::division_op::div) {
+        // Quotient only: the divide-and-conquer band can skip the remainder
+        // work entirely through the approximate-quotient path.
+        grow(q_cap);
+        std::fill_n(limb_ptr(), q_cap, limb_type{0});
+
+        detail::scratch_allocator<allocator_type> scratch(r_cap + t_cap, m_alloc);
+        detail::divide_dispatch_q(
+            std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, dividend_trim, divisor_trim, scratch, m_alloc);
+
+        const std::size_t qsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
+        unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
+        unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
+        return {};
+    }
 
     if (want_quotient) {
         // *this will hold the quotient.
@@ -2818,18 +2834,19 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         detail::scratch_allocator<allocator_type> scratch(r_cap + t_cap, m_alloc);
         const std::span<uint_multiprecision_t>    rem_span = scratch.allocate(r_cap);
 
-        detail::divide_unsigned(
-            std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, rem_span, dividend_trim, divisor_trim, scratch);
+        detail::divide_dispatch(std::span<uint_multiprecision_t>{limb_ptr(), q_cap},
+                                rem_span,
+                                dividend_trim,
+                                divisor_trim,
+                                scratch,
+                                m_alloc);
 
         const std::size_t qsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
         unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
         unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
-        if (op == detail::division_op::div) {
-            return {};
-        }
 
         BEMAN_BIG_INT_DEBUG_ASSERT(op == detail::division_op::div_rem);
-        basic_big_int rem(rem_span.data(), rem_span.data() + rem_span.size());
+        basic_big_int rem(rem_span.data(), rem_span.data() + rem_span.size(), m_alloc);
         rem.unchecked_set_sign(dividend_neg && !rem.unchecked_is_magnitude_zero());
         return rem;
     }
@@ -2842,8 +2859,8 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     detail::scratch_allocator<allocator_type> scratch(q_cap + t_cap, m_alloc);
     const std::span<uint_multiprecision_t>    quot_span = scratch.allocate(q_cap);
 
-    detail::divide_unsigned(
-        quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch);
+    detail::divide_dispatch(
+        quot_span, std::span<uint_multiprecision_t>{limb_ptr(), r_cap}, dividend_trim, divisor_trim, scratch, m_alloc);
 
     const std::size_t rsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), r_cap});
     unchecked_set_limb_count(static_cast<std::uint32_t>(rsize));
@@ -2859,8 +2876,18 @@ template <class L, class R>
     constexpr auto form = detail::classify_form_v<L, R>;
     constexpr auto op   = detail::division_op::div_rem;
 
-    Result quo;
-    Result rem;
+    // Both results take their allocator from the big_int operand (see the
+    // operator/ note).
+    using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
+    const auto result_alloc   = [&] {
+        if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+            return result_alloc_traits::select_on_container_copy_construction(y.get_allocator());
+        } else {
+            return result_alloc_traits::select_on_container_copy_construction(x.get_allocator());
+        }
+    }();
+    Result quo{0, result_alloc};
+    Result rem{0, result_alloc};
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         rem = quo.divmod_into(x.representation(), x.is_negative(), y.representation(), y.is_negative(), op);
@@ -2880,8 +2907,18 @@ template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
-
-    Result r;
+    // The result takes its allocator from the big_int operand through
+    // select_on_container_copy_construction: stateful allocators propagate
+    // into expression results, while pmr's convention (results on the
+    // default resource) is preserved.
+    using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
+    Result r                  = [&] {
+        if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(y.get_allocator())};
+        } else {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(x.get_allocator())};
+        }
+    }();
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         r.divmod_into(
@@ -2908,8 +2945,18 @@ template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
-
-    Result r;
+    // The result takes its allocator from the big_int operand through
+    // select_on_container_copy_construction: stateful allocators propagate
+    // into expression results, while pmr's convention (results on the
+    // default resource) is preserved.
+    using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
+    Result r                  = [&] {
+        if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(y.get_allocator())};
+        } else {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(x.get_allocator())};
+        }
+    }();
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         r.divmod_into(

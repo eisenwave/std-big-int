@@ -381,6 +381,29 @@ TEST(Pmr, DivisionAndModulusSameResource) {
     EXPECT_EQ(static_cast<int>(a % b), 6);
 }
 
+TEST(Pmr, DivideAndConquerDivisionSameResource) {
+    // Operand sizes above the burnikel_ziegler_cutoff/offset gates on every
+    // architecture (the x86-64 gates sit at 160/64 limbs). Compound
+    // assignment divides through *this, so the divide-and-conquer working
+    // memory must flow through the configured resource (counting_resource
+    // fails the test on any leak at destruction).
+    counting_resource cr;
+    const big_int     ref_a = ((1_n << 25600) + 987654321_n) * ((1_n << 4801) + 12345_n);
+    const big_int     ref_b = (1_n << 12800) + 192837465_n;
+
+    const pmr_big_int b{ref_b, &cr};
+
+    pmr_big_int       q{ref_a, &cr};
+    const std::size_t allocs_before = cr.alloc_count();
+    q /= b;
+    EXPECT_GT(cr.alloc_count(), allocs_before);
+    EXPECT_EQ(to_string(q), to_string(ref_a / ref_b));
+
+    pmr_big_int r{ref_a, &cr};
+    r %= b;
+    EXPECT_EQ(to_string(r), to_string(ref_a % ref_b));
+}
+
 TEST(Pmr, MultiLimbArithmeticMatchesNonPmr) {
     counting_resource cr;
     // Use the same numeric value in pmr and non-pmr forms; arithmetic must agree.

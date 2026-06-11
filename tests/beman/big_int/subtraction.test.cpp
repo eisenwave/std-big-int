@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <span>
 
 #include <gtest/gtest.h>
 
 #include <beman/big_int/big_int.hpp>
+#include <beman/big_int/detail/span_ops.hpp>
 
 #include "testing.hpp"
 
@@ -540,6 +543,104 @@ TEST(CompoundSubtraction, ChainedAccumulation) {
         a -= big_int{i};
     }
     EXPECT_EQ(a, 45);
+}
+
+// ----- detail::subtract_unsigned_spans_borrow_out -----
+
+inline constexpr uint_multiprecision_t limb_max = std::numeric_limits<uint_multiprecision_t>::max();
+
+consteval bool ce_borrow_out_wraps() {
+    // 1 - 2 == B - 1 with borrow out.
+    uint_multiprecision_t       a[1] = {1};
+    const uint_multiprecision_t b[1] = {2};
+    const bool                  borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{a}, std::span{a}, std::span{b});
+    return borrow && a[0] == limb_max;
+}
+static_assert(ce_borrow_out_wraps());
+
+TEST(SubtractBorrowOut, NoBorrowMatchesPlainSubtract) {
+    const uint_multiprecision_t a[3] = {5, 7, 9};
+    const uint_multiprecision_t b[3] = {1, 2, 3};
+    uint_multiprecision_t       expected[3]{};
+    uint_multiprecision_t       actual[3]{};
+
+    beman::big_int::detail::subtract_unsigned_spans(std::span{expected}, std::span{a}, std::span{b});
+    const bool borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{actual}, std::span{a}, std::span{b});
+
+    EXPECT_FALSE(borrow);
+    EXPECT_TRUE(std::ranges::equal(std::span{expected}, std::span{actual}));
+}
+
+TEST(SubtractBorrowOut, EqualValuesYieldZeroNoBorrow) {
+    const uint_multiprecision_t a[2] = {limb_max, 42};
+    uint_multiprecision_t       r[2]{};
+    const bool                  borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{r}, std::span{a}, std::span{a});
+    EXPECT_FALSE(borrow);
+    EXPECT_EQ(r[0], 0u);
+    EXPECT_EQ(r[1], 0u);
+}
+
+TEST(SubtractBorrowOut, BorrowWrapsMultiLimb) {
+    // a = B, b = B + 1: a - b == -1 == B^2 - 1 (mod B^2) with borrow out.
+    const uint_multiprecision_t a[2] = {0, 1};
+    const uint_multiprecision_t b[2] = {1, 1};
+    uint_multiprecision_t       r[2]{};
+    const bool                  borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{r}, std::span{a}, std::span{b});
+    EXPECT_TRUE(borrow);
+    EXPECT_EQ(r[0], limb_max);
+    EXPECT_EQ(r[1], limb_max);
+}
+
+TEST(SubtractBorrowOut, RaggedSizesBorrowRipplesThroughTail) {
+    // a = B^2, b = 1: result B^2 - 1, no borrow out.
+    const uint_multiprecision_t a[3] = {0, 0, 1};
+    const uint_multiprecision_t b[1] = {1};
+    uint_multiprecision_t       r[3]{};
+    const bool                  borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{r}, std::span{a}, std::span{b});
+    EXPECT_FALSE(borrow);
+    EXPECT_EQ(r[0], limb_max);
+    EXPECT_EQ(r[1], limb_max);
+    EXPECT_EQ(r[2], 0u);
+}
+
+TEST(SubtractBorrowOut, RaggedSizesFullSpanBorrow) {
+    // a = 0 (three limbs), b = 1: wraps to B^3 - 1 with borrow out.
+    const uint_multiprecision_t a[3] = {0, 0, 0};
+    const uint_multiprecision_t b[1] = {1};
+    uint_multiprecision_t       r[3]{};
+    const bool                  borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{r}, std::span{a}, std::span{b});
+    EXPECT_TRUE(borrow);
+    EXPECT_EQ(r[0], limb_max);
+    EXPECT_EQ(r[1], limb_max);
+    EXPECT_EQ(r[2], limb_max);
+}
+
+TEST(SubtractBorrowOut, ResultMayAliasA) {
+    uint_multiprecision_t       a[2] = {3, 5};
+    const uint_multiprecision_t b[2] = {4, 5};
+    const bool                  borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{a}, std::span{a}, std::span{b});
+    EXPECT_TRUE(borrow);
+    EXPECT_EQ(a[0], limb_max);
+    EXPECT_EQ(a[1], limb_max);
+}
+
+TEST(SubtractBorrowOut, RoundTripWithAddRecoversOperand) {
+    // (a - b) + b == a (mod B^n) and the borrow/carry flags match.
+    const uint_multiprecision_t a[3] = {0x1234, 0, 0x5678};
+    const uint_multiprecision_t b[3] = {limb_max, limb_max, 0x9abc};
+    uint_multiprecision_t       r[3]{};
+    const bool                  borrow =
+        beman::big_int::detail::subtract_unsigned_spans_borrow_out(std::span{r}, std::span{a}, std::span{b});
+    const bool carry = beman::big_int::detail::add_unsigned_spans(std::span{r}, std::span{r}, std::span{b});
+    EXPECT_EQ(borrow, carry);
+    EXPECT_TRUE(std::ranges::equal(std::span{r}, std::span{a}));
 }
 
 } // namespace

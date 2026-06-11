@@ -539,6 +539,75 @@ constexpr std::size_t square_fft_storage_size(const std::size_t n_limbs) noexcep
 }
 #endif
 
+// ---------------------------------------------------------------------------
+// Cyclic NTT product sizes: a * b mod (2^(64w) - 1) computed with a
+// transform of length L instead of the linear product's ~2L, by packing into
+// uniform base 2^b with b * L == 64 * w exactly -- the transform's natural
+// wraparound (mod x^L - 1) is then the value wraparound. Each output
+// coefficient sums exactly L products of b-bit values, so the CRT bound
+// uses L itself rather than the linear path's operand coefficient count.
+// ---------------------------------------------------------------------------
+
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
+
+struct fft_cyclic_params {
+    std::size_t wrap_limbs; // w: the modulus is 2^(64w) - 1
+    std::size_t length;     // L = 64 * w / b, a power of two
+    unsigned    coeff_bits; // b, in [26, fft_max_coeff_bits]
+};
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
+
+// Smallest cyclic-capable wrap size >= min_w, with its packing. L ascends in
+// powers of two (>= 64, so b * L is automatically a multiple of 64); for
+// each L the smallest usable b is ceil(64 * min_w / L), admissible while it
+// clears the cyclic CRT bound bit_width(L) + 2b <= fft_crt_bits. b lands in
+// [26, 50] (the 26 floor keeps the search dense: the [32, 50] band's ratio
+// is below 2, which would leave uncoverable wrap-size gaps); worst-case
+// padding is under min_w / 25 (4%), and exactly zero when min_w is a power
+// of two.
+[[nodiscard]] constexpr fft_cyclic_params multiply_fft_cyclic_next_size(const std::size_t min_w) noexcept {
+    constexpr std::size_t b_floor = 26;
+    for (std::size_t length = 64;; length <<= 1) {
+        const std::size_t b_cap = std::min<std::size_t>(
+            fft_max_coeff_bits, (fft_crt_bits - static_cast<std::size_t>(std::bit_width(length))) / 2);
+        const std::size_t b = std::max<std::size_t>(b_floor, (64 * min_w + length - 1) / length);
+        if (b <= b_cap) {
+            return {.wrap_limbs = b * (length / 64), .length = length, .coeff_bits = static_cast<unsigned>(b)};
+        }
+    }
+}
+
+// Compile-time properties the Barrett wiring relies on: growth, exact
+// b*L == 64*w packing, the b range, idempotency (so a chooser size fed back
+// in reproduces itself), the padding bound, and power-of-two lengths.
+consteval bool fft_cyclic_next_size_properties() {
+    for (std::size_t w = 1; w <= (std::size_t{1} << 22); w = w * 7 / 4 + 13) {
+        const fft_cyclic_params p = multiply_fft_cyclic_next_size(w);
+        const bool ok = p.wrap_limbs >= w && 64 * p.wrap_limbs == static_cast<std::size_t>(p.coeff_bits) * p.length &&
+                        p.coeff_bits >= 26 && p.coeff_bits <= fft_max_coeff_bits && std::has_single_bit(p.length) &&
+                        multiply_fft_cyclic_next_size(p.wrap_limbs).wrap_limbs == p.wrap_limbs &&
+                        p.wrap_limbs < w + w / 25 + 64;
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+static_assert(fft_cyclic_next_size_properties());
+
+// Workspace sizes for the cyclic kernels (length-L transforms; the residue
+// coefficient count equals L exactly).
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+constexpr std::size_t fft_cyclic_fp_storage_size(const fft_cyclic_params& p) noexcept { return 3 * p.length; }
+constexpr std::size_t fft_cyclic_int_storage_size(const fft_cyclic_params& p) noexcept { return 3 * p.length; }
+#else
+constexpr std::size_t fft_cyclic_storage_size(const fft_cyclic_params& p) noexcept {
+    return 2 * p.length + p.length / 2 + p.length;
+}
+#endif
+
 // Minimum limb count (of the smaller operand) at which FFT overtakes Toom-Cook 8.5.
 // These crossovers were measured with multiplication_stress_bench (release) on
 // Apple Silicon (ARM64) and a native x86-64 box, and they vary strongly by BOTH the
@@ -571,6 +640,33 @@ inline constexpr std::size_t fft_mul_cutoff    = 4500;
 inline constexpr std::size_t square_fft_cutoff = 4500;
 #endif
 
+// Entry size for the cyclic NTT tier of multiply_mod_bnm1: at and above it
+// the wrapped product runs one length-L transform set instead of the CRT
+// split, whose internal products fall below the linear FFT cutoff and
+// surrender its advantage. Tuned with division_kernel_bench's
+// cyclic_over_crt sweep (direct kernel vs forced CRT split at chooser
+// sizes, including the b = 26 band bottoms, which are the tier's least
+// efficient coefficient widths), release builds, 2026-06-10:
+//
+//   config                    cutoff   worst ratio at/above; first loser below
+//   integer, AArch64 (M4)       2048   0.98 at w=3328; w=1664 loses at 1.29
+//   integer, x86-64 (11900K)   36864   0.86 at w=36864, 0.77 at the w=53248
+//                                      band bottom; w=32768 is break-even and
+//                                      w=26624 loses at 1.29 (Toom dominates
+//                                      the scalar NTT until the CRT split's
+//                                      internal products near fft_mul_cutoff)
+//   FP (SIMD), x86-64 AVX2      8192   0.93 at w=8192, 0.82 at the w=13312
+//                                      band bottom; w=6656 loses at 1.24
+//                                      (AArch64 SIMD builds, test-only, share
+//                                      the value)
+#if defined(BEMAN_BIG_INT_SIMD_MUL)
+inline constexpr std::size_t fft_cyclic_cutoff = 8192;
+#elif defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
+inline constexpr std::size_t fft_cyclic_cutoff = 36864;
+#else
+inline constexpr std::size_t fft_cyclic_cutoff = 2048;
+#endif
+
 // FFT kernels. Operands may be untrimmed; `result` must have space for
 // a.size()+b.size() limbs and must NOT alias `a`/`b`; it writes exactly that many
 // (resp. 2*a.size()) limbs and the dispatcher trims. Workspaces are sized by the
@@ -586,6 +682,17 @@ void square_fft(std::span<uint_multiprecision_t>       result,
                 std::span<const uint_multiprecision_t> a_untrimmed,
                 std::span<double>                      fp_workspace,
                 std::span<std::uint64_t>               int_workspace) noexcept;
+
+// Cyclic kernel: result (exactly params.wrap_limbs limbs) = a * b mod
+// (2^(64w) - 1), semi-canonical (all-ones means zero). `params` must come
+// from multiply_fft_cyclic_next_size, and the operands must be at most w
+// limbs. 64-bit limbs only.
+void multiply_fft_cyclic(std::span<uint_multiprecision_t>       result,
+                         std::span<const uint_multiprecision_t> a_untrimmed,
+                         std::span<const uint_multiprecision_t> b_untrimmed,
+                         fft_cyclic_params                      params,
+                         std::span<double>                      fp_workspace,
+                         std::span<std::uint64_t>               int_workspace) noexcept;
 #else
 void multiply_fft(std::span<uint_multiprecision_t>       result,
                   std::span<const uint_multiprecision_t> a_untrimmed,
@@ -595,7 +702,40 @@ void multiply_fft(std::span<uint_multiprecision_t>       result,
 void square_fft(std::span<uint_multiprecision_t>       result,
                 std::span<const uint_multiprecision_t> a_untrimmed,
                 std::span<std::uint64_t>               workspace) noexcept;
+
+// Cyclic kernel: result (exactly params.wrap_limbs limbs) = a * b mod
+// (2^(64w) - 1), semi-canonical (all-ones means zero). `params` must come
+// from multiply_fft_cyclic_next_size, and the operands must be at most w
+// limbs. 64-bit limbs only.
+void multiply_fft_cyclic(std::span<uint_multiprecision_t>       result,
+                         std::span<const uint_multiprecision_t> a_untrimmed,
+                         std::span<const uint_multiprecision_t> b_untrimmed,
+                         fft_cyclic_params                      params,
+                         std::span<std::uint64_t>               workspace) noexcept;
 #endif
+
+// ---------------------------------------------------------------------------
+// Runtime multiplication tier ladders (src/mul_dispatch.cpp): operands must
+// be trimmed with at least two limbs; `result` pre-zeroed, sized for the
+// full product, non-aliasing. Kernel workspaces come from the type-erased
+// heap hooks. Returns the trimmed significant size.
+// ---------------------------------------------------------------------------
+std::size_t multiply_runtime(std::span<uint_multiprecision_t>       result,
+                             std::span<const uint_multiprecision_t> a,
+                             std::span<const uint_multiprecision_t> b,
+                             const scratch_heap_source&             heap);
+
+std::size_t square_runtime(std::span<uint_multiprecision_t>       result,
+                           std::span<const uint_multiprecision_t> a,
+                           const scratch_heap_source&             heap);
+
+// Untrimmed/short-operand-tolerant runtime product for the src-side callers
+// (the division tiers and mulmod): trims, takes the single-limb shortcuts,
+// then runs the tier ladder. The runtime mirror of multiply_dispatch.
+std::size_t multiply_runtime_any(std::span<uint_multiprecision_t>       result,
+                                 std::span<const uint_multiprecision_t> a_untrimmed,
+                                 std::span<const uint_multiprecision_t> b_untrimmed,
+                                 const scratch_heap_source&             heap);
 
 // ---------------------------------------------------------------------------
 // result <- a * p2 where p2 is a trimmed power of two: a shifted copy of `a`
@@ -637,67 +777,8 @@ std::size_t square_dispatch(const std::span<uint_multiprecision_t>       result,
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= 2 * a.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
 
-    const std::size_t n            = a.size();
-    const std::size_t result_total = 2 * n;
-
-    // Tiny squares: plain schoolbook beats the three-pass squaring basecase.
-    if (n < square_long_cutoff) {
-        multiply_long(result.first(result_total), a, a);
-        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
-    }
-
-    // (2^k)^2 = 2^(2k): a shifted copy beats any squaring kernel.
-    if (is_power_of_two_span(a)) {
-        return multiply_power_of_two(result, a, a);
-    }
-
-    if (n < square_karatsuba_cutoff) {
-        square_long(result, a);
-        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
-    }
-
-    if (n < square_toom_cook_3_cutoff) {
-        scratch_allocator<Allocator> scratch(karatsuba_storage_size(n), alloc);
-        square_karatsuba(result.first(result_total), a, scratch);
-    } else if (n < square_toom_cook_4_cutoff) {
-        scratch_allocator<Allocator> scratch(toom_cook_3_storage_size(n), alloc);
-        square_toom_cook_3(result.first(result_total), a, scratch);
-    } else if (n < square_toom_cook_6_5_cutoff) {
-        scratch_allocator<Allocator> scratch(toom_cook_4_storage_size(n), alloc);
-        square_toom_cook_4(result.first(result_total), a, scratch);
-    } else {
-        // n >= square_toom_cook_6_5_cutoff: Toom-6.5 / Toom-8.5, or FFT once it
-        // overtakes at square_fft_cutoff. The FFT kernel packs into 64-bit words, so
-        // it is gated to 64-bit limbs; on a 32-bit build the branch is discarded and
-        // execution falls through to the Toom chain.
-        bool used_fft = false;
-        if constexpr (width_v<uint_multiprecision_t> == 64) {
-            if (n >= square_fft_cutoff) {
-                using u64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
-#if defined(BEMAN_BIG_INT_SIMD_MUL)
-                using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
-                std::vector<double, f64_alloc>        fp_ws(square_fft_fp_storage_size(n), f64_alloc(alloc));
-                std::vector<std::uint64_t, u64_alloc> int_ws(square_fft_int_storage_size(n), u64_alloc(alloc));
-                square_fft(result.first(result_total), a, fp_ws, int_ws);
-#else
-                std::vector<std::uint64_t, u64_alloc> ws(square_fft_storage_size(n), u64_alloc(alloc));
-                square_fft(result.first(result_total), a, ws);
-#endif
-                used_fft = true;
-            }
-        }
-        if (!used_fft) {
-            if (n < square_toom_cook_8_5_cutoff) {
-                scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(n), alloc);
-                square_toom_cook_6_5(result.first(result_total), a, scratch);
-            } else {
-                scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(n), alloc);
-                square_toom_cook_8_5(result.first(result_total), a, scratch);
-            }
-        }
-    }
-
-    return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
+    const scratch_allocator<Allocator> hooks(alloc);
+    return square_runtime(result, a, hooks.heap());
 }
 
 // ---------------------------------------------------------------------------
@@ -749,89 +830,146 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
         }
     }
 
-    // Choose an algorithm to use based off the tuned cutoffs.
-    // Avoid these at compile time because the recursion depth could blow up consteval limits;
-    // long multiplication works just fine in that case.
+    // The tier ladder lives in src/mul_dispatch.cpp; constant evaluation
+    // keeps long multiplication (the recursive tiers could blow up consteval
+    // step limits, and the kernels are runtime-compiled).
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-        // x * x and x *= x pass the same span twice, so squaring detection is
-        // a pointer compare that almost always fails fast for ordinary mul
-        if (a.data() == b.data() && a.size() == b.size()) {
-            return square_dispatch(result, a, alloc);
-        }
-
-        const std::size_t min_size = std::min(a.size(), b.size());
-        if (min_size >= karatsuba_cutoff) {
-            // Power-of-two operands reduce to a shifted copy of the other operand.
-            // This is only worth checking if we're about to do a big number mul anyway
-            if (is_power_of_two_span(b)) {
-                return multiply_power_of_two(result, a, b);
-            }
-            if (is_power_of_two_span(a)) {
-                return multiply_power_of_two(result, b, a);
-            }
-
-            const std::size_t s            = std::max(a.size(), b.size());
-            const std::size_t result_total = a.size() + b.size();
-
-            if (min_size < toom_cook_3_cutoff) {
-                const std::size_t storage_size = karatsuba_storage_size(s);
-                if (storage_size <= karatsuba_stack_threshold) {
-                    uint_multiprecision_t        stack_buf[karatsuba_stack_threshold];
-                    scratch_allocator<Allocator> scratch(stack_buf, karatsuba_stack_threshold, alloc);
-                    multiply_karatsuba(result.first(result_total), a, b, scratch);
-                } else {
-                    scratch_allocator<Allocator> scratch(storage_size, alloc);
-                    multiply_karatsuba(result.first(result_total), a, b, scratch);
-                }
-            } else if (min_size < toom_cook_4_cutoff) {
-                scratch_allocator<Allocator> scratch(toom_cook_3_storage_size(s), alloc);
-                multiply_toom_cook_3(result.first(result_total), a, b, scratch);
-            } else if (min_size < toom_cook_6_5_cutoff) {
-                scratch_allocator<Allocator> scratch(toom_cook_4_storage_size(s), alloc);
-                multiply_toom_cook_4(result.first(result_total), a, b, scratch);
-            } else {
-                // min_size >= toom_cook_6_5_cutoff: Toom-6.5 / Toom-8.5, or FFT
-                // once it overtakes at fft_mul_cutoff. Gated to 64-bit limbs (the
-                // FFT kernel packs into 64-bit words); on a 32-bit build the branch
-                // is discarded and execution falls through to the Toom chain.
-                bool used_fft = false;
-                if constexpr (width_v<uint_multiprecision_t> == 64) {
-                    if (min_size >= fft_mul_cutoff) {
-                        using u64_alloc =
-                            typename std::allocator_traits<Allocator>::template rebind_alloc<std::uint64_t>;
-#if defined(BEMAN_BIG_INT_SIMD_MUL)
-                        using f64_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<double>;
-                        std::vector<double, f64_alloc>        fp_ws(fft_mul_fp_storage_size(a.size(), b.size()),
-                                                                    f64_alloc(alloc));
-                        std::vector<std::uint64_t, u64_alloc> int_ws(fft_mul_int_storage_size(a.size(), b.size()),
-                                                                     u64_alloc(alloc));
-                        multiply_fft(result.first(result_total), a, b, fp_ws, int_ws);
-#else
-                        std::vector<std::uint64_t, u64_alloc> ws(fft_mul_storage_size(a.size(), b.size()),
-                                                                 u64_alloc(alloc));
-                        multiply_fft(result.first(result_total), a, b, ws);
-#endif
-                        used_fft = true;
-                    }
-                }
-                if (!used_fft) {
-                    if (min_size < toom_cook_8_5_cutoff) {
-                        scratch_allocator<Allocator> scratch(toom_cook_6_5_storage_size(s), alloc);
-                        multiply_toom_cook_6_5(result.first(result_total), a, b, scratch);
-                    } else {
-                        scratch_allocator<Allocator> scratch(toom_cook_8_5_storage_size(s), alloc);
-                        multiply_toom_cook_8_5(result.first(result_total), a, b, scratch);
-                    }
-                }
-            }
-            return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
-        }
+        const scratch_allocator<Allocator> hooks(alloc);
+        return multiply_runtime(result, a, b, hooks.heap());
     }
 
     // Long multiplication fallback
     multiply_long(result, a, b);
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
+
+// ---------------------------------------------------------------------------
+// Wraparound multiplication: a * b mod (B^w - 1), the GMP mulmod_bnm1
+// lineage. B^w == 1 (mod B^w - 1), so the full 2w-limb product folds in half;
+// computing it via the CRT split
+//   mod (B^h - 1)  (recursive)   x   mod (B^h + 1)  (one h x h product)
+// with a multiplication-free reassembly makes a wrapped product cost about
+// half a full multiplication. Used by the Barrett division tier, where the
+// subtrahend's true value is known to be small so only its residue matters.
+// ---------------------------------------------------------------------------
+
+// Below this wrap size the plain product plus a fold wins. Re-validated on
+// both tuning machines 2026-06-10: a floor of 8 ties within 2%, 32 and up
+// lose 2-25% at wraps of 32-256 limbs; not worth a per-arch split.
+inline constexpr std::size_t multiply_mod_bnm1_cutoff = 16;
+
+static_assert(multiply_mod_bnm1_cutoff >= 2, "the recursion must stop above single-limb wraps");
+
+// Smallest wrap size >= n that the recursion can halve all the way down to
+// the threshold without going odd (GMP's mpn_mulmod_bnm1_next_size shape).
+// At and above fft_cyclic_cutoff (64-bit limbs) sizes come from the cyclic
+// NTT chooser instead, so the wrapped product runs as one length-L
+// transform set rather than the CRT split.
+[[nodiscard]] constexpr std::size_t multiply_mod_bnm1_next_size(const std::size_t n,
+                                                                const std::size_t threshold) noexcept {
+    if (n <= threshold) {
+        return n;
+    }
+    if constexpr (width_v<uint_multiprecision_t> == 64) {
+        if (n >= fft_cyclic_cutoff) {
+            return multiply_fft_cyclic_next_size(n).wrap_limbs;
+        }
+    }
+    std::size_t chunk = 1;
+    while ((n + chunk - 1) / chunk > threshold) {
+        chunk <<= 1;
+    }
+    return ((n + chunk - 1) / chunk) * chunk;
+}
+
+// Scratch upper bound for multiply_mod_bnm1 at wrap size w: the recursion
+// holds the two h-limb folded inputs across its recursive call, then frees
+// them before the mod-(B^h + 1) stage's three (h+1)-limb values and 2h-limb
+// product; the basecase needs the full 2w-limb product. Validated by the
+// instrumented probe in mulmod_bnm1.test.cpp.
+constexpr std::size_t multiply_mod_bnm1_storage_size(const std::size_t w) noexcept { return 3 * w + 16; }
+
+// dst = src mod (B^w - 1) with w = dst.size(), semi-canonical (the all-ones
+// pattern, equal to the modulus, may appear and means zero).
+// Requires src.size() <= 2 * w.
+constexpr void fold_mod_bnm1(const std::span<uint_multiprecision_t>       dst,
+                             const std::span<const uint_multiprecision_t> src) noexcept {
+    const std::size_t w = dst.size();
+    BEMAN_BIG_INT_DEBUG_ASSERT(src.size() <= 2 * w);
+
+    const std::size_t lo = std::min(w, src.size());
+    std::ranges::copy(src.first(lo), dst.begin());
+    std::ranges::fill(dst.subspan(lo), uint_multiprecision_t{0});
+    if (src.size() > w) {
+        if (add_unsigned_spans(dst, dst, src.subspan(w))) {
+            // B^w == 1: fold the carry back in; if that wraps too, the value
+            // was B^w == 1 exactly.
+            if (increment_span(dst)) {
+                dst[0] = 1;
+            }
+        }
+    }
+}
+
+// dst = (dst + addend) mod (B^w - 1) with w = dst.size(), semi-canonical.
+// addend.size() <= w.
+constexpr void add_mod_bnm1(const std::span<uint_multiprecision_t>       dst,
+                            const std::span<const uint_multiprecision_t> addend) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(addend.size() <= dst.size());
+    if (add_unsigned_spans(dst, dst, addend)) {
+        if (increment_span(dst)) {
+            dst[0] = 1;
+        }
+    }
+}
+
+// dst = src mod (B^h + 1) with h + 1 = dst.size(), canonical in [0, B^h]
+// (so dst's top limb is 0 or 1, and 1 forces the rest to zero).
+// Requires src.size() <= 2 * h.
+constexpr void fold_mod_bnp1(const std::span<uint_multiprecision_t>       dst,
+                             const std::span<const uint_multiprecision_t> src) noexcept {
+    const std::size_t h = dst.size() - 1;
+    BEMAN_BIG_INT_DEBUG_ASSERT(h >= 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(src.size() <= 2 * h);
+
+    // B^h == -1: value = lo - hi.
+    const auto lo = src.first(std::min(h, src.size()));
+    const auto hi = src.size() > h ? src.subspan(h) : std::span<const uint_multiprecision_t>{};
+
+    if (compare_unsigned_spans(lo, hi) != std::strong_ordering::less) {
+        std::ranges::copy(lo, dst.begin());
+        std::ranges::fill(dst.subspan(lo.size()), uint_multiprecision_t{0});
+        subtract_unsigned_spans(dst.first(h), dst.first(h), hi);
+        return;
+    }
+
+    // lo < hi: value = lo - hi + B^h + 1; the wrapped subtraction already
+    // adds B^h, so only the +1 remains. If that carries the value is exactly
+    // B^h (lo - hi == -1).
+    std::ranges::copy(lo, dst.begin());
+    std::ranges::fill(dst.subspan(lo.size()), uint_multiprecision_t{0});
+    const bool borrow = subtract_unsigned_spans_borrow_out(dst.first(h), dst.first(h), hi);
+    BEMAN_BIG_INT_DEBUG_ASSERT(borrow);
+    dst[h] = increment_span(dst.first(h)) ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// r = a * b mod (B^w - 1) with w = r.size(), semi-canonical (all-ones means
+// zero). a.size() and b.size() must be at most w (fold larger operands
+// first); r must not alias the inputs. `scratch` provides
+// multiply_mod_bnm1_storage_size(w) limbs AND must carry the type-erased
+// heap hooks (any scratch_allocator<Allocator> does) for the internal
+// products and the cyclic NTT tier's workspaces.
+// Odd wrap sizes fall back to the plain product (size via
+// multiply_mod_bnm1_next_size to keep the recursion even).
+// `cutoff_override` is a test-only escape hatch forcing deep recursion.
+// Compiled once in src/mulmod_bnm1.cpp.
+// ---------------------------------------------------------------------------
+void multiply_mod_bnm1(std::span<uint_multiprecision_t>       r,
+                       std::span<const uint_multiprecision_t> a,
+                       std::span<const uint_multiprecision_t> b,
+                       scratch_allocator_base&                scratch,
+                       std::size_t                            cutoff_override = 0);
 
 } // namespace beman::big_int::detail
 

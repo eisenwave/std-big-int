@@ -170,6 +170,39 @@ constexpr std::size_t subtract_unsigned_spans(const std::span<uint_multiprecisio
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size()});
 }
 
+// ---------------------------------------------------------------------------
+// Wraparound unsigned span subtraction: result = (a - b) mod B^a.size().
+// Unlike subtract_unsigned_spans, value(a) may be less than value(b); the
+// borrow out of the top limb is returned instead of asserted away.
+// Requires result.size() >= a.size() >= b.size(). `result` may alias `a`.
+// Writes exactly a.size() limbs; no trimming.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr bool
+subtract_unsigned_spans_borrow_out(const std::span<uint_multiprecision_t>       result,
+                                   const std::span<const uint_multiprecision_t> a,
+                                   const std::span<const uint_multiprecision_t> b) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b.size());
+
+    bool borrow = false;
+
+    // Overlap: both operands contribute.
+    for (std::size_t i = 0; i < b.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], b[i], borrow);
+        result[i]                      = r_value;
+        borrow                         = r_borrow;
+    }
+
+    // Tail of a: b is now zero.
+    for (std::size_t i = b.size(); i < a.size(); ++i) {
+        const auto [r_value, r_borrow] = borrowing_sub(a[i], uint_multiprecision_t{0}, borrow);
+        result[i]                      = r_value;
+        borrow                         = r_borrow;
+    }
+
+    return borrow;
+}
+
 // Void wrappers that discard the existing functions' returns and assert their
 // expected conditions. Their matching `void` return lets callers express the
 // sign-aware "result = a + b_signed" dispatch as a single ternary:
@@ -444,10 +477,11 @@ constexpr signed_sub_result subtract_unsigned_spans_signed(const std::span<uint_
 }
 
 // ---------------------------------------------------------------------------
-// Single-limb short division.
-// `quotient[i]` := floor(([remainder, dividend[i]] as two limbs) / divisor)
-// scanning from the top limb down.
-// Returns the scalar remainder.
+// Single-limb short division via the Moller-Granlund reciprocal: normalize
+// the divisor once, then stream `quotient[i] := floor(<r, dividend'[i]> / d)`
+// from the top limb down with div_2by1_preinv (two multiplies per limb
+// instead of a hardware/software 2-limb divide). Returns the scalar
+// remainder.
 // `quotient` and `dividend` may be the same range (i.e. alias each other),
 // but `quotient` may not be a strict subrange of `dividend`.
 //
@@ -455,8 +489,9 @@ constexpr signed_sub_result subtract_unsigned_spans_signed(const std::span<uint_
 //   - divisor != 0
 //   - quotient.size() >= dividend.size()
 //   - dividend.size() >= 1
-//   - quotient may alias dividend (we read dividend[i] before writing
-//     quotient[i]; subsequent iterations touch strictly lower indices).
+//   - quotient may alias dividend (each iteration reads dividend[i] and
+//     dividend[i-1] before writing quotient[i]; later iterations touch
+//     strictly lower indices).
 // ---------------------------------------------------------------------------
 [[nodiscard]] constexpr uint_multiprecision_t
 divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
@@ -466,17 +501,93 @@ divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
     BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
 
-    uint_multiprecision_t remainder = 0;
-    for (std::size_t i = dividend.size(); i-- > 0;) {
-        // narrowing_div requires x.high_bits < y; the previous remainder was
-        // taken mod divisor, so this invariant holds (and 0 < divisor on the
-        // first iteration).
-        const wide<uint_multiprecision_t> num{.low_bits = dividend[i], .high_bits = remainder};
-        const auto [q, r] = narrowing_div(num, divisor);
-        quotient[i]       = q;
-        remainder         = r;
+    // Single-limb dividend: one native divide beats the reciprocal setup.
+    if (dividend.size() == 1) {
+        const uint_multiprecision_t value = dividend[0];
+        quotient[0]                       = value / divisor;
+        return value % divisor;
     }
-    return remainder;
+
+    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    const unsigned        shift     = static_cast<unsigned>(std::countl_zero(divisor));
+
+    if (shift == 0) {
+        const uint_multiprecision_t v = reciprocal_word(divisor);
+        uint_multiprecision_t       r = 0;
+        for (std::size_t i = dividend.size(); i-- > 0;) {
+            const auto qr =
+                div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = dividend[i], .high_bits = r}, divisor, v);
+            quotient[i] = qr.quotient;
+            r           = qr.remainder;
+        }
+        return r;
+    }
+
+    // Normalize on the fly: divide the bit-shifted dividend by divisor <<
+    // shift, funneling adjacent limbs. The quotient digits are unaffected by
+    // the common shift; the final remainder shifts back down.
+    const uint_multiprecision_t d = divisor << shift;
+    const uint_multiprecision_t v = reciprocal_word(d);
+
+    uint_multiprecision_t cur = dividend[dividend.size() - 1];
+    uint_multiprecision_t r   = cur >> (limb_bits - shift);
+    for (std::size_t i = dividend.size() - 1; i > 0; --i) {
+        const uint_multiprecision_t next = dividend[i - 1];
+        const uint_multiprecision_t u =
+            funnel_shl(wide<uint_multiprecision_t>{.low_bits = next, .high_bits = cur}, shift);
+        const auto qr = div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = u, .high_bits = r}, d, v);
+        quotient[i]   = qr.quotient;
+        r             = qr.remainder;
+        cur           = next;
+    }
+    const auto qr = div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = cur << shift, .high_bits = r}, d, v);
+    quotient[0]   = qr.quotient;
+    return qr.remainder >> shift;
+}
+
+// ---------------------------------------------------------------------------
+// Fused multiply-subtract: result -= a * val over the low a.size() limbs of
+// `result`, in place. Returns the borrow-out limb (the amount owed at
+// position a.size(); always at most B-1, so a single limb suffices).
+// `result.size()` must be >= a.size(); `result` must NOT alias `a`.
+// The inner step of Knuth-D schoolbook division.
+//
+// An AVX-512 IFMA version was probed on an i9-11900K (2026-06-11) and
+// REJECTED: the vpmadd52 product kernel itself runs 0.13-0.21 ns/limb
+// against this loop's 0.69-0.96 (a real ~4x multiply ceiling), but a
+// one-shot call must stage through radix 2^52 -- the 64->52 conversion,
+// 52->64 recompose, and separated subtract pass each cost about as much as
+// this entire loop, landing the pipeline at 3.0-3.7x SLOWER at every span
+// from 8 to 4096 limbs. Fully vectorized staging (VBMI multishift repack,
+// masked-borrow subtract) still models >= 1.4x slower. The ceiling is only
+// reachable by keeping the whole schoolbook division resident in radix
+// 2^52, a redesign out of proportion to its modeled <= 1.4x basecase win
+// on one ISA family.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t submul_single_limb(const std::span<uint_multiprecision_t>       result,
+                                                                 const std::span<const uint_multiprecision_t> a,
+                                                                 const uint_multiprecision_t val) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data() || a.empty());
+
+    // Owed at each position: a[i] * val + borrow <= (B-1)^2 + (B-1), so the
+    // carry folds into the high half without overflow; and when the limb
+    // subtraction borrows, that high half is at most B-2, so the running
+    // borrow always fits one limb.
+    // A four-way unroll with hoisted multiplies was measured 2026-06-10
+    // (division_kernel_bench): flat on an M4 Max and 3-7% SLOWER on an
+    // i9-11900K -- the compilers already schedule this form at the borrow
+    // chain's bound. Closing the remaining gap to hand-tuned kernels would
+    // take per-arch inline assembly, deliberately not used here.
+    uint_multiprecision_t borrow = 0;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        const auto [lo, hi]   = widening_mul(a[i], val);
+        const auto [low, c]   = carrying_add(lo, borrow);
+        const auto [r_val, b] = borrowing_sub(result[i], low);
+        result[i]             = r_val;
+        borrow                = hi + static_cast<uint_multiprecision_t>(c) + static_cast<uint_multiprecision_t>(b);
+    }
+    return borrow;
 }
 
 // ---------------------------------------------------------------------------
