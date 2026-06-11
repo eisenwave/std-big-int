@@ -2797,7 +2797,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         if (rem_limb == 0) {
             return {};
         }
-        basic_big_int remainder = rem_limb;
+        basic_big_int remainder{rem_limb, m_alloc};
         remainder.unchecked_set_sign(dividend_neg);
         return remainder;
     }
@@ -2846,7 +2846,7 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
 
         BEMAN_BIG_INT_DEBUG_ASSERT(op == detail::division_op::div_rem);
-        basic_big_int rem(rem_span.data(), rem_span.data() + rem_span.size());
+        basic_big_int rem(rem_span.data(), rem_span.data() + rem_span.size(), m_alloc);
         rem.unchecked_set_sign(dividend_neg && !rem.unchecked_is_magnitude_zero());
         return rem;
     }
@@ -2876,8 +2876,18 @@ template <class L, class R>
     constexpr auto form = detail::classify_form_v<L, R>;
     constexpr auto op   = detail::division_op::div_rem;
 
-    Result quo;
-    Result rem;
+    // Both results take their allocator from the big_int operand (see the
+    // operator/ note).
+    using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
+    const auto result_alloc   = [&] {
+        if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+            return result_alloc_traits::select_on_container_copy_construction(y.get_allocator());
+        } else {
+            return result_alloc_traits::select_on_container_copy_construction(x.get_allocator());
+        }
+    }();
+    Result quo{0, result_alloc};
+    Result rem{0, result_alloc};
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         rem = quo.divmod_into(x.representation(), x.is_negative(), y.representation(), y.is_negative(), op);
@@ -2897,8 +2907,18 @@ template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
-
-    Result r;
+    // The result takes its allocator from the big_int operand through
+    // select_on_container_copy_construction: stateful allocators propagate
+    // into expression results, while pmr's convention (results on the
+    // default resource) is preserved.
+    using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
+    Result r = [&] {
+        if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(y.get_allocator())};
+        } else {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(x.get_allocator())};
+        }
+    }();
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         r.divmod_into(
@@ -2925,8 +2945,18 @@ template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
-
-    Result r;
+    // The result takes its allocator from the big_int operand through
+    // select_on_container_copy_construction: stateful allocators propagate
+    // into expression results, while pmr's convention (results on the
+    // default resource) is preserved.
+    using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
+    Result r = [&] {
+        if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(y.get_allocator())};
+        } else {
+            return Result{0, result_alloc_traits::select_on_container_copy_construction(x.get_allocator())};
+        }
+    }();
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         r.divmod_into(
