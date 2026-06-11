@@ -603,6 +603,111 @@ void divide_dc_3n2n(const std::span<uint_multiprecision_t>       v,
     scratch.deallocate(2 * h);
 }
 
+// ---------------------------------------------------------------------------
+// Approximate D_2n/n (the GMP dcpi1_divappr_q_n idea in Burnikel-Ziegler
+// dress): the high quotient half comes from the exact D_3n/2n on the top
+// three quarter-blocks -- its remainder is needed to continue -- but the low
+// half recurses approximately on that remainder's top 2h limbs against the
+// divisor's high half only. The window's low quarter and the divisor's low
+// half are never read below the top level, so the whole low subtree skips
+// its remainder multiplies; that is the divappr saving.
+//
+// Same window contract as divide_dc_2n1n (a is 2n limbs with its high half
+// strictly below b; all n quotient limbs written; `a` is consumed as
+// workspace -- unlike the exact routine it does NOT leave a remainder).
+// The computed quotient satisfies
+//   q <= q' <= q + divappr_quotient_slack(n, threshold):
+// each halving level divides by a divisor whose low half was dropped,
+// contributing at most one quotient ulp on top of the recursion below it
+// (GMP's flat +1 bound for this construction relies on threading an extra
+// fraction limb through the recursion, which this shape does not carry).
+// The differential suite measures the accumulation: observed maxima track
+// the level count minus one, so the +2 here is honest headroom.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr std::size_t divappr_quotient_slack(const std::size_t n,
+                                                           const std::size_t threshold) noexcept {
+    std::size_t levels = 0;
+    std::size_t m      = n;
+    while (m >= threshold && (m % 2) == 0) {
+        m >>= 1;
+        ++levels;
+    }
+    return levels + 2;
+}
+
+template <class Allocator>
+void divide_dc_divappr(const std::span<uint_multiprecision_t>       a,
+                       const std::span<const uint_multiprecision_t> b,
+                       const std::span<uint_multiprecision_t>       q,
+                       scratch_allocator_base&                      scratch,
+                       Allocator&                                   alloc,
+                       const std::size_t                            threshold) {
+    constexpr uint_multiprecision_t max_limb = ~uint_multiprecision_t{0};
+
+    const std::size_t n = b.size();
+    BEMAN_BIG_INT_DEBUG_ASSERT(a.size() == 2 * n);
+    BEMAN_BIG_INT_DEBUG_ASSERT(q.size() == n);
+    BEMAN_BIG_INT_DEBUG_ASSERT((b.back() >> (width_v<uint_multiprecision_t> - 1)) == 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(compare_unsigned_spans(a.subspan(n), b) == std::strong_ordering::less);
+
+    if ((n % 2) != 0 || n < threshold) {
+        // Degenerate leaves (deep threshold overrides only): exact division
+        // satisfies the approximate contract trivially.
+        if (n < 3) {
+            divide_dc_basecase(a, b, q, scratch);
+            return;
+        }
+
+        const std::size_t a_size = trimmed_size_span(a);
+        const auto        a_view = std::span<const uint_multiprecision_t>{a.data(), a_size};
+
+        // Window value below (or one limb of) the divisor: the quotient is
+        // 0 or 1 by comparison; no division needed.
+        if (a_size <= n) {
+            std::ranges::fill(q, uint_multiprecision_t{0});
+            if (compare_unsigned_spans(a_view, b) != std::strong_ordering::less) {
+                q[0] = 1;
+            }
+            return;
+        }
+
+        // The approximate basecase produces a_size - n + 1 <= n + 1 digits;
+        // a top overflow digit means the true quotient is within the slack
+        // of beta^n - 1, so the window saturates.
+        const std::size_t                      q_len = a_size - n + 1;
+        const std::span<uint_multiprecision_t> q_tmp = scratch.allocate(q_len);
+        divide_unsigned_approx(q_tmp, a_view, b, scratch);
+        BEMAN_BIG_INT_DEBUG_ASSERT(q_len <= n || q_tmp[n] <= 1);
+        if (q_len > n && q_tmp[n] != 0) {
+            std::ranges::fill(q, max_limb);
+        } else {
+            const std::size_t q_copy = std::min(q_len, n);
+            std::ranges::copy(q_tmp.first(q_copy), q.begin());
+            std::ranges::fill(q.subspan(q_copy), uint_multiprecision_t{0});
+        }
+        scratch.deallocate(q_len);
+        return;
+    }
+
+    const std::size_t h = n / 2;
+
+    // High quotient half, exactly as divide_dc_2n1n: remainder (< b) lands
+    // in a[h..3h) and a[3h..4h) is zeroed.
+    divide_dc_3n2n(a.subspan(h, 3 * h), b, q.subspan(h, h), scratch, alloc, threshold);
+
+    // Low quotient half approximately: the remainder's top 2h limbs against
+    // the divisor's high half. remainder < b only bounds the inner window's
+    // high half by b1 inclusively; equality saturates (the true low half is
+    // then within the slack of beta^h - 1).
+    const auto b1 = b.subspan(h, h);
+    if (compare_unsigned_spans(a.subspan(2 * h, h), b1) == std::strong_ordering::less) {
+        divide_dc_divappr(a.subspan(h, 2 * h), b1, q.first(h), scratch, alloc, threshold);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(compare_unsigned_spans(a.subspan(2 * h, h), b1) == std::strong_ordering::equal);
+        std::ranges::fill(q.first(h), max_limb);
+    }
+}
+
 // Block-decomposition parameters of the divide_burnikel_ziegler driver,
 // exposed so the scratch instrumentation test can size and probe the same
 // workspace the production entry point uses.

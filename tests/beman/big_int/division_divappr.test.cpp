@@ -215,4 +215,152 @@ TEST(DivisionDivappr, ExactMultiplesAndNeighbors) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// divide_dc_divappr: differential against the exact divide_dc_2n1n on the
+// same window. The quotient must satisfy q <= q' <= q + slack.
+// ---------------------------------------------------------------------------
+
+// Runs both kernels on copies of `working` (2n limbs, high half < b) and
+// returns q' - q.
+std::size_t check_dc_divappr(const std::vector<uint_t>& working, const std::vector<uint_t>& b,
+                             const std::size_t threshold) {
+    const std::size_t n = b.size();
+    EXPECT_EQ(working.size(), 2 * n);
+    EXPECT_NE(b.back() >> (detail::width_v<uint_t> - 1), 0u);
+
+    std::allocator<uint_t> alloc;
+    const std::size_t      thr = threshold != 0 ? threshold : detail::burnikel_ziegler_cutoff;
+
+    std::vector<uint_t> a_exact = working;
+    std::vector<uint_t> q_exact(n, 0);
+    {
+        scratch_for_test scratch(detail::burnikel_ziegler_storage_size(n, 2, thr) + 8 * n + 64, alloc);
+        detail::divide_dc_2n1n(std::span<uint_t>{a_exact}, std::span<const uint_t>{b}, std::span<uint_t>{q_exact},
+                               scratch, alloc, thr);
+    }
+
+    std::vector<uint_t> a_appr = working;
+    std::vector<uint_t> q_appr(n, 0);
+    {
+        scratch_for_test scratch(detail::burnikel_ziegler_storage_size(n, 2, thr) + 8 * n + 64, alloc);
+        detail::divide_dc_divappr(std::span<uint_t>{a_appr}, std::span<const uint_t>{b}, std::span<uint_t>{q_appr},
+                                  scratch, alloc, thr);
+    }
+
+    std::vector<uint_t> diff = q_appr;
+    const bool borrow = detail::subtract_unsigned_spans_borrow_out(std::span<uint_t>{diff},
+                                                                   std::span<const uint_t>{diff},
+                                                                   std::span<const uint_t>{q_exact});
+    EXPECT_FALSE(borrow) << "approximate dc quotient below the true quotient at n=" << n << " thr=" << thr;
+    if (detail::is_span_zero(std::span<const uint_t>{diff})) {
+        return 0;
+    }
+    EXPECT_EQ(detail::trimmed_size_span(std::span<const uint_t>{diff}), 1u) << "n=" << n << " thr=" << thr;
+    EXPECT_LE(diff[0], detail::divappr_quotient_slack(n, thr)) << "n=" << n << " thr=" << thr;
+    return static_cast<std::size_t>(diff[0]);
+}
+
+// 2n-limb window with high half strictly below b.
+std::vector<uint_t> random_window(const std::vector<uint_t>& b, std::mt19937_64& rng) {
+    const std::size_t   n = b.size();
+    std::vector<uint_t> w(2 * n);
+    for (auto& limb : w) {
+        limb = static_cast<uint_t>(rng());
+    }
+    while (detail::compare_unsigned_spans(std::span<const uint_t>{w.data() + n, n}, std::span<const uint_t>{b}) !=
+           std::strong_ordering::less) {
+        for (std::size_t i = n; i < 2 * n; ++i) {
+            w[i] = static_cast<uint_t>(rng());
+        }
+    }
+    return w;
+}
+
+std::vector<uint_t> random_normalized_divisor(const std::size_t n, std::mt19937_64& rng) {
+    std::vector<uint_t> b(n);
+    for (auto& limb : b) {
+        limb = static_cast<uint_t>(rng());
+    }
+    b.back() |= uint_t{1} << (detail::width_v<uint_t> - 1);
+    return b;
+}
+
+TEST(DivisionDcDivappr, RandomWindows) {
+    std::mt19937_64 rng{0x5b1u};
+    std::size_t     max_diff = 0;
+    for (const std::size_t thr : {std::size_t{0}, std::size_t{2}, std::size_t{3}, std::size_t{5}}) {
+        for (const std::size_t n : {std::size_t{4}, std::size_t{6}, std::size_t{8}, std::size_t{12},
+                                    std::size_t{16}, std::size_t{24}, std::size_t{48}, std::size_t{64}}) {
+            for (int trial = 0; trial < 25; ++trial) {
+                const auto b = random_normalized_divisor(n, rng);
+                max_diff     = std::max(max_diff, check_dc_divappr(random_window(b, rng), b, thr));
+            }
+        }
+    }
+    // Record-keeping expectation: the documented bound must hold for the
+    // deepest shape in the sweep.
+    EXPECT_LE(max_diff, detail::divappr_quotient_slack(64, 2));
+}
+
+TEST(DivisionDcDivappr, DeepRecursionAccumulation) {
+    // Six halving levels at threshold 2: the level-by-level truncation
+    // slack must stay within the documented constant rather than growing
+    // with depth.
+    std::mt19937_64 rng{0x5b2u};
+    std::size_t     max_diff = 0;
+    for (const std::size_t n : {std::size_t{64}, std::size_t{128}, std::size_t{192}}) {
+        for (int trial = 0; trial < 30; ++trial) {
+            const auto b = random_normalized_divisor(n, rng);
+            max_diff     = std::max(max_diff, check_dc_divappr(random_window(b, rng), b, 2));
+        }
+    }
+    EXPECT_LE(max_diff, detail::divappr_quotient_slack(192, 2));
+    // The accumulation is real: deep recursion must actually exceed the
+    // single-level slack, or the depth dependence is fiction.
+    EXPECT_GT(max_diff, 2u);
+}
+
+TEST(DivisionDcDivappr, SaturationPatterns) {
+    std::mt19937_64 rng{0x5b3u};
+    std::size_t     max_diff = 0;
+    for (const std::size_t thr : {std::size_t{2}, std::size_t{4}}) {
+        for (const std::size_t n : {std::size_t{4}, std::size_t{8}, std::size_t{16}, std::size_t{32}}) {
+            // Maximal window under a maximal divisor: high half = b - 1,
+            // low half all-ones -- every level's estimate saturates.
+            {
+                std::vector<uint_t> b(n, limb_max);
+                std::vector<uint_t> w(2 * n, limb_max);
+                detail::subtract_unsigned_spans(std::span<uint_t>{w.data() + n, n},
+                                                std::span<const uint_t>{w.data() + n, n},
+                                                std::span<const uint_t>{std::vector<uint_t>{1}});
+                max_diff = std::max(max_diff, check_dc_divappr(w, b, thr));
+            }
+            // Minimal normalized divisor (2^63 * B^(n-1)): quotients ride
+            // the all-ones estimate path.
+            {
+                std::vector<uint_t> b(n, 0);
+                b.back() = uint_t{1} << (detail::width_v<uint_t> - 1);
+                std::vector<uint_t> w(2 * n, limb_max);
+                for (std::size_t i = n; i < 2 * n; ++i) {
+                    w[i] = static_cast<uint_t>(rng());
+                }
+                w[2 * n - 1] = b.back() - 1;
+                max_diff     = std::max(max_diff, check_dc_divappr(w, b, thr));
+            }
+            // Divisor with an all-ones low half and minimal high half: the
+            // inner window's high part can reach b1 exactly (the equality
+            // saturation branch).
+            {
+                std::vector<uint_t> b(n, limb_max);
+                for (std::size_t i = n / 2; i < n; ++i) {
+                    b[i] = 0;
+                }
+                b.back() = uint_t{1} << (detail::width_v<uint_t> - 1);
+                max_diff = std::max(max_diff, check_dc_divappr(random_window(b, rng), b, thr));
+            }
+        }
+    }
+    EXPECT_LE(max_diff, detail::divappr_quotient_slack(32, 2));
+}
+
 } // namespace
