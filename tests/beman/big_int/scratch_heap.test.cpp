@@ -1,0 +1,119 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+//
+// Exercises the type-erased heap hooks on scratch_allocator_base: every
+// hook pair must route through the owning allocator's rebind (so wrappers
+// like counting or arena allocators observe the traffic), elements must be
+// usable immediately, and deallocation must balance.
+
+#include <beman/big_int/detail/scratch_allocator.hpp>
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <numeric>
+#include <typeindex>
+
+namespace {
+
+namespace detail = beman::big_int::detail;
+using uint_t     = beman::big_int::uint_multiprecision_t;
+
+struct counting_state {
+    std::map<std::type_index, std::size_t> allocations;
+    std::map<std::type_index, std::size_t> live_elements;
+};
+
+template <class T>
+struct counting_allocator {
+    using value_type = T;
+
+    counting_state* state = nullptr;
+
+    counting_allocator() = default;
+    explicit counting_allocator(counting_state* s) : state(s) {}
+    template <class U>
+    counting_allocator(const counting_allocator<U>& other) : state(other.state) {}
+
+    T* allocate(const std::size_t n) {
+        ++state->allocations[std::type_index(typeid(T))];
+        state->live_elements[std::type_index(typeid(T))] += n;
+        return std::allocator<T>{}.allocate(n);
+    }
+    void deallocate(T* p, const std::size_t n) noexcept {
+        state->live_elements[std::type_index(typeid(T))] -= n;
+        std::allocator<T>{}.deallocate(p, n);
+    }
+
+    template <class U>
+    bool operator==(const counting_allocator<U>& other) const {
+        return state == other.state;
+    }
+};
+
+TEST(ScratchHeap, HooksRouteThroughTheOwningAllocatorsRebinds) {
+    counting_state                            state;
+    counting_allocator<uint_t>                alloc(&state);
+    detail::scratch_allocator<counting_allocator<uint_t>> scratch(64, alloc);
+
+    const detail::scratch_heap_source& heap = scratch.heap();
+    ASSERT_NE(heap.allocate_limbs, nullptr);
+    ASSERT_NE(heap.allocate_u64, nullptr);
+    ASSERT_NE(heap.allocate_f64, nullptr);
+
+    {
+        detail::scratch_heap_array<uint_t> limbs(heap, 100);
+        ASSERT_EQ(limbs.span().size(), 100u);
+        std::iota(limbs.span().begin(), limbs.span().end(), uint_t{1});
+        EXPECT_EQ(limbs.span()[99], 100u);
+
+        detail::scratch_heap_array<double> doubles(heap, 33);
+        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(doubles.data()) % alignof(double), 0u);
+        for (auto& d : doubles.span()) {
+            d = 2.5;
+        }
+
+        detail::scratch_heap_array<std::uint64_t> words(heap, 17);
+        for (auto& w : words.span()) {
+            w = ~std::uint64_t{0};
+        }
+
+        EXPECT_GT(state.live_elements[std::type_index(typeid(double))], 0u);
+    }
+
+    // Everything released; only the scratch limb buffer itself remains.
+    EXPECT_EQ(state.live_elements[std::type_index(typeid(double))], 0u);
+    for (const auto& [type, live] : state.live_elements) {
+        if (type != std::type_index(typeid(uint_t))) {
+            EXPECT_EQ(live, 0u);
+        }
+    }
+    EXPECT_GE(state.allocations[std::type_index(typeid(double))], 1u);
+}
+
+TEST(ScratchHeap, HookOnlyConstructionCarriesNoLimbBuffer) {
+    counting_state                            state;
+    counting_allocator<uint_t>                alloc(&state);
+    detail::scratch_allocator<counting_allocator<uint_t>> scratch(alloc);
+
+    EXPECT_EQ(scratch.m_capacity, 0u);
+    detail::scratch_heap_array<uint_t> limbs(scratch.heap(), 8);
+    EXPECT_EQ(limbs.span().size(), 8u);
+    EXPECT_EQ(state.allocations[std::type_index(typeid(uint_t))], 1u);
+}
+
+TEST(ScratchHeap, PeakTracksUnconditionally) {
+    std::allocator<uint_t>                            alloc;
+    detail::scratch_allocator<std::allocator<uint_t>> scratch(32, alloc);
+    [[maybe_unused]] auto                             a = scratch.allocate(10);
+    [[maybe_unused]] auto                             b = scratch.allocate(12);
+    scratch.deallocate(12);
+    EXPECT_EQ(scratch.peak(), 22u);
+    [[maybe_unused]] auto c = scratch.allocate(4);
+    EXPECT_EQ(scratch.peak(), 22u);
+}
+
+} // namespace
