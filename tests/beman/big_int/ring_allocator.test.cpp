@@ -146,8 +146,8 @@ TEST(RingAllocator, AllDivisionMethodsThroughEveryTier) {
 
     // Exact multiple at dc sizes: drives divide_quotient's verify branch.
     {
-        const big_int d  = random_value(220, rng, false);
-        const big_int q  = random_value(330, rng, false);
+        const big_int d = random_value(220, rng, false);
+        const big_int q = random_value(330, rng, false);
         check_division_methods(q * d, d, arena);
     }
 

@@ -54,14 +54,17 @@ std::size_t square_runtime(const std::span<uint_multiprecision_t>       result,
     };
 
     if (n < square_toom_cook_3_cutoff) {
-        in_heap_scratch(karatsuba_storage_size(n),
-                        [&](scratch_allocator_base& scratch) { square_karatsuba(result.first(result_total), a, scratch); });
+        in_heap_scratch(karatsuba_storage_size(n), [&](scratch_allocator_base& scratch) {
+            square_karatsuba(result.first(result_total), a, scratch);
+        });
     } else if (n < square_toom_cook_4_cutoff) {
-        in_heap_scratch(toom_cook_3_storage_size(n),
-                        [&](scratch_allocator_base& scratch) { square_toom_cook_3(result.first(result_total), a, scratch); });
+        in_heap_scratch(toom_cook_3_storage_size(n), [&](scratch_allocator_base& scratch) {
+            square_toom_cook_3(result.first(result_total), a, scratch);
+        });
     } else if (n < square_toom_cook_6_5_cutoff) {
-        in_heap_scratch(toom_cook_4_storage_size(n),
-                        [&](scratch_allocator_base& scratch) { square_toom_cook_4(result.first(result_total), a, scratch); });
+        in_heap_scratch(toom_cook_4_storage_size(n), [&](scratch_allocator_base& scratch) {
+            square_toom_cook_4(result.first(result_total), a, scratch);
+        });
     } else {
         // n >= square_toom_cook_6_5_cutoff: Toom-6.5 / Toom-8.5, or FFT once
         // it overtakes at square_fft_cutoff. The FFT kernel packs into 64-bit

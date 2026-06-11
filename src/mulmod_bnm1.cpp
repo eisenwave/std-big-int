@@ -63,7 +63,6 @@ void multiply_mod_bnp1(const std::span<uint_multiprecision_t>       r,
     scratch.deallocate(2 * h);
 }
 
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -195,6 +194,5 @@ void multiply_mod_bnm1(const std::span<uint_multiprecision_t>       r,
     scratch.deallocate(h + 1);
     scratch.deallocate(h + 1);
 }
-
 
 } // namespace beman::big_int::detail

@@ -246,8 +246,7 @@ double cyclic_over_crt(const std::size_t min_w, std::size_t& wrap_out) {
             scratch_for_test scratch(bd::multiply_mod_bnm1_storage_size(w), alloc);
             const stopwatch  sw{};
             for (unsigned i = 0; i < iters; ++i) {
-                bd::multiply_mod_bnm1(std::span<uint_t>{out}, a_view, b_view, scratch,
-                                      bd::multiply_mod_bnm1_cutoff);
+                bd::multiply_mod_bnm1(std::span<uint_t>{out}, a_view, b_view, scratch, bd::multiply_mod_bnm1_cutoff);
             }
             best_crt = std::min(best_crt, stopwatch::elapsed_time<double>(sw));
         }

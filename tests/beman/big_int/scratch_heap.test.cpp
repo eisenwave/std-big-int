@@ -55,8 +55,8 @@ struct counting_allocator {
 };
 
 TEST(ScratchHeap, HooksRouteThroughTheOwningAllocatorsRebinds) {
-    counting_state                            state;
-    counting_allocator<uint_t>                alloc(&state);
+    counting_state                                        state;
+    counting_allocator<uint_t>                            alloc(&state);
     detail::scratch_allocator<counting_allocator<uint_t>> scratch(64, alloc);
 
     const detail::scratch_heap_source& heap = scratch.heap();
@@ -95,8 +95,8 @@ TEST(ScratchHeap, HooksRouteThroughTheOwningAllocatorsRebinds) {
 }
 
 TEST(ScratchHeap, HookOnlyConstructionCarriesNoLimbBuffer) {
-    counting_state                            state;
-    counting_allocator<uint_t>                alloc(&state);
+    counting_state                                        state;
+    counting_allocator<uint_t>                            alloc(&state);
     detail::scratch_allocator<counting_allocator<uint_t>> scratch(alloc);
 
     EXPECT_EQ(scratch.m_capacity, 0u);

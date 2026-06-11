@@ -55,11 +55,8 @@ void check_mulmod(const std::vector<uint_t>& a,
     std::vector<uint_t> got(w, 0);
     const std::size_t   budget = detail::multiply_mod_bnm1_storage_size(w);
     scratch_for_test    scratch(3 * budget + 64, alloc);
-    detail::multiply_mod_bnm1(std::span<uint_t>{got},
-                              std::span<const uint_t>{a},
-                              std::span<const uint_t>{b},
-                              scratch,
-                              cutoff_override);
+    detail::multiply_mod_bnm1(
+        std::span<uint_t>{got}, std::span<const uint_t>{a}, std::span<const uint_t>{b}, scratch, cutoff_override);
     EXPECT_LE(scratch.peak(), budget) << "w=" << w << " thr=" << cutoff_override;
     canonicalize(got);
 

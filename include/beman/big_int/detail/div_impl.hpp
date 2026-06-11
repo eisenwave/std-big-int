@@ -515,8 +515,8 @@ struct burnikel_ziegler_params {
 //     every later window).
 [[nodiscard]] constexpr burnikel_ziegler_params
 burnikel_ziegler_plan_bits(const std::size_t                            dividend_bits,
-                      const std::span<const uint_multiprecision_t> divisor,
-                      const std::size_t                            threshold_override = 0) noexcept {
+                           const std::span<const uint_multiprecision_t> divisor,
+                           const std::size_t                            threshold_override = 0) noexcept {
     constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
 
     const std::size_t s   = divisor.size();
@@ -529,7 +529,7 @@ burnikel_ziegler_plan_bits(const std::size_t                            dividend
 
     const std::size_t sigma =
         n * limb_bits - ((s - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(divisor.back())));
-    const std::size_t t             = std::max<std::size_t>(2, (dividend_bits + sigma) / (n * limb_bits) + 1);
+    const std::size_t t = std::max<std::size_t>(2, (dividend_bits + sigma) / (n * limb_bits) + 1);
 
     return {.block_limbs = n, .blocks = t, .threshold = thr};
 }
@@ -539,9 +539,10 @@ burnikel_ziegler_plan(const std::span<const uint_multiprecision_t> dividend,
                       const std::span<const uint_multiprecision_t> divisor,
                       const std::size_t                            threshold_override = 0) noexcept {
     constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
-    return burnikel_ziegler_plan_bits(
-        (dividend.size() - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(dividend.back())), divisor,
-        threshold_override);
+    return burnikel_ziegler_plan_bits((dividend.size() - 1) * limb_bits +
+                                          static_cast<std::size_t>(std::bit_width(dividend.back())),
+                                      divisor,
+                                      threshold_override);
 }
 
 // ---------------------------------------------------------------------------
@@ -581,7 +582,8 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
     const burnikel_ziegler_params plan = burnikel_ziegler_plan(dividend, divisor, threshold_override);
     scratch_allocator<Allocator>  scratch(burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold),
                                           alloc);
-    divide_burnikel_ziegler(quotient, remainder, dividend, divisor, static_cast<scratch_allocator_base&>(scratch), plan);
+    divide_burnikel_ziegler(
+        quotient, remainder, dividend, divisor, static_cast<scratch_allocator_base&>(scratch), plan);
 }
 
 // ---------------------------------------------------------------------------
@@ -625,10 +627,9 @@ void divide_quotient_appr(std::span<uint_multiprecision_t>       quotient,
 // extended quotient, the verify product, and the approximate driver's
 // workspace on the padded plan (one extra limb and exactly limb_bits more
 // significant bits than the dividend).
-[[nodiscard]] constexpr std::size_t
-divide_quotient_storage_size(const std::span<const uint_multiprecision_t> dividend,
-                             const std::span<const uint_multiprecision_t> divisor,
-                             const std::size_t                            threshold_override = 0) noexcept {
+[[nodiscard]] constexpr std::size_t divide_quotient_storage_size(const std::span<const uint_multiprecision_t> dividend,
+                                                                 const std::span<const uint_multiprecision_t> divisor,
+                                                                 const std::size_t threshold_override = 0) noexcept {
     constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
 
     const std::size_t             m    = dividend.size();
@@ -850,7 +851,8 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
     const std::size_t            thr = invert_override != 0 ? invert_override : reciprocal_span_cutoff;
     scratch_allocator<Allocator> scratch(barrett_storage_size(divisor.size(), barrett_blocks(dividend, divisor), thr),
                                          alloc);
-    divide_barrett(quotient, remainder, dividend, divisor, static_cast<scratch_allocator_base&>(scratch), invert_override);
+    divide_barrett(
+        quotient, remainder, dividend, divisor, static_cast<scratch_allocator_base&>(scratch), invert_override);
 }
 
 // ---------------------------------------------------------------------------

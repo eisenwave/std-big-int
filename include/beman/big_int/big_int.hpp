@@ -2912,7 +2912,7 @@ constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y) {
     // into expression results, while pmr's convention (results on the
     // default resource) is preserved.
     using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
-    Result r = [&] {
+    Result r                  = [&] {
         if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
             return Result{0, result_alloc_traits::select_on_container_copy_construction(y.get_allocator())};
         } else {
@@ -2950,7 +2950,7 @@ constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
     // into expression results, while pmr's convention (results on the
     // default resource) is preserved.
     using result_alloc_traits = std::allocator_traits<typename Result::allocator_type>;
-    Result r = [&] {
+    Result r                  = [&] {
         if constexpr (form == detail::binary_op_form::int_move || form == detail::binary_op_form::int_copy) {
             return Result{0, result_alloc_traits::select_on_container_copy_construction(y.get_allocator())};
         } else {

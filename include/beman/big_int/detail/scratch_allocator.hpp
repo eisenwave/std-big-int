@@ -34,13 +34,13 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 // works through its own rebinds, with no per-allocator template
 // instantiation in the kernels.
 struct scratch_heap_source {
-    uint_multiprecision_t* (*allocate_limbs)(void* ctx, std::size_t n)                          = nullptr;
-    void (*deallocate_limbs)(void* ctx, uint_multiprecision_t* p, std::size_t n) noexcept       = nullptr;
-    std::uint64_t* (*allocate_u64)(void* ctx, std::size_t n)                                    = nullptr;
-    void (*deallocate_u64)(void* ctx, std::uint64_t* p, std::size_t n) noexcept                 = nullptr;
-    double* (*allocate_f64)(void* ctx, std::size_t n)                                           = nullptr;
-    void (*deallocate_f64)(void* ctx, double* p, std::size_t n) noexcept                        = nullptr;
-    void* ctx                                                                                   = nullptr;
+    uint_multiprecision_t* (*allocate_limbs)(void* ctx, std::size_t n)                    = nullptr;
+    void (*deallocate_limbs)(void* ctx, uint_multiprecision_t* p, std::size_t n) noexcept = nullptr;
+    std::uint64_t* (*allocate_u64)(void* ctx, std::size_t n)                              = nullptr;
+    void (*deallocate_u64)(void* ctx, std::uint64_t* p, std::size_t n) noexcept           = nullptr;
+    double* (*allocate_f64)(void* ctx, std::size_t n)                                     = nullptr;
+    void (*deallocate_f64)(void* ctx, double* p, std::size_t n) noexcept                  = nullptr;
+    void* ctx                                                                             = nullptr;
 };
 
 struct scratch_allocator_base {
@@ -205,19 +205,19 @@ struct scratch_allocator : scratch_allocator_base {
     // workspaces fully before reading.
     template <class U>
     static U* heap_allocate(void* ctx, const std::size_t n) {
-        auto& self  = *static_cast<scratch_allocator*>(ctx);
-        using rb    = typename alloc_traits::template rebind_alloc<U>;
-        rb    alloc = rb(self.m_alloc);
-        U*    p     = std::allocator_traits<rb>::allocate(alloc, n);
+        auto& self = *static_cast<scratch_allocator*>(ctx);
+        using rb   = typename alloc_traits::template rebind_alloc<U>;
+        rb alloc   = rb(self.m_alloc);
+        U* p       = std::allocator_traits<rb>::allocate(alloc, n);
         std::uninitialized_default_construct_n(p, n);
         return p;
     }
 
     template <class U>
     static void heap_deallocate(void* ctx, U* p, const std::size_t n) noexcept {
-        auto& self  = *static_cast<scratch_allocator*>(ctx);
-        using rb    = typename alloc_traits::template rebind_alloc<U>;
-        rb    alloc = rb(self.m_alloc);
+        auto& self = *static_cast<scratch_allocator*>(ctx);
+        using rb   = typename alloc_traits::template rebind_alloc<U>;
+        rb alloc   = rb(self.m_alloc);
         std::allocator_traits<rb>::deallocate(alloc, p, n);
     }
 
