@@ -2809,6 +2809,22 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
     const std::size_t r_cap = n_div + 1;
     const std::size_t t_cap = detail::divide_unsigned_storage_size(n_div, m_div);
 
+    if (op == detail::division_op::div) {
+        // Quotient only: the divide-and-conquer band can skip the remainder
+        // work entirely through the approximate-quotient path.
+        grow(q_cap);
+        std::fill_n(limb_ptr(), q_cap, limb_type{0});
+
+        detail::scratch_allocator<allocator_type> scratch(r_cap + t_cap, m_alloc);
+        detail::divide_dispatch_q(
+            std::span<uint_multiprecision_t>{limb_ptr(), q_cap}, dividend_trim, divisor_trim, scratch, m_alloc);
+
+        const std::size_t qsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
+        unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
+        unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
+        return {};
+    }
+
     if (want_quotient) {
         // *this will hold the quotient.
         // Remainder and `t` go in scratch.
@@ -2828,9 +2844,6 @@ constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multi
         const std::size_t qsize = detail::trimmed_size_span(std::span<const uint_multiprecision_t>{limb_ptr(), q_cap});
         unchecked_set_limb_count(static_cast<std::uint32_t>(qsize));
         unchecked_set_sign(unrounded_quotient_neg && !unchecked_is_magnitude_zero());
-        if (op == detail::division_op::div) {
-            return {};
-        }
 
         BEMAN_BIG_INT_DEBUG_ASSERT(op == detail::division_op::div_rem);
         basic_big_int rem(rem_span.data(), rem_span.data() + rem_span.size());

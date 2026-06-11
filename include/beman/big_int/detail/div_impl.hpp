@@ -855,6 +855,164 @@ void divide_burnikel_ziegler(const std::span<uint_multiprecision_t>       quotie
 }
 
 // ---------------------------------------------------------------------------
+// Approximate quotient driver: identical plan, normalization, and window
+// march to divide_burnikel_ziegler, but the lowest window -- the only one
+// whose remainder nobody needs -- runs divide_dc_divappr, and no remainder
+// is materialized. The blocks above it stay exact (each remainder feeds the
+// next window), so the whole quotient's slack is the last block's:
+//   q <= q' <= q + divappr_quotient_slack(plan.block_limbs, plan.threshold).
+// The normalization scaling multiplies both operands by 2^sigma and leaves
+// the quotient invariant. Scratch: burnikel_ziegler_storage_size on the
+// same plan (the approximate leaf path allocates strictly less than the
+// exact one).
+// ---------------------------------------------------------------------------
+template <class Allocator>
+void divide_quotient_appr(const std::span<uint_multiprecision_t>       quotient,
+                          const std::span<const uint_multiprecision_t> dividend,
+                          const std::span<const uint_multiprecision_t> divisor,
+                          scratch_allocator_base&                      scratch,
+                          Allocator&                                   alloc,
+                          const burnikel_ziegler_params                plan) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.size() >= 2);
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.size() >= divisor.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size() - divisor.size() + 1);
+
+    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+
+    const std::size_t s   = divisor.size();
+    const std::size_t m   = dividend.size();
+    const std::size_t thr = plan.threshold;
+    const std::size_t n   = plan.block_limbs;
+    const std::size_t t   = plan.blocks;
+
+    const std::size_t limb_off = n - s;
+    const unsigned    bit_off =
+        static_cast<unsigned>(limb_bits) - static_cast<unsigned>(std::bit_width(divisor.back()));
+
+    // b_hat = divisor << sigma: n limbs, top bit set.
+    const std::span<uint_multiprecision_t> b_hat = scratch.allocate(n);
+    std::ranges::fill(b_hat, uint_multiprecision_t{0});
+    std::ranges::copy(divisor, b_hat.begin() + static_cast<std::ptrdiff_t>(limb_off));
+    if (bit_off != 0) {
+        const std::size_t b_hat_size = shift_left_n(b_hat, n, bit_off);
+        BEMAN_BIG_INT_DEBUG_ASSERT(b_hat_size == n);
+    }
+    BEMAN_BIG_INT_DEBUG_ASSERT((b_hat.back() >> (limb_bits - 1)) == 1);
+
+    // w = dividend << sigma, zero-extended to t blocks of n limbs.
+    const std::span<uint_multiprecision_t> w = scratch.allocate(t * n);
+    std::ranges::fill(w, uint_multiprecision_t{0});
+    std::ranges::copy(dividend, w.begin() + static_cast<std::ptrdiff_t>(limb_off));
+    if (bit_off != 0) {
+        const std::size_t w_size = shift_left_n(w, limb_off + m, bit_off);
+        BEMAN_BIG_INT_DEBUG_ASSERT(w_size <= t * n);
+    }
+
+    // Exact windows from the top down, then the approximate lowest window.
+    const std::span<uint_multiprecision_t> q_work = scratch.allocate((t - 1) * n);
+    for (std::size_t i = t - 1; i-- > 1;) {
+        divide_dc_2n1n(w.subspan(i * n, 2 * n), b_hat, q_work.subspan(i * n, n), scratch, alloc, thr);
+    }
+    divide_dc_divappr(w.first(2 * n), b_hat, q_work.first(n), scratch, alloc, thr);
+
+    const std::size_t q_size = trimmed_size_span(q_work);
+    BEMAN_BIG_INT_DEBUG_ASSERT(q_size <= quotient.size());
+    std::ranges::copy(q_work.first(q_size), quotient.begin());
+    std::ranges::fill(quotient.subspan(q_size), uint_multiprecision_t{0});
+
+    scratch.deallocate((t - 1) * n);
+    scratch.deallocate(t * n);
+    scratch.deallocate(n);
+}
+
+// ---------------------------------------------------------------------------
+// Exact quotient-only division (the GMP dcpi1_div_q idea): one low zero pad
+// limb gives the approximate driver a fraction digit below the true
+// quotient. Writing Q = floor(dividend * B / divisor) = q * B + frac, the
+// driver returns Q' in [Q, Q + slack]; its bottom limb f proves the rest:
+//   f >= slack  =>  frac + e did not wrap past B, so the integer part is q;
+//   f <  slack  =>  the integer part is q or q + 1 (e <= slack < B means
+//                   the wrap, if any, carried exactly one), and a single
+//                   multiply-and-compare settles it.
+// For random operands the ambiguous branch fires with probability about
+// slack / B; exact multiples land in it roughly half the time by
+// construction, costing one extra multiplication there.
+// Same contract as divide_unsigned minus the remainder; owns its workspace.
+// ---------------------------------------------------------------------------
+template <class Allocator>
+void divide_quotient(const std::span<uint_multiprecision_t>       quotient,
+                     const std::span<const uint_multiprecision_t> dividend,
+                     const std::span<const uint_multiprecision_t> divisor,
+                     Allocator&                                   alloc,
+                     const std::size_t                            threshold_override = 0) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.size() >= 2);
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.size() >= divisor.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size() - divisor.size() + 1);
+
+    const std::size_t m   = dividend.size();
+    const std::size_t s   = divisor.size();
+    const std::size_t qn1 = m - s + 1;
+
+    // Padded numerator dividend * B and its plan.
+    using limb_alloc = typename std::allocator_traits<Allocator>::template rebind_alloc<uint_multiprecision_t>;
+    std::vector<uint_multiprecision_t, limb_alloc> padded(m + 1, uint_multiprecision_t{0}, limb_alloc(alloc));
+    std::ranges::copy(dividend, padded.begin() + 1);
+    const auto padded_view = std::span<const uint_multiprecision_t>{padded.data(), m + 1};
+
+    const burnikel_ziegler_params plan = burnikel_ziegler_plan(padded_view, divisor, threshold_override);
+    const std::size_t slack = divappr_quotient_slack(plan.block_limbs, plan.threshold);
+
+    scratch_allocator<Allocator> scratch(
+        burnikel_ziegler_storage_size(plan.block_limbs, plan.blocks, plan.threshold) + (qn1 + 3) + (m + 2), alloc);
+
+    const std::span<uint_multiprecision_t> q_ext = scratch.allocate(qn1 + 2);
+    divide_quotient_appr(q_ext, padded_view, divisor, scratch, alloc, plan);
+
+    // The extended quotient can spill one digit past q * B only when the
+    // true quotient is exactly beta^qn1 - 1 and the fraction sits within
+    // the slack of B: the answer is all-ones, no verification needed.
+    if (q_ext[qn1 + 1] != 0) {
+        std::ranges::fill(quotient.first(qn1), ~uint_multiprecision_t{0});
+        std::ranges::fill(quotient.subspan(qn1), uint_multiprecision_t{0});
+        scratch.deallocate(qn1 + 2);
+        return;
+    }
+
+    const auto integer_part = std::span<const uint_multiprecision_t>{q_ext.data() + 1, qn1};
+    if (q_ext[0] >= slack) {
+        std::ranges::copy(integer_part, quotient.begin());
+        std::ranges::fill(quotient.subspan(qn1), uint_multiprecision_t{0});
+        scratch.deallocate(qn1 + 2);
+        return;
+    }
+
+    // Ambiguous fraction: the integer part is q or q + 1. One product
+    // decides; the subtraction never borrows because q >= 1 here
+    // (dividend >= divisor).
+    const std::size_t                      i_size = trimmed_size_span(integer_part);
+    const std::span<uint_multiprecision_t> prod   = scratch.allocate(m + 2);
+    std::ranges::fill(prod, uint_multiprecision_t{0});
+    if (i_size != 0) {
+        multiply_dispatch(prod, integer_part.first(i_size), divisor, alloc);
+    }
+    std::ranges::copy(integer_part, quotient.begin());
+    std::ranges::fill(quotient.subspan(qn1), uint_multiprecision_t{0});
+    if (compare_unsigned_spans(std::span<const uint_multiprecision_t>{prod.data(), m + 2}, dividend) ==
+        std::strong_ordering::greater) {
+        const bool borrow = decrement_span(quotient.first(qn1));
+        BEMAN_BIG_INT_DEBUG_ASSERT(!borrow);
+    }
+    scratch.deallocate(m + 2);
+    scratch.deallocate(qn1 + 2);
+}
+
+// ---------------------------------------------------------------------------
 // Block-wise Barrett division (the GMP mu_div_qr lineage).
 // The divisor's exact scaled reciprocal X = B^n + I, with
 // I = floor((B^{2n} - 1) / D) - B^n, is computed once by Newton iteration;
@@ -1325,6 +1483,47 @@ constexpr void divide_dispatch(const std::span<uint_multiprecision_t>       quot
     }
 
     divide_unsigned(quotient, remainder, dividend, divisor, scratch);
+}
+
+// ---------------------------------------------------------------------------
+// Quotient-only dispatcher: the same tier gates as divide_dispatch, but the
+// divide-and-conquer band takes divide_quotient, whose approximate low
+// recursion skips the remainder work the caller is about to discard. The
+// Barrett and schoolbook tiers produce their remainder essentially for free
+// (it lives in their working buffers), so they run unchanged into scratch.
+// `scratch` must provide divide_unsigned_storage_size(m, s) plus m + 1
+// limbs for the fallback remainder; constant evaluation always takes the
+// schoolbook kernel.
+// ---------------------------------------------------------------------------
+template <class Allocator>
+constexpr void divide_dispatch_q(const std::span<uint_multiprecision_t>       quotient,
+                                 const std::span<const uint_multiprecision_t> dividend,
+                                 const std::span<const uint_multiprecision_t> divisor,
+                                 scratch_allocator_base&                      scratch,
+                                 Allocator&                                   alloc) {
+    const std::size_t m = dividend.size();
+    const std::size_t s = divisor.size();
+
+    if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+        const bool barrett_march    = s >= barrett_march_cutoff && m / 16 >= s;
+        const bool barrett_march8   = s >= barrett_march8_cutoff && m / 8 >= s;
+        const bool barrett_quarter  = m >= barrett_quarter_cutoff && m / 4 >= s;
+        const bool barrett_balanced = m >= barrett_balanced_cutoff && m - s >= s;
+        if (barrett_march || barrett_march8 || barrett_quarter || barrett_balanced) {
+            const std::span<uint_multiprecision_t> r = scratch.allocate(m + 1);
+            divide_barrett(quotient, r, dividend, divisor, alloc);
+            scratch.deallocate(m + 1);
+            return;
+        }
+        if (s >= burnikel_ziegler_cutoff && m - s >= burnikel_ziegler_offset) {
+            divide_quotient(quotient, dividend, divisor, alloc);
+            return;
+        }
+    }
+
+    const std::span<uint_multiprecision_t> r = scratch.allocate(m + 1);
+    divide_unsigned(quotient, r, dividend, divisor, scratch);
+    scratch.deallocate(m + 1);
 }
 
 } // namespace beman::big_int::detail

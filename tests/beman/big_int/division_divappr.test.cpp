@@ -7,6 +7,7 @@
 // divisor halves), the saturated 3-by-2 fast path (top window pairs equal
 // to the divisor's), exact multiples, and near-misses on both sides.
 
+#include <beman/big_int/big_int.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
 
 #include <gtest/gtest.h>
@@ -361,6 +362,144 @@ TEST(DivisionDcDivappr, SaturationPatterns) {
         }
     }
     EXPECT_LE(max_diff, detail::divappr_quotient_slack(32, 2));
+}
+
+// ---------------------------------------------------------------------------
+// divide_quotient: must equal the exact divmod quotient on every input.
+// ---------------------------------------------------------------------------
+
+void check_div_q(const std::vector<uint_t>& dividend, const std::vector<uint_t>& divisor,
+                 const std::size_t threshold) {
+    const std::size_t m = dividend.size();
+    const std::size_t s = divisor.size();
+
+    std::allocator<uint_t> alloc;
+
+    std::vector<uint_t> q_ref(m - s + 1, 0);
+    std::vector<uint_t> r_ref(m + 1, 0);
+    detail::divide_burnikel_ziegler(std::span<uint_t>{q_ref}, std::span<uint_t>{r_ref},
+                                    std::span<const uint_t>{dividend}, std::span<const uint_t>{divisor}, alloc,
+                                    threshold);
+
+    std::vector<uint_t> q_only(m - s + 1, 0);
+    detail::divide_quotient(std::span<uint_t>{q_only}, std::span<const uint_t>{dividend},
+                            std::span<const uint_t>{divisor}, alloc, threshold);
+
+    EXPECT_EQ(detail::compare_unsigned_spans(std::span<const uint_t>{q_only}, std::span<const uint_t>{q_ref}),
+              std::strong_ordering::equal)
+        << "m=" << m << " s=" << s << " thr=" << threshold;
+}
+
+TEST(DivisionDivQ, MatchesDivmod) {
+    std::mt19937_64 rng{0x5c1u};
+    for (const std::size_t thr : {std::size_t{0}, std::size_t{2}, std::size_t{4}}) {
+        for (std::size_t s = 2; s <= 20; s += 3) {
+            for (std::size_t extra = 0; extra <= 36; extra += 4) {
+                for (int trial = 0; trial < 12; ++trial) {
+                    check_div_q(random_limbs(s + extra, rng), random_limbs(s, rng), thr);
+                }
+            }
+        }
+        check_div_q(random_limbs(700, rng), random_limbs(300, rng), thr);
+        check_div_q(random_limbs(1024, rng), random_limbs(256, rng), thr);
+        check_div_q(random_limbs(401, rng), random_limbs(400, rng), thr);
+    }
+}
+
+TEST(DivisionDivQ, ExactMultiplesHitTheVerifyPath) {
+    // N = q * D has a zero true fraction, so the ambiguous branch (one
+    // multiply and compare) fires whenever the approximation is exact too;
+    // the +-1 neighbors land on both sides of it.
+    std::mt19937_64        rng{0x5c2u};
+    std::allocator<uint_t> alloc;
+    for (const std::size_t thr : {std::size_t{0}, std::size_t{3}}) {
+        for (const std::size_t s : {std::size_t{4}, std::size_t{9}, std::size_t{50}, std::size_t{128}}) {
+            for (const std::size_t qn : {std::size_t{1}, std::size_t{6}, std::size_t{2 * s}}) {
+                for (int trial = 0; trial < 5; ++trial) {
+                    const auto          d = random_limbs(s, rng);
+                    const auto          qv = random_limbs(qn, rng);
+                    std::vector<uint_t> product(s + qn, 0);
+                    detail::multiply_dispatch(std::span<uint_t>{product}, std::span<const uint_t>{qv},
+                                              std::span<const uint_t>{d}, alloc);
+                    product.resize(detail::trimmed_size_span(std::span<const uint_t>{product}));
+                    if (product.size() < s) {
+                        continue;
+                    }
+                    check_div_q(product, d, thr);
+                    std::vector<uint_t> above = product;
+                    above.push_back(0);
+                    detail::add_unsigned_spans(std::span<uint_t>{above}, std::span<const uint_t>{above},
+                                               std::span<const uint_t>{std::vector<uint_t>{1}});
+                    above.resize(detail::trimmed_size_span(std::span<const uint_t>{above}));
+                    if (above.size() >= s) {
+                        check_div_q(above, d, thr);
+                    }
+                    std::vector<uint_t> below = product;
+                    detail::subtract_unsigned_spans(std::span<uint_t>{below}, std::span<const uint_t>{below},
+                                                    std::span<const uint_t>{std::vector<uint_t>{1}});
+                    below.resize(detail::trimmed_size_span(std::span<const uint_t>{below}));
+                    if (below.size() >= s) {
+                        check_div_q(below, d, thr);
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST(DivisionDivQ, MaximalQuotientCorners) {
+    // q = all-ones with the maximal remainder D - 1: the extended quotient
+    // sits at B^(qn+1) - 1, the spill/saturation corner of the fraction
+    // argument.
+    std::allocator<uint_t> alloc;
+    std::mt19937_64        rng{0x5c3u};
+    for (const std::size_t s : {std::size_t{3}, std::size_t{8}, std::size_t{40}}) {
+        for (const std::size_t qn : {std::size_t{1}, std::size_t{4}, std::size_t{17}}) {
+            const auto          d = random_limbs(s, rng);
+            std::vector<uint_t> q_target(qn, limb_max);
+            std::vector<uint_t> n_max(s + qn + 1, 0);
+            detail::multiply_dispatch(std::span<uint_t>{n_max}, std::span<const uint_t>{q_target},
+                                      std::span<const uint_t>{d}, alloc);
+            // + (d - 1)
+            std::vector<uint_t> d_minus_1 = d;
+            detail::subtract_unsigned_spans(std::span<uint_t>{d_minus_1}, std::span<const uint_t>{d_minus_1},
+                                            std::span<const uint_t>{std::vector<uint_t>{1}});
+            detail::add_unsigned_spans(std::span<uint_t>{n_max}, std::span<const uint_t>{n_max},
+                                       std::span<const uint_t>{d_minus_1});
+            n_max.resize(detail::trimmed_size_span(std::span<const uint_t>{n_max}));
+            if (n_max.size() >= s) {
+                check_div_q(n_max, d, 0);
+                check_div_q(n_max, d, 2);
+            }
+        }
+    }
+}
+
+TEST(DivisionDivQ, OperatorSlashAgreesWithDivRem) {
+    // Public-path check at sizes inside the divide-and-conquer band on
+    // every architecture (s past the x86-64 gates), all sign combinations.
+    using big_int = beman::big_int::big_int;
+    std::mt19937_64 rng{0x5c4u};
+
+    const auto make = [&](const std::size_t limbs, const bool negative) {
+        big_int x = 1;
+        for (std::size_t i = 0; i < limbs; ++i) {
+            x <<= 64;
+            x += rng();
+        }
+        return negative ? -x : x;
+    };
+
+    for (const bool a_neg : {false, true}) {
+        for (const bool b_neg : {false, true}) {
+            const big_int a = make(620, a_neg);
+            const big_int b = make(200, b_neg);
+            const auto    qr = div_rem_to_zero(a, b);
+            EXPECT_EQ(a / b, qr.quotient);
+            EXPECT_EQ(b / a, big_int{0});
+            EXPECT_EQ((a / b) * b + a % b, a);
+        }
+    }
 }
 
 } // namespace
