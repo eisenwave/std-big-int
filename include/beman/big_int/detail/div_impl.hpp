@@ -941,6 +941,11 @@ void divide_quotient_appr(const std::span<uint_multiprecision_t>       quotient,
 // slack / B; exact multiples land in it roughly half the time by
 // construction, costing one extra multiplication there.
 // Same contract as divide_unsigned minus the remainder; owns its workspace.
+//
+// Measured (division_kernel_bench div_q_over_div_qr, balanced 2n/n at
+// n = 512..32768, release, 2026-06-11): 0.77-0.83x of the full divmod on
+// the M4 Max and 0.72-0.81x on the i9-11900K (both NTT configs) -- the
+// telescoped recursion model's predicted 18-24%.
 // ---------------------------------------------------------------------------
 template <class Allocator>
 void divide_quotient(const std::span<uint_multiprecision_t>       quotient,

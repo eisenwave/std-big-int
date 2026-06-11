@@ -252,6 +252,45 @@ double cyclic_over_crt(const std::size_t min_w, std::size_t& wrap_out) {
     return best_cyc / best_crt;
 }
 
+// Quotient-only division over full divmod at a balanced dc-band shape
+// (m = 2n by n): the S1 divappr acceptance metric. Median over operand
+// samples of min-of-reps ratios, matching the stress bench discipline.
+double div_q_ratio(const std::size_t n) {
+    constexpr int samples = 5;
+    std_allocator alloc;
+
+    double ratios[samples];
+    for (int sample = 0; sample < samples; ++sample) {
+        std::vector<uint_t> a(2 * n);
+        std::vector<uint_t> b(n);
+        fill_random(a);
+        fill_random(b);
+        const auto          a_view = std::span<const uint_t>{a};
+        const auto          b_view = std::span<const uint_t>{b};
+        std::vector<uint_t> q(n + 1, 0);
+        std::vector<uint_t> r(2 * n + 1, 0);
+
+        double best_qr = 1.0e300;
+        double best_q  = 1.0e300;
+        for (unsigned rep = 0; rep < 3; ++rep) {
+            {
+                const stopwatch sw{};
+                ::beman::big_int::detail::divide_burnikel_ziegler(std::span<uint_t>{q}, std::span<uint_t>{r}, a_view,
+                                                                  b_view, alloc);
+                best_qr = std::min(best_qr, stopwatch::elapsed_time<double>(sw));
+            }
+            {
+                const stopwatch sw{};
+                ::beman::big_int::detail::divide_quotient(std::span<uint_t>{q}, a_view, b_view, alloc);
+                best_q = std::min(best_q, stopwatch::elapsed_time<double>(sw));
+            }
+        }
+        ratios[sample] = best_q / best_qr;
+    }
+    std::sort(ratios, ratios + samples);
+    return ratios[samples / 2];
+}
+
 void run_all() {
     std::cout << "kernel,param,value\n";
 
@@ -278,6 +317,12 @@ void run_all() {
     for (const std::size_t n :
          {std::size_t{4096}, std::size_t{16384}, std::size_t{65536}, std::size_t{262144}}) {
         emit("mulmod_over_full", n, mulmod_ratio(n));
+        std::cout.flush();
+    }
+
+    for (const std::size_t n : {std::size_t{512}, std::size_t{1024}, std::size_t{2048}, std::size_t{4096},
+                                std::size_t{8192}, std::size_t{16384}, std::size_t{32768}}) {
+        emit("div_q_over_div_qr", n, div_q_ratio(n));
         std::cout.flush();
     }
 
