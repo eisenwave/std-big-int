@@ -477,21 +477,22 @@ concept traits_has_allocate_at_least = requires(Alloc& a, typename Traits::size_
 #include <cstdlib>
 #include <cassert>
 #include <cstdio>
-#include <source_location>
 
 // LCOV_EXCL_START
 // GCOVR_EXCL_START
 namespace beman::big_int::detail {
 
-[[noreturn]] inline void assert_fail(const char* const          source,
-                                     const std::source_location location = std::source_location::current()) {
-    std::fprintf(stderr,
-                 "%s:%d:%d Assertion failed: %s\nSee: %s\n",
-                 location.file_name(),
-                 static_cast<int>(location.line()),
-                 static_cast<int>(location.column()),
-                 source,
-                 location.function_name());
+// Deliberately NOT std::source_location::current(): as a defaulted argument
+// it is a consteval call, and MSVC rejects that with C7595 ("call to
+// immediate function is not a constant expression") when the assert expands
+// inside an instantiated constexpr function template. The pre-C++20
+// builtins carry the same caller location with no consteval machinery and
+// exist on GCC, Clang, and MSVC.
+[[noreturn]] inline void assert_fail(const char* const source,
+                                     const char* const file     = __builtin_FILE(),
+                                     const int         line     = __builtin_LINE(),
+                                     const char* const function = __builtin_FUNCTION()) {
+    std::fprintf(stderr, "%s:%d Assertion failed: %s\nSee: %s\n", file, line, source, function);
 #if BEMAN_BIG_INT_HAS_BUILTIN(__builtin_trap)
     __builtin_trap();
 #else
