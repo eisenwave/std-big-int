@@ -553,8 +553,19 @@ divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
 // `result`, in place. Returns the borrow-out limb (the amount owed at
 // position a.size(); always at most B-1, so a single limb suffices).
 // `result.size()` must be >= a.size(); `result` must NOT alias `a`.
-// The inner step of Knuth-D schoolbook division and the natural future SIMD
-// kernel for it.
+// The inner step of Knuth-D schoolbook division.
+//
+// An AVX-512 IFMA version was probed on an i9-11900K (2026-06-11) and
+// REJECTED: the vpmadd52 product kernel itself runs 0.13-0.21 ns/limb
+// against this loop's 0.69-0.96 (a real ~4x multiply ceiling), but a
+// one-shot call must stage through radix 2^52 -- the 64->52 conversion,
+// 52->64 recompose, and separated subtract pass each cost about as much as
+// this entire loop, landing the pipeline at 3.0-3.7x SLOWER at every span
+// from 8 to 4096 limbs. Fully vectorized staging (VBMI multishift repack,
+// masked-borrow subtract) still models >= 1.4x slower. The ceiling is only
+// reachable by keeping the whole schoolbook division resident in radix
+// 2^52, a redesign out of proportion to its modeled <= 1.4x basecase win
+// on one ISA family.
 // ---------------------------------------------------------------------------
 [[nodiscard]] constexpr uint_multiprecision_t
 submul_single_limb(const std::span<uint_multiprecision_t>       result,
