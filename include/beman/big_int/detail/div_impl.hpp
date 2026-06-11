@@ -1056,6 +1056,22 @@ void divide_quotient(const std::span<uint_multiprecision_t>       quotient,
 //            0.94 bench) and agreed-winning from 196608 (0.97/0.88; 0.84 at
 //            262144) -- gated at the agreed point. The 11900K integer NTT
 //            loses 1.29 at 262144 and first wins at 524288 (0.95).
+//
+// A GMP mu_div-style PARTIAL reciprocal (inverse of in < s limbs, blocks of
+// in quotient limbs) was evaluated and REJECTED on measurement (2026-06-11,
+// both machines, all three configs). Two findings: (a) in the m/s in
+// [4, 16) band the reciprocal setup is 13-44% of divide_barrett, but GMP's
+// own choose_in picks in = s whenever the quotient is near a block multiple
+// of s, so there is no setup to recover -- the shapes where Barrett loses
+// to divide-and-conquer there (1.07-1.41 at m/s = 4) lose by the setup
+// share, and the dispatch gates above already route them to the recursion;
+// (b) short quotients (m - s < s, which no gate routes to Barrett) model a
+// win only in a narrow corner -- qn in (~0.4s, s) at s >= ~65536, peaking
+// ~24% (M4) / ~18% (11900K AVX2) at qn = s/2 and LOSING on the 11900K
+// integer NTT, at every s <= 16384, and at every qn <= s/4 (the per-block
+// q*D subtrahend costs a full mulmod(s) no matter how small the inverse
+// is). Revisit only if those mid-short-quotient shapes at scale become a
+// measured workload.
 #if defined(__x86_64__) || defined(_M_X64) || defined(__amd64__)
 inline constexpr std::size_t barrett_march_cutoff  = 512;
 inline constexpr std::size_t barrett_march8_cutoff = 4096;
