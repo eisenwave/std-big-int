@@ -555,10 +555,7 @@ template <unsigned_integer T>
                 // reciprocal_word), executing the div with an unnormalized
                 // divisor -- the quotient overflow traps with SIGFPE on x86.
                 // This has happened with GCC-14 in release mode
-                __asm__ volatile("div %[d]"
-                                 : "=a"(q), "=d"(r)
-                                 : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y)
-                                 : "cc");
+                __asm__ volatile("div %[d]" : "=a"(q), "=d"(r) : "a"(x.low_bits), "d"(x.high_bits), [d] "r"(y) : "cc");
                 return {.quotient = q, .remainder = r};
     #elif defined(_WIN32)
                 T r;
