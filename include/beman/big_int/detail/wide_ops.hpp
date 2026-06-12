@@ -14,6 +14,11 @@
 
 namespace beman::big_int::detail {
 
+// Maps an integer type to the integer type of twice its width and the same
+// signedness. SFINAE-friendly: when no such type exists (e.g. 64 -> 128 on a
+// target without any 128-bit integer type), no specialization matches and the
+// primary template is left incomplete, so `requires { typename wider_t<T>; }`
+// is false instead of a hard error.
 template <class T>
 struct wider;
 
@@ -30,16 +35,19 @@ struct wider<uint_multiprecision_t> {
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 template <std::size_t N>
+    requires(2 * N <= BEMAN_BIG_INT_BITINT_MAXWIDTH)
 struct wider<bit_int<N>> {
     using type = bit_int<2 * N>;
 };
 template <std::size_t N>
+    requires(2 * N <= BEMAN_BIG_INT_BITINT_MAXWIDTH)
 struct wider<bit_uint<N>> {
     using type = bit_uint<2 * N>;
 };
 #endif
 
 template <signed_integer T>
+    requires(width_v<T> == 8 || width_v<T> == 16 || width_v<T> == 32 || (width_v<T> == 64 && has_int128_v))
 struct wider<T> {
     [[nodiscard]] static consteval auto select() {
         if constexpr (width_v<T> == 8) {
@@ -61,6 +69,7 @@ struct wider<T> {
     using type = decltype(select());
 };
 template <unsigned_integer T>
+    requires(width_v<T> == 8 || width_v<T> == 16 || width_v<T> == 32 || (width_v<T> == 64 && has_int128_v))
 struct wider<T> {
     [[nodiscard]] static consteval auto select() {
         if constexpr (width_v<T> == 8) {
@@ -87,6 +96,12 @@ struct wider<T> {
 template <signed_or_unsigned T>
 using wider_t = typename wider<T>::type;
 
+// Modeled if a doubled-width counterpart of `T` exists. Unlike a bare
+// requires-expression with a concrete type, a concept-id is always checked
+// via substitution, so this is usable with non-dependent arguments.
+template <class T>
+concept has_wider = requires { typename wider_t<T>; };
+
 template <signed_or_unsigned T>
 struct wide {
     T low_bits;
@@ -96,7 +111,7 @@ struct wide {
 };
 
 template <signed_or_unsigned T>
-    requires requires { typename wider_t<T>; }
+    requires has_wider<T>
 struct wide<T> {
     T low_bits;
     T high_bits;
@@ -523,6 +538,32 @@ struct wide_div_result {
     wide<T> remainder;
 };
 
+// Portable bit-by-bit restoring long division of the 2-limb unsigned value `x`
+// by the single limb `y`, for targets where no wider type backs narrowing_div.
+// Precondition: `x.high_bits < y`, so the quotient fits in a single limb.
+template <unsigned_integer T>
+[[nodiscard]] constexpr div_result<T> narrowing_div_portable(const wide<T> x, const T y) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(x.high_bits < y);
+
+    constexpr std::size_t limb_bits = width_v<T>;
+
+    T q = 0;
+    T r = x.high_bits;
+
+    for (std::size_t i = limb_bits; i-- > 0;) {
+        // The shifted remainder can spill into a virtual top bit; if it does,
+        // it certainly exceeds y, and the truncated subtraction is still exact.
+        const T r_top = static_cast<T>(r >> (limb_bits - 1));
+        r             = static_cast<T>((r << 1) | ((x.low_bits >> i) & T{1}));
+        q <<= 1;
+        if (r_top != 0 || r >= y) {
+            r = static_cast<T>(r - y);
+            q |= T{1};
+        }
+    }
+    return {.quotient = q, .remainder = r};
+}
+
 // Returns the quotient and remainder of the division `x / y`.
 // The behavior is undefined if the quotient is not representable as `T`,
 // which is the case if and only if `x.high_bits < y`.
@@ -567,14 +608,17 @@ template <unsigned_integer T>
     }
 #endif // BEMAN_BIG_INT_LIMB_WIDTH == 64
 
-    // In the general case, we rely on `wider_t<T>` and `to_int()` existing.
-    // There is no software fallback, so this might fail due to lack of 128-bit support
-    // if the function is instantiated with a 64-bit type.
-    const auto x_int = x.to_int();
-    return {
-        .quotient  = static_cast<T>(x_int / y),
-        .remainder = static_cast<T>(x_int % y),
-    };
+    // In the general case, use `wider_t<T>` division when it exists. Otherwise
+    // (64-bit limbs without any 128-bit type), divide in software.
+    if constexpr (has_wider<T>) {
+        const auto x_int = x.to_int();
+        return {
+            .quotient  = static_cast<T>(x_int / y),
+            .remainder = static_cast<T>(x_int % y),
+        };
+    } else {
+        return narrowing_div_portable(x, y);
+    }
 }
 
 // Portable bit-by-bit restoring long division of the 2-limb unsigned value `a`
@@ -619,7 +663,7 @@ template <unsigned_integer T>
 [[nodiscard]] constexpr wide_div_result<T> divide_wide_by_wide(const wide<T> a, const wide<T> b) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(b.high_bits != 0);
 
-    if constexpr (requires { typename wider_t<T>; }) {
+    if constexpr (has_wider<T>) {
         const auto a_int = a.to_int();
         const auto b_int = b.to_int();
         return {
