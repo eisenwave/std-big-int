@@ -23,10 +23,18 @@ The code for this comparison can be found in [./elliptic_ecc.perf.cpp](./ellipti
 
 ## Multiplication
 
+Multiplication graduates to successively _higher_ algorithms as the limb count grows.
+For small limb counts under $48$ limbs, we use schoolbook multiplication.
+Above $48$ limbs. the library crosses over to Karatsuba multiplication.
+Successive Toom-Cook orders of $3$, $4$, $6.5$ and $8.5$ cross over
+at $400$, $1,600$, $2,400$ and $15,000$ limbs, respectively for the non-SIMD path.
+FFT multiplication crosses over at $24,000$ limbs for the non-SIMD path
+and $4,500$ limbs for the SIMD path, thereby not using Toom-Cook $8.5$ in
+the SIMD path at all. See the "Optional: SIMD-accelerated multiplication"
+note in the top-level README.
+
 When measuring, localize the time of `big_int` multiplication only, running a chrono
 stopwatch just before and after the multiplication operation, summing and averaging the times.
-
-TODO: Follow the evolution of high-order multiplication and add relevant content accordingly.
 
 Various runs use limb counts to emphasize crossover points such as the limb-cutoff
 where Karatsuba --> Toom-Cook. Additional runs use higher limb counts, landing directly
@@ -51,6 +59,7 @@ Karatsuba + Toom-Cook 3, and so forth.
 | 43,000-45,000  | 2,752,000-2,880,000  |   ---                |  ---                     |  ---                  |  72,300us per mul |  59,700us per mul   |
 
 #### Toom-Cook 3 computational complexity
+
 From the final two Toom-Cook 3 points, we seek the order of complexity, $x$
 
 $$
@@ -102,12 +111,13 @@ across all orders of limb count.
 
 ![](./crossover_main.png)
 
-### Compare multiplication timing `beman.big_int`, `boost.gmp_int`, `boost.cpp_int`
+### Compare multiplication timing `beman.big_int`, `boost.cpp_int`, `boost.gmp_int`
 
-Detailed measurements (with a table) comparing the multiplication performance
-of `big_int` with those of `boost.cpp_int` and GMP (wrapped by `boost.gmp_int`) are presented.
-The result of multiplication adds the widths of its operands. So multiplying
-two big integers produces a result having double the width of its operands.
+Detailed measurements comparing the multiplication performance of `big_int`
+with those of `boost.cpp_int` and GMP (wrapped by `boost.gmp_int`) are presented
+in the table below. The result of multiplication adds the widths of its operands.
+So multiplying two big integers produces a result having double the width
+of its operands.
 
 The time and the relative time compared with the best (GMP) time (in square
 brackets) are shown for each big-integer type at each width. These were measured
@@ -136,16 +146,55 @@ to reproduce a row.
 
 (1) `beman.big_int` now has FFT multiplication (a small-prime NTT, vectorized via
 the optional SIMD path). Earlier it topped out at Toom-Cook, so `gmp_int` pulled
-far ahead at very high digit counts (about 5.3x at 131,072 limbs); the FFT brings
-that back to about 2.7x, tracking GMP's asymptotic complexity.
+far ahead at very high digit counts (about $5.3x$ at $131,072$ limbs); the FFT brings
+that back to about $2.7x$, tracking GMP's asymptotic complexity.
 
 (2) `cpp_int` only reaches _as_ _high_ as Karatsuba multiplication, so both
 `big_int` and `gmp_int` pull ahead at medium-high digit counts -- `big_int`'s lead
-over `cpp_int` grows to roughly 6x by 131,072 limbs.
+over `cpp_int` grows to roughly $6x$ by $131,072$ limbs.
 
 ## Division
 
-TODO: Follow the progress of sub-quadratic division.
+Division uses a combination of Knuth long division for small limb counts
+and crosses over to the Burnikel-Ziegler algorithm somewhere between $40$ and $100$ limbs.
+The performance of division relies predominantly on the speed of the underlying
+multiplication algorithms as the limb count grows.
+
+### Compare division timing `beman.big_int`, `boost.cpp_int`, `boost.gmp_int`
+
+Detailed measurements comparing the division performance of `big_int`
+with those of `boost.cpp_int` and GMP (wrapped by `boost.gmp_int`) are presented
+in the table below. The division is setup to divide an $N$-digit numerator
+by an $N/2$-digit denominator, producing an $N/2$-digit integer result.
+
+When measuring, localize the time of `big_int` division only, running a chrono
+stopwatch just before and after the multiplication operation, summing and averaging the times.
+
+The time and the relative time compared with the best (GMP) time (in square
+brackets) are shown for each big-integer type at each width. These were measured
+on an x86-64 machine with the SIMD multiplication path enabled (configured with
+`-DBEMAN_BIG_INT_SIMD_MUL=ON`, so the FFT tier uses the AVX2 kernel); see the
+"Optional: SIMD-accelerated multiplication" note in the top-level README.
+The performance of the underlying multiplication is propagated to division.
+
+| 64-bit limbs   | bit width    | approx base-10 digits | us per div  `big_int`  | us per div  `cpp_int`  | us per div  `gmp_int` |
+|----------------|--------------|-----------------------|------------------------|------------------------|-----------------------|
+| 128            | 8,192        | 2,500                 |   4.2   [2.5]          |  10.4   [6.1]          |   1.7   [1.0]         |
+| 512            | 32,768       | 9,900                 |   32    [1.7]          |  120    [6.7]          |   18    [1.0]         |
+| 1,024          | 65,536       | 20,000                |   120   [2.3]          |   420   [7.9]          |   53    [1.0]         |
+| 2,048          | 131,072      | 39,000                |   360   [3.0]          |  1,500  [13], see (1)  |   120   [1.0]         |
+| 8,192          | 524,288      | 160,000               |   2,800 [2.9]          |  23,000 [24]           |   950   [1.0]         |
+| 32,768         | 2,097,152    | 631,000               |  23,000 [3.8]          | 370,000 [62]           |   6,000 [1.0]         |
+
+The code used for this comparison can be
+found in [div_big_int_vs_gmp_cpp.perf.cpp](./div_big_int_vs_gmp_cpp.perf.cpp);
+pass an operand width in limbs (and optionally a trial count) on the command line
+to reproduce a row.
+
+(1) `cpp_int` uses a variation of Knuth long division for all limb counts.
+This algorithm has quadratic complexity . `big_int` and `gmp_int` pull ahead
+rapidly at medium-high digit counts -- `big_int`'s lead
+over `cpp_int` grows to roughly $8x$ by $8,192$ limbs.
 
 ## Base-conversion
 

@@ -82,7 +82,7 @@ auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, s
 
 auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, std::string> {
     const std::string str_a{bmp::random_big_int(len_in_bits)};
-    const std::string str_b{bmp::random_big_int(len_in_bits)};
+    const std::string str_b{bmp::random_big_int(len_in_bits / 2)};
 
     return {str_a, str_b};
 }
@@ -125,9 +125,9 @@ auto main(int argc, char** argv) -> int {
                                              : static_cast<std::uint32_t>(UINT32_C(0x4000))};
     auto                trial = static_cast<std::uint32_t>(UINT32_C(0));
 
-    std::uint64_t elapsed_total_muls_bn{};
-    std::uint64_t elapsed_total_muls_gm{};
-    std::uint64_t elapsed_total_muls_cp{};
+    std::uint64_t elapsed_total_divs_bn{};
+    std::uint64_t elapsed_total_divs_gm{};
+    std::uint64_t elapsed_total_divs_cp{};
 
     const unsigned length_in_bits{limbs * limb_bits};
 
@@ -156,73 +156,73 @@ auto main(int argc, char** argv) -> int {
         {
             const auto start{std::chrono::high_resolution_clock::now()};
 
-            const local::big_int mul_result = bn_a * bn_b;
+            const local::big_int mul_result = bn_a / bn_b;
 
             const auto stop{std::chrono::high_resolution_clock::now()};
 
-            const auto elapsed_one_mul{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
+            const auto elapsed_one_div{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
 
-            elapsed_total_muls_bn = elapsed_total_muls_bn + static_cast<std::uint64_t>(elapsed_one_mul);
+            elapsed_total_divs_bn = elapsed_total_divs_bn + static_cast<std::uint64_t>(elapsed_one_div);
         }
 
         {
             const auto start{std::chrono::high_resolution_clock::now()};
 
-            const local::cpp_int mul_result = cp_a * cp_b;
+            const local::cpp_int mul_result = cp_a / cp_b;
 
             const auto stop{std::chrono::high_resolution_clock::now()};
 
-            const auto elapsed_one_mul{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
+            const auto elapsed_one_div{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
 
-            elapsed_total_muls_cp = elapsed_total_muls_cp + static_cast<std::uint64_t>(elapsed_one_mul);
+            elapsed_total_divs_cp = elapsed_total_divs_cp + static_cast<std::uint64_t>(elapsed_one_div);
         }
 
         {
             const auto start{std::chrono::high_resolution_clock::now()};
 
-            const local::gmp_int mul_result = gm_a * gm_b;
+            const local::gmp_int mul_result = gm_a / gm_b;
 
             const auto stop{std::chrono::high_resolution_clock::now()};
 
-            const auto elapsed_one_mul{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
+            const auto elapsed_one_div{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
 
-            elapsed_total_muls_gm = elapsed_total_muls_gm + static_cast<std::uint64_t>(elapsed_one_mul);
+            elapsed_total_divs_gm = elapsed_total_divs_gm + static_cast<std::uint64_t>(elapsed_one_div);
         }
 
         {
             if ((trial > 0U) && ((trial % 32U) == UINT32_C(0))) {
-                const double average_mul_time_us_bn =
-                    (static_cast<double>(elapsed_total_muls_bn) / static_cast<double>(trial)) / 1000.0;
+                const double average_div_time_us_bn =
+                    (static_cast<double>(elapsed_total_divs_bn) / static_cast<double>(trial)) / 1000.0;
 
                 {
                     std::stringstream strm{};
 
-                    strm << "trial: " << trial << ", average_mul_time_us_bn: " << std::setprecision(1) << std::fixed
-                         << average_mul_time_us_bn;
+                    strm << "trial: " << trial << ", average_div_time_us_bn: " << std::setprecision(1) << std::fixed
+                         << average_div_time_us_bn;
 
                     std::cout << strm.str() << std::endl;
                 }
 
-                const double average_mul_time_us_cp =
-                    (static_cast<double>(elapsed_total_muls_cp) / static_cast<double>(trial)) / 1000.0;
+                const double average_div_time_us_cp =
+                    (static_cast<double>(elapsed_total_divs_cp) / static_cast<double>(trial)) / 1000.0;
 
                 {
                     std::stringstream strm{};
 
-                    strm << "trial: " << trial << ", average_mul_time_us_cp: " << std::setprecision(1) << std::fixed
-                         << average_mul_time_us_cp;
+                    strm << "trial: " << trial << ", average_div_time_us_cp: " << std::setprecision(1) << std::fixed
+                         << average_div_time_us_cp;
 
                     std::cout << strm.str() << std::endl;
                 }
 
-                const double average_mul_time_us_gm =
-                    (static_cast<double>(elapsed_total_muls_gm) / static_cast<double>(trial)) / 1000.0;
+                const double average_div_time_us_gm =
+                    (static_cast<double>(elapsed_total_divs_gm) / static_cast<double>(trial)) / 1000.0;
 
                 {
                     std::stringstream strm{};
 
-                    strm << "trial: " << trial << ", average_mul_time_us_gm: " << std::setprecision(1) << std::fixed
-                         << average_mul_time_us_gm;
+                    strm << "trial: " << trial << ", average_div_time_us_gm: " << std::setprecision(1) << std::fixed
+                         << average_div_time_us_gm;
 
                     std::cout << strm.str() << std::endl;
                 }
@@ -233,9 +233,9 @@ auto main(int argc, char** argv) -> int {
     result_total_is_ok = ((trial == max_trial) && result_total_is_ok);
 
     {
-        const double avg_bn = (trial != 0U ? static_cast<double>(elapsed_total_muls_bn) / trial : 0.0) / 1000.0;
-        const double avg_gm = (trial != 0U ? static_cast<double>(elapsed_total_muls_gm) / trial : 0.0) / 1000.0;
-        const double avg_cp = (trial != 0U ? static_cast<double>(elapsed_total_muls_cp) / trial : 0.0) / 1000.0;
+        const double avg_bn = (trial != 0U ? static_cast<double>(elapsed_total_divs_bn) / trial : 0.0) / 1000.0;
+        const double avg_gm = (trial != 0U ? static_cast<double>(elapsed_total_divs_gm) / trial : 0.0) / 1000.0;
+        const double avg_cp = (trial != 0U ? static_cast<double>(elapsed_total_divs_cp) / trial : 0.0) / 1000.0;
 
         std::stringstream strm;
 
@@ -243,10 +243,12 @@ auto main(int argc, char** argv) -> int {
         strm << "Summary                            : " << trial << " trial, " << limbs << " limbs" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
         strm << std::fixed << std::setprecision(1);
-        strm << "us per mul big_int / cpp_int / gmp : " << avg_bn << " / " << avg_cp << " / " << avg_gm << '\n';
+        strm << "us per div big_int / cpp_int / gmp : " << avg_bn << " / " << avg_cp << " / " << avg_gm << '\n';
 
         std::cout << strm.str() << std::endl;
     }
+
+    std::cout << "total trials: " << trial << std::endl;
 
     return (result_total_is_ok ? 0 : -1);
 }
