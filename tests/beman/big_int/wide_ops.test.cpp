@@ -542,6 +542,9 @@ TEST(WideOps, WiderTraitMatchesPlatform) {
     static_assert(has_wider<std::int64_t> == has_int128_v);
 }
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
+
 TEST(WideOps, NarrowingDivPortable) {
     using beman::big_int::detail::narrowing_div_portable;
 
@@ -590,6 +593,8 @@ TEST(WideOps, NarrowingDivPortable) {
     static_assert(narrowing_div_portable(wide<std::uint64_t>{.low_bits = 5u, .high_bits = 1u}, std::uint64_t{3}) ==
                   beman::big_int::div_result<std::uint64_t>{6'148'914'691'236'517'207ull, 0ull});
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 // v must equal floor((B^2 - 1) / d) - B, computed independently via wider_t.
 template <class T>
