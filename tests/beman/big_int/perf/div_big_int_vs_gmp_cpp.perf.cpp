@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
-// cd /mnt/c/Users/ckorm/Documents/Ks/PC_Software/NumericalPrograms/ExtendedNumberTypes/std-big-int/VS
-
-// Build on Ubuntu x86_64 using SIMD.
-// g++-13 -march=native -std=c++23 -O3 -Wall -Wextra -Wpedantic -I../include -I/mnt/c/boost/boost_1_90_0 -DBEMAN_BIG_INT_SIMD_MUL ./test.cpp ../src/divide.cpp ../src/fft_mul_fp.cpp ../src/karatsuba.cpp ../src/mulmod_bnm1.cpp ../src/mul_dispatch.cpp ../src/ntt.cpp ../src/ntt_fp_avx2.cpp ../src/ntt_fp_dispatch.cpp ../src/ntt_fp_scalar.cpp ../src/toom_cook_3.cpp ../src/toom_cook_4.cpp ../src/toom_cook_6_5.cpp ../src/toom_cook_8_5.cpp -lgmp -o test.exe
-
-// Build on Ubuntu x86_64 *without* SIMD.
-// g++-13 -march=native -std=c++23 -O3 -Wall -Wextra -Wpedantic -I../include -I/mnt/c/boost/boost_1_90_0 ./test.cpp ../src/divide.cpp ../src/fft_mul.cpp ../src/karatsuba.cpp ../src/mulmod_bnm1.cpp ../src/mul_dispatch.cpp ../src/ntt.cpp ../src/toom_cook_3.cpp ../src/toom_cook_4.cpp ../src/toom_cook_6_5.cpp ../src/toom_cook_8_5.cpp -lgmp -o test.exe
-
 #include <beman/big_int/big_int.hpp>
 #include <boost/multiprecision/gmp.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
