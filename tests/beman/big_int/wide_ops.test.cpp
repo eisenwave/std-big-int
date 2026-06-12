@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <type_traits>
 
 #include "testing.hpp"
 
@@ -520,6 +521,80 @@ using beman::big_int::detail::reciprocal_word;
 using beman::big_int::detail::reciprocal_word_3by2;
 using beman::big_int::detail::wide;
 using beman::big_int::detail::widening_mul;
+
+TEST(WideOps, WiderTraitMatchesPlatform) {
+    using beman::big_int::detail::has_int128_v;
+    using beman::big_int::detail::has_wider;
+    using beman::big_int::detail::wider_t;
+
+    static_assert(std::is_same_v<wider_t<std::uint8_t>, std::uint16_t>);
+    static_assert(std::is_same_v<wider_t<std::uint16_t>, std::uint32_t>);
+    static_assert(std::is_same_v<wider_t<std::uint32_t>, std::uint64_t>);
+    static_assert(std::is_same_v<wider_t<std::int8_t>, std::int16_t>);
+    static_assert(std::is_same_v<wider_t<std::int16_t>, std::int32_t>);
+    static_assert(std::is_same_v<wider_t<std::int32_t>, std::int64_t>);
+
+    // On targets without any 128-bit type, wider_t<uint64_t> must be quietly
+    // absent, so that wide<uint64_t> falls back onto the data-only primary
+    // template. A hard error from this query is what used to break the NTT's
+    // Montgomery arithmetic on 32-bit microcontrollers.
+    static_assert(has_wider<std::uint64_t> == has_int128_v);
+    static_assert(has_wider<std::int64_t> == has_int128_v);
+}
+
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wuseless-cast")
+
+TEST(WideOps, NarrowingDivPortable) {
+    using beman::big_int::detail::narrowing_div_portable;
+
+    // Check the bit-by-bit loop with uint16 limbs against uint32 division.
+    using T = std::uint16_t;
+
+    auto check = [](T x_lo, T x_hi, T y) {
+        const auto          r = narrowing_div_portable(wide<T>{.low_bits = x_lo, .high_bits = x_hi}, y);
+        const std::uint32_t x = (static_cast<std::uint32_t>(x_hi) << 16) | x_lo;
+        EXPECT_EQ(r.quotient, static_cast<T>(x / y)) << "x=" << x << " y=" << y;
+        EXPECT_EQ(r.remainder, static_cast<T>(x % y)) << "x=" << x << " y=" << y;
+    };
+
+    check(0x0000, 0x0000, 0x0001); // 0 / 1.
+    check(0xFFFF, 0x0000, 0x0001); // single-limb dividend, identity quotient.
+    check(0xFFFF, 0xFFFE, 0xFFFF); // largest dividend for the largest divisor.
+    check(0x0001, 0x8000, 0x8001); // quotient near B with a near-normalized divisor.
+    check(0xDEAD, 0x1234, 0x5678); // arbitrary pattern.
+
+    for (std::uint32_t x_hi : {0u, 1u, 2u, 0x7FFFu, 0x8000u, 0xABCDu, 0xFFFEu}) {
+        for (std::uint32_t y : {1u, 2u, 3u, 0x7FFFu, 0x8000u, 0xABCDu, 0xFFFFu}) {
+            if (x_hi >= y) {
+                continue; // precondition: the quotient must fit in one limb
+            }
+            for (std::uint32_t x_lo : {0u, 1u, 0x00FFu, 0x5A5Au, 0xA5A5u, 0xFFFFu}) {
+                check(static_cast<T>(x_lo), static_cast<T>(x_hi), static_cast<T>(y));
+            }
+        }
+    }
+
+    // The limb-width instantiation must agree with narrowing_div.
+    std::mt19937_64 rng{0x47u};
+    for (int i = 0; i < 1000; ++i) {
+        const auto y    = static_cast<uint_multiprecision_t>(rng() | 1u);
+        const auto x_hi = static_cast<uint_multiprecision_t>(rng() % y);
+        const auto x_lo = static_cast<uint_multiprecision_t>(rng());
+
+        const wide<uint_multiprecision_t> x{.low_bits = x_lo, .high_bits = x_hi};
+        const auto                        expected = narrowing_div(x, y);
+        const auto                        actual   = narrowing_div_portable(x, y);
+        EXPECT_EQ(actual.quotient, expected.quotient);
+        EXPECT_EQ(actual.remainder, expected.remainder);
+    }
+
+    // The portable path must also work during constant evaluation.
+    static_assert(narrowing_div_portable(wide<std::uint64_t>{.low_bits = 5u, .high_bits = 1u}, std::uint64_t{3}) ==
+                  beman::big_int::div_result<std::uint64_t>{6'148'914'691'236'517'207ull, 0ull});
+}
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 // v must equal floor((B^2 - 1) / d) - B, computed independently via wider_t.
 template <class T>

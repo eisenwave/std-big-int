@@ -159,6 +159,14 @@ using int128_t  = std::_Signed128;
 using uint128_t = std::_Unsigned128;
 #endif
 
+// True when some 128-bit integer type exists (fundamental or class type).
+// 32-bit targets such as arm-none-eabi typically have none.
+#ifdef BEMAN_BIG_INT_HAS_INT128
+inline constexpr bool has_int128_v = true;
+#else
+inline constexpr bool has_int128_v = false;
+#endif
+
 } // namespace beman::big_int::detail
 
 // Limb type selection =========================================================
