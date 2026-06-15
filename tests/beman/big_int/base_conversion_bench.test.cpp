@@ -55,7 +55,7 @@ namespace detail  = ::beman::big_int::detail;
 using uint_t      = ::beman::big_int::uint_multiprecision_t;
 using stopwatch   = ::beman::big_int::benchmark_testing::stopwatch;
 
-inline constexpr unsigned reps_per_point   = 5;
+inline constexpr unsigned reps_per_point    = 5;
 inline constexpr unsigned samples_per_point = 3;
 
 // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp)
@@ -220,7 +220,7 @@ void run_sweep() {
         if (len <= 300000) {
             emit("input_basecase", base, len, run_fast_at(len, base, std::size_t{1} << 30));
         }
-        if (len <= 1000000) {
+        if (len <= 10000000) {
             emit("input_from_chars", base, len, run_from_chars_at(len, base));
         }
         std::cout.flush();
@@ -234,12 +234,19 @@ void run_sweep() {
         std::cout.flush();
     }
 
-    // Base spread: even bases (trimmed powers) vs odd controls.
+    // Base spread: even bases (trimmed powers) vs odd controls. For the
+    // before/after charconv-integration sweep we emit both kernel directions
+    // and the public from_chars/to_chars at moderate sizes so the speedup
+    // table spans bases, not just base 10. (1M is the long pole for the naive
+    // output baseline; per-base stops there -- base 10 carries 3M/10M.)
     for (const int spot_base : {3, 7, 10, 26, 36}) {
-        for (const std::size_t len : {std::size_t{10000}, std::size_t{1000000}}) {
+        for (const std::size_t len : {std::size_t{10000}, std::size_t{100000}, std::size_t{1000000}}) {
             emit("input_fast", spot_base, len, run_fast_at(len, spot_base, 0));
+            emit("output_fast", spot_base, len, run_fast_out_at(len, spot_base, 0));
+            emit("input_from_chars", spot_base, len, run_from_chars_at(len, spot_base));
+            emit("output_to_chars", spot_base, len, run_to_chars_at(len, spot_base));
+            std::cout.flush();
         }
-        std::cout.flush();
     }
 
     // Output crossover: pure short-division basecase vs one and two split
@@ -267,9 +274,27 @@ void run_sweep() {
         if (len <= 100000) {
             emit("output_basecase", base, len, run_fast_out_at(len, base, std::size_t{1} << 30));
         }
-        if (len <= 1000000) {
+        if (len <= 3000000) {
             emit("output_to_chars", base, len, run_to_chars_at(len, base));
         }
+        std::cout.flush();
+    }
+}
+
+// Input-gate crossover probe (run in isolation: --gtest_filter=*InputXover*).
+// from_chars under the compiled gate vs the kernel-only ceiling at fine sizes
+// spanning the sub-gate band. Build with
+// -DBEMAN_BIG_INT_INPUT_CHARCONV_MIN_CHUNKS=2 (forces kernel+glue) and with a
+// huge value (forces the inline baseline), then compare xover_from_chars across
+// the two runs to find where the whole conversion first beats the inline loop.
+void run_input_xover() {
+    std::cout << "kernel,base,digits,chunks,ns_per_op\n";
+    const int base = 10;
+    for (const std::size_t len : {std::size_t{19}, std::size_t{38}, std::size_t{57}, std::size_t{76},
+                                  std::size_t{95}, std::size_t{133}, std::size_t{190}, std::size_t{285},
+                                  std::size_t{500}, std::size_t{1000}, std::size_t{2000}, std::size_t{5000}}) {
+        emit("xover_from_chars", base, len, run_from_chars_at(len, base));
+        emit("xover_fast", base, len, run_fast_at(len, base, 0));
         std::cout.flush();
     }
 }
@@ -279,6 +304,15 @@ void run_sweep() {
 TEST(BaseConversion, InputBench) {
 #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     local::run_sweep();
+    SUCCEED();
+#else
+    GTEST_SKIP() << "Benchmarks not run (define BEMAN_BIG_INT_RUN_BENCHMARKS to enable)";
+#endif
+}
+
+TEST(BaseConversion, InputXover) {
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
+    local::run_input_xover();
     SUCCEED();
 #else
     GTEST_SKIP() << "Benchmarks not run (define BEMAN_BIG_INT_RUN_BENCHMARKS to enable)";
