@@ -88,17 +88,17 @@ static_assert(std::has_single_bit(fast_input_basecase_chunks),
 [[nodiscard]] constexpr std::size_t mul_add_single_limb_in_place(const std::span<uint_multiprecision_t> s,
                                                                  const std::size_t                      size,
                                                                  const uint_multiprecision_t            mul,
-                                                                 const uint_multiprecision_t add) noexcept {
+                                                                 const uint_multiprecision_t            add) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(size >= 1);
     BEMAN_BIG_INT_DEBUG_ASSERT(size <= s.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(mul != 0);
 
     uint_multiprecision_t carry = add;
     for (std::size_t i = 0; i < size; ++i) {
-        const auto [lo, hi]        = widening_mul(s[i], mul);
+        const auto [lo, hi]              = widening_mul(s[i], mul);
         const uint_multiprecision_t next = lo + carry;
-        carry                      = hi + static_cast<uint_multiprecision_t>(next < lo);
-        s[i]                       = next;
+        carry                            = hi + static_cast<uint_multiprecision_t>(next < lo);
+        s[i]                             = next;
     }
     if (carry == 0) {
         return size;
@@ -228,7 +228,7 @@ constexpr void append_squared_power(base_power_table&       table,
                                     Allocator&              alloc) {
     constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
 
-    const base_power_entry&                prev = table.entry[level - 1];
+    const base_power_entry& prev = table.entry[level - 1];
     BEMAN_BIG_INT_DEBUG_ASSERT(slot_limbs >= 2 * prev.value.size());
     const std::span<uint_multiprecision_t> slot = scratch.allocate(slot_limbs);
     std::ranges::fill(slot, uint_multiprecision_t{0});
@@ -379,9 +379,9 @@ constexpr std::size_t digits_to_limbs(const std::span<uint_multiprecision_t> res
     const std::size_t groups = div_to_pos_inf(chunks, group);
     std::ranges::fill(arena_a.first(groups * group), uint_multiprecision_t{0});
     for (std::size_t g = 0; g < groups; ++g) {
-        const std::size_t end   = digits.size() - g * group * cpl;
-        const std::size_t span  = group * cpl;
-        const std::size_t start = end > span ? end - span : 0;
+        const std::size_t                  end   = digits.size() - g * group * cpl;
+        const std::size_t                  span  = group * cpl;
+        const std::size_t                  start = end > span ? end - span : 0;
         [[maybe_unused]] const std::size_t size =
             basecase_digits_to_limbs(arena_a.subspan(g * group, group), digits.subspan(start, end - start), base);
     }
@@ -478,7 +478,7 @@ inline constexpr std::size_t fast_output_preinv_min_limbs = barrett_balanced_cut
 // Upper bound on the digits an n-limb value needs in `base` (the
 // to_basic_string sizing formula; overestimates by at most one digit).
 [[nodiscard]] constexpr std::size_t base_conversion_digit_bound(const std::span<const uint_multiprecision_t> value,
-                                                                const int                                     base) {
+                                                                const int                                    base) {
     const std::size_t width = value_bit_width(value.first(trimmed_size_span(value)));
     return width <= 1 ? std::size_t{1} : approximate_ceil_div_log2(width - 1, base) + 1;
 }
@@ -563,9 +563,8 @@ class digit_value_buffer {
                                                  const base_power_entry&                      power) noexcept {
     constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
 
-    const std::size_t power_bits =
-        (power.low_zero_limbs + power.value.size() - 1) * limb_bits +
-        static_cast<std::size_t>(std::bit_width(power.value.back()));
+    const std::size_t power_bits = (power.low_zero_limbs + power.value.size() - 1) * limb_bits +
+                                   static_cast<std::size_t>(std::bit_width(power.value.back()));
     const std::size_t value_bits = value_bit_width(v);
     if (value_bits != power_bits) {
         return value_bits > power_bits;
@@ -597,8 +596,7 @@ constexpr void build_power_table_for_value(base_power_table&                    
     std::size_t r = init_power_table(table, base, scratch);
     while (true) {
         const base_power_entry& top = table.entry[table.levels - 1];
-        const std::size_t       top_bits =
-            top.low_zero_limbs * width_v<uint_multiprecision_t> + value_bit_width(top.value);
+        const std::size_t top_bits  = top.low_zero_limbs * width_v<uint_multiprecision_t> + value_bit_width(top.value);
         if (2 * top_bits - 1 > value_bits) {
             return;
         }
@@ -651,8 +649,8 @@ struct short_divisor {
     for (std::size_t i = size - 1; i > 0; --i) {
         const uint_multiprecision_t next = s[i - 1];
         const uint_multiprecision_t u    = funnel_shl(wide<uint_multiprecision_t>{.low_bits = next, .high_bits = cur},
-                                                   static_cast<unsigned>(divisor.shift));
-        const auto qr =
+                                                      static_cast<unsigned>(divisor.shift));
+        const auto                  qr =
             div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = u, .high_bits = r}, divisor.norm, divisor.recip);
         s[i] = qr.quotient;
         r    = qr.remainder;
@@ -904,9 +902,8 @@ constexpr void emit_digits(const std::span<unsigned char>               out,
                                                                  const int         base,
                                                                  const std::size_t basecase_override = 0) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(is_fast_conversion_base(base));
-    const std::size_t staging =
-        std::min(fast_output_group_size(basecase_override), limb_count + limb_count / 8 + 4);
-    std::size_t total = 10 * limb_count + 2 * staging + 256;
+    const std::size_t staging = std::min(fast_output_group_size(basecase_override), limb_count + limb_count / 8 + 4);
+    std::size_t       total   = 10 * limb_count + 2 * staging + 256;
     if (limb_count >= fast_output_preinv_min_limbs) {
         total += 4 * (limb_count + 2) + reciprocal_span_storage_size(limb_count + 2, reciprocal_span_cutoff) +
                  barrett_preinv_storage_size(limb_count / 2 + 2, 4);

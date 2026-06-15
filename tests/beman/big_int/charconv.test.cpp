@@ -1232,7 +1232,7 @@ TEST(FromChars, FastPathStopsAtInvalidCharacter) {
     const std::string digits = random_digit_string(25000, base, 0xABCDEFull);
     const std::string text   = digits + "!not a digit";
 
-    big_int    v;
+    big_int v;
     const auto [p, ec] = from_chars(text.data(), text.data() + text.size(), v, base);
     EXPECT_EQ(ec, std::errc{});
     EXPECT_EQ(p, text.data() + digits.size());

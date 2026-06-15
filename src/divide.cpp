@@ -870,9 +870,8 @@ void divide_barrett_preinv(const std::span<uint_multiprecision_t>       quotient
 
     // The block count of barrett_blocks on the unshifted divisor: its
     // leading-zero count is exactly `shift`.
-    const std::size_t dividend_bits =
-        (m - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(dividend.back()));
-    const std::size_t t = std::max<std::size_t>(2, (dividend_bits + shift) / (n * limb_bits) + 1);
+    const std::size_t dividend_bits = (m - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(dividend.back()));
+    const std::size_t t             = std::max<std::size_t>(2, (dividend_bits + shift) / (n * limb_bits) + 1);
 
     const std::span<uint_multiprecision_t> w = scratch.allocate(t * n);
     std::ranges::fill(w, uint_multiprecision_t{0});

@@ -179,9 +179,17 @@ TEST(BaseConversionInput, ChunkCountsExhaustive) {
 TEST(BaseConversionInput, PowerBoundaryValues) {
     for (const int base : {3, 10, 36}) {
         const auto cpl = static_cast<std::size_t>(detail::limb_max_input_digits(base));
-        for (const std::size_t k : {std::size_t{1}, std::size_t{2}, std::size_t{3}, std::size_t{7}, std::size_t{8},
-                                    std::size_t{15}, std::size_t{16}, std::size_t{31}, std::size_t{32},
-                                    std::size_t{33}, std::size_t{64}}) {
+        for (const std::size_t k : {std::size_t{1},
+                                    std::size_t{2},
+                                    std::size_t{3},
+                                    std::size_t{7},
+                                    std::size_t{8},
+                                    std::size_t{15},
+                                    std::size_t{16},
+                                    std::size_t{31},
+                                    std::size_t{32},
+                                    std::size_t{33},
+                                    std::size_t{64}}) {
             // big_base^k: "1" followed by k * cpl zeros.
             std::vector<unsigned char> digits(k * cpl + 1, 0);
             digits[0] = 1;
@@ -231,8 +239,8 @@ TEST(BaseConversionInput, OddEvenLevelCounts) {
 TEST(BaseConversionInput, AllBasesSampled) {
     std::mt19937_64 rng{0xba5e5};
     for (const int base : non_power_of_two_bases) {
-        for (const std::size_t len : {std::size_t{1}, std::size_t{7}, std::size_t{100}, std::size_t{1000},
-                                      std::size_t{5000}}) {
+        for (const std::size_t len :
+             {std::size_t{1}, std::size_t{7}, std::size_t{100}, std::size_t{1000}, std::size_t{5000}}) {
             const auto digits = random_digits(len, base, rng);
             const auto fast   = run_fast(digits, base);
             EXPECT_EQ(fast, chunk_horner_ref(digits, base)) << "base " << base << " len " << len;
@@ -253,9 +261,12 @@ TEST(BaseConversionInput, Base10Dense) {
         EXPECT_EQ(fast, horner_ref(digits, base)) << "len " << len;
         EXPECT_EQ(fast, cpp_int_ref(digits, base)) << "len " << len;
     }
-    for (const std::size_t len :
-         {std::size_t{500}, std::size_t{1000}, std::size_t{2000}, std::size_t{5000}, std::size_t{20000},
-          std::size_t{50000}}) {
+    for (const std::size_t len : {std::size_t{500},
+                                  std::size_t{1000},
+                                  std::size_t{2000},
+                                  std::size_t{5000},
+                                  std::size_t{20000},
+                                  std::size_t{50000}}) {
         const auto digits = random_digits(len, base, rng);
         EXPECT_EQ(run_fast(digits, base), chunk_horner_ref(digits, base)) << "len " << len;
     }
@@ -306,9 +317,8 @@ TEST(BaseConversionInput, ScratchPeakWithinBound) {
                                             alloc,
                                             override_group);
 
-                EXPECT_EQ(scratch.peak(), storage)
-                    << "the storage model is exact; base " << base << " chunks " << chunks << " group "
-                    << override_group;
+                EXPECT_EQ(scratch.peak(), storage) << "the storage model is exact; base " << base << " chunks "
+                                                   << chunks << " group " << override_group;
 
                 out.resize(count);
                 EXPECT_EQ(out, chunk_horner_ref(digits, base)) << "base " << base << " chunks " << chunks;
@@ -328,9 +338,9 @@ TEST(BaseConversionInput, FusedKernelMatchesMultiplyAdd) {
             const auto mul = static_cast<uint_t>(rng() | 1);
             const auto add = static_cast<uint_t>(rng());
 
-            std::vector<uint_t> expected(size + 1, 0);
-            [[maybe_unused]] const std::size_t product_size = detail::multiply_single_limb(
-                std::span<uint_t>{expected}, std::span<const uint_t>{value}, mul);
+            std::vector<uint_t>                expected(size + 1, 0);
+            [[maybe_unused]] const std::size_t product_size =
+                detail::multiply_single_limb(std::span<uint_t>{expected}, std::span<const uint_t>{value}, mul);
             const uint_t                addend[1] = {add};
             [[maybe_unused]] const bool carry     = detail::add_unsigned_spans(
                 std::span<uint_t>{expected}, std::span<const uint_t>{expected}, std::span<const uint_t>{addend});

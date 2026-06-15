@@ -51,9 +51,9 @@
 
 namespace local {
 
-namespace detail  = ::beman::big_int::detail;
-using uint_t      = ::beman::big_int::uint_multiprecision_t;
-using stopwatch   = ::beman::big_int::benchmark_testing::stopwatch;
+namespace detail = ::beman::big_int::detail;
+using uint_t     = ::beman::big_int::uint_multiprecision_t;
+using stopwatch  = ::beman::big_int::benchmark_testing::stopwatch;
 
 inline constexpr unsigned reps_per_point    = 5;
 inline constexpr unsigned samples_per_point = 3;
@@ -139,7 +139,7 @@ double run_from_chars_at(const std::size_t len, const int base) {
     return measure_ns(len, base, [&](const std::vector<unsigned char>& digits) {
         auto text = std::make_shared<std::string>(ascii_of(digits));
         return [text, &base]() {
-            ::beman::big_int::big_int value;
+            ::beman::big_int::big_int                     value;
             [[maybe_unused]] const std::from_chars_result result =
                 ::beman::big_int::from_chars(text->data(), text->data() + text->size(), value, base);
         };
@@ -161,8 +161,8 @@ double run_fast_out_at(const std::size_t len, const int base, const std::size_t 
 
 double run_to_chars_at(const std::size_t len, const int base) {
     return measure_ns(len, base, [&](const std::vector<unsigned char>& digits) {
-        auto value = std::make_shared<::beman::big_int::big_int>();
-        const auto text = ascii_of(digits);
+        auto                                          value = std::make_shared<::beman::big_int::big_int>();
+        const auto                                    text  = ascii_of(digits);
         [[maybe_unused]] const std::from_chars_result parsed =
             ::beman::big_int::from_chars(text.data(), text.data() + text.size(), *value, base);
         auto out = std::make_shared<std::vector<char>>(digits.size() + 8, '\0');
@@ -201,8 +201,14 @@ void run_sweep() {
     }
 
     // Crossover: pure basecase vs one and two ladder levels at the same size.
-    for (const std::size_t group : {std::size_t{8}, std::size_t{16}, std::size_t{32}, std::size_t{64},
-                                    std::size_t{128}, std::size_t{256}, std::size_t{512}, std::size_t{1024}}) {
+    for (const std::size_t group : {std::size_t{8},
+                                    std::size_t{16},
+                                    std::size_t{32},
+                                    std::size_t{64},
+                                    std::size_t{128},
+                                    std::size_t{256},
+                                    std::size_t{512},
+                                    std::size_t{1024}}) {
         for (const std::size_t mult : {std::size_t{2}, std::size_t{4}}) {
             const std::size_t chunks = mult * group;
             const std::size_t len    = chunks * cpl;
@@ -213,9 +219,15 @@ void run_sweep() {
     }
 
     // Headline curves.
-    for (const std::size_t len : {std::size_t{1000}, std::size_t{3000}, std::size_t{10000}, std::size_t{30000},
-                                  std::size_t{100000}, std::size_t{300000}, std::size_t{1000000},
-                                  std::size_t{3000000}, std::size_t{10000000}}) {
+    for (const std::size_t len : {std::size_t{1000},
+                                  std::size_t{3000},
+                                  std::size_t{10000},
+                                  std::size_t{30000},
+                                  std::size_t{100000},
+                                  std::size_t{300000},
+                                  std::size_t{1000000},
+                                  std::size_t{3000000},
+                                  std::size_t{10000000}}) {
         emit("input_fast", base, len, run_fast_at(len, base, 0));
         if (len <= 300000) {
             emit("input_basecase", base, len, run_fast_at(len, base, std::size_t{1} << 30));
@@ -251,8 +263,13 @@ void run_sweep() {
 
     // Output crossover: pure short-division basecase vs one and two split
     // levels at the same size (tunes fast_output_basecase_chunks).
-    for (const std::size_t group : {std::size_t{4}, std::size_t{8}, std::size_t{16}, std::size_t{32},
-                                    std::size_t{64}, std::size_t{128}, std::size_t{256}}) {
+    for (const std::size_t group : {std::size_t{4},
+                                    std::size_t{8},
+                                    std::size_t{16},
+                                    std::size_t{32},
+                                    std::size_t{64},
+                                    std::size_t{128},
+                                    std::size_t{256}}) {
         for (const std::size_t mult : {std::size_t{2}, std::size_t{4}}) {
             const std::size_t chunks = mult * group;
             const std::size_t len    = chunks * cpl;
@@ -267,9 +284,15 @@ void run_sweep() {
 
     // Output headline curves (compare with the input rows above for the
     // div-vs-mul ratio).
-    for (const std::size_t len : {std::size_t{1000}, std::size_t{3000}, std::size_t{10000}, std::size_t{30000},
-                                  std::size_t{100000}, std::size_t{300000}, std::size_t{1000000},
-                                  std::size_t{3000000}, std::size_t{10000000}}) {
+    for (const std::size_t len : {std::size_t{1000},
+                                  std::size_t{3000},
+                                  std::size_t{10000},
+                                  std::size_t{30000},
+                                  std::size_t{100000},
+                                  std::size_t{300000},
+                                  std::size_t{1000000},
+                                  std::size_t{3000000},
+                                  std::size_t{10000000}}) {
         emit("output_fast", base, len, run_fast_out_at(len, base, 0));
         if (len <= 100000) {
             emit("output_basecase", base, len, run_fast_out_at(len, base, std::size_t{1} << 30));
@@ -290,9 +313,18 @@ void run_sweep() {
 void run_input_xover() {
     std::cout << "kernel,base,digits,chunks,ns_per_op\n";
     const int base = 10;
-    for (const std::size_t len : {std::size_t{19}, std::size_t{38}, std::size_t{57}, std::size_t{76},
-                                  std::size_t{95}, std::size_t{133}, std::size_t{190}, std::size_t{285},
-                                  std::size_t{500}, std::size_t{1000}, std::size_t{2000}, std::size_t{5000}}) {
+    for (const std::size_t len : {std::size_t{19},
+                                  std::size_t{38},
+                                  std::size_t{57},
+                                  std::size_t{76},
+                                  std::size_t{95},
+                                  std::size_t{133},
+                                  std::size_t{190},
+                                  std::size_t{285},
+                                  std::size_t{500},
+                                  std::size_t{1000},
+                                  std::size_t{2000},
+                                  std::size_t{5000}}) {
         emit("xover_from_chars", base, len, run_from_chars_at(len, base));
         emit("xover_fast", base, len, run_fast_at(len, base, 0));
         std::cout.flush();
@@ -309,8 +341,11 @@ void run_input_xover() {
 void run_po2_sweep() {
     std::cout << "kernel,base,digits,chunks,ns_per_op\n";
     for (const int base : {2, 8, 16, 32}) {
-        for (const std::size_t len : {std::size_t{1000}, std::size_t{10000}, std::size_t{100000},
-                                      std::size_t{1000000}, std::size_t{10000000}}) {
+        for (const std::size_t len : {std::size_t{1000},
+                                      std::size_t{10000},
+                                      std::size_t{100000},
+                                      std::size_t{1000000},
+                                      std::size_t{10000000}}) {
             emit("po2_from_chars", base, len, run_from_chars_at(len, base));
             emit("po2_to_chars", base, len, run_to_chars_at(len, base));
             std::cout.flush();

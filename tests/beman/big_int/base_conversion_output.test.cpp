@@ -153,8 +153,13 @@ constexpr std::array<int, 30> non_power_of_two_bases = {3,  5,  6,  7,  9,  10, 
 TEST(BaseConversionOutput, ZeroAndSmallValues) {
     for (const int base : {3, 10, 12, 36}) {
         const uint_t big_base = detail::limb_max_power(base);
-        for (const uint_t value : {uint_t{0}, uint_t{1}, static_cast<uint_t>(base - 1), static_cast<uint_t>(base),
-                                   big_base - 1, big_base, big_base + 1}) {
+        for (const uint_t value : {uint_t{0},
+                                   uint_t{1},
+                                   static_cast<uint_t>(base - 1),
+                                   static_cast<uint_t>(base),
+                                   big_base - 1,
+                                   big_base,
+                                   big_base + 1}) {
             const uint_t                  limbs[1] = {value};
             const std::span<const uint_t> v{limbs};
             EXPECT_EQ(run_fast_out(v, base), digit_ref(v, base)) << "base " << base << " value " << value;
@@ -165,8 +170,14 @@ TEST(BaseConversionOutput, ZeroAndSmallValues) {
 TEST(BaseConversionOutput, RoundTripRandom) {
     std::mt19937_64 rng{0x07b1};
     for (const int base : {3, 10, 12, 36}) {
-        for (const std::size_t limbs : {std::size_t{1}, std::size_t{2}, std::size_t{3}, std::size_t{7},
-                                        std::size_t{16}, std::size_t{33}, std::size_t{100}, std::size_t{257}}) {
+        for (const std::size_t limbs : {std::size_t{1},
+                                        std::size_t{2},
+                                        std::size_t{3},
+                                        std::size_t{7},
+                                        std::size_t{16},
+                                        std::size_t{33},
+                                        std::size_t{100},
+                                        std::size_t{257}}) {
             for (const std::size_t override_group : {std::size_t{0}, std::size_t{2}, std::size_t{4}}) {
                 const auto value  = random_value(limbs, rng);
                 const auto digits = run_fast_out(value, base, override_group);
@@ -259,7 +270,7 @@ TEST(BaseConversionOutput, UntrimmedInputTolerated) {
     padded.insert(padded.end(), 5, uint_t{0});
     EXPECT_EQ(run_fast_out(padded, 10), run_fast_out(value, 10));
 
-    const std::vector<uint_t> zeros(7, uint_t{0});
+    const std::vector<uint_t>        zeros(7, uint_t{0});
     const std::vector<unsigned char> zero_digits{0};
     EXPECT_EQ(run_fast_out(zeros, 10), zero_digits);
 }
@@ -272,7 +283,7 @@ TEST(BaseConversionOutput, ScratchPeakWithinBound) {
             for (const std::size_t override_group : {std::size_t{0}, std::size_t{2}}) {
                 const auto value = random_value(limbs, rng);
 
-                const std::size_t storage = detail::limbs_to_digits_storage_size(limbs, base, override_group);
+                const std::size_t      storage = detail::limbs_to_digits_storage_size(limbs, base, override_group);
                 std::allocator<uint_t> alloc;
                 detail::scratch_allocator<std::allocator<uint_t>> scratch(storage, alloc);
 
@@ -316,18 +327,17 @@ TEST(BaseConversionOutput, BarrettPreinvMatchesBarrett) {
                                    alloc);
 
             // Normalize and invert once, as the conversion table does.
-            const auto          shift = static_cast<unsigned>(std::countl_zero(divisor.back()));
+            const auto          shift  = static_cast<unsigned>(std::countl_zero(divisor.back()));
             std::vector<uint_t> d_norm = divisor;
             if (shift != 0) {
                 [[maybe_unused]] const std::size_t norm_size =
                     detail::shift_left_n(std::span<uint_t>{d_norm}, s, shift);
             }
 
-            const std::size_t blocks = detail::barrett_blocks(std::span<const uint_t>{dividend},
-                                                              std::span<const uint_t>{divisor});
-            const std::size_t storage =
-                detail::reciprocal_span_storage_size(s, detail::reciprocal_span_cutoff) +
-                detail::barrett_preinv_storage_size(s, blocks) + s;
+            const std::size_t blocks =
+                detail::barrett_blocks(std::span<const uint_t>{dividend}, std::span<const uint_t>{divisor});
+            const std::size_t storage = detail::reciprocal_span_storage_size(s, detail::reciprocal_span_cutoff) +
+                                        detail::barrett_preinv_storage_size(s, blocks) + s;
             detail::scratch_allocator<std::allocator<uint_t>> scratch(storage, alloc);
 
             const std::span<uint_t> inv = scratch.allocate(s);
@@ -367,12 +377,11 @@ consteval bool output_consteval_smoke(const std::size_t basecase_override) {
         detail::digits_to_limbs(std::span<uint_t>{limbs}, std::span<const unsigned char>{digits}, 10, alloc);
 
     std::array<unsigned char, digit_count + 1> out{};
-    const std::size_t                          count =
-        detail::limbs_to_digits(std::span<unsigned char>{out},
-                                std::span<const uint_t>{limbs.data(), limb_count},
-                                10,
-                                alloc,
-                                basecase_override);
+    const std::size_t count = detail::limbs_to_digits(std::span<unsigned char>{out},
+                                                      std::span<const uint_t>{limbs.data(), limb_count},
+                                                      10,
+                                                      alloc,
+                                                      basecase_override);
 
     if (count != digit_count) {
         return false;
