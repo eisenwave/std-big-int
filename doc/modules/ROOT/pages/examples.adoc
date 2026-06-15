@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#examples]
+:idprefix: examples_
+
+All the following examples can be found in the `examples/` folder of this library
+
+[#examples_rsa]
+== RSA
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/rsa.cpp[example] demonstrates the usage of `std::big_int` in the RSA algorithm
+====
+[source, c++]
+----
+include::example$rsa.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+message:
+Hello std-big-int RSA
+
+recover:
+Hello std-big-int RSA
+
+result_is_ok: true
+----
+====
