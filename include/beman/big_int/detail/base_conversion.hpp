@@ -15,6 +15,7 @@
 #include <array>
 #include <bit>
 #include <cstddef>
+#include <memory>
 #include <span>
 #include <type_traits>
 
@@ -481,6 +482,79 @@ inline constexpr std::size_t fast_output_preinv_min_limbs = barrett_balanced_cut
     const std::size_t width = value_bit_width(value.first(trimmed_size_span(value)));
     return width <= 1 ? std::size_t{1} : approximate_ceil_div_log2(width - 1, base) + 1;
 }
+
+// ---------------------------------------------------------------------------
+// charconv integration glue. from_chars / to_chars route non-power-of-two bases
+// through the kernels above a per-direction size gate; below it the fixed cost
+// of a temporary digit-value buffer plus the kernel's owned scratch arena
+// outweighs the win, so small (common) inputs keep the inline path. The gates
+// are tuned at the whole-conversion crossover (the ASCII transcode included) --
+// the single tunable surface for the integration.
+// ---------------------------------------------------------------------------
+
+// from_chars routes to the kernel once the input reaches this many chunks. The
+// kernel's fused-Horner basecase already beats the charconv inline multiply-add
+// loop from ~3-4 chunks up -- far below the kernel's OWN ladder gate
+// (2 * fast_input_basecase_chunks) -- so the whole-conversion crossover (temp
+// buffer + scratch arena + ASCII transcode included) sits much earlier. Tuned
+// with the base_conversion_bench InputXover sweep (RelWithDebInfo, M4-class
+// AArch64 + i9-11900K x86-64, 2026-06-15): both arches break even at 2-4 chunks
+// and the kernel wins >= 1.6x by 8 chunks, growing from there. 8 (~150 base-10
+// digits) keeps small-number parsing on the zero-allocation inline path with
+// margin above the noisy floor.
+inline constexpr std::size_t fast_input_charconv_min_chunks = 8;
+
+[[nodiscard]] constexpr bool fast_digits_to_limbs_profitable(const std::size_t digit_count, const int base) noexcept {
+    return is_fast_conversion_base(base) &&
+           base_conversion_chunk_count(digit_count, base) >= fast_input_charconv_min_chunks;
+}
+
+// limbs_to_digits takes the ladder when ceil(digit_bound / cpl) > fast_output_basecase_chunks.
+[[nodiscard]] constexpr bool fast_limbs_to_digits_profitable(const std::span<const uint_multiprecision_t> value,
+                                                             const int base) noexcept {
+    if (!is_fast_conversion_base(base)) {
+        return false;
+    }
+    const auto        cpl    = static_cast<std::size_t>(limb_max_input_digits(base));
+    const std::size_t chunks = div_to_pos_inf(base_conversion_digit_bound(value, base), cpl);
+    return chunks > fast_output_basecase_chunks;
+}
+
+// ---------------------------------------------------------------------------
+// Owning, constexpr-safe scratch array of digit VALUES (0..base-1) for the
+// charconv glue: from_chars transcodes the validated ASCII run into one before
+// calling digits_to_limbs, and to_chars receives the MSD-first digits from
+// limbs_to_digits into one before mapping them to ASCII. Allocated through a
+// rebind of the big_int's own allocator so stateful / pmr allocators carry
+// through. Bytes are value-initialized to begin their lifetimes during
+// constant evaluation; every byte that is read is written first.
+// ---------------------------------------------------------------------------
+template <class LimbAllocator>
+class digit_value_buffer {
+    using byte_allocator = typename std::allocator_traits<LimbAllocator>::template rebind_alloc<unsigned char>;
+    using traits         = std::allocator_traits<byte_allocator>;
+
+  public:
+    constexpr digit_value_buffer(const LimbAllocator& alloc, const std::size_t count)
+        : m_alloc(alloc), m_count(count), m_data(traits::allocate(m_alloc, count)) {
+        for (std::size_t i = 0; i < count; ++i) {
+            std::construct_at(m_data + i, static_cast<unsigned char>(0));
+        }
+    }
+    constexpr ~digit_value_buffer() {
+        std::destroy_n(m_data, m_count);
+        traits::deallocate(m_alloc, m_data, m_count);
+    }
+    digit_value_buffer(const digit_value_buffer&)            = delete;
+    digit_value_buffer& operator=(const digit_value_buffer&) = delete;
+
+    [[nodiscard]] constexpr std::span<unsigned char> span() const noexcept { return {m_data, m_count}; }
+
+  private:
+    BEMAN_BIG_INT_NO_UNIQUE_ADDRESS byte_allocator m_alloc;
+    std::size_t                                    m_count;
+    unsigned char*                                 m_data;
+};
 
 // True when value(v) >= P (the entry's power, value * B^low_zero_limbs).
 // Decided by bit widths except in the equal-width band, where the stored

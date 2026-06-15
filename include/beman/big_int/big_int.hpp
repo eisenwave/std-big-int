@@ -25,6 +25,7 @@
     #include <stdfloat>
 #endif
 
+#include <beman/big_int/detail/base_conversion.hpp>
 #include <beman/big_int/detail/base_tables.hpp>
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
@@ -3484,6 +3485,30 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
     case 34:
     case 35:
     case 36: {
+        // For magnitudes large enough that the divide-and-conquer ladder
+        // engages, the sub-quadratic FastIntegerOutput kernel replaces the
+        // repeated short-division loop. Smaller values (and constant
+        // evaluation) keep the inline path below.
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            const std::span<const uint_multiprecision_t> value_span{x.limb_ptr(), x.limb_count()};
+            if (detail::fast_limbs_to_digits_profitable(value_span, base)) {
+                // The kernel emits the exact MSD-first digit VALUES; map them to
+                // ASCII in place. No reversal -- already most-significant-first.
+                auto                           alloc = x.get_allocator();
+                const std::size_t              bound = detail::base_conversion_digit_bound(value_span, base);
+                detail::digit_value_buffer<A>  values(alloc, bound);
+                const std::span<unsigned char> vspan = values.span();
+                const std::size_t              n     = detail::limbs_to_digits(vspan, value_span, base, alloc);
+                if (static_cast<std::size_t>(end - current_begin) < n) {
+                    return {end, std::errc::value_too_large};
+                }
+                for (std::size_t i = 0; i < n; ++i) {
+                    current_begin[i] = alphabet[vspan[i]];
+                }
+                return {current_begin + n, std::errc{}};
+            }
+        }
+
         auto remainder = x;
         remainder.unchecked_set_sign(false);
         // Zero should have been handled above already.
@@ -3670,6 +3695,34 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     //
     // For example, if `base` is `10`, instead of doing parsing base 10,
     // we do it base `1'000'000'000` assuming `uint_multiprecision_t` is 32-bit.
+    //
+    // For inputs large enough that the divide-and-conquer ladder engages, the
+    // sub-quadratic FastIntegerInput kernel replaces the Horner loop. Smaller
+    // inputs (and constant evaluation) keep the inline path below, whose fixed
+    // overhead is lower than the kernel's temp buffer plus owned scratch arena.
+    if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+        if (detail::fast_digits_to_limbs_profitable(static_cast<std::size_t>(digit_count), base)) {
+            // Transcode the already-validated ASCII run into MSD-first digit
+            // VALUES (0..base-1), then run the kernel straight into out's limbs.
+            auto                           alloc = out.get_allocator();
+            detail::digit_value_buffer<A>  values(alloc, static_cast<std::size_t>(digit_count));
+            const std::span<unsigned char> vspan = values.span();
+            for (std::ptrdiff_t i = 0; i < static_cast<std::ptrdiff_t>(digit_count); ++i) {
+                vspan[static_cast<std::size_t>(i)] = static_cast<unsigned char>(detail::digit_value(current_begin[i]));
+            }
+            const std::size_t bound = detail::base_conversion_limb_bound(static_cast<std::size_t>(digit_count), base);
+            out.set_zero();
+            out.grow(bound);
+            const std::size_t count =
+                detail::digits_to_limbs(std::span<uint_multiprecision_t>{out.limb_ptr(), bound}, vspan, base, alloc);
+            out.unchecked_set_limb_count(static_cast<std::uint32_t>(count));
+            out.unchecked_trim_magnitude();
+            if (*begin == '-') {
+                out.negate();
+            }
+            return {returned_end, std::errc{}};
+        }
+    }
 
     // Parse the valid digit run in blocks that fit into `uint_multiprecision_t`.
     // The first block may be shorter so that all following blocks have the same width,
