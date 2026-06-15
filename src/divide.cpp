@@ -696,52 +696,29 @@ void reciprocal_span(const std::span<uint_multiprecision_t>       inverse,
 // X > B^2n/d - 1. The correction loop adds d back accordingly.
 // `invert_override` forwards to reciprocal_span (test-only escape hatch).
 // ---------------------------------------------------------------------------
-void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
-                    const std::span<uint_multiprecision_t>       remainder,
-                    const std::span<const uint_multiprecision_t> dividend,
-                    const std::span<const uint_multiprecision_t> divisor,
-                    scratch_allocator_base&                      scratch,
-                    const std::size_t                            invert_override) {
-    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.size() >= 2);
-    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.back() != 0);
-    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
-    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.back() != 0);
-    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.size() >= divisor.size());
-    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size() - divisor.size() + 1);
-    BEMAN_BIG_INT_DEBUG_ASSERT(remainder.size() >= dividend.size() + 1);
+// ---------------------------------------------------------------------------
+// Shared block march of the Barrett drivers: the dividend arrives pre-shifted
+// into t = w.size() / d.size() blocks (`w`), the divisor pre-normalized
+// (`d`, top bit set) with its exact scaled reciprocal (`inv`), and `shift`
+// is the normalization undone on the final remainder window. Allocates only
+// the march products (rewound before returning); `w` holds the remainder
+// chain and `q_work` the concatenated quotient blocks.
+// ---------------------------------------------------------------------------
+namespace {
 
-    const std::size_t n = divisor.size();
-    const std::size_t m = dividend.size();
-    const std::size_t t = barrett_blocks(dividend, divisor);
-
-    const unsigned shift = static_cast<unsigned>(std::countl_zero(divisor.back()));
-
-    // Normalized divisor view (top bit set).
-    std::span<const uint_multiprecision_t> d = divisor;
-    if (shift != 0) {
-        const std::span<uint_multiprecision_t> d_norm = scratch.allocate(n);
-        std::ranges::copy(divisor, d_norm.begin());
-        const std::size_t d_size = shift_left_n(d_norm, n, shift);
-        BEMAN_BIG_INT_DEBUG_ASSERT(d_size == n);
-        d = d_norm.first(d_size);
-    }
-
-    // w = dividend << shift, zero-extended to t blocks of n limbs.
-    const std::span<uint_multiprecision_t> w = scratch.allocate(t * n);
-    std::ranges::fill(w, uint_multiprecision_t{0});
-    std::ranges::copy(dividend, w.begin());
-    if (shift != 0) {
-        const std::size_t w_size = shift_left_n(w, m, shift);
-        BEMAN_BIG_INT_DEBUG_ASSERT(w_size <= t * n);
-    }
-
-    const std::span<uint_multiprecision_t> q_work = scratch.allocate((t - 1) * n);
-
-    // The exact reciprocal of the normalized divisor; its computation scratch
-    // rewinds before the standing block products below are allocated.
-    const std::span<uint_multiprecision_t> inv = scratch.allocate(n);
-    reciprocal_span(inv, d, scratch, invert_override);
-    const auto inv_view = std::span<const uint_multiprecision_t>{inv.data(), inv.size()};
+void barrett_march(const std::span<uint_multiprecision_t>       quotient,
+                   const std::span<uint_multiprecision_t>       remainder,
+                   const std::span<uint_multiprecision_t>       w,
+                   const std::span<uint_multiprecision_t>       q_work,
+                   const std::span<const uint_multiprecision_t> d,
+                   const std::span<const uint_multiprecision_t> inv,
+                   const unsigned                               shift,
+                   scratch_allocator_base&                      scratch) {
+    const std::size_t n = d.size();
+    const std::size_t t = w.size() / n;
+    BEMAN_BIG_INT_DEBUG_ASSERT(w.size() == t * n);
+    BEMAN_BIG_INT_DEBUG_ASSERT(q_work.size() == (t - 1) * n);
+    BEMAN_BIG_INT_DEBUG_ASSERT(inv.size() == n);
 
     // The estimate product stays full (its high half is needed exactly); the
     // q_hat * d_hat subtrahend only matters mod B^wrap - 1 because the true
@@ -761,7 +738,7 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
 
         // q_hat = U_hi + high_half(U_hi * X) where X = B^n + I.
         std::ranges::fill(p, uint_multiprecision_t{0});
-        multiply_runtime_any(p, u_hi, inv_view, scratch.heap());
+        multiply_runtime_any(p, u_hi, inv, scratch.heap());
         const bool q_carry =
             add_unsigned_spans(q_block, u_hi, std::span<const uint_multiprecision_t>{p.data() + n, n});
         BEMAN_BIG_INT_DEBUG_ASSERT(!q_carry);
@@ -817,6 +794,102 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
     }
     std::ranges::copy(w.first(n), remainder.begin());
     std::ranges::fill(remainder.subspan(n), uint_multiprecision_t{0});
+}
+
+} // namespace
+
+void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
+                    const std::span<uint_multiprecision_t>       remainder,
+                    const std::span<const uint_multiprecision_t> dividend,
+                    const std::span<const uint_multiprecision_t> divisor,
+                    scratch_allocator_base&                      scratch,
+                    const std::size_t                            invert_override) {
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.size() >= 2);
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.size() >= divisor.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size() - divisor.size() + 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(remainder.size() >= dividend.size() + 1);
+
+    const std::size_t n = divisor.size();
+    const std::size_t m = dividend.size();
+    const std::size_t t = barrett_blocks(dividend, divisor);
+
+    const unsigned shift = static_cast<unsigned>(std::countl_zero(divisor.back()));
+
+    // Normalized divisor view (top bit set).
+    std::span<const uint_multiprecision_t> d = divisor;
+    if (shift != 0) {
+        const std::span<uint_multiprecision_t> d_norm = scratch.allocate(n);
+        std::ranges::copy(divisor, d_norm.begin());
+        const std::size_t d_size = shift_left_n(d_norm, n, shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(d_size == n);
+        d = d_norm.first(d_size);
+    }
+
+    // w = dividend << shift, zero-extended to t blocks of n limbs.
+    const std::span<uint_multiprecision_t> w = scratch.allocate(t * n);
+    std::ranges::fill(w, uint_multiprecision_t{0});
+    std::ranges::copy(dividend, w.begin());
+    if (shift != 0) {
+        const std::size_t w_size = shift_left_n(w, m, shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(w_size <= t * n);
+    }
+
+    const std::span<uint_multiprecision_t> q_work = scratch.allocate((t - 1) * n);
+
+    // The exact reciprocal of the normalized divisor; its computation scratch
+    // rewinds before the standing block products below are allocated.
+    const std::span<uint_multiprecision_t> inv = scratch.allocate(n);
+    reciprocal_span(inv, d, scratch, invert_override);
+
+    barrett_march(quotient, remainder, w, q_work, d, std::span<const uint_multiprecision_t>{inv}, shift, scratch);
+}
+
+void divide_barrett_preinv(const std::span<uint_multiprecision_t>       quotient,
+                           const std::span<uint_multiprecision_t>       remainder,
+                           const std::span<const uint_multiprecision_t> dividend,
+                           const std::span<const uint_multiprecision_t> d_norm,
+                           const unsigned                               shift,
+                           const std::span<const uint_multiprecision_t> inv,
+                           scratch_allocator_base&                      scratch) {
+    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(d_norm.size() >= 2);
+    BEMAN_BIG_INT_DEBUG_ASSERT(d_norm.back() >> (limb_bits - 1) == 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(inv.size() == d_norm.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(shift < limb_bits);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.back() != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(dividend.size() >= d_norm.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(quotient.size() >= dividend.size() - d_norm.size() + 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(remainder.size() >= dividend.size() + 1);
+
+    const std::size_t n = d_norm.size();
+    const std::size_t m = dividend.size();
+
+    // The block count of barrett_blocks on the unshifted divisor: its
+    // leading-zero count is exactly `shift`.
+    const std::size_t dividend_bits =
+        (m - 1) * limb_bits + static_cast<std::size_t>(std::bit_width(dividend.back()));
+    const std::size_t t = std::max<std::size_t>(2, (dividend_bits + shift) / (n * limb_bits) + 1);
+
+    const std::span<uint_multiprecision_t> w = scratch.allocate(t * n);
+    std::ranges::fill(w, uint_multiprecision_t{0});
+    std::ranges::copy(dividend, w.begin());
+    if (shift != 0) {
+        const std::size_t w_size = shift_left_n(w, m, shift);
+        BEMAN_BIG_INT_DEBUG_ASSERT(w_size <= t * n);
+    }
+
+    const std::span<uint_multiprecision_t> q_work = scratch.allocate((t - 1) * n);
+
+    barrett_march(quotient, remainder, w, q_work, d_norm, inv, shift, scratch);
+
+    // Fully rewind: unlike divide_barrett (one shot per owned workspace),
+    // this entry runs many times against one long-lived scratch.
+    scratch.deallocate((t - 1) * n);
+    scratch.deallocate(t * n);
 }
 
 // Convenience overload: sizes and owns the workspace, then forwards to the

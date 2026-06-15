@@ -855,6 +855,33 @@ void divide_barrett(const std::span<uint_multiprecision_t>       quotient,
         quotient, remainder, dividend, divisor, static_cast<scratch_allocator_base&>(scratch), invert_override);
 }
 
+// Scratch upper bound for divide_barrett_preinv: barrett_storage_size minus
+// the divisor/reciprocal slots and the reciprocal computation arm - the
+// caller holds those once per invariant divisor.
+[[nodiscard]] constexpr std::size_t barrett_preinv_storage_size(const std::size_t block_limbs,
+                                                                const std::size_t blocks) noexcept {
+    const std::size_t w = multiply_mod_bnm1_next_size(block_limbs + 1, multiply_mod_bnm1_cutoff);
+    return (2 * blocks - 1) * block_limbs + 2 * block_limbs + 2 * w + multiply_mod_bnm1_storage_size(w) + 8;
+}
+
+// ---------------------------------------------------------------------------
+// Invariant-divisor Barrett division (the radix-conversion entry the
+// reciprocal_span notes anticipate): same outer contract as divide_barrett,
+// but the divisor arrives pre-normalized (`d_norm`, top bit set; the
+// original divisor is d_norm >> shift) with its exact scaled reciprocal
+// precomputed by reciprocal_span(inv, d_norm, ...). One reciprocal then
+// serves any number of divisions by the same divisor. Fully rewinds its
+// scratch (barrett_preinv_storage_size(d_norm.size(), barrett_blocks(...))
+// limbs) before returning, so repeated calls share one arena.
+// ---------------------------------------------------------------------------
+void divide_barrett_preinv(std::span<uint_multiprecision_t>       quotient,
+                           std::span<uint_multiprecision_t>       remainder,
+                           std::span<const uint_multiprecision_t> dividend,
+                           std::span<const uint_multiprecision_t> d_norm,
+                           unsigned                               shift,
+                           std::span<const uint_multiprecision_t> inv,
+                           scratch_allocator_base&                scratch);
+
 // ---------------------------------------------------------------------------
 // Top-level division dispatcher (counterpart of multiply_dispatch): the
 // divide-and-conquer path needs both a large divisor and a long quotient to
