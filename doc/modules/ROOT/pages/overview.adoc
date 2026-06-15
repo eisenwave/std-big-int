@@ -3,7 +3,7 @@
 
 [#overview]
 
-= `std::big_int`: A reference implementation for https://isocpp.org/files/papers/D4444R0.html[P4444]
+= `beman::big_int`: A reference implementation for https://isocpp.org/files/papers/D4444R0.html[P4444]
 
 == Introduction
 
@@ -15,12 +15,12 @@ Each of these attempts failed — not because there was a lack of interest or mo
 
 == Motivation
 
-This repository contains our reference implementation of `std::big_int`.
+This repository contains our reference implementation of `std::big_int` as `beman::big_int`.
 It is designed to be both portable and performant, with all features specified in https://isocpp.org/files/papers/D4444R0.html[P4444].
 
 == Supported Compilers
 
-`std::big_int` requires a minimum of pass:[C++23], and is tested on the following compilers:
+This repository requires a minimum of pass:[C++23], and is tested on the following compilers:
 
 * GCC 13 and later
 * Clang 17 and later
