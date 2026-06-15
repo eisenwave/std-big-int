@@ -56,7 +56,7 @@ BigIntType fibonacci(unsigned n) {
 auto main() -> int {
     using beman::big_int::big_int;
 
-    // Compute the 1,000th Fibonacci number.
+    // Compute the 10,000th Fibonacci number.
     const big_int fib_10000{fibonacci<big_int>(10000U)};
 
     using namespace beman::big_int::literals;
