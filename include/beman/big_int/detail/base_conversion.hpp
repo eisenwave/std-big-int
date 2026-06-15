@@ -226,7 +226,7 @@ constexpr void append_squared_power(base_power_table&       table,
                                     std::size_t&            r,
                                     scratch_allocator_base& scratch,
                                     Allocator&              alloc) {
-    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
 
     const base_power_entry& prev = table.entry[level - 1];
     BEMAN_BIG_INT_DEBUG_ASSERT(slot_limbs >= 2 * prev.value.size());
@@ -234,8 +234,8 @@ constexpr void append_squared_power(base_power_table&       table,
     std::ranges::fill(slot, uint_multiprecision_t{0});
     std::size_t size = square_into(slot, prev.value, alloc);
 
-    const std::size_t drop = 2 * r >= limb_bits ? 1 : 0;
-    r                      = 2 * r - drop * limb_bits;
+    const std::size_t drop = 2 * r >= local_limb_bits ? 1 : 0;
+    r                      = 2 * r - drop * local_limb_bits;
     if (drop != 0) {
         BEMAN_BIG_INT_DEBUG_ASSERT(slot[0] == 0);
         std::ranges::copy(slot.subspan(1, size - 1), slot.begin());
@@ -561,9 +561,9 @@ class digit_value_buffer {
 // limbs are compared against the value's matching window.
 [[nodiscard]] constexpr bool value_reaches_power(const std::span<const uint_multiprecision_t> v,
                                                  const base_power_entry&                      power) noexcept {
-    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
 
-    const std::size_t power_bits = (power.low_zero_limbs + power.value.size() - 1) * limb_bits +
+    const std::size_t power_bits = (power.low_zero_limbs + power.value.size() - 1) * local_limb_bits +
                                    static_cast<std::size_t>(std::bit_width(power.value.back()));
     const std::size_t value_bits = value_bit_width(v);
     if (value_bits != power_bits) {
@@ -630,7 +630,7 @@ struct short_divisor {
 [[nodiscard]] constexpr uint_multiprecision_t divide_short_preinv_in_place(const std::span<uint_multiprecision_t> s,
                                                                            const std::size_t                      size,
                                                                            const short_divisor& divisor) noexcept {
-    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
     BEMAN_BIG_INT_DEBUG_ASSERT(size >= 1 && size <= s.size());
 
     if (divisor.shift == 0) {
@@ -645,7 +645,7 @@ struct short_divisor {
     }
 
     uint_multiprecision_t cur = s[size - 1];
-    uint_multiprecision_t r   = cur >> (limb_bits - divisor.shift);
+    uint_multiprecision_t r   = cur >> (local_limb_bits - divisor.shift);
     for (std::size_t i = size - 1; i > 0; --i) {
         const uint_multiprecision_t next = s[i - 1];
         const uint_multiprecision_t u    = funnel_shl(wide<uint_multiprecision_t>{.low_bits = next, .high_bits = cur},
@@ -674,7 +674,7 @@ struct short_divisor {
 // ---------------------------------------------------------------------------
 inline void
 attach_power_reciprocals(base_power_table& table, const std::size_t value_limbs, scratch_allocator_base& scratch) {
-    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
 
     for (std::size_t j = 1; j < table.levels; ++j) {
         base_power_entry& entry = table.entry[j];
@@ -692,7 +692,7 @@ attach_power_reciprocals(base_power_table& table, const std::size_t value_limbs,
             BEMAN_BIG_INT_DEBUG_ASSERT(norm_size == s);
             norm = std::span<const uint_multiprecision_t>{norm_slot.data(), s};
         }
-        BEMAN_BIG_INT_DEBUG_ASSERT(norm.back() >> (limb_bits - 1) == 1);
+        BEMAN_BIG_INT_DEBUG_ASSERT(norm.back() >> (local_limb_bits - 1) == 1);
 
         const std::span<uint_multiprecision_t> inv_slot = scratch.allocate(s);
         reciprocal_span(inv_slot, norm, scratch);
