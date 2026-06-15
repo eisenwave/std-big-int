@@ -212,7 +212,7 @@ program [div_big_int_vs_gmp_cpp.limbs.cpp](./div_big_int_vs_gmp_cpp.limbs.cpp).
 In testing, many millions of trials have been performed with checks on
 both performance testing as well as numerical correctness.
 
-## Base-conversion and output printing
+## Base-conversion and conversion to and from string representations
 
 Sub-quadratic base-conversion ties directly into the library's `<charconv>` support,
 itself built on the `to_chars` and `from_chars` functions, and the primitives
