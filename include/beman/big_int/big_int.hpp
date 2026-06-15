@@ -25,6 +25,8 @@
     #include <stdfloat>
 #endif
 
+#include <beman/big_int/detail/base_conversion.hpp>
+#include <beman/big_int/detail/base_tables.hpp>
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
 #include <beman/big_int/detail/floats.hpp>
@@ -3317,112 +3319,6 @@ inline constexpr auto digit_value_table = []() consteval {
     return digit_value_table[static_cast<std::size_t>(c)];
 }
 
-[[nodiscard]] consteval unsigned char limb_max_input_digits_naive(const int base) {
-    BEMAN_BIG_INT_ASSERT(base >= 2);
-    const auto ubase = static_cast<uint_multiprecision_t>(base);
-    if (std::has_single_bit(ubase)) {
-        return detail::width_v<uint_multiprecision_t> / static_cast<unsigned char>(std::countr_zero(ubase));
-    }
-
-    uint_multiprecision_t x      = 1;
-    int                   result = 0;
-    while (true) {
-        const auto [product, overflow] = overflowing_mul(x, ubase);
-        if (overflow) {
-            return static_cast<unsigned char>(product == 0 ? result + 1 : result);
-        }
-        x = product;
-        ++result;
-        BEMAN_BIG_INT_ASSERT(product != 0);
-    }
-}
-
-inline constexpr auto limb_max_input_digits_table = []() consteval {
-    std::array<unsigned char, 37> result{};
-    for (std::size_t i = 2; i < result.size(); ++i) {
-        result[i] = limb_max_input_digits_naive(static_cast<int>(i));
-    }
-    return result;
-}();
-
-// Returns the amount of digits that `uint_multiprecision_t` can represent in the given base.
-// Mathematically, this is `floor(log(pow(2, width_v<uint_multiprecision_t>)) / log(base))`.
-[[nodiscard]] constexpr int limb_max_input_digits(const int base) {
-    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
-    return limb_max_input_digits_table[std::size_t(base)];
-}
-
-[[nodiscard]] consteval uint_multiprecision_t limb_pow_naive(const uint_multiprecision_t x, const int y) {
-    uint_multiprecision_t result = 1;
-    for (int i = 0; i < y; ++i) {
-        result *= x;
-    }
-    return result;
-}
-
-inline constexpr auto limb_max_power_table = []() consteval {
-    std::array<uint_multiprecision_t, 37> result{};
-    for (std::size_t i = 2; i < result.size(); ++i) {
-        const int max_exponent = limb_max_input_digits(static_cast<int>(i));
-        result[i]              = limb_pow_naive(i, max_exponent);
-    }
-    return result;
-}();
-
-// Returns the greatest power of `base` representable in `uint_multiprecision_t`,
-// or zero if the next greater power is exactly `pow(2, width_v<uint_multiprecision_t>)`.
-//
-// A result of zero essentially communicates that no bit of `std::uint64_t` is wasted,
-// such as in the base-2 or base-16 case.
-[[nodiscard]] constexpr uint_multiprecision_t limb_max_power(const int base) {
-    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
-    return limb_max_power_table[std::size_t(base)];
-}
-
-// Fixed-point ceil(log2(base)) coefficients in Q7.4 format.
-// Each entry stores ceil(log2(base) * 16), i.e. ceil(log2(base)) represented with 4 fractional bits.
-inline constexpr std::array<unsigned short, 37> approximate_ceil_mul_log2_q7_4_table{
-    0x00, 0x00, 0x10, 0x1A, 0x20, 0x26, 0x2A, 0x2D, 0x30, 0x33, 0x36, 0x38, 0x3A, 0x3C, 0x3D, 0x3F, 0x40, 0x42, 0x43,
-    0x44, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4D, 0x4E, 0x4F, 0x50, 0x50, 0x51, 0x52, 0x53, 0x53,
-};
-
-// Computes a fast approximation of the amount of bits
-// required to represent an integer in base `base` with `digit_count` digits.
-// Mathematically, this is `ceil(digit_count * log2(base))`.
-// For powers of two, the exact result is returned.
-[[nodiscard]] constexpr std::size_t approximate_ceil_mul_log2(const std::size_t digit_count, const int base) {
-    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
-    constexpr std::size_t fractional_bits = 4;
-    constexpr std::size_t fractional_mask = (std::size_t{1} << fractional_bits) - 1;
-
-    const auto        coeff = static_cast<std::size_t>(approximate_ceil_mul_log2_q7_4_table[std::size_t(base)]);
-    const std::size_t scaled_result = digit_count * coeff;
-    return (scaled_result >> fractional_bits) + static_cast<std::size_t>((scaled_result & fractional_mask) != 0);
-}
-
-// Fixed-point ceil(1/log2(base)) coefficients in Q0.8 format.
-// Each entry stores ceil(256 / log2(base)) as an unsigned char.
-// Indices 0, 1, and 2 are unused; base 2 is handled separately in approximate_ceil_div_log2.
-inline constexpr std::array<unsigned char, 37> approximate_ceil_div_log2_q0_8_table{
-    0x00, 0x00, 0x00, 0xA2, 0x80, 0x6F, 0x64, 0x5C, 0x56, 0x51, 0x4E, 0x4B, 0x48, 0x46, 0x44, 0x42, 0x40, 0x3F, 0x3E,
-    0x3D, 0x3C, 0x3B, 0x3A, 0x39, 0x38, 0x38, 0x37, 0x36, 0x36, 0x35, 0x35, 0x34, 0x34, 0x33, 0x33, 0x32, 0x32,
-};
-
-// Computes a fast approximation of `ceil(x / log2(base))`.
-// For base 2, the exact result is returned.
-[[nodiscard]] constexpr std::size_t approximate_ceil_div_log2(const std::size_t x, const int base) {
-    BEMAN_BIG_INT_DEBUG_ASSERT(base >= 2 && base <= 36);
-    constexpr std::size_t fractional_bits = 8;
-    constexpr std::size_t fractional_mask = (std::size_t{1} << fractional_bits) - 1;
-
-    if (base == 2) {
-        return x;
-    }
-    const auto coeff = static_cast<std::size_t>(approximate_ceil_div_log2_q0_8_table[static_cast<std::size_t>(base)]);
-    const std::size_t scaled_result = x * coeff;
-    return (scaled_result >> fractional_bits) + static_cast<std::size_t>((scaled_result & fractional_mask) != 0);
-}
-
 } // namespace detail
 
 template <size_t b, class A>
@@ -3589,6 +3485,30 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, A>& x, const
     case 34:
     case 35:
     case 36: {
+        // For magnitudes large enough that the divide-and-conquer ladder
+        // engages, the sub-quadratic FastIntegerOutput kernel replaces the
+        // repeated short-division loop. Smaller values (and constant
+        // evaluation) keep the inline path below.
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+            const std::span<const uint_multiprecision_t> value_span{x.limb_ptr(), x.limb_count()};
+            if (detail::fast_limbs_to_digits_profitable(value_span, base)) {
+                // The kernel emits the exact MSD-first digit VALUES; map them to
+                // ASCII in place. No reversal -- already most-significant-first.
+                auto                           alloc = x.get_allocator();
+                const std::size_t              bound = detail::base_conversion_digit_bound(value_span, base);
+                detail::digit_value_buffer<A>  values(alloc, bound);
+                const std::span<unsigned char> vspan = values.span();
+                const std::size_t              n     = detail::limbs_to_digits(vspan, value_span, base, alloc);
+                if (static_cast<std::size_t>(end - current_begin) < n) {
+                    return {end, std::errc::value_too_large};
+                }
+                for (std::size_t i = 0; i < n; ++i) {
+                    current_begin[i] = alphabet[vspan[i]];
+                }
+                return {current_begin + n, std::errc{}};
+            }
+        }
+
         auto remainder = x;
         remainder.unchecked_set_sign(false);
         // Zero should have been handled above already.
@@ -3698,10 +3618,17 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             const char* const digit_block_begin = current_end - digit_block_length;
             BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
 
-            const std::from_chars_result digit_block_result =
-                std::from_chars(digit_block_begin, current_end, out_limbs[out_limb_index], base);
             // We already validated the digit run and bounded each block to one limb.
-            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_result.ec == std::errc{});
+            // Pack the digit blocks ourselves for up to 6x performance improvement with libc++,
+            // since they don't have optimizations for any of the power of two cases.
+            // Libstdc++ does so we see a tiny improvement due to reduced overhead
+            uint_multiprecision_t limb = 0;
+            for (const char* digit = digit_block_begin; digit != current_end; ++digit) {
+                const int value = detail::digit_value(*digit);
+                BEMAN_BIG_INT_DEBUG_ASSERT(value >= 0 && value < base);
+                limb = (limb << bits_per_digit) | static_cast<uint_multiprecision_t>(value);
+            }
+            out_limbs[out_limb_index] = limb;
             ++out_limb_index;
 
             if (digit_block_begin == current_begin) {
@@ -3739,13 +3666,14 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             const char* const digit_block_begin  = current_end - digit_block_length;
             BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
 
-            uint_multiprecision_t        bits{};
-            const std::from_chars_result digit_block_result =
-                std::from_chars(digit_block_begin, current_end, bits, base);
-            // We already pre-parsed the string when advancing current_end,
-            // and we made sure to only take as many digits as can fit into uint_multiprecision_t,
-            // so use of `std::from_chars` should be infallible.
-            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_result.ec == std::errc{});
+            // Pack the digit block (most-significant-first) with shift/or; see
+            // the max_pow == 0 case above for why std::from_chars is not used.
+            uint_multiprecision_t bits = 0;
+            for (const char* digit = digit_block_begin; digit != current_end; ++digit) {
+                const int value = detail::digit_value(*digit);
+                BEMAN_BIG_INT_DEBUG_ASSERT(value >= 0 && value < base); // pre-validated by the scan above
+                bits = (bits << bits_per_digit) | static_cast<uint_multiprecision_t>(value);
+            }
 
             out.unchecked_init_magnitude_bits_at(bits, bit_offset);
             bit_offset += bits_per_iteration;
@@ -3775,6 +3703,34 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     //
     // For example, if `base` is `10`, instead of doing parsing base 10,
     // we do it base `1'000'000'000` assuming `uint_multiprecision_t` is 32-bit.
+    //
+    // For inputs large enough that the divide-and-conquer ladder engages, the
+    // sub-quadratic FastIntegerInput kernel replaces the Horner loop. Smaller
+    // inputs (and constant evaluation) keep the inline path below, whose fixed
+    // overhead is lower than the kernel's temp buffer plus owned scratch arena.
+    if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
+        if (detail::fast_digits_to_limbs_profitable(static_cast<std::size_t>(digit_count), base)) {
+            // Transcode the already-validated ASCII run into MSD-first digit
+            // VALUES (0..base-1), then run the kernel straight into out's limbs.
+            auto                           alloc = out.get_allocator();
+            detail::digit_value_buffer<A>  values(alloc, static_cast<std::size_t>(digit_count));
+            const std::span<unsigned char> vspan = values.span();
+            for (std::ptrdiff_t i = 0; i < static_cast<std::ptrdiff_t>(digit_count); ++i) {
+                vspan[static_cast<std::size_t>(i)] = static_cast<unsigned char>(detail::digit_value(current_begin[i]));
+            }
+            const std::size_t bound = detail::base_conversion_limb_bound(static_cast<std::size_t>(digit_count), base);
+            out.set_zero();
+            out.grow(bound);
+            const std::size_t count =
+                detail::digits_to_limbs(std::span<uint_multiprecision_t>{out.limb_ptr(), bound}, vspan, base, alloc);
+            out.unchecked_set_limb_count(static_cast<std::uint32_t>(count));
+            out.unchecked_trim_magnitude();
+            if (*begin == '-') {
+                out.negate();
+            }
+            return {returned_end, std::errc{}};
+        }
+    }
 
     // Parse the valid digit run in blocks that fit into `uint_multiprecision_t`.
     // The first block may be shorter so that all following blocks have the same width,

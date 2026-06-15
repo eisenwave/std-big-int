@@ -1,5 +1,7 @@
 #include <string_view>
 #include <cmath>
+#include <random>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -1168,6 +1170,84 @@ TEST(ToChars, HugeValueTooLarge) {
         const auto [p, ec] = to_chars(range, std::end(range), value, base);
         EXPECT_EQ(ec, std::errc::value_too_large);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Large-input coverage for the sub-quadratic from_chars / to_chars path. The
+// fast kernel only engages above the per-arch gate (~1216 base-10 digits on
+// AArch64, ~19456 on x86-64), so all the fixed-value tests above exercise only
+// the inline fallback. These round-trips push past both gates across several
+// non-power-of-two bases, validating the ASCII<->digit-value transcode, the
+// result/scratch sizing, sign handling, and the value_too_large path.
+// ---------------------------------------------------------------------------
+[[nodiscard]] std::string random_digit_string(const std::size_t len, const int base, const std::uint64_t seed) {
+    static constexpr char              alphabet[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+    std::mt19937_64                    rng{seed};
+    std::uniform_int_distribution<int> dist(0, base - 1);
+    std::string                        s(len, '0');
+    for (char& c : s) {
+        c = alphabet[dist(rng)];
+    }
+    if (s.front() == '0') {
+        s.front() = alphabet[1]; // no leading zero, so to_string round-trips the string exactly
+    }
+    return s;
+}
+
+TEST(Charconv, FastPathRoundTrip) {
+    for (const int base : {3, 7, 10, 26, 36}) {
+        for (const std::size_t len : {std::size_t{2000}, std::size_t{25000}, std::size_t{60000}}) {
+            const std::uint64_t seed = static_cast<std::uint64_t>(base) * 1000003u + static_cast<std::uint64_t>(len);
+            const std::string   s    = random_digit_string(len, base, seed);
+
+            const big_int v = parse(s, base);
+            EXPECT_EQ(to_string(v, base), s) << "base=" << base << " len=" << len;
+
+            const std::string ns = "-" + s;
+            const big_int     nv = parse(ns, base);
+            EXPECT_EQ(to_string(nv, base), ns) << "negative base=" << base << " len=" << len;
+        }
+    }
+}
+
+// Large power-of-two round-trips: the fixed-value tests above top out at ~200
+// digits, so this exercises the multi-limb bit-packing chunk loops in both po2
+// from_chars branches (2/16 = max_pow==0, 8/32 = general is_pow_2) plus the
+// short top block, against the direct-shift to_chars side.
+TEST(Charconv, Po2RoundTrip) {
+    for (const int base : {2, 8, 16, 32}) {
+        for (const std::size_t len : {std::size_t{200}, std::size_t{5000}, std::size_t{100000}}) {
+            const std::uint64_t seed = static_cast<std::uint64_t>(base) * 7919u + static_cast<std::uint64_t>(len);
+            const std::string   s    = random_digit_string(len, base, seed);
+
+            EXPECT_EQ(to_string(parse(s, base), base), s) << "base=" << base << " len=" << len;
+            const std::string ns = "-" + s;
+            EXPECT_EQ(to_string(parse(ns, base), base), ns) << "negative base=" << base << " len=" << len;
+        }
+    }
+}
+
+TEST(FromChars, FastPathStopsAtInvalidCharacter) {
+    constexpr int     base   = 10;
+    const std::string digits = random_digit_string(25000, base, 0xABCDEFull);
+    const std::string text   = digits + "!not a digit";
+
+    big_int v;
+    const auto [p, ec] = from_chars(text.data(), text.data() + text.size(), v, base);
+    EXPECT_EQ(ec, std::errc{});
+    EXPECT_EQ(p, text.data() + digits.size());
+    EXPECT_EQ(to_string(v, base), digits);
+}
+
+TEST(ToChars, FastPathValueTooLarge) {
+    constexpr int     base   = 10;
+    const std::string digits = random_digit_string(25000, base, 0x5555ull);
+    const big_int     v      = parse(digits, base);
+
+    std::string buf(digits.size() - 1, '\0'); // one char short of the digit count
+    const auto [p, ec] = to_chars(buf.data(), buf.data() + buf.size(), v, base);
+    EXPECT_EQ(ec, std::errc::value_too_large);
+    EXPECT_EQ(p, buf.data() + buf.size());
 }
 
 } // namespace
