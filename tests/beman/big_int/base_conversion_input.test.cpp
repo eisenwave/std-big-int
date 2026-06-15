@@ -8,6 +8,16 @@
 // matrix covers chunk boundaries, big_base^k +- 1 carry chains, odd/even
 // element counts at every ladder level, and the fully-written contract.
 
+#include <beman/big_int/detail/config.hpp>
+
+// Boost.Multiprecision cpp_int (the independent reference below) trips GCC's
+// -Warray-bounds / stringop checks through its small-buffer optimization under
+// fortify + optimization; these are false positives (cf. conversion_bench).
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Warray-bounds")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overflow")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wstringop-overread")
+
 #include <beman/big_int/detail/base_conversion.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
 
@@ -405,3 +415,5 @@ static_assert(input_consteval_smoke(0));
 static_assert(input_consteval_smoke(1));
 
 } // namespace
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
