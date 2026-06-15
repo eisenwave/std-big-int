@@ -221,19 +221,19 @@ string representations of big integers. The performance of these operations
 is influenced primarily by the efficiency of the underlying multiplication
 and division algorithms, which are described in detail in the paragraphs above.
 
-## Order-$N$ algorithms
+## Order-N algorithms
 
-Order-$N$ algorithms include addition, subtraction, bit-shift,
+Order-N algorithms include addition, subtraction, bit-shift,
 comparison, hashing and so forth. These are not explicitly tabulated
 nor analyzed here. Their computational complexity is linear,
-in relation to the limb count.
+in direct relation to the limb count.
 
 ## Summary of performance measurement source files
 
-| Source file                        | Description                           |
-|------------------------------------|---------------------------------------|
-| div_big_int_vs_gmp_cpp.limbs.cpp   | Division performance with fixed limbs and timing |
-| div_big_int_vs_gmp_cpp.perf.cpp    | Division performance with mixed limbs, timing and numerical correctness |
-| elliptic_ecc.perf.cpp              | Elliptic curve cryptography overall performance gauge at modest limb counts |
-| mul_big_int_vs_gmp_cpp.limbs.cpp   | Multiplication performance with fixed limbs and timing |
-| mul_big_int_vs_gmp_cpp.perf.cpp    | Multiplication performance with mixed limbs, timing and numerical correctness |
+| Source file                                             | Description                           |
+|---------------------------------------------------------|---------------------------------------|
+| [div_big_int_vs_gmp_cpp.limbs.cpp](./div_big_int_vs_gmp_cpp.limbs.cpp)     | Division performance with fixed limbs and timing |
+| [div_big_int_vs_gmp_cpp.perf.cpp](./div_big_int_vs_gmp_cpp.perf.cpp)       | Division performance with mixed limbs, timing and numerical correctness |
+| [elliptic_ecc.perf.cpp](./elliptic_ecc.perf.cpp)                           | Elliptic curve cryptography overall performance gauge at modest limb counts |
+| [mul_big_int_vs_gmp_cpp.limbs.cpp](./mul_big_int_vs_gmp_cpp.limbs.cpp)     | Multiplication performance with fixed limbs and timing |
+| [mul_big_int_vs_gmp_cpp.perf.cpp](./mul_big_int_vs_gmp_cpp.perf.cpp)       | Multiplication performance with mixed limbs, timing and numerical correctness |
