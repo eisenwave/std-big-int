@@ -299,6 +299,25 @@ void run_input_xover() {
     }
 }
 
+// Power-of-two coverage (run in isolation: --gtest_filter=*Po2Bench*). po2 bases
+// never touch the sub-quadratic kernels; from_chars/to_chars handle them with
+// O(n) bit-oriented chunk loops. Bases 2 and 16 exercise the max_pow == 0 path
+// (one digit block maps to exactly one limb), 8 and 32 the general is_pow_2 path
+// (funnel-shift writes). to_chars emits digits with direct shift/mask; from_chars
+// currently parses each chunk with std::from_chars -- this sweep measures whether
+// that costs against the bit-aligned ideal.
+void run_po2_sweep() {
+    std::cout << "kernel,base,digits,chunks,ns_per_op\n";
+    for (const int base : {2, 8, 16, 32}) {
+        for (const std::size_t len : {std::size_t{1000}, std::size_t{10000}, std::size_t{100000},
+                                      std::size_t{1000000}, std::size_t{10000000}}) {
+            emit("po2_from_chars", base, len, run_from_chars_at(len, base));
+            emit("po2_to_chars", base, len, run_to_chars_at(len, base));
+            std::cout.flush();
+        }
+    }
+}
+
 } // namespace local
 
 TEST(BaseConversion, InputBench) {
@@ -313,6 +332,15 @@ TEST(BaseConversion, InputBench) {
 TEST(BaseConversion, InputXover) {
 #ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
     local::run_input_xover();
+    SUCCEED();
+#else
+    GTEST_SKIP() << "Benchmarks not run (define BEMAN_BIG_INT_RUN_BENCHMARKS to enable)";
+#endif
+}
+
+TEST(BaseConversion, Po2Bench) {
+#ifdef BEMAN_BIG_INT_RUN_BENCHMARKS
+    local::run_po2_sweep();
     SUCCEED();
 #else
     GTEST_SKIP() << "Benchmarks not run (define BEMAN_BIG_INT_RUN_BENCHMARKS to enable)";

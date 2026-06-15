@@ -3618,10 +3618,17 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             const char* const digit_block_begin = current_end - digit_block_length;
             BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
 
-            const std::from_chars_result digit_block_result =
-                std::from_chars(digit_block_begin, current_end, out_limbs[out_limb_index], base);
             // We already validated the digit run and bounded each block to one limb.
-            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_result.ec == std::errc{});
+            // Pack the digit blocks ourselves for up to 6x performance improvement with libc++,
+            // since they don't have optimizations for any of the power of two cases.
+            // Libstdc++ does so we see a tiny improvement due to reduced overhead
+            uint_multiprecision_t limb = 0;
+            for (const char* digit = digit_block_begin; digit != current_end; ++digit) {
+                const int value = detail::digit_value(*digit);
+                BEMAN_BIG_INT_DEBUG_ASSERT(value >= 0 && value < base);
+                limb = (limb << bits_per_digit) | static_cast<uint_multiprecision_t>(value);
+            }
+            out_limbs[out_limb_index] = limb;
             ++out_limb_index;
 
             if (digit_block_begin == current_begin) {
@@ -3659,13 +3666,14 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
             const char* const digit_block_begin  = current_end - digit_block_length;
             BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_length != 0);
 
-            uint_multiprecision_t        bits{};
-            const std::from_chars_result digit_block_result =
-                std::from_chars(digit_block_begin, current_end, bits, base);
-            // We already pre-parsed the string when advancing current_end,
-            // and we made sure to only take as many digits as can fit into uint_multiprecision_t,
-            // so use of `std::from_chars` should be infallible.
-            BEMAN_BIG_INT_DEBUG_ASSERT(digit_block_result.ec == std::errc{});
+            // Pack the digit block (most-significant-first) with shift/or; see
+            // the max_pow == 0 case above for why std::from_chars is not used.
+            uint_multiprecision_t bits = 0;
+            for (const char* digit = digit_block_begin; digit != current_end; ++digit) {
+                const int value = detail::digit_value(*digit);
+                BEMAN_BIG_INT_DEBUG_ASSERT(value >= 0 && value < base); // pre-validated by the scan above
+                bits = (bits << bits_per_digit) | static_cast<uint_multiprecision_t>(value);
+            }
 
             out.unchecked_init_magnitude_bits_at(bits, bit_offset);
             bit_offset += bits_per_iteration;

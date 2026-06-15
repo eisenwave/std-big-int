@@ -1210,6 +1210,23 @@ TEST(Charconv, FastPathRoundTrip) {
     }
 }
 
+// Large power-of-two round-trips: the fixed-value tests above top out at ~200
+// digits, so this exercises the multi-limb bit-packing chunk loops in both po2
+// from_chars branches (2/16 = max_pow==0, 8/32 = general is_pow_2) plus the
+// short top block, against the direct-shift to_chars side.
+TEST(Charconv, Po2RoundTrip) {
+    for (const int base : {2, 8, 16, 32}) {
+        for (const std::size_t len : {std::size_t{200}, std::size_t{5000}, std::size_t{100000}}) {
+            const std::uint64_t seed = static_cast<std::uint64_t>(base) * 7919u + static_cast<std::uint64_t>(len);
+            const std::string   s    = random_digit_string(len, base, seed);
+
+            EXPECT_EQ(to_string(parse(s, base), base), s) << "base=" << base << " len=" << len;
+            const std::string ns = "-" + s;
+            EXPECT_EQ(to_string(parse(ns, base), base), ns) << "negative base=" << base << " len=" << len;
+        }
+    }
+}
+
 TEST(FromChars, FastPathStopsAtInvalidCharacter) {
     constexpr int     base   = 10;
     const std::string digits = random_digit_string(25000, base, 0xABCDEFull);
