@@ -2,7 +2,7 @@
 
 ## Simulated real-world case ECDSA sign/verify in elliptic curve space
 
-One of our tests provides an intuitive view on elliptic-curve algebra
+One of our performance tests provides an intuitive view on elliptic-curve algebra
 using big integer mathematics in the curved space. It depicts a well-known
 cryptographic key-gen/sign/verify method ($256$-bit ECDSA, secp256k1).
 This provides an overall performance indication using modest integer widths.
@@ -129,11 +129,11 @@ on an x86-64 machine with the SIMD multiplication path enabled (configured with
 |----------------|--------------|-----------------------|------------------------|------------------------|-----------------------|
 | 128            | 8,192        | 2,500                 |   9.8   [2.2]          |   8.2   [1.9]          |   4.4   [1.0]         |
 | 512            | 32,768       | 9,900                 |   67    [2.5]          |   64    [2.4]          |   27    [1.0]         |
-| 1,024          | 65,536       | 20,000                |   199   [2.7]          |   188   [2.6]          |   73    [1.0]         |
-| 2,048          | 131,072      | 39,000                |   564   [3.0]          |   579   [3.0]          |   190   [1.0]         |
-| 8,192          | 524,288      | 160,000               |   4,060 [3.2]          |   5,210 [4.1], see (2) |   1,270 [1.0]         |
-| 32,768         | 2,097,152    | 631,000               |  17,100 [3.2]          |  46,900 [8.8]          |   5,330 [1.0]         |
-| 131,072        | 8,388,608    | 2,525,000             |  71,700 [2.7], see (1) | 422,000 [15.7]         |  26,900 [1.0]         |
+| 1,024          | 65,536       | 20,000                |   199   [2.7]          |   190   [2.6]          |   73    [1.0]         |
+| 2,048          | 131,072      | 39,000                |   564   [3.0]          |   580   [3.0]          |   190   [1.0]         |
+| 8,192          | 524,288      | 160,000               |   4,100 [3.2]          |   5,200 [4.1], see (2) |   1,300 [1.0]         |
+| 32,768         | 2,097,152    | 631,000               |  17,000 [3.2]          |  47,000 [8.8]          |   5,300 [1.0]         |
+| 131,072        | 8,388,608    | 2,525,000             |  72,000 [2.7], see (1) | 420,000 [15.7]         |  27,000 [1.0]         |
 
 GMP is written in hand-coded assembly in its hot spots and is the _industry_
 _standard_ of performance. With its FFT (small-prime NTT) tier, `beman.big_int`
@@ -152,6 +152,14 @@ that back to about $2.7x$, tracking GMP's asymptotic complexity.
 (2) `cpp_int` only reaches _as_ _high_ as Karatsuba multiplication, so both
 `big_int` and `gmp_int` pull ahead at medium-high digit counts -- `big_int`'s lead
 over `cpp_int` grows to roughly $6x$ by $131,072$ limbs.
+
+Performance measurements of `big_int` versus `gmp_int` multiplication with mixed limb counts
+ranging from $4{\ldots}30,000$ result in similar relative timings, with `big_int` staying
+within roughly $2x{\ldots}3x$ of GMP across the entire range.
+These measurements have been accomplished with the
+program [mul_big_int_vs_gmp_cpp.limbs.cpp](./mul_big_int_vs_gmp_cpp.limbs.cpp).
+In testing, many millions of trials have been performed with checks on
+both performance testing as well as numerical correctness.
 
 ## Division
 
@@ -196,6 +204,36 @@ This algorithm has quadratic complexity . `big_int` and `gmp_int` pull ahead
 rapidly at medium-high digit counts -- `big_int`'s lead
 over `cpp_int` grows to roughly $8x$ by $8,192$ limbs.
 
-## Base-conversion
+Performance measurements of `big_int` versus `gmp_int` division with mixed limb counts
+ranging from $4{\ldots}30,000$ result in similar relative timings, with `big_int` staying
+within roughly $2x{\ldots}4x$ of GMP across the entire range.
+These measurements have been carried out with the
+program [div_big_int_vs_gmp_cpp.limbs.cpp](./div_big_int_vs_gmp_cpp.limbs.cpp).
+In testing, many millions of trials have been performed with checks on
+both performance testing as well as numerical correctness.
 
-TODO: Follow the progress of sub-quadratic base-change.
+## Base-conversion and conversion to and from string representations
+
+Sub-quadratic base-conversion ties directly into the library's `<charconv>` support,
+itself built on the `to_chars` and `from_chars` functions, and the primitives
+used therein. This provides a convenient interface for converting to and from
+string representations of big integers. The performance of these operations
+is influenced primarily by the efficiency of the underlying multiplication
+and division algorithms, which are described in detail in the paragraphs above.
+
+## Order-N algorithms
+
+Order-N algorithms include addition, subtraction, bit-shift,
+comparison, hashing and so forth. These are not explicitly tabulated
+nor analyzed here. Their computational complexity is linear,
+in direct relation to the limb count.
+
+## Summary of performance measurement source files
+
+| Source file                                             | Description                           |
+|---------------------------------------------------------|---------------------------------------|
+| [div_big_int_vs_gmp_cpp.limbs.cpp](./div_big_int_vs_gmp_cpp.limbs.cpp)     | Division performance with fixed limbs and timing |
+| [div_big_int_vs_gmp_cpp.perf.cpp](./div_big_int_vs_gmp_cpp.perf.cpp)       | Division performance with mixed limbs, timing and numerical correctness |
+| [elliptic_ecc.perf.cpp](./elliptic_ecc.perf.cpp)                           | Elliptic curve cryptography overall performance gauge at modest limb counts |
+| [mul_big_int_vs_gmp_cpp.limbs.cpp](./mul_big_int_vs_gmp_cpp.limbs.cpp)     | Multiplication performance with fixed limbs and timing |
+| [mul_big_int_vs_gmp_cpp.perf.cpp](./mul_big_int_vs_gmp_cpp.perf.cpp)       | Multiplication performance with mixed limbs, timing and numerical correctness |
