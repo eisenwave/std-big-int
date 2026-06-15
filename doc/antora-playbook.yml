@@ -14,5 +14,4 @@ ui:
   output_dir: _
 antora:
   extensions:
-    - require: '@cppalliance/antora-downloads-extension'
     - require: '@antora/lunr-extension'
