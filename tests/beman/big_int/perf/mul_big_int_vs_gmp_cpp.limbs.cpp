@@ -3,7 +3,6 @@
 
 #include <beman/big_int/big_int.hpp>
 #include <boost/multiprecision/gmp.hpp>
-#include <boost/multiprecision/cpp_int.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -12,6 +11,7 @@
 #include <iostream>
 #include <random>
 #include <sstream>
+#include <vector>
 
 namespace local {
 
@@ -53,10 +53,15 @@ namespace detail {
 } // namespace detail
 
 [[nodiscard]] inline std::string random_big_int(const std::size_t bits, const bool negative = false) {
-    static std::mt19937_64 rng{std::random_device{}()};
+    static std::mt19937_64 rng{static_cast<typename std::mt19937_64::result_type>(std::random_device{}())};
+    static unsigned        seed_prescaler{};
 
     if (bits == 0) {
         return std::string{"0"};
+    }
+
+    if ((++seed_prescaler % 512U) == 0U) {
+        rng.seed(static_cast<typename std::mt19937_64::result_type>(std::random_device{}()));
     }
 
     std::string signed_hex;
@@ -80,9 +85,10 @@ using random_engine_length_type = std::minstd_rand;
 
 auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, std::string>;
 
-auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, std::string> {
-    const std::string str_a{bmp::random_big_int(len_in_bits)};
-    const std::string str_b{bmp::random_big_int(len_in_bits / 2)};
+auto get_hex_string_pair(const unsigned len_in_bits_lhs, const unsigned len_in_bits_rhs)
+    -> std::pair<std::string, std::string> {
+    const std::string str_a{bmp::random_big_int(len_in_bits_lhs)};
+    const std::string str_b{bmp::random_big_int(len_in_bits_rhs)};
 
     return {str_a, str_b};
 }
@@ -90,8 +96,7 @@ auto get_hex_string_pair(const unsigned len_in_bits) -> std::pair<std::string, s
 } // namespace detail
 
 using beman::big_int::big_int;
-using gmp_int = boost::multiprecision::number<boost::multiprecision::gmp_int, boost::multiprecision::et_off>;
-using cpp_int = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<>, boost::multiprecision::et_off>;
+using ctrl_int = boost::multiprecision::number<boost::multiprecision::gmp_int, boost::multiprecision::et_off>;
 
 auto to_hex_string_bn(big_int value_to_convert) -> std::string {
     // Calculate the hex-expected string length and also align to 16.
@@ -120,21 +125,31 @@ auto main(int argc, char** argv) -> int {
     // argv[1] = operand width in limbs, argv[2] = trial count (both optional). The
     // defaults reproduce the original single 512-limb, 0x4000-trial run; passing a
     // size sweeps the big_int / cpp_int / gmp_int comparison table.
-    const unsigned      limbs{(argc > 1) ? static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10)) : 512U};
-    const std::uint32_t max_trial{(argc > 2) ? static_cast<std::uint32_t>(std::strtoul(argv[2], nullptr, 10))
+    const std::uint32_t max_trial{(argc > 1) ? static_cast<std::uint32_t>(std::strtoul(argv[1], nullptr, 10))
                                              : static_cast<std::uint32_t>(UINT32_C(0x4000))};
     auto                trial = static_cast<std::uint32_t>(UINT32_C(0));
 
-    std::uint64_t elapsed_total_ops_bn{};
-    std::uint64_t elapsed_total_ops_gm{};
-    std::uint64_t elapsed_total_ops_cp{};
+    std::mt19937_64                rng{static_cast<typename std::mt19937_64::result_type>(std::random_device{}())};
+    std::uniform_real_distribution dist_rhs(0.5, 1.5);
 
-    const unsigned length_in_bits{limbs * limb_bits};
+    std::uniform_int_distribution dist_limbs(4U, 24576U);
+
+    std::uint64_t elapsed_total_ops_bn{};
+    std::uint64_t elapsed_total_ops_ctrl{};
 
     for (; ((trial < max_trial) && result_total_is_ok); ++trial) {
-        const local::detail::str_pair_type str_pair{local::detail::get_hex_string_pair(length_in_bits)};
 
-        // Make commands like the following:
+        const unsigned limbs{dist_limbs(rng)};
+        const unsigned length_in_bits_lhs{limbs * limb_bits};
+
+        // The right-hand operand has a different limb count than the left-hand operand.
+        const unsigned length_in_bits_rhs{static_cast<unsigned>(static_cast<double>(limbs) * dist_rhs(rng)) *
+                                          limb_bits};
+
+        const unsigned result_length_in_ascii_chars{(limb_bits + length_in_bits_lhs + length_in_bits_rhs) / 4U};
+
+        const local::detail::str_pair_type str_pair{
+            local::detail::get_hex_string_pair(length_in_bits_lhs, length_in_bits_rhs)};
 
         local::big_int bn_a{};
         local::big_int bn_b{};
@@ -147,16 +162,16 @@ auto main(int argc, char** argv) -> int {
         static_cast<void>(fc_result_a);
         static_cast<void>(fc_result_b);
 
-        local::gmp_int gm_a{"0x" + str_pair.first};
-        local::gmp_int gm_b{"0x" + str_pair.second};
+        local::ctrl_int ctrl_a{"0x" + str_pair.first};
+        local::ctrl_int ctrl_b{"0x" + str_pair.second};
 
-        local::cpp_int cp_a{"0x" + str_pair.first};
-        local::cpp_int cp_b{"0x" + str_pair.second};
+        local::big_int  bn_c{};
+        local::ctrl_int ctrl_c{};
 
         {
             const auto start{std::chrono::high_resolution_clock::now()};
 
-            const local::big_int mul_result = bn_a / bn_b;
+            bn_c = bn_a * bn_b;
 
             const auto stop{std::chrono::high_resolution_clock::now()};
 
@@ -168,26 +183,35 @@ auto main(int argc, char** argv) -> int {
         {
             const auto start{std::chrono::high_resolution_clock::now()};
 
-            const local::cpp_int mul_result = cp_a / cp_b;
+            ctrl_c = ctrl_a * ctrl_b;
 
             const auto stop{std::chrono::high_resolution_clock::now()};
 
             const auto elapsed_one_op{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
 
-            elapsed_total_ops_cp = elapsed_total_ops_cp + static_cast<std::uint64_t>(elapsed_one_op);
+            elapsed_total_ops_ctrl = elapsed_total_ops_ctrl + static_cast<std::uint64_t>(elapsed_one_op);
         }
+
+        std::vector<char> vec_char_result(std::size_t{result_length_in_ascii_chars}, '\0');
+
+        static_cast<void>(to_chars(
+            vec_char_result.data(), vec_char_result.data() + std::size_t{result_length_in_ascii_chars}, bn_c, 16));
+
+        const std::string bn_str(vec_char_result.data());
+
+        std::string ctrl_str{};
 
         {
-            const auto start{std::chrono::high_resolution_clock::now()};
+            std::stringstream strm{};
 
-            const local::gmp_int mul_result = gm_a / gm_b;
+            strm << std::hex << ctrl_c;
 
-            const auto stop{std::chrono::high_resolution_clock::now()};
-
-            const auto elapsed_one_op{std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count()};
-
-            elapsed_total_ops_gm = elapsed_total_ops_gm + static_cast<std::uint64_t>(elapsed_one_op);
+            ctrl_str = strm.str();
         }
+
+        const bool result_op_is_ok{(bn_str == ctrl_str)};
+
+        result_total_is_ok = (result_op_is_ok && result_total_is_ok);
 
         {
             if ((trial > 0U) && ((trial % 32U) == UINT32_C(0))) {
@@ -197,32 +221,20 @@ auto main(int argc, char** argv) -> int {
                 {
                     std::stringstream strm{};
 
-                    strm << "trial: " << trial << ", average_op_time_us_bn: " << std::setprecision(1) << std::fixed
+                    strm << "trial: " << trial << ", average_op_time_us_bn:   " << std::setprecision(1) << std::fixed
                          << average_op_time_us_bn;
 
                     std::cout << strm.str() << std::endl;
                 }
 
-                const double average_op_time_us_cp =
-                    (static_cast<double>(elapsed_total_ops_cp) / static_cast<double>(trial)) / 1000.0;
+                const double average_op_time_us_ctrl =
+                    (static_cast<double>(elapsed_total_ops_ctrl) / static_cast<double>(trial)) / 1000.0;
 
                 {
                     std::stringstream strm{};
 
-                    strm << "trial: " << trial << ", average_op_time_us_cp: " << std::setprecision(1) << std::fixed
-                         << average_op_time_us_cp;
-
-                    std::cout << strm.str() << std::endl;
-                }
-
-                const double average_op_time_us_gm =
-                    (static_cast<double>(elapsed_total_ops_gm) / static_cast<double>(trial)) / 1000.0;
-
-                {
-                    std::stringstream strm{};
-
-                    strm << "trial: " << trial << ", average_op_time_us_gm: " << std::setprecision(1) << std::fixed
-                         << average_op_time_us_gm;
+                    strm << "trial: " << trial << ", average_op_time_us_ctrl: " << std::setprecision(1) << std::fixed
+                         << average_op_time_us_ctrl;
 
                     std::cout << strm.str() << std::endl;
                 }
@@ -233,17 +245,18 @@ auto main(int argc, char** argv) -> int {
     result_total_is_ok = ((trial == max_trial) && result_total_is_ok);
 
     {
-        const double avg_bn = (trial != 0U ? static_cast<double>(elapsed_total_ops_bn) / trial : 0.0) / 1000.0;
-        const double avg_gm = (trial != 0U ? static_cast<double>(elapsed_total_ops_gm) / trial : 0.0) / 1000.0;
-        const double avg_cp = (trial != 0U ? static_cast<double>(elapsed_total_ops_cp) / trial : 0.0) / 1000.0;
+        const double avg_bn   = (trial != 0U ? static_cast<double>(elapsed_total_ops_bn) / trial : 0.0) / 1000.0;
+        const double avg_ctrl = (trial != 0U ? static_cast<double>(elapsed_total_ops_ctrl) / trial : 0.0) / 1000.0;
 
         std::stringstream strm;
 
         strm << '\n';
-        strm << "Summary                            : " << trial << " trials, " << limbs << " limbs" << '\n';
+        strm << "Summary                            : " << trial << " trials, limbs variable " << dist_limbs.a()
+             << "..." << dist_limbs.b() << " with rhs asymmetric" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
         strm << std::fixed << std::setprecision(1);
-        strm << "us per op big_int / cpp_int / gmp : " << avg_bn << " / " << avg_cp << " / " << avg_gm << '\n';
+        strm << "us per op big_int / ctrl / rel    : " << avg_bn << " / " << avg_ctrl << " / [" << avg_bn / avg_ctrl
+             << "]\n";
 
         std::cout << strm.str() << std::endl;
     }

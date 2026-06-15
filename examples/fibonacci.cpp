@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
 
 #include <beman/big_int/big_int.hpp>
 
