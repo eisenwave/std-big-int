@@ -9,22 +9,19 @@ on:
 concurrency:
   group: github-pages
   cancel-in-progress: false
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# peaceiris/actions-gh-pages only needs to push the built site to the gh-pages branch
 permissions:
   contents: write
-  pages: write
-  id-token: write
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # package.json and antora-playbook.yml live under doc/; run steps from there
+    defaults:
+      run:
+        working-directory: doc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      - name: Configure Pages
-        uses: actions/configure-pages@v6
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
@@ -39,3 +36,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: doc/html
           publish_branch: gh-pages
+          force_orphan: true
