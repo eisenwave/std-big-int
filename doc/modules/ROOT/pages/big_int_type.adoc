@@ -1,0 +1,727 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#big_int_type]
+= The `big_int` Type
+:idprefix: big_int_type_
+
+[#big_int_type_design]
+== Design
+
+The most important anchor points of the design of the `big_int` type are:
+
+- `big_int` should be elastic; that is, it should grow to the necessary size required to fit the result of an arithmetic operation.
+- `big_int` should support custom allocators.
+- `big_int` should expose small-object optimization to the user.
+
+This leads us to the following type declarations:
+
+[#big_int_type_unit_multi_t]
+[source,c++]
+----
+namespace beman::big_int {
+// uint_multiprecision_t is the unsigned integer used to store each "limb"
+// (machine-word digit) of the magnitude of a big_int.
+
+#if ... // 32-bit limb platform detected
+using uint_multiprecision_t = unsigned int;
+#else  // 64-bit limb platform detected
+using uint_multiprecision_t = unsigned long long;
+#endif
+
+} // namespace beman::big_int
+----
+
+[#big_int_type_using_big_int]
+[source, c++]
+----
+// min_inplace_bits is the number of bits of statically allocated storage that
+// the basic_big_int will have available for the small-object optimization.
+template <std::size_t min_inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
+class basic_big_int;
+
+// Default specialization with a stateless allocator.
+using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
+
+namespace pmr {
+
+// Specialization parameterized on std::pmr::polymorphic_allocator.
+template <std::size_t b>
+using basic_big_int = beman::big_int::basic_big_int<b, std::pmr::polymorphic_allocator<uint_multiprecision_t>>;
+
+using big_int = basic_big_int</* same in-place bits as the default big_int */>;
+
+} // namespace pmr
+
+} // namespace beman::big_int
+----
+
+A `basic_big_int` stores its magnitude as a little-endian sequence of
+`uint_multiprecision_t` limbs (the first limb holds the least significant bits)
+together with a separate sign. Values whose magnitude fits within
+`inplace_bits` bits are stored directly inside the object; larger values are
+stored in allocator-provided dynamic storage.
+
+[#big_int_type_synopsis]
+== Synopsis
+
+In the synopsis below, the italicized names (`_arbitrary-arithmetic_`,
+`_arbitrary-integer_`, `_signed-or-unsigned_`, `_cv-unqualified-arithmetic_`,
+`_common-big-int-type_`, and `_common-big-int-type-with_`) are exposition-only
+concepts and helper aliases used to constrain the interface.
+`_common-big-int-type_<L, R>` denotes the `basic_big_int` specialization shared
+by `L` and `R` when one operand is a `basic_big_int` and the other is either the
+same specialization or a built-in signed or unsigned integer type.
+
+[#big_int_type_basic_big_int]
+[source,c++]
+----
+template <std::size_t min_inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
+class basic_big_int {
+  public:
+    // member types
+    using allocator_type = Allocator;
+    using size_type      = std::size_t;
+    using pointer        = std::allocator_traits<Allocator>::pointer;
+    using const_pointer  = std::allocator_traits<Allocator>::const_pointer;
+
+    // member constants
+    static constexpr size_type inplace_capacity = /* number of in-place limbs */;
+    static constexpr size_type inplace_bits =
+        inplace_capacity * std::numeric_limits<uint_multiprecision_t>::digits;
+
+    // [big.int.cons], construct/copy/destroy
+    constexpr basic_big_int() noexcept(noexcept(Allocator()));
+    constexpr explicit basic_big_int(const Allocator& a) noexcept;
+    constexpr basic_big_int(const basic_big_int& x);
+    constexpr basic_big_int(basic_big_int&& x) noexcept;
+    template <_arbitrary-arithmetic_ T>
+        requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
+    constexpr explicit(/* see below */) basic_big_int(T&& value) noexcept(/* see below */);
+    template <_arbitrary-arithmetic_ T>
+    constexpr basic_big_int(const T& value, const allocator_type& a) noexcept(/* see below */);
+    template <std::input_iterator I, std::sentinel_for<I> S>
+        requires _signed-or-unsigned_<std::iter_value_t<I>>
+    constexpr basic_big_int(I begin, S end, const allocator_type& a = allocator_type());
+    template <std::ranges::input_range R>
+        requires _signed-or-unsigned_<std::ranges::range_value_t<R>>
+    constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
+    constexpr ~basic_big_int();
+
+    // [big.int.modifiers], assignment
+    constexpr basic_big_int& operator=(const basic_big_int& x);
+    constexpr basic_big_int& operator=(basic_big_int&& x) noexcept;
+    template <_arbitrary-integer_ T>
+        requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
+    constexpr basic_big_int& operator=(T&& x) noexcept(/* see below */);
+
+    template <class T> constexpr basic_big_int& operator+=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <class T> constexpr basic_big_int& operator-=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <class T> constexpr basic_big_int& operator*=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <class T> constexpr basic_big_int& operator/=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <class T> constexpr basic_big_int& operator%=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <class T> constexpr basic_big_int& operator&=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <class T> constexpr basic_big_int& operator|=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <class T> constexpr basic_big_int& operator^=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+    template <_signed-or-unsigned_ S> constexpr basic_big_int& operator<<=(S s);
+    template <_signed-or-unsigned_ S> constexpr basic_big_int& operator>>=(S s);
+
+    // [big.int.ops], observers
+    constexpr size_type                              width_mag() const noexcept;
+    constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
+    constexpr allocator_type                         get_allocator() const noexcept;
+    constexpr size_type                              size() const noexcept;
+    static constexpr size_type                       max_size() noexcept;
+    constexpr void                                   reserve(size_type n);
+    constexpr size_type                              capacity() const noexcept;
+    constexpr void                                   shrink_to_fit();
+
+    // [big.int.unary], unary operators
+    constexpr basic_big_int  operator+() const&;
+    constexpr basic_big_int  operator+() && noexcept;
+    constexpr basic_big_int  operator-() const&;
+    constexpr basic_big_int  operator-() && noexcept;
+    constexpr basic_big_int  operator~() const&;
+    constexpr basic_big_int  operator~() &&;
+    constexpr basic_big_int& operator++() &;
+    constexpr basic_big_int  operator++(int) &;
+    constexpr basic_big_int& operator--() &;
+    constexpr basic_big_int  operator--(int) &;
+
+    // [big.int.conv], conversion
+    template <_cv-unqualified-arithmetic_ T>
+    constexpr explicit operator T() const noexcept;
+};
+
+// [big.int.cmp], comparison operators
+template <class L, _common-big-int-type-with_<L> R>
+constexpr bool operator==(const L& lhs, const R& rhs) noexcept;
+template <class L, _common-big-int-type-with_<L> R>
+constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept;
+
+// [big.int.binary], binary operators
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator+(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator-(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator*(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator/(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator%(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator&(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator|(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator^(L&& x, R&& y);
+template <class T, _signed-or-unsigned_ S>
+    requires /* remove_cvref_t<T> is a basic_big_int specialization */
+constexpr std::remove_cvref_t<T> operator<<(T&& x, S s);
+template <class T, _signed-or-unsigned_ S>
+    requires /* remove_cvref_t<T> is a basic_big_int specialization */
+constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
+----
+
+[#big_int_type_members]
+== Member types and constants
+
+[cols="1,3", options="header"]
+|===
+| Name | Description
+
+| `allocator_type`
+| The allocator type `Allocator`.
+
+| `size_type`
+| `std::size_t`.
+
+| `pointer`
+| `std::allocator_traits<Allocator>::pointer`.
+
+| `const_pointer`
+| `std::allocator_traits<Allocator>::const_pointer`.
+
+| `inplace_capacity`
+| The number of `uint_multiprecision_t` limbs available in the in-place (small-object) storage. It is at least large enough to hold `min_inplace_bits` bits, and never smaller than what fits in the object's pointer footprint.
+
+| `inplace_bits`
+| `inplace_capacity * std::numeric_limits<uint_multiprecision_t>::digits`; the number of bits of in-place storage. A value whose magnitude fits in `inplace_bits` bits is stored without allocating.
+|===
+
+[#big_int_type_construct]
+== Constructors and destructor
+
+=== Default constructor
+
+[source,c++]
+----
+constexpr basic_big_int() noexcept(noexcept(Allocator()));
+----
+
+Initializes the integer value to zero and default-constructs the allocator.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== Allocator constructor
+
+[source,c++]
+----
+constexpr explicit basic_big_int(const Allocator& a) noexcept;
+----
+
+Initializes the integer value to zero and initializes the allocator to `a`.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== Copy constructor
+
+[source,c++]
+----
+constexpr basic_big_int(const basic_big_int& x);
+----
+
+Initializes the integer value to that of `x` and initializes the allocator to
+`x.get_allocator()`.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+* *Throws:* Nothing if the effective width of the integer value of `x` is less than or equal to `inplace_bits`; otherwise, any exception thrown during allocation.
+
+=== Move constructor
+
+[source,c++]
+----
+constexpr basic_big_int(basic_big_int&& x) noexcept;
+----
+
+Initializes the integer value to that of `x` and initializes the allocator by
+moving from `x.get_allocator()`.
+
+* *Preconditions:* None.
+* *Postconditions:* `x` is left in a valid state with an unspecified value.
+
+=== Converting constructor from an arithmetic type
+
+[source,c++]
+----
+template <_arbitrary-arithmetic_ T>
+    requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
+constexpr explicit(/* see below */) basic_big_int(T&& value) noexcept(/* see below */);
+----
+
+Initializes the integer value from `value`. If `std::remove_cvref_t<T>` is an
+integral type or a `basic_big_int` specialization, the integer value is that of
+`value`. If it is a floating-point type, the integer value is that obtained by
+discarding the fractional part of `value` (truncation toward zero).
+
+* *Constraints:* `std::remove_cvref_t<T>` is not `basic_big_int`, and is a built-in integer type, a floating-point type, or a `basic_big_int` specialization.
+* *Preconditions:* If `std::remove_cvref_t<T>` is a floating-point type, `value` is finite.
+* *Postconditions:* None.
+* *Throws:* Nothing if the effective width of the resulting value is less than or equal to `inplace_bits`; otherwise, any exception thrown during allocation.
+* *Remarks:* The constructor is `explicit` unless `std::remove_cvref_t<T>` is a built-in signed or unsigned integer type or the same `basic_big_int` specialization. The expression inside `noexcept` is `true` when `value` is an integral type whose width does not exceed `inplace_bits`.
+
+=== Converting constructor from an arithmetic type with an allocator
+
+[source,c++]
+----
+template <_arbitrary-arithmetic_ T>
+constexpr basic_big_int(const T& value, const allocator_type& a) noexcept(/* see below */);
+----
+
+Equivalent to the converting constructor above, but initializes the allocator to
+`a`.
+
+* *Preconditions:* If `std::remove_cvref_t<T>` is a floating-point type, `value` is finite.
+* *Postconditions:* None.
+* *Throws:* Nothing if the effective width of the resulting value is less than or equal to `inplace_bits`; otherwise, any exception thrown during allocation.
+
+=== Iterator-pair constructor
+
+[source,c++]
+----
+template <std::input_iterator I, std::sentinel_for<I> S>
+    requires _signed-or-unsigned_<std::iter_value_t<I>>
+constexpr basic_big_int(I begin, S end, const allocator_type& a = allocator_type());
+----
+
+Initializes the integer value by concatenating the base-2 representation of each
+element in `[begin, end)`, where the first element holds the least significant
+limb. If the iterator's value type is signed, the combined representation is
+interpreted as a signed integer; otherwise it is interpreted as an unsigned
+integer. Initializes the allocator to `a`.
+
+* *Preconditions:* `[begin, end)` is a valid range.
+* *Postconditions:* None.
+
+=== `from_range` constructor
+
+[source,c++]
+----
+template <std::ranges::input_range R>
+    requires _signed-or-unsigned_<std::ranges::range_value_t<R>>
+constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
+----
+
+Initializes the integer value by concatenating the base-2 representation of each
+element in `r`, where the first element holds the least significant limb. If the
+range's value type is signed, the combined representation is interpreted as a
+signed integer; otherwise it is interpreted as an unsigned integer. Initializes
+the allocator to `a`.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+NOTE: This constructor is available when the standard library provides
+`<ranges>` container support (the pass:[<code>__cpp_lib_containers_ranges</code>] feature-test macro).
+
+=== Destructor
+
+[source,c++]
+----
+constexpr ~basic_big_int();
+----
+
+Releases any dynamically-allocated storage owned by the object.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+[#big_int_type_assign]
+== Assignment
+
+=== Copy assignment
+
+[source,c++]
+----
+constexpr basic_big_int& operator=(const basic_big_int& x);
+----
+
+Sets the integer value to that of `x` and returns `*this`.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== Move assignment
+
+[source,c++]
+----
+constexpr basic_big_int& operator=(basic_big_int&& x) noexcept;
+----
+
+Sets the integer value to that of `x` and returns `*this`.
+
+* *Preconditions:* None.
+* *Postconditions:* `x` is left in a valid state with an unspecified value.
+
+=== Assignment from an integer type
+
+[source,c++]
+----
+template <_arbitrary-integer_ T>
+    requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
+constexpr basic_big_int& operator=(T&& x) noexcept(/* see below */);
+----
+
+Sets the integer value to that of `x` and returns `*this`. Note that, unlike the
+converting constructor, this operator does not accept floating-point operands.
+
+* *Constraints:* `std::remove_cvref_t<T>` is not `basic_big_int`, and is a built-in integer type or a `basic_big_int` specialization.
+* *Preconditions:* None.
+* *Postconditions:* None.
+* *Remarks:* The expression inside `noexcept` is `true` when `x` is an integral type whose width does not exceed `inplace_bits`.
+
+[#big_int_type_compound]
+== Compound assignment operators
+
+=== Arithmetic and bitwise compound assignment
+
+[source,c++]
+----
+template <class T> constexpr basic_big_int& operator+=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+template <class T> constexpr basic_big_int& operator-=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+template <class T> constexpr basic_big_int& operator*=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+template <class T> constexpr basic_big_int& operator&=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+template <class T> constexpr basic_big_int& operator|=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+template <class T> constexpr basic_big_int& operator^=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+----
+
+Each operator `@=` is equivalent to `*this = std::move(*this) @ std::forward<T>(rhs)`
+and returns `*this`, where `@` is the corresponding binary operator.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== Division and remainder compound assignment
+
+[source,c++]
+----
+template <class T> constexpr basic_big_int& operator/=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+template <class T> constexpr basic_big_int& operator%=(T&& rhs) requires _common-big-int-type-with_<T, basic_big_int>;
+----
+
+`operator/=` sets `*this` to the quotient and `operator%=` sets `*this` to the
+remainder of dividing `*this` by `rhs`, truncating toward zero, and returns
+`*this`.
+
+* *Preconditions:* The integer value of `rhs` is nonzero.
+* *Postconditions:* None.
+
+=== Shift compound assignment
+
+[source,c++]
+----
+template <_signed-or-unsigned_ S> constexpr basic_big_int& operator<<=(S s);
+template <_signed-or-unsigned_ S> constexpr basic_big_int& operator>>=(S s);
+----
+
+`operator<<=` is equivalent to `*this = std::move(*this) << s` (multiplication by
+`2^s`); `operator>>=` is equivalent to `*this = std::move(*this) >> s` (division
+by `2^s`, rounded toward negative infinity). Each returns `*this`.
+
+* *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift `max_size() * std::numeric_limits<uint_multiprecision_t>::digits`.
+* *Postconditions:* None.
+
+[#big_int_type_observers]
+== Observers
+
+Throughout this section, a "limb" is one `uint_multiprecision_t` object of the
+magnitude's little-endian representation.
+
+=== `representation`
+
+[source,c++]
+----
+constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
+----
+
+Returns a `std::span` over the limbs that make up the magnitude, whether stored
+in place or in dynamic storage. The first limb in the range holds the least
+significant bits.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+* *Remarks:* If the integer value is greater than or equal to zero, `basic_big_int(std::from_range, representation(), get_allocator())` has the same integer value.
+
+=== `width_mag`
+
+[source,c++]
+----
+constexpr size_type width_mag() const noexcept;
+----
+
+Returns the number of significant bits in the magnitude of the value (ignoring
+the sign), or `0` if the magnitude is zero.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `get_allocator`
+
+[source,c++]
+----
+constexpr allocator_type get_allocator() const noexcept;
+----
+
+Returns a copy of the object's allocator.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `size`
+
+[source,c++]
+----
+constexpr size_type size() const noexcept;
+----
+
+Returns the number of bits required to represent the magnitude of the value:
+`0` if the integer value is zero, and otherwise `floor(log2(|v|)) + 1`, where
+`v` is the integer value.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `max_size`
+
+[source,c++]
+----
+static constexpr size_type max_size() noexcept;
+----
+
+Returns the maximum number of limbs that the representation may contain.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `reserve`
+
+[source,c++]
+----
+constexpr void reserve(size_type n);
+----
+
+A directive that informs the object of a planned increase in size so that
+storage can be allocated up front. Reallocation occurs if and only if `n` is
+greater than the current effective capacity (`inplace_capacity` while the value
+is stored in place, otherwise `capacity()`).
+
+* *Preconditions:* None.
+* *Postconditions:* If reallocation occurs, `capacity()` is greater than or equal to `n`; otherwise, `capacity()` is unchanged.
+
+=== `capacity`
+
+[source,c++]
+----
+constexpr size_type capacity() const noexcept;
+----
+
+Returns the number of limbs of dynamically-allocated storage currently
+available, or `0` when the value is held in the in-place (small-object) storage.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `shrink_to_fit`
+
+[source,c++]
+----
+constexpr void shrink_to_fit();
+----
+
+If the magnitude fits in the in-place storage, frees any dynamic allocation and
+moves the value into the in-place storage. Otherwise, this is a non-binding
+request to reduce the dynamic capacity to the number of limbs in use; it never
+increases `capacity()`, but may reduce it, which can cause a reallocation.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+[#big_int_type_unary]
+== Unary operators
+
+=== `operator+`
+
+[source,c++]
+----
+constexpr basic_big_int operator+() const&;
+constexpr basic_big_int operator+() && noexcept;
+----
+
+Returns a copy of `*this` (for the lvalue overload) or `std::move(*this)` (for
+the rvalue overload). The value is unchanged.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `operator-`
+
+[source,c++]
+----
+constexpr basic_big_int operator-() const&;
+constexpr basic_big_int operator-() && noexcept;
+----
+
+Returns the arithmetic negation of the value (equivalent to `0 - *this`). The
+rvalue overload reuses the operand's storage and only flips the sign.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `operator~`
+
+[source,c++]
+----
+constexpr basic_big_int operator~() const&;
+constexpr basic_big_int operator~() &&;
+----
+
+Returns the bitwise complement of the value as if performed on an
+infinite-width two's-complement representation (equivalent to `-1 - *this`).
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `operator++`
+
+[source,c++]
+----
+constexpr basic_big_int& operator++() &;     // pre-increment
+constexpr basic_big_int  operator++(int) &;  // post-increment
+----
+
+Pre-increment is equivalent to `*this += 1` and returns `*this`. Post-increment
+increments `*this` and returns a copy of the value prior to the increment.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `operator--`
+
+[source,c++]
+----
+constexpr basic_big_int& operator--() &;     // pre-decrement
+constexpr basic_big_int  operator--(int) &;  // post-decrement
+----
+
+Pre-decrement is equivalent to `*this -= 1` and returns `*this`. Post-decrement
+decrements `*this` and returns a copy of the value prior to the decrement.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+[#big_int_type_conv]
+== Conversion operator
+
+[source,c++]
+----
+template <_cv-unqualified-arithmetic_ T>
+constexpr explicit operator T() const noexcept;
+----
+
+Converts the value to `T`. The result is `static_cast<T>(static_cast<U>(v))`,
+where `v` is the integer value and `U` is a hypothetical signed integer type
+wide enough to represent `v`. If `T` is `bool`, the result is `true` when the
+value is nonzero and `false` otherwise. If `T` is a floating-point type, the
+result is determined as if by a floating-integral conversion.
+
+* *Constraints:* `T` is a cv-unqualified arithmetic type.
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+[#big_int_type_cmp]
+== Comparison operators
+
+[source,c++]
+----
+template <class L, _common-big-int-type-with_<L> R>
+constexpr bool operator==(const L& lhs, const R& rhs) noexcept;
+template <class L, _common-big-int-type-with_<L> R>
+constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept;
+----
+
+`operator==` returns `true` if the integer value of `lhs` equals the integer
+value of `rhs`. `operator<=>` returns `std::strong_ordering::less`,
+`std::strong_ordering::greater`, or `std::strong_ordering::equal` according to
+whether the integer value of `lhs` is less than, greater than, or equal to the
+integer value of `rhs`. At least one operand is a `basic_big_int`; the other may
+be the same `basic_big_int` specialization or a built-in signed or unsigned
+integer type.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+[#big_int_type_binary]
+== Binary operators
+
+=== Arithmetic and bitwise operators
+
+[source,c++]
+----
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator+(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator-(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator*(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator&(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator|(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator^(L&& x, R&& y);
+----
+
+Each returns a `basic_big_int` whose integer value is `T(x) @ T(y)`, where `@`
+is the corresponding operator and `T` is a hypothetical signed integer type with
+infinite range. One operand is a `basic_big_int` and the other is the same
+specialization or a built-in signed or unsigned integer type.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+* *Remarks:* The bitwise operators (`&`, `|`, `^`) behave as if performed on a two's-complement representation in which non-negative numbers have infinitely many leading zero bits and negative numbers have infinitely many leading one bits.
+
+=== Division and remainder operators
+
+[source,c++]
+----
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator/(L&& x, R&& y);
+template <class L, class R> constexpr _common-big-int-type_<L, R> operator%(L&& x, R&& y);
+----
+
+`operator/` returns the quotient and `operator%` returns the remainder of
+dividing `x` by `y`, truncating toward zero (matching the behavior of the
+built-in integer types).
+
+* *Preconditions:* The integer value of `y` is nonzero.
+* *Postconditions:* None.
+
+=== Shift operators
+
+[source,c++]
+----
+template <class T, _signed-or-unsigned_ S>
+    requires /* remove_cvref_t<T> is a basic_big_int specialization */
+constexpr std::remove_cvref_t<T> operator<<(T&& x, S s);
+template <class T, _signed-or-unsigned_ S>
+    requires /* remove_cvref_t<T> is a basic_big_int specialization */
+constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
+----
+
+`operator<<` returns a `basic_big_int` whose integer value is `v * 2^s`, and
+`operator>>` returns one whose integer value is `v / 2^s` rounded toward
+negative infinity, where `v` is the integer value of `x`. The result uses the
+allocator of `x`.
+
+* *Constraints:* `std::remove_cvref_t<T>` is a `basic_big_int` specialization.
+* *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift for the result type (`max_size() * std::numeric_limits<uint_multiprecision_t>::digits`).
+* *Postconditions:* None.
