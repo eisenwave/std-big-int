@@ -10,15 +10,15 @@
 
 #if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 
-#include <boost/multiprecision/cpp_int.hpp>
+    #include <boost/multiprecision/cpp_int.hpp>
 
-#include <climits>
-#include <cstddef>
-#include <format>
-#include <locale>
-#include <string>
-#include <string_view>
-#include <vector>
+    #include <climits>
+    #include <cstddef>
+    #include <format>
+    #include <locale>
+    #include <string>
+    #include <string_view>
+    #include <vector>
 
 namespace {
 
@@ -147,8 +147,8 @@ TEST(Format, DifferentialOracleSigned) {
     const std::vector<std::string> widths    = {"", "1", "6", "20"};
     const std::vector<std::string> types     = {"", "d", "b", "B", "o", "x", "X"};
 
-    const long long values[] = {0,    1,    -1,         8,         9,         42,        -42,        255,
-                                256,  -256, 1000000007, -98765432, LLONG_MAX, LLONG_MIN, LLONG_MAX - 1};
+    const long long values[] = {
+        0, 1, -1, 8, 9, 42, -42, 255, 256, -256, 1000000007, -98765432, LLONG_MAX, LLONG_MIN, LLONG_MAX - 1};
 
     for (const auto& fa : fillalign) {
         for (const auto& s : signs) {
@@ -227,8 +227,20 @@ TEST(Format, DynamicWidth) {
 // ------------------------------------------------------------------------------------------
 TEST(Format, IllFormedSpecs) {
     const char* bad[] = {
-        "{:.3d}", "{:.3}", "{:.0d}", "{:.{}d}", "{:q}", "{:s}",  "{:p}", "{:n}",
-        "{:a}",   "{:e}",  "{:f}",   "{:g}",    "{:Z}", "{:11111111111111111111111d}",
+        "{:.3d}",
+        "{:.3}",
+        "{:.0d}",
+        "{:.{}d}",
+        "{:q}",
+        "{:s}",
+        "{:p}",
+        "{:n}",
+        "{:a}",
+        "{:e}",
+        "{:f}",
+        "{:g}",
+        "{:Z}",
+        "{:11111111111111111111111d}",
     };
     for (const char* spec : bad) {
         EXPECT_TRUE(same_fmt(spec, 42LL)) << spec;
@@ -311,15 +323,18 @@ TEST(Format, HugeRoundTrip) {
     };
     for (const big_int& v : values) {
         for (const int base : {2, 8, 10, 16}) {
-            const char* spec = base == 2 ? "{:*>2000b}" : base == 8 ? "{:*>2000o}" : base == 10 ? "{:*>2000}" : "{:*>2000x}";
+            const char* spec = base == 2    ? "{:*>2000b}"
+                               : base == 8  ? "{:*>2000o}"
+                               : base == 10 ? "{:*>2000}"
+                                            : "{:*>2000x}";
             std::string s    = std::vformat(spec, std::make_format_args(v));
             // Strip the right-alignment fill and an optional leading sign.
-            std::string_view sv{s};
+            std::string_view  sv{s};
             const std::size_t first = sv.find_first_not_of('*');
             sv.remove_prefix(first);
             const std::size_t last = sv.find_last_not_of('*');
-            sv = sv.substr(0, last + 1);
-            bool negative = !sv.empty() && sv.front() == '-';
+            sv                     = sv.substr(0, last + 1);
+            bool negative          = !sv.empty() && sv.front() == '-';
             if (negative) {
                 sv.remove_prefix(1);
             }

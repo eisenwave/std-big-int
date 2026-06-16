@@ -8,16 +8,16 @@
 
 #if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 
-#include <algorithm>
-#include <climits>
-#include <cstddef>
-#include <cstdint>
-#include <format>
-#include <limits>
-#include <locale>
-#include <string>
-#include <string_view>
-#include <type_traits>
+    #include <algorithm>
+    #include <climits>
+    #include <cstddef>
+    #include <cstdint>
+    #include <format>
+    #include <limits>
+    #include <locale>
+    #include <string>
+    #include <string_view>
+    #include <type_traits>
 
 namespace beman::big_int::detail {
 
@@ -266,10 +266,10 @@ struct formatter<beman::big_int::basic_big_int<B, A>, charT> {
 
     template <class ParseContext>
     constexpr typename ParseContext::iterator parse(ParseContext& ctx) {
-        namespace d      = beman::big_int::detail;
-        auto             it  = ctx.begin();
-        const auto       end = ctx.end();
-        spec_                = d::format_spec<charT>{};
+        namespace d    = beman::big_int::detail;
+        auto       it  = ctx.begin();
+        const auto end = ctx.end();
+        spec_          = d::format_spec<charT>{};
 
         if (it == end || *it == charT('}')) {
             return it;
@@ -395,9 +395,10 @@ struct formatter<beman::big_int::basic_big_int<B, A>, charT> {
     }
 
     template <class FormatContext>
-    typename FormatContext::iterator format(const beman::big_int::basic_big_int<B, A>& value, FormatContext& fc) const {
-        namespace d         = beman::big_int::detail;
-        using big_type      = beman::big_int::basic_big_int<B, A>;
+    typename FormatContext::iterator format(const beman::big_int::basic_big_int<B, A>& value,
+                                            FormatContext&                             fc) const {
+        namespace d    = beman::big_int::detail;
+        using big_type = beman::big_int::basic_big_int<B, A>;
 
         std::size_t width = spec_.has_width ? spec_.width : std::size_t{0};
         if (spec_.width_is_arg) {
