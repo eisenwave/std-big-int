@@ -2,4 +2,5 @@
 # Proper nouns / algorithm names codespell would otherwise mis-flag.
 # - toom: Andrei Toom (Toom-Cook multiplication algorithm) -> not "tomb"
 # - ser: IEEE citation format abbreviation for "series"
-ignore-words-list = toom,ser
+# - vEw: From the package-lock.json
+ignore-words-list = toom,ser,vEw
