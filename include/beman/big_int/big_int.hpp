@@ -3789,8 +3789,9 @@ template <class C, std::size_t b, class A>
     // To convert from the width (which is `log2(x) + 1`), we need to decrement,
     // convert the binary logarithm to a logarithm base `base`, and increment.
     const auto        width = x.width_mag();
-    const std::size_t required_digits =
-        width <= 1 ? std::size_t{1} : detail::approximate_ceil_div_log2(width - 1, base) + 1 + minus_sign_size;
+    const std::size_t required_digits = width <= 1
+                                            ? std::size_t{1} + minus_sign_size
+                                            : detail::approximate_ceil_div_log2(width - 1, base) + 1 + minus_sign_size;
 
 #ifdef __cpp_lib_string_resize_and_overwrite
     std::basic_string<C> result;
