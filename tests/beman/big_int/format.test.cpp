@@ -377,9 +377,16 @@ TEST(Format, CharTypeErrors) {
         big_int huge = 1_n << 200;
         EXPECT_THROW(vformat_call("{:c}", std::make_format_args(huge)), std::format_error);
     }
-    // Modifiers forbidden with 'c' (LWG 3644): differential against the builtin.
-    for (const char* spec : {"{:+c}", "{:-c}", "{: c}", "{:#c}", "{:0c}", "{:05c}", "{:.2c}"}) {
-        EXPECT_TRUE(same_fmt(spec, 65LL)) << spec;
+    // Modifiers forbidden with the 'c' type (LWG 3644: sign, '#', and '0' are ill-formed;
+    // precision is ill-formed for any integer). Our formatter follows the adopted resolution
+    // and throws. This is asserted directly rather than differentially because some standard
+    // libraries (e.g. current libstdc++) have not yet implemented LWG 3644 and accept these,
+    // so a differential check against the builtin would test the library's conformance, not ours.
+    {
+        big_int b{65};
+        for (const char* spec : {"{:+c}", "{:-c}", "{: c}", "{:#c}", "{:0c}", "{:05c}", "{:.2c}"}) {
+            EXPECT_THROW(vformat_call(spec, std::make_format_args(b)), std::format_error) << spec;
+        }
     }
 }
 
