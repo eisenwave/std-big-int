@@ -29,6 +29,10 @@ enum class align_kind : std::uint8_t { defaulted, left, right, center };
 // The sign option. `minus` (only negatives get a sign) is the default.
 enum class sign_kind : std::uint8_t { minus, plus, space };
 
+// Padding is expected and acceptable.
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
+
 // A fully parsed std-format-spec for a big_int argument.
 template <class charT>
 struct format_spec {
@@ -45,6 +49,8 @@ struct format_spec {
     bool        uppercase    = false; // 'X' / 'B'
     bool        as_char      = false; // 'c'
 };
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <class charT>
 [[nodiscard]] constexpr bool is_align(const charT c) noexcept {
