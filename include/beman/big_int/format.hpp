@@ -5,6 +5,7 @@
 #define BEMAN_BIG_INT_FORMAT_HPP
 
 #include <beman/big_int/big_int.hpp>
+#include <version>
 
 #if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 
