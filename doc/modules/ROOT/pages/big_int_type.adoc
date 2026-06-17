@@ -134,11 +134,15 @@ class basic_big_int {
     // [big.int.ops], observers
     constexpr size_type                              width_mag() const noexcept;
     constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
+    constexpr size_type                              representation_size() const noexcept;
     constexpr allocator_type                         get_allocator() const noexcept;
     constexpr size_type                              size() const noexcept;
     static constexpr size_type                       max_size() noexcept;
+    static constexpr size_type                       max_representation_size() noexcept;
     constexpr void                                   reserve(size_type n);
+    constexpr void                                   reserve_representation(size_type n);
     constexpr size_type                              capacity() const noexcept;
+    constexpr size_type                              representation_capacity() const noexcept;
     constexpr void                                   shrink_to_fit();
 
     // [big.int.unary], unary operators
@@ -484,6 +488,20 @@ significant bits.
 * *Postconditions:* None.
 * *Remarks:* If the integer value is greater than or equal to zero, `basic_big_int(std::from_range, representation(), get_allocator())` has the same integer value.
 
+=== `representation_size`
+
+[source,c++]
+----
+constexpr size_type representation_size() const noexcept;
+----
+
+Returns the number of limbs that make up the magnitude: `1` if the integer value
+is zero, and otherwise `ceil(size() / std::numeric_limits<uint_multiprecision_t>::digits)`.
+This is the size of the span returned by `representation()`.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
 === `width_mag`
 
 [source,c++]
@@ -535,6 +553,19 @@ Returns the maximum number of limbs that the representation may contain.
 * *Preconditions:* None.
 * *Postconditions:* None.
 
+=== `max_representation_size`
+
+[source,c++]
+----
+static constexpr size_type max_representation_size() noexcept;
+----
+
+Returns the maximum number of limbs that can be part of the representation. This
+is the same limit reported by `max_size()`.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
 === `reserve`
 
 [source,c++]
@@ -550,6 +581,20 @@ is stored in place, otherwise `capacity()`).
 * *Preconditions:* None.
 * *Postconditions:* If reallocation occurs, `capacity()` is greater than or equal to `n`; otherwise, `capacity()` is unchanged.
 
+=== `reserve_representation`
+
+[source,c++]
+----
+constexpr void reserve_representation(size_type n);
+----
+
+A directive that informs the object of a planned increase in size, expressed as a
+number of limbs, so that storage can be allocated up front. Equivalent to
+`reserve(n)`.
+
+* *Preconditions:* None.
+* *Postconditions:* If reallocation occurs, `representation_capacity()` is greater than or equal to `n`; otherwise, the capacity is unchanged.
+
 === `capacity`
 
 [source,c++]
@@ -559,6 +604,21 @@ constexpr size_type capacity() const noexcept;
 
 Returns the number of limbs of dynamically-allocated storage currently
 available, or `0` when the value is held in the in-place (small-object) storage.
+
+* *Preconditions:* None.
+* *Postconditions:* None.
+
+=== `representation_capacity`
+
+[source,c++]
+----
+constexpr size_type representation_capacity() const noexcept;
+----
+
+Returns the number of limbs that can be held without allocating: the greater of
+`inplace_capacity` and the number of limbs of dynamically-allocated storage
+currently available. Unlike `capacity()`, which reports `0` while the value is
+held in place, this never reports fewer than `inplace_capacity` limbs.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
