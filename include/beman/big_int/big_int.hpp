@@ -1037,8 +1037,9 @@ constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x)
 // The allocator participates only when `propagate_on_container_swap` holds;
 // otherwise [container.reqmts] requires the two allocators to compare equal.
 template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::swap(basic_big_int& x) noexcept(
-    std::allocator_traits<A>::propagate_on_container_swap::value || std::allocator_traits<A>::is_always_equal::value) {
+constexpr void
+basic_big_int<b, A>::swap(basic_big_int& x) noexcept(std::allocator_traits<A>::propagate_on_container_swap::value ||
+                                                     std::allocator_traits<A>::is_always_equal::value) {
     if (this == std::addressof(x)) {
         return;
     }
