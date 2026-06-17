@@ -143,16 +143,16 @@ TEST(Multiplication, NoAllocationWhenInlineFits) {
     const big_int b{2};
     const big_int r = a * b;
     EXPECT_EQ(r, 4);
-    EXPECT_EQ(r.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(r));
 
     // Just because we have heap space doesn't mean we should use it
     big_int c{3};
-    c.reserve(8);
-    ASSERT_GT(c.capacity(), 0u);
+    c.reserve_representation(8);
+    ASSERT_FALSE(is_inplace(c));
     const big_int d{4};
     const big_int r2 = c * d;
     EXPECT_EQ(r2, 12);
-    EXPECT_EQ(r2.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(r2));
 
     // `basic_big_int<256>` has at least 4 inline limbs.
     // A product that fits within those 4 limbs must not allocate.
@@ -160,7 +160,7 @@ TEST(Multiplication, NoAllocationWhenInlineFits) {
     const big_int_256 e{std::numeric_limits<std::uint64_t>::max()};
     const big_int_256 f{std::numeric_limits<std::uint64_t>::max()};
     const big_int_256 r3 = e * f;
-    EXPECT_EQ(r3.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(r3));
 }
 
 TEST(Multiplication, SingleLimbTimesMultiLimb) {

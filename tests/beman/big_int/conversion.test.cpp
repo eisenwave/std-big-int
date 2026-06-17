@@ -259,8 +259,8 @@ TEST(Conversion, ToLongDoubleThreeLimbTieWithStickyBit) {
 TEST(Conversion, InplaceFastPathInt) {
     beman::big_int::big_int x(42);
     beman::big_int::big_int neg(-42);
-    ASSERT_EQ(x.capacity(), 0U);
-    ASSERT_EQ(neg.capacity(), 0U);
+    ASSERT_TRUE(is_inplace(x));
+    ASSERT_TRUE(is_inplace(neg));
     EXPECT_EQ(static_cast<int>(x), 42);
     EXPECT_EQ(static_cast<int>(neg), -42);
     EXPECT_EQ(static_cast<unsigned long long>(neg), std::numeric_limits<unsigned long long>::max() - 41U);
@@ -268,14 +268,14 @@ TEST(Conversion, InplaceFastPathInt) {
 
 TEST(Conversion, InplaceFastPathFloat) {
     beman::big_int::big_int x(1000000000000000LL);
-    ASSERT_EQ(x.capacity(), 0U);
+    ASSERT_TRUE(is_inplace(x));
     EXPECT_DOUBLE_EQ(static_cast<double>(x), 1e15);
     EXPECT_FLOAT_EQ(static_cast<float>(x), 1e15f);
 }
 
 TEST(Conversion, InplaceFastPathNegativeFloat) {
     beman::big_int::big_int x(-1000000000000000LL);
-    ASSERT_EQ(x.capacity(), 0U);
+    ASSERT_TRUE(is_inplace(x));
     EXPECT_DOUBLE_EQ(static_cast<double>(x), -1e15);
     EXPECT_FLOAT_EQ(static_cast<float>(x), -1e15f);
 }

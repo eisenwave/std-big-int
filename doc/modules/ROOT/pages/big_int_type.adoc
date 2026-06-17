@@ -443,7 +443,7 @@ template <_signed-or-unsigned_ S> constexpr basic_big_int& operator>>=(S s);
 `2^s`); `operator>>=` is equivalent to `*this = std::move(*this) >> s` (division
 by `2^s`, rounded toward negative infinity). Each returns `*this`.
 
-* *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift `max_size() * std::numeric_limits<uint_multiprecision_t>::digits`.
+* *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift `max_size()`.
 * *Postconditions:* None.
 
 [#big_int_type_swap]
@@ -548,7 +548,8 @@ Returns the number of bits required to represent the magnitude of the value:
 static constexpr size_type max_size() noexcept;
 ----
 
-Returns the maximum number of limbs that the representation may contain.
+Returns the maximum number of bits that the magnitude may occupy, that is,
+`max_representation_size() * std::numeric_limits<uint_multiprecision_t>::digits`.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -560,8 +561,8 @@ Returns the maximum number of limbs that the representation may contain.
 static constexpr size_type max_representation_size() noexcept;
 ----
 
-Returns the maximum number of limbs that can be part of the representation. This
-is the same limit reported by `max_size()`.
+Returns the maximum number of limbs that can be part of the representation, that
+is, `max_size() / std::numeric_limits<uint_multiprecision_t>::digits`.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -573,10 +574,10 @@ is the same limit reported by `max_size()`.
 constexpr void reserve(size_type n);
 ----
 
-A directive that informs the object of a planned increase in size so that
-storage can be allocated up front. Reallocation occurs if and only if `n` is
-greater than the current effective capacity (`inplace_capacity` while the value
-is stored in place, otherwise `capacity()`).
+A directive, expressed as a number of bits, that informs the object of a planned
+increase in size so that storage can be allocated up front. The bit count is
+rounded up to a whole number of limbs; equivalent to
+`reserve_representation(ceil(n / std::numeric_limits<uint_multiprecision_t>::digits))`.
 
 * *Preconditions:* None.
 * *Postconditions:* If reallocation occurs, `capacity()` is greater than or equal to `n`; otherwise, `capacity()` is unchanged.
@@ -590,7 +591,7 @@ constexpr void reserve_representation(size_type n);
 
 A directive that informs the object of a planned increase in size, expressed as a
 number of limbs, so that storage can be allocated up front. Equivalent to
-`reserve(n)`.
+`reserve(n * std::numeric_limits<uint_multiprecision_t>::digits)`.
 
 * *Preconditions:* None.
 * *Postconditions:* If reallocation occurs, `representation_capacity()` is greater than or equal to `n`; otherwise, the capacity is unchanged.
@@ -602,8 +603,10 @@ number of limbs, so that storage can be allocated up front. Equivalent to
 constexpr size_type capacity() const noexcept;
 ----
 
-Returns the number of limbs of dynamically-allocated storage currently
-available, or `0` when the value is held in the in-place (small-object) storage.
+Returns the number of bits of storage currently available without reallocating,
+that is, `representation_capacity() * std::numeric_limits<uint_multiprecision_t>::digits`.
+While the value is held in the in-place (small-object) storage this equals
+`inplace_bits`.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -617,8 +620,8 @@ constexpr size_type representation_capacity() const noexcept;
 
 Returns the number of limbs that can be held without allocating: the greater of
 `inplace_capacity` and the number of limbs of dynamically-allocated storage
-currently available. Unlike `capacity()`, which reports `0` while the value is
-held in place, this never reports fewer than `inplace_capacity` limbs.
+currently available. Unlike `capacity()`, which is expressed in bits, this is a
+limb count that never reports fewer than `inplace_capacity` limbs.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -809,5 +812,5 @@ negative infinity, where `v` is the integer value of `x`. The result uses the
 allocator of `x`.
 
 * *Constraints:* `std::remove_cvref_t<T>` is a `basic_big_int` specialization.
-* *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift for the result type (`max_size() * std::numeric_limits<uint_multiprecision_t>::digits`).
+* *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift for the result type (`max_size()`).
 * *Postconditions:* None.

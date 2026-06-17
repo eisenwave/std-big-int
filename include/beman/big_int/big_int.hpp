@@ -551,7 +551,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 (or 31)
     // that are in the same limb.
     using shift_type                      = uint_multiprecision_t;
-    static constexpr shift_type shift_max = static_cast<shift_type>(max_size()) * bits_per_limb;
+    static constexpr shift_type shift_max = static_cast<shift_type>(max_representation_size()) * bits_per_limb;
 
     // Increases the magnitude by one, without affecting the sign bit.
     // Returns `true` on carry in the uppermost limb.
@@ -985,7 +985,7 @@ constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
                 m_storage.limbs[i] = x.m_storage.limbs[i];
             }
         } else {
-            // This case can happen if e.g. `x.reserve(100)` was called
+            // This case can happen if e.g. `x.reserve_representation(100)` was called
             // but the integer value of `x` fits into inplace storage.
             for (size_type i = 0; i < x.limb_count(); ++i) {
                 m_storage.limbs[i] = x.m_storage.data[i];
@@ -1116,7 +1116,7 @@ constexpr basic_big_int<b, A>::basic_big_int(I begin, S end, const allocator_typ
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
 
     if constexpr (std::ranges::sized_range<std::ranges::subrange<I, S>>) {
-        reserve(std::ranges::size(std::ranges::subrange(begin, end)));
+        reserve_representation(std::ranges::size(std::ranges::subrange(begin, end)));
         std::size_t i   = 0;
         auto* const dst = limb_ptr();
         for (; begin != end; ++begin) {
@@ -1183,7 +1183,7 @@ constexpr bool basic_big_int<b, A>::unchecked_increment_magnitude() {
         carry_in                = carry;
     }
     if (carry_in) {
-        reserve(limb_count() + 1);
+        reserve_representation(limb_count() + 1);
         limb_ptr()[limb_count()] = limb_type{1};
         unchecked_set_limb_count(limb_count() + 1);
     }
@@ -1224,7 +1224,7 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     // `countl_zero` tells us exactly how many bits of headroom the current top limb provides.
     const bool needs_extra_limb =
         shifted_bits != 0 && static_cast<shift_type>(std::countl_zero(limb_ptr()[limb_count() - 1])) < shifted_bits;
-    reserve(limb_count() + shifted_limbs + static_cast<size_type>(needs_extra_limb));
+    reserve_representation(limb_count() + shifted_limbs + static_cast<size_type>(needs_extra_limb));
     limb_type* const limbs = limb_ptr();
 
     if (shifted_limbs != 0) {
@@ -1354,39 +1354,42 @@ constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::max_size() noexcept {
-    // We use the high bit to encode the sign, so we are limited to 2^31 on 64-bit architectures
-    // On 32-bit architectures we reduce to 2^27 so that the number of bits can be represented by size_type
-    constexpr std::uint32_t offset = sizeof(size_type) == sizeof(std::uint64_t) ? 1U : 4U;
-    return std::numeric_limits<std::uint32_t>::max() >> offset;
+    // Maximum number of bits the magnitude may occupy.
+    return max_representation_size() * bits_per_limb;
 }
 
 template <std::size_t b, class A>
 constexpr std::size_t basic_big_int<b, A>::max_representation_size() noexcept {
-    // The maximum number of limbs the representation may hold; max_size() already counts limbs.
-    return max_size();
+    // A limb count occupies 31 bits of the control word; in addition, the bit count reported
+    // by max_size() must be representable in size_type. The smaller of the two limits wins.
+    constexpr size_type storage_cap  = (size_type{1} << 31U) - 1U;
+    constexpr size_type overflow_cap = std::numeric_limits<size_type>::max() / bits_per_limb;
+    return std::min(storage_cap, overflow_cap);
 }
 
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::reserve(const size_type n) {
-    grow(n);
+    // n is a bit count; reserve enough limbs to hold it.
+    reserve_representation(detail::div_to_pos_inf(n, bits_per_limb));
 }
 
 template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::reserve_representation(const size_type n) {
-    // Reserve room for at least n representation limbs. reserve() is limb-based here.
-    reserve(n);
+    // Reserve room for at least n representation limbs.
+    grow(n);
 }
 
 template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::capacity() const noexcept -> size_type {
-    return m_capacity;
+    // Number of bits of storage currently available without reallocating.
+    return representation_capacity() * bits_per_limb;
 }
 
 template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::representation_capacity() const noexcept -> size_type {
-    // Usable limb capacity including the in-place storage. Unlike capacity(), which
-    // reports 0 while the value is held in place, this never drops below inplace_capacity.
-    return std::max<size_type>(inplace_capacity, capacity());
+    // Usable limb capacity: the in-place limb count, or the dynamic allocation size once
+    // the value has spilled to the heap. Never drops below inplace_capacity.
+    return std::max<size_type>(inplace_capacity, m_capacity);
 }
 
 template <std::size_t b, class A>
@@ -2063,7 +2066,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
             const shift_type src_offset = shifted_limbs;
 
             Result r;
-            r.reserve(new_count);
+            r.reserve_representation(new_count);
             limb_type* const dst = r.limb_ptr();
 
             if (shifted_bits == 0) {
@@ -4008,7 +4011,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
         return parse_non_allocating_result{0, 0, std::errc::invalid_argument};
     }
     const auto parsed_size = parsed.representation().size();
-    if (parsed.capacity() != 0) {
+    if (parsed.representation_capacity() != big_int::inplace_capacity) {
         return {big_int{}, parsed_size, std::errc::result_out_of_range};
     }
     return {std::move(parsed), parsed_size, std::errc{}};

@@ -12,21 +12,21 @@ using namespace beman::big_int::literals;
 
 consteval bool test_small_value() {
     constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{42}; })>();
-    static_assert(v.capacity() == 0);
+    static_assert(is_inplace(v));
     return v.width_mag() == 6 && v.representation()[0] == 42U;
 }
 static_assert(test_small_value());
 
 consteval bool test_zero_value() {
     constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{0}; })>();
-    static_assert(v.capacity() == 0);
+    static_assert(is_inplace(v));
     return v.width_mag() == 0 && v.representation().size() == 1;
 }
 static_assert(test_zero_value());
 
 consteval bool test_negative_value() {
     constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{-42}; })>();
-    static_assert(v.capacity() == 0);
+    static_assert(is_inplace(v));
     return v.width_mag() == 6 && v.representation()[0] == 42U;
 }
 static_assert(test_negative_value());
@@ -39,7 +39,7 @@ consteval bool test_heap_required_value() {
         return 1'000'000'000'000'000'000'000'000'000'000'000'000'000_n *
                1'000'000'000'000'000'000'000'000'000'000'000'000'000_n;
     })>();
-    static_assert(v.capacity() == 0);
+    static_assert(is_inplace(v));
     static_assert(decltype(v)::inplace_capacity >= 4);
     return v.representation().size() >= 4;
 }

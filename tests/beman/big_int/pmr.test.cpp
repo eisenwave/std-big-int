@@ -131,7 +131,7 @@ static_assert(std::is_convertible_v<std::uint64_t, pmr_big_int>);
 TEST(Pmr, DefaultConstructionUsesDefaultResource) {
     const pmr_big_int x;
     EXPECT_EQ(x.size(), 0U);
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
     EXPECT_EQ(x.get_allocator().resource(), std::pmr::get_default_resource());
 }
 
@@ -139,7 +139,7 @@ TEST(Pmr, AllocatorOnlyConstruction) {
     counting_resource cr;
     const pmr_big_int x{poly_alloc{&cr}};
     EXPECT_EQ(x.size(), 0U);
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
     EXPECT_EQ(x.get_allocator().resource(), &cr);
     EXPECT_EQ(cr.alloc_count(), 0U);
 }
@@ -275,7 +275,7 @@ TEST(Pmr, ScopeExitDeallocatesAllAllocations) {
     counting_resource cr;
     {
         pmr_big_int x{42, &cr};
-        x.reserve(16);
+        x.reserve_representation(16);
     }
     EXPECT_GE(cr.alloc_count(), 1U);
     EXPECT_EQ(cr.alloc_count(), cr.dealloc_count());
@@ -322,17 +322,17 @@ TEST(Pmr, ReserveAllocatesOnConfiguredResource) {
     counting_resource cr;
     pmr_big_int       x{42, &cr};
     EXPECT_EQ(cr.alloc_count(), 0U);
-    x.reserve(16);
+    x.reserve_representation(16);
     EXPECT_EQ(cr.alloc_count(), 1U);
-    EXPECT_GE(x.capacity(), 16U);
+    EXPECT_GE(x.representation_capacity(), 16U);
 }
 
 TEST(Pmr, ReserveBeyondCurrentReallocatesOnSameResource) {
     counting_resource cr;
     pmr_big_int       x{42, &cr};
-    x.reserve(8);
+    x.reserve_representation(8);
     EXPECT_EQ(cr.alloc_count(), 1U);
-    x.reserve(64);
+    x.reserve_representation(64);
     // A second allocation occurred on the same resource (and the first was freed).
     EXPECT_GE(cr.alloc_count(), 2U);
 }
@@ -340,12 +340,12 @@ TEST(Pmr, ReserveBeyondCurrentReallocatesOnSameResource) {
 TEST(Pmr, ShrinkToFitDeallocatesViaConfiguredResource) {
     counting_resource cr;
     pmr_big_int       x{42, &cr};
-    x.reserve(16);
+    x.reserve_representation(16);
     EXPECT_EQ(cr.alloc_count(), 1U);
     EXPECT_EQ(cr.dealloc_count(), 0U);
     x.shrink_to_fit(); // 42 fits inline; the heap buffer is returned to cr.
     EXPECT_EQ(cr.dealloc_count(), 1U);
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
     EXPECT_EQ(static_cast<int>(x), 42);
 }
 
@@ -800,7 +800,7 @@ TEST(Pmr, NullMemoryResourceForcesInlineOnly) {
     x += pmr_big_int{100, std::pmr::null_memory_resource()};
     EXPECT_EQ(static_cast<int>(x), 142);
     // Triggering an allocation must throw.
-    EXPECT_THROW(x.reserve(8), std::bad_alloc);
+    EXPECT_THROW(x.reserve_representation(8), std::bad_alloc);
 }
 
 // ----- Stream output via testing.hpp -----

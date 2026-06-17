@@ -36,6 +36,16 @@ template <class IntegralType>
     return result;
 }
 
+// True when x keeps its magnitude in the in-place (small-object) buffer rather than in
+// dynamically-allocated storage. With the bit-based capacity()/limb-based
+// representation_capacity() model, an in-place value has representation_capacity() equal to
+// inplace_capacity (capacity() reports inplace_bits); a heap-allocated value exceeds it.
+// Found by ADL from the tests because basic_big_int lives in this namespace.
+template <std::size_t b, class A>
+[[nodiscard]] constexpr bool is_inplace(const basic_big_int<b, A>& x) noexcept {
+    return x.representation_capacity() == basic_big_int<b, A>::inplace_capacity;
+}
+
 // Returns the number of bytes before the trailing run of zero bytes.
 // Used to compare big_int representations against boost::multiprecision::cpp_int
 // limb arrays, where padding limbs may differ but the significant bytes match.
