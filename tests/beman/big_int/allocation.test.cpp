@@ -105,6 +105,83 @@ consteval bool test_shrink_to_fit_noop_inline() {
 }
 static_assert(test_shrink_to_fit_noop_inline());
 
+// ----- representation_size / max_representation_size / representation_capacity / reserve_representation -----
+
+consteval bool test_representation_size_zero() {
+    beman::big_int::big_int x;
+    // A zero value occupies a single limb, matching representation().size().
+    return x.representation_size() == 1U && x.representation_size() == x.representation().size();
+}
+static_assert(test_representation_size_zero());
+
+consteval bool test_representation_size_small() {
+    beman::big_int::big_int x{42U};
+    return x.representation_size() == 1U && x.representation_size() == x.representation().size();
+}
+static_assert(test_representation_size_small());
+
+consteval bool test_representation_size_negative() {
+    // The magnitude, not the sign, determines representation_size().
+    beman::big_int::big_int pos{42U};
+    beman::big_int::big_int neg{-42};
+    return neg.representation_size() == pos.representation_size();
+}
+static_assert(test_representation_size_negative());
+
+consteval bool test_representation_size_matches_formula() {
+    using namespace beman::big_int::literals;
+    beman::big_int::big_int x{18446744073709551616_n}; // 2^64, size() == 65
+    constexpr std::size_t   digits =
+        static_cast<std::size_t>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits);
+    const std::size_t expected = (x.size() + digits - 1U) / digits; // ceil(size() / digits)
+    return x.representation_size() == expected && x.representation_size() == x.representation().size() &&
+           x.representation_size() >= 2U;
+}
+static_assert(test_representation_size_matches_formula());
+
+consteval bool test_max_representation_size() {
+    // Limb-count limit; identical to max_size() in this limb-counted implementation.
+    return beman::big_int::big_int::max_representation_size() == beman::big_int::big_int::max_size();
+}
+static_assert(test_max_representation_size());
+
+consteval bool test_representation_capacity_inline() {
+    beman::big_int::big_int x;
+    // In-place storage: capacity() reports 0, but representation_capacity() reports the
+    // in-place limb count.
+    return x.capacity() == 0U && x.representation_capacity() == beman::big_int::big_int::inplace_capacity;
+}
+static_assert(test_representation_capacity_inline());
+
+consteval bool test_representation_capacity_heap() {
+    beman::big_int::big_int x;
+    x.reserve_representation(8);
+    // Once on the heap, representation_capacity() tracks capacity().
+    return x.capacity() >= 8U && x.representation_capacity() == x.capacity();
+}
+static_assert(test_representation_capacity_heap());
+
+consteval bool test_reserve_representation_within_inline() {
+    beman::big_int::big_int x;
+    x.reserve_representation(1); // fits in-place, no allocation
+    return x.capacity() == 0U && x.representation_capacity() >= 1U;
+}
+static_assert(test_reserve_representation_within_inline());
+
+consteval bool test_reserve_representation_beyond_inline() {
+    beman::big_int::big_int x;
+    x.reserve_representation(4);
+    return x.capacity() >= 4U && x.representation_capacity() >= 4U;
+}
+static_assert(test_reserve_representation_beyond_inline());
+
+consteval bool test_reserve_representation_preserves_value() {
+    beman::big_int::big_int x{42U};
+    x.reserve_representation(8);
+    return x.representation()[0] == 42U && x.representation_capacity() >= 8U;
+}
+static_assert(test_reserve_representation_preserves_value());
+
 // ----- runtime tests -----
 
 TEST(Allocation, SizeDefault) {
@@ -207,6 +284,58 @@ TEST(Allocation, ReserveLargeValue) {
     beman::big_int::big_int x;
     x.reserve(1024);
     EXPECT_GE(x.capacity(), 1024U);
+}
+
+TEST(Allocation, RepresentationSizeZero) {
+    beman::big_int::big_int x;
+    EXPECT_EQ(x.representation_size(), 1U);
+    EXPECT_EQ(x.representation_size(), x.representation().size());
+}
+
+TEST(Allocation, RepresentationSizeSmall) {
+    beman::big_int::big_int x{42U};
+    EXPECT_EQ(x.representation_size(), 1U);
+    EXPECT_EQ(x.representation_size(), x.representation().size());
+}
+
+TEST(Allocation, RepresentationSizeNegativeMatchesMagnitude) {
+    beman::big_int::big_int pos{42};
+    beman::big_int::big_int neg{-42};
+    EXPECT_EQ(neg.representation_size(), pos.representation_size());
+}
+
+TEST(Allocation, RepresentationSizeBig) {
+    using namespace beman::big_int::literals;
+    beman::big_int::big_int x{
+        31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989_n};
+    EXPECT_EQ(x.representation_size(), x.representation().size());
+    EXPECT_GT(x.representation_size(), 1U);
+}
+
+TEST(Allocation, MaxRepresentationSize) {
+    EXPECT_EQ(beman::big_int::big_int::max_representation_size(), beman::big_int::big_int::max_size());
+}
+
+TEST(Allocation, RepresentationCapacityInline) {
+    beman::big_int::big_int x;
+    constexpr std::size_t   inplace_cap = beman::big_int::big_int::inplace_capacity;
+    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_EQ(x.representation_capacity(), inplace_cap);
+}
+
+TEST(Allocation, ReserveRepresentationBeyondInline) {
+    beman::big_int::big_int x;
+    x.reserve_representation(4);
+    EXPECT_GE(x.capacity(), 4U);
+    EXPECT_GE(x.representation_capacity(), 4U);
+    EXPECT_EQ(x.representation_capacity(), x.capacity());
+}
+
+TEST(Allocation, ReserveRepresentationPreservesValue) {
+    beman::big_int::big_int x{42U};
+    x.reserve_representation(8);
+    EXPECT_EQ(x.representation()[0], 42U);
+    EXPECT_GE(x.representation_capacity(), 8U);
 }
 
 // ----- copy/move with heap storage -----
