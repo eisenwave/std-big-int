@@ -466,11 +466,15 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // [big.int.ops]
     [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
+    [[nodiscard]] constexpr size_type                              representation_size() const noexcept;
     [[nodiscard]] constexpr allocator_type                         get_allocator() const noexcept;
     [[nodiscard]] constexpr size_type                              size() const noexcept;
     [[nodiscard]] static constexpr size_type                       max_size() noexcept;
+    [[nodiscard]] static constexpr size_type                       max_representation_size() noexcept;
     constexpr void                                                 reserve(size_type n);
+    constexpr void                                                 reserve_representation(size_type n);
     [[nodiscard]] constexpr size_type                              capacity() const noexcept;
+    [[nodiscard]] constexpr size_type                              representation_capacity() const noexcept;
     constexpr void                                                 shrink_to_fit();
 
     // [big.int.unary]
@@ -1324,6 +1328,13 @@ constexpr std::span<const uint_multiprecision_t> basic_big_int<b, A>::representa
 }
 
 template <std::size_t b, class A>
+constexpr std::size_t basic_big_int<b, A>::representation_size() const noexcept {
+    // Number of limbs spanned by the magnitude: a single limb for a zero value,
+    // otherwise ceil(width_mag() / bits_per_limb). Equals representation().size().
+    return is_zero() ? size_type{1} : detail::div_to_pos_inf(width_mag(), bits_per_limb);
+}
+
+template <std::size_t b, class A>
 constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator() const noexcept {
     return m_alloc;
 }
@@ -1350,13 +1361,32 @@ constexpr std::size_t basic_big_int<b, A>::max_size() noexcept {
 }
 
 template <std::size_t b, class A>
+constexpr std::size_t basic_big_int<b, A>::max_representation_size() noexcept {
+    // The maximum number of limbs the representation may hold; max_size() already counts limbs.
+    return max_size();
+}
+
+template <std::size_t b, class A>
 constexpr void basic_big_int<b, A>::reserve(const size_type n) {
     grow(n);
 }
 
 template <std::size_t b, class A>
+constexpr void basic_big_int<b, A>::reserve_representation(const size_type n) {
+    // Reserve room for at least n representation limbs. reserve() is limb-based here.
+    reserve(n);
+}
+
+template <std::size_t b, class A>
 constexpr auto basic_big_int<b, A>::capacity() const noexcept -> size_type {
     return m_capacity;
+}
+
+template <std::size_t b, class A>
+constexpr auto basic_big_int<b, A>::representation_capacity() const noexcept -> size_type {
+    // Usable limb capacity including the in-place storage. Unlike capacity(), which
+    // reports 0 while the value is held in place, this never drops below inplace_capacity.
+    return std::max<size_type>(inplace_capacity, capacity());
 }
 
 template <std::size_t b, class A>
