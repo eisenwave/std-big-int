@@ -72,7 +72,8 @@ consteval bool test_capacity_is_inplace_bits() {
     constexpr std::size_t digits =
         static_cast<std::size_t>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits);
     beman::big_int::big_int x;
-    return x.capacity() == beman::big_int::big_int::inplace_bits && x.capacity() == x.representation_capacity() * digits;
+    return x.capacity() == beman::big_int::big_int::inplace_bits &&
+           x.capacity() == x.representation_capacity() * digits;
 }
 static_assert(test_capacity_is_inplace_bits());
 
