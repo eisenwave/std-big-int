@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#api_reference]
+= API Reference
+:idprefix: api_ref_
+
+[#api_namespaces]
+== Namespaces
+
+[cols="1,2", options="header"]
+|===
+| Namespace | Description
+| `beman::big_int` | Contains all components of the library *except* literals and polymorphic memory resource support
+| `beman::big_int::literals` | User-defined literals
+| `beman::big_int::pmr` | Types with `std::pmr` support
+|===
+
+[#api_types]
+== Types
+
+[cols="1,2", options="header"]
+|===
+| Type | Description
+| xref:big_int_type.adoc#big_int_type_unit_multi_t[`uint_multiprecision_t`] | The limb type of a `big_int`
+| xref:big_int_type.adoc#big_int_type_basic_big_int[`basic_big_int`] | The template of a big integer type. Analogous to `std::basic_string`
+| xref:big_int_type.adoc#big_int_type_using_big_int[`big_int`] | A big integer type using default small value optimizations and allocator
+|===
