@@ -126,6 +126,11 @@ class basic_big_int {
     template <_signed-or-unsigned_ S> constexpr basic_big_int& operator<<=(S s);
     template <_signed-or-unsigned_ S> constexpr basic_big_int& operator>>=(S s);
 
+    // [big.int.modifiers], swap
+    constexpr void swap(basic_big_int& x) noexcept(
+        std::allocator_traits<allocator_type>::propagate_on_container_swap::value ||
+        std::allocator_traits<allocator_type>::is_always_equal::value);
+
     // [big.int.ops], observers
     constexpr size_type                              width_mag() const noexcept;
     constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
@@ -436,6 +441,27 @@ by `2^s`, rounded toward negative infinity). Each returns `*this`.
 
 * *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift `max_size() * std::numeric_limits<uint_multiprecision_t>::digits`.
 * *Postconditions:* None.
+
+[#big_int_type_swap]
+== Swap
+
+[source,c++]
+----
+constexpr void swap(basic_big_int& x) noexcept(
+    std::allocator_traits<allocator_type>::propagate_on_container_swap::value ||
+    std::allocator_traits<allocator_type>::is_always_equal::value);
+----
+
+Exchanges the integer values of `*this` and `x`. Any dynamically-allocated
+storage is exchanged directly rather than reallocated, so the operation neither
+allocates nor deallocates. If
+`std::allocator_traits<allocator_type>::propagate_on_container_swap::value` is
+`true`, the allocators are also exchanged using an unqualified call to `swap`;
+otherwise they are left unchanged.
+
+* *Preconditions:* `std::allocator_traits<allocator_type>::propagate_on_container_swap::value` is `true`, or `get_allocator() == x.get_allocator()`.
+* *Postconditions:* `*this` holds the integer value that `x` held before the call, and `x` holds the integer value that `*this` held before the call. The allocators are exchanged if and only if `std::allocator_traits<allocator_type>::propagate_on_container_swap::value` is `true`.
+* *Throws:* Nothing.
 
 [#big_int_type_observers]
 == Observers

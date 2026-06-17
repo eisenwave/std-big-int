@@ -459,6 +459,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& operator^=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
 
+    constexpr void
+    swap(basic_big_int& x) noexcept(std::allocator_traits<Allocator>::propagate_on_container_swap::value ||
+                                    std::allocator_traits<Allocator>::is_always_equal::value);
+
     // [big.int.ops]
     [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
@@ -1024,6 +1028,54 @@ constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x)
     // not marked `noexcept`.
     assign_value(std::move(x));
     return *this;
+}
+
+// Exchanges the value and storage of `*this` and `x` without allocating or
+// deallocating. Two inline operands swap their limbs, two heap operands swap
+// their buffer pointers, and a mixed pair relocates the inline limbs into the
+// heap operand's storage while the freed pointer is adopted by the other.
+// The allocator participates only when `propagate_on_container_swap` holds;
+// otherwise [container.reqmts] requires the two allocators to compare equal.
+template <std::size_t b, class A>
+constexpr void
+basic_big_int<b, A>::swap(basic_big_int& x) noexcept(std::allocator_traits<A>::propagate_on_container_swap::value ||
+                                                     std::allocator_traits<A>::is_always_equal::value) {
+    if (this == std::addressof(x)) {
+        return;
+    }
+
+    if constexpr (alloc_traits::propagate_on_container_swap::value) {
+        using std::swap;
+        swap(m_alloc, x.m_alloc);
+    } else {
+        BEMAN_BIG_INT_DEBUG_ASSERT(alloc_traits::is_always_equal::value || m_alloc == x.m_alloc);
+    }
+
+    // Capture the storage models before swapping the control words, since
+    // `is_representation_inplace()` reads `m_capacity`.
+    const bool this_inplace = is_representation_inplace();
+    const bool x_inplace    = x.is_representation_inplace();
+
+    std::swap(m_capacity, x.m_capacity);
+    std::swap(m_size_and_sign, x.m_size_and_sign);
+
+    if (this_inplace && x_inplace) {
+        for (size_type i = 0; i < inplace_capacity; ++i) {
+            std::swap(m_storage.limbs[i], x.m_storage.limbs[i]);
+        }
+    } else if (!this_inplace && !x_inplace) {
+        std::swap(m_storage.data, x.m_storage.data);
+    } else {
+        // Exactly one operand is inline. Move its limbs into the heap operand's
+        // storage and hand the freed pointer to the now-inline operand.
+        basic_big_int& inplace_side = this_inplace ? *this : x;
+        basic_big_int& heap_side    = this_inplace ? x : *this;
+        const pointer  ptr          = heap_side.m_storage.data;
+        for (size_type i = 0; i < inplace_capacity; ++i) {
+            heap_side.m_storage.limbs[i] = inplace_side.m_storage.limbs[i];
+        }
+        inplace_side.m_storage.data = ptr;
+    }
 }
 
 template <std::size_t b, class A>
