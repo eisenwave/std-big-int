@@ -459,9 +459,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& operator^=(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
 
-    constexpr void swap(basic_big_int& x) noexcept(
-        std::allocator_traits<Allocator>::propagate_on_container_swap::value ||
-        std::allocator_traits<Allocator>::is_always_equal::value);
+    constexpr void
+    swap(basic_big_int& x) noexcept(std::allocator_traits<Allocator>::propagate_on_container_swap::value ||
+                                    std::allocator_traits<Allocator>::is_always_equal::value);
 
     // [big.int.ops]
     [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
