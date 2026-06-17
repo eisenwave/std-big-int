@@ -90,12 +90,12 @@ TEST(IncrementDecrement, PrefixIncrementRequiresAllocationForLargeValue) {
     big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
 
     EXPECT_EQ(x.representation().size(), 1U);
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
 
     ++x;
 
     EXPECT_EQ(x, big_int{1} << 64);
-    EXPECT_GT(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
 }
 
 TEST(IncrementDecrement, ZeroAndOneTransitions) {
@@ -120,26 +120,26 @@ TEST(IncrementDecrement, PrefixIncrementAllocatedCarryChain) {
     ++x;
     x = -x;
 
-    EXPECT_GT(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
     EXPECT_EQ(x, -(big_int{1} << 64));
 
     ++x;
 
     EXPECT_EQ(x, -big_int{std::numeric_limits<uint_multiprecision_t>::max()});
-    EXPECT_GT(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
 }
 
 TEST(IncrementDecrement, PrefixDecrementAllocatedBorrowChain) {
     big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
     ++x;
 
-    EXPECT_GT(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
     EXPECT_EQ(x, big_int{1} << 64);
 
     --x;
 
     EXPECT_EQ(x, big_int{std::numeric_limits<uint_multiprecision_t>::max()});
-    EXPECT_GT(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
 }
 
 TEST(IncrementDecrement, BitwiseNotSmallIntegers) {
@@ -183,13 +183,13 @@ TEST(IncrementDecrement, BitwiseNotBigInteger) {
 
 TEST(IncrementDecrement, BitwiseNotCanAllocate) {
     big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
 
     const big_int y = ~x;
 
     EXPECT_EQ(y, -x - 1);
     EXPECT_EQ((y <=> 0), std::strong_ordering::less);
-    EXPECT_GT(y.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(y));
 }
 
 } // namespace

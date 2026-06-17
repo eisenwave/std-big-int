@@ -111,7 +111,7 @@ TEST(MultiLimbConstruction, FromInt128InplacePathLargeBigInt) {
     const u128                         value = make_u128(0xABCDEF0123456789ULL, 0xFEDCBA9876543210ULL);
     beman::big_int::basic_big_int<256> x(value);
     EXPECT_EQ(static_cast<u128>(x), value);
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
 }
 
 TEST(MultiLimbConstruction, AssignFromUnsignedInt128) {
@@ -249,7 +249,7 @@ TEST(MultiLimbConstruction, FromUnsignedBitInt192InplacePath) {
                          static_cast<bui192>(0xDEADBEEFULL);
     beman::big_int::basic_big_int<192> x(value);
     EXPECT_EQ(static_cast<bui192>(x), value);
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
 }
 
 TEST(MultiLimbConstruction, FromSignedBitInt192Negative) {

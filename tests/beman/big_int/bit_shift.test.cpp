@@ -74,7 +74,7 @@ TEST(BitShift, LeftShiftAllocatedValue) {
     EXPECT_EQ(x.representation()[0], 0ULL);
     EXPECT_EQ(x.representation()[1], std::numeric_limits<uint_multiprecision_t>::max() - 1ULL);
     EXPECT_EQ(x.representation()[2], 1ULL);
-    EXPECT_GT(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
 }
 
 TEST(BitShift, RightShiftBasic) {
@@ -275,7 +275,7 @@ TEST(BitShift, OperatorLeftShiftInplaceToHeap) {
     // Shifting 1 left by 63 bits: top limb = 0x8000...0, CLZ = 0.
     // A further shift by 1 bit must overflow into a second limb (heap).
     const big_int x{1ULL << 63};
-    EXPECT_EQ(x.capacity(), 0U); // inline
+    EXPECT_TRUE(is_inplace(x)); // inline
 
     const big_int r = x << 1;
     EXPECT_EQ(r.representation().size(), 2U);
@@ -287,10 +287,10 @@ TEST(BitShift, OperatorLeftShiftInplaceStaysInlineCLZ) {
     // Value 1 has CLZ = 63 in a 64-bit limb. Shifting left by up to 63 bits
     // should NOT overflow into a new limb, staying in inline storage.
     const big_int x{1};
-    EXPECT_EQ(x.capacity(), 0U); // inline
+    EXPECT_TRUE(is_inplace(x)); // inline
 
     const big_int r = x << 63;
-    EXPECT_EQ(r.capacity(), 0U); // still inline
+    EXPECT_TRUE(is_inplace(r)); // still inline
     EXPECT_EQ(r.representation().size(), 1U);
     EXPECT_EQ(r.representation()[0], 1ULL << 63);
 }
@@ -300,10 +300,10 @@ TEST(BitShift, OperatorLeftShiftWiderInplaceStaysInline) {
     // within those 256 bits should never touch the heap.
     using big_int_256 = basic_big_int<256>;
     const big_int_256 x{1};
-    EXPECT_EQ(x.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(x));
 
     const big_int_256 r = x << 255;
-    EXPECT_EQ(r.capacity(), 0U); // still inline
+    EXPECT_TRUE(is_inplace(r)); // still inline
 
     // Top limb should be 1 << (255 % 64) = 1 << 63
     EXPECT_EQ(r.representation().size(), 4U);
@@ -321,7 +321,7 @@ TEST(BitShift, OperatorLeftShiftWiderInplaceToHeap) {
 
     const big_int_256 r = x << 256;
     EXPECT_EQ(r.representation().size(), 5U);
-    EXPECT_NE(r.capacity(), 0U); // heap
+    EXPECT_FALSE(is_inplace(r)); // heap
     EXPECT_EQ(r.representation()[4], 1ULL);
     for (int i = 0; i < 4; ++i) {
         EXPECT_EQ(r.representation()[static_cast<std::size_t>(i)], 0ULL);
@@ -371,7 +371,7 @@ TEST(BitShift, OperatorLeftShiftHeapSource) {
     // so shift_left doesn't reallocate.
     big_int x{std::numeric_limits<uint_multiprecision_t>::max()};
     x <<= 1; // now 2 limbs, on heap
-    EXPECT_NE(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
 
     const big_int r = x << 64;
     EXPECT_EQ(r.representation().size(), 3U);
@@ -495,11 +495,11 @@ TEST(BitShift, OperatorRightShiftFullDiscardSkipsCopy) {
     // inherit the source's heap buffer.
     big_int x{1};
     x <<= 128; // 3 limbs, on heap
-    EXPECT_NE(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
 
     const big_int r = x >> 200;
     EXPECT_EQ(r, 0);
-    EXPECT_EQ(r.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(r));
 }
 
 TEST(BitShift, OperatorRightShiftPreservesOriginal) {
@@ -540,7 +540,7 @@ TEST(BitShift, LValueBiggerShiftThanRep) {
     const big_int r = x >> 10000;
 
     EXPECT_EQ(r, big_int{0});
-    EXPECT_EQ(r.capacity(), 0U); // No allocation should have been made
+    EXPECT_TRUE(is_inplace(r)); // No allocation should have been made
 }
 
 TEST(BitShift, LValueBiggerShiftThanRepNegative) {
@@ -549,7 +549,7 @@ TEST(BitShift, LValueBiggerShiftThanRepNegative) {
     const big_int r = x >> 10000;
 
     EXPECT_EQ(r, -1);
-    EXPECT_EQ(r.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(r));
 }
 
 TEST(BitShift, LValuePartialLimbSkip) {
@@ -612,12 +612,12 @@ TEST(BitShift, LValueBitShiftDropsTopLimb) {
     // (2^64) >> 1 == 2^63: the source is on the heap but the result can be inlined
     // Should not allocate
     const big_int x = big_int{1} << 64;
-    EXPECT_NE(x.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(x));
 
     const big_int r        = x >> 1;
     const big_int expected = big_int{1} << 63;
     EXPECT_EQ(r, expected);
-    EXPECT_EQ(r.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(r));
 }
 
 TEST(BitShift, LValueBitShiftDropsTopLimbNegative) {
@@ -628,7 +628,7 @@ TEST(BitShift, LValueBitShiftDropsTopLimbNegative) {
     const big_int r        = x >> 1;
     const big_int expected = -((big_int{1} << 63) + big_int{1});
     EXPECT_EQ(r, expected);
-    EXPECT_EQ(r.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(r));
 }
 
 TEST(BitShift, LeftShiftSmallConsistencyWithInt) {

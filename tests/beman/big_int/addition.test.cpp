@@ -87,7 +87,7 @@ TEST(Addition, CarryOutOfTopLimbPromotesToHeap) {
     EXPECT_EQ(r, big_int{1} << 64);
     EXPECT_FALSE(r < 0);
     // Storage should have promoted out of inline.
-    EXPECT_GT(r.capacity(), 0u);
+    EXPECT_FALSE(is_inplace(r));
 }
 
 TEST(Addition, NoAllocationWhenInlineFits) {
@@ -98,7 +98,7 @@ TEST(Addition, NoAllocationWhenInlineFits) {
     const big_int_256 b{2};
     const big_int_256 r = a + b;
     EXPECT_EQ(r, 3);
-    EXPECT_EQ(r.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(r));
 
     // Even with both operands near the inline limit (but no carry out of
     // the top inline limb), we should not allocate.
@@ -106,7 +106,7 @@ TEST(Addition, NoAllocationWhenInlineFits) {
     const big_int_256 d{1};
     const big_int_256 s        = c + d;
     const big_int_256 expected = big_int_256{1} << 64;
-    EXPECT_EQ(s.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(s));
     EXPECT_EQ(s, expected);
 }
 
@@ -202,7 +202,7 @@ TEST(Addition, RvalueLhsReusesStorage) {
     // Heap-allocated `a`; `std::move(a) + small` must write the result into `a`'s buffer.
     big_int     a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64, two limbs
     const auto* a_data = a.representation().data();
-    ASSERT_GT(a.capacity(), 0u); // heap-allocated
+    ASSERT_FALSE(is_inplace(a)); // heap-allocated
     const big_int r = std::move(a) + big_int{5};
     EXPECT_EQ(r.representation().data(), a_data);
     EXPECT_EQ(r, (big_int{1} << 64) + big_int{5});
@@ -213,7 +213,7 @@ TEST(Addition, RvalueRhsReusesStorage) {
     const big_int small{5};
     big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const auto*   b_data = b.representation().data();
-    ASSERT_GT(b.capacity(), 0u);
+    ASSERT_FALSE(is_inplace(b));
     const big_int r = small + std::move(b);
     EXPECT_EQ(r.representation().data(), b_data);
     EXPECT_EQ(r, (big_int{1} << 64) + big_int{5});
@@ -224,8 +224,8 @@ TEST(Addition, BothRvaluesReusesLhsStorage) {
     big_int     a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     big_int     b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1};
     const auto* a_data = a.representation().data();
-    ASSERT_GT(a.capacity(), 0u);
-    ASSERT_GT(b.capacity(), 0u);
+    ASSERT_FALSE(is_inplace(a));
+    ASSERT_FALSE(is_inplace(b));
     const big_int r = std::move(a) + std::move(b);
     EXPECT_EQ(r.representation().data(), a_data);
     EXPECT_EQ(r, big_int{1} << 65);
@@ -235,7 +235,7 @@ TEST(Addition, RvalueCarryGrowsStorage) {
     // Same-sign add where the ripple carry forces one extra limb beyond the
     // rvalue's current capacity. The helper's `grow(big+1)` path must handle this.
     big_int a = big_int{std::numeric_limits<std::uint64_t>::max()}; // 1 limb, inline
-    EXPECT_EQ(a.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(a));
     const big_int r = std::move(a) + big_int{1}; // 2^64 requires 2 limbs
     EXPECT_EQ(r, big_int{1} << 64);
 }
@@ -299,7 +299,7 @@ TEST(Addition, LvalueHeapReservesCarryHeadroom) {
 
     const big_int r = a + b; // 2 * 2^64 -- limbs [0, 2], still 2 limbs but room for 3.
     ASSERT_EQ(r.representation().size(), 2U);
-    EXPECT_GE(r.capacity(), 3U);
+    EXPECT_GE(r.representation_capacity(), 3U);
 }
 
 TEST(Addition, InlineInlineNoCarryStaysInline) {
@@ -310,22 +310,22 @@ TEST(Addition, InlineInlineNoCarryStaysInline) {
     using big_int_256 = basic_big_int<256>;
     const big_int_256 a{5};
     const big_int_256 b{7};
-    ASSERT_EQ(a.capacity(), 0u);
-    ASSERT_EQ(b.capacity(), 0u);
+    ASSERT_TRUE(is_inplace(a));
+    ASSERT_TRUE(is_inplace(b));
     const big_int_256 r = a + b;
     EXPECT_EQ(r, 12);
-    EXPECT_EQ(r.capacity(), 0u); // still inline -- no speculative heap allocation
+    EXPECT_TRUE(is_inplace(r)); // still inline -- no speculative heap allocation
 
     // Boundary case for the default `big_int` (basic_big_int<64>, inplace_limbs=1):
     // both inline, no carry => stays inline. This is the specific pessimization
     // that would appear if assign_value(..., 1) were called unconditionally.
     const big_int c{5};
     const big_int d{7};
-    ASSERT_EQ(c.capacity(), 0u);
-    ASSERT_EQ(d.capacity(), 0u);
+    ASSERT_TRUE(is_inplace(c));
+    ASSERT_TRUE(is_inplace(d));
     const big_int r2 = c + d;
     EXPECT_EQ(r2, 12);
-    EXPECT_EQ(r2.capacity(), 0u); // still inline
+    EXPECT_TRUE(is_inplace(r2)); // still inline
 }
 
 TEST(Addition, SmallConsistencyWithInt) {
@@ -430,7 +430,7 @@ TEST(CompoundAddition, CarryOutOfTopLimbPromotesToHeap) {
     ASSERT_EQ(a.representation().size(), 2u);
     EXPECT_EQ(a.representation()[0], uint_multiprecision_t{0});
     EXPECT_EQ(a.representation()[1], uint_multiprecision_t{1});
-    EXPECT_GT(a.capacity(), 0u);
+    EXPECT_FALSE(is_inplace(a));
 }
 
 TEST(CompoundAddition, NoAllocationWhenInlineFits) {
@@ -438,7 +438,7 @@ TEST(CompoundAddition, NoAllocationWhenInlineFits) {
     big_int_256 a{1};
     a += big_int_256{2};
     EXPECT_EQ(a, 3);
-    EXPECT_EQ(a.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(a));
 }
 
 TEST(CompoundAddition, MultiLimbOppositeSignTrimsLeadingZeros) {
@@ -529,12 +529,12 @@ TEST(Addition, LvalueCopiesLargerOperand) {
     // have room for the two-limb value without growing.
     const big_int r1 = small + big;
     EXPECT_EQ(r1, big + small);
-    EXPECT_GE(r1.capacity(), 2u);
+    EXPECT_GE(r1.representation_capacity(), 2u);
 
     // Symmetric case: `big + small` copies `big` too.
     const big_int r2 = big + small;
     EXPECT_EQ(r2, big + small);
-    EXPECT_GE(r2.capacity(), 2u);
+    EXPECT_GE(r2.representation_capacity(), 2u);
 }
 
 } // namespace

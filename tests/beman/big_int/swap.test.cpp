@@ -59,7 +59,7 @@ consteval bool test_swap_inplace_inplace() {
     big_int a{5};
     big_int b{42};
     a.swap(b);
-    return a == 42 && b == 5 && a.capacity() == 0U && b.capacity() == 0U;
+    return a == 42 && b == 5 && is_inplace(a) && is_inplace(b);
 }
 static_assert(test_swap_inplace_inplace());
 
@@ -68,7 +68,7 @@ consteval bool test_swap_heap_heap() {
     big_int a = two_pow(100);
     big_int b = two_pow(200);
     a.swap(b);
-    return a == two_pow(200) && b == two_pow(100) && a.capacity() != 0U && b.capacity() != 0U;
+    return a == two_pow(200) && b == two_pow(100) && !is_inplace(a) && !is_inplace(b);
 }
 static_assert(test_swap_heap_heap());
 
@@ -78,7 +78,7 @@ consteval bool test_swap_mixed() {
     big_int large = two_pow(150);
     small.swap(large);
     // `small` adopts the heap buffer; `large` becomes inline.
-    return small == two_pow(150) && large == 7 && small.capacity() != 0U && large.capacity() == 0U;
+    return small == two_pow(150) && large == 7 && !is_inplace(small) && is_inplace(large);
 }
 static_assert(test_swap_mixed());
 
@@ -96,7 +96,7 @@ consteval bool test_swap_zero() {
     big_int a{0};
     big_int b = two_pow(130);
     a.swap(b);
-    return a == two_pow(130) && b == 0 && a.capacity() != 0U && b.capacity() == 0U;
+    return a == two_pow(130) && b == 0 && !is_inplace(a) && is_inplace(b);
 }
 static_assert(test_swap_zero());
 
@@ -105,7 +105,7 @@ consteval bool test_swap_multilimb_inline() {
     big_int_256 a = two_pow_256(200) + 12345; // four inline limbs
     big_int_256 b{7};                         // one inline limb
     a.swap(b);
-    return a == 7 && b == two_pow_256(200) + 12345 && a.capacity() == 0U && b.capacity() == 0U;
+    return a == 7 && b == two_pow_256(200) + 12345 && is_inplace(a) && is_inplace(b);
 }
 static_assert(test_swap_multilimb_inline());
 
@@ -114,8 +114,8 @@ consteval bool test_swap_mixed_256() {
     big_int_256 inline_val = two_pow_256(100); // two limbs, inline
     big_int_256 heap_val   = two_pow_256(400); // seven limbs, heap
     inline_val.swap(heap_val);
-    return inline_val == two_pow_256(400) && heap_val == two_pow_256(100) && inline_val.capacity() != 0U &&
-           heap_val.capacity() == 0U;
+    return inline_val == two_pow_256(400) && heap_val == two_pow_256(100) && !is_inplace(inline_val) &&
+           is_inplace(heap_val);
 }
 static_assert(test_swap_mixed_256());
 
@@ -137,8 +137,8 @@ TEST(Swap, InplaceInplace) {
     a.swap(b);
     EXPECT_EQ(a, 42);
     EXPECT_EQ(b, 5);
-    EXPECT_EQ(a.capacity(), 0U);
-    EXPECT_EQ(b.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(a));
+    EXPECT_TRUE(is_inplace(b));
 }
 
 TEST(Swap, HeapHeap) {
@@ -147,8 +147,8 @@ TEST(Swap, HeapHeap) {
     a.swap(b);
     EXPECT_EQ(a, two_pow(200));
     EXPECT_EQ(b, two_pow(100));
-    EXPECT_NE(a.capacity(), 0U);
-    EXPECT_NE(b.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(a));
+    EXPECT_FALSE(is_inplace(b));
 }
 
 TEST(Swap, Mixed) {
@@ -157,8 +157,8 @@ TEST(Swap, Mixed) {
     small.swap(large);
     EXPECT_EQ(small, two_pow(150));
     EXPECT_EQ(large, 7);
-    EXPECT_NE(small.capacity(), 0U);
-    EXPECT_EQ(large.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(small));
+    EXPECT_TRUE(is_inplace(large));
 }
 
 TEST(Swap, SignsAndZero) {
@@ -173,7 +173,7 @@ TEST(Swap, SignsAndZero) {
     zero.swap(big);
     EXPECT_EQ(zero, two_pow(130));
     EXPECT_EQ(big, 0);
-    EXPECT_EQ(big.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(big));
 }
 
 TEST(Swap, MultiLimbInline) {
@@ -182,8 +182,8 @@ TEST(Swap, MultiLimbInline) {
     a.swap(b);
     EXPECT_EQ(a, 7);
     EXPECT_EQ(b, two_pow_256(200) + 12345);
-    EXPECT_EQ(a.capacity(), 0U);
-    EXPECT_EQ(b.capacity(), 0U);
+    EXPECT_TRUE(is_inplace(a));
+    EXPECT_TRUE(is_inplace(b));
 }
 
 TEST(Swap, Mixed256) {
@@ -192,8 +192,8 @@ TEST(Swap, Mixed256) {
     inline_val.swap(heap_val);
     EXPECT_EQ(inline_val, two_pow_256(400));
     EXPECT_EQ(heap_val, two_pow_256(100));
-    EXPECT_NE(inline_val.capacity(), 0U);
-    EXPECT_EQ(heap_val.capacity(), 0U);
+    EXPECT_FALSE(is_inplace(inline_val));
+    EXPECT_TRUE(is_inplace(heap_val));
 }
 
 TEST(Swap, SelfSwapIsNoOp) {
@@ -209,13 +209,13 @@ TEST(Swap, SelfSwapIsNoOp) {
 TEST(Swap, CapacitiesFollowStorage) {
     big_int inline_val{42};
     big_int heap_val = two_pow(200);
-    ASSERT_EQ(inline_val.capacity(), 0U);
-    const std::size_t heap_cap = heap_val.capacity();
+    ASSERT_TRUE(is_inplace(inline_val));
+    const std::size_t heap_cap = heap_val.representation_capacity();
     ASSERT_NE(heap_cap, 0U);
 
     inline_val.swap(heap_val);
-    EXPECT_EQ(inline_val.capacity(), heap_cap);
-    EXPECT_EQ(heap_val.capacity(), 0U);
+    EXPECT_EQ(inline_val.representation_capacity(), heap_cap);
+    EXPECT_TRUE(is_inplace(heap_val));
 }
 
 // The buffers adopted across a swap are fully owned: further growth and

@@ -92,7 +92,7 @@ TEST(Subtraction, BorrowAcrossLimbPromotesToHeap) {
     // a - b = a + 1 = 2^64 → two-limb result, must promote to heap.
     const big_int r = a - b;
     EXPECT_EQ(r, big_int{1} << 64);
-    EXPECT_GT(r.capacity(), 0u);
+    EXPECT_FALSE(is_inplace(r));
 }
 
 TEST(Subtraction, NoAllocationWhenInlineFits) {
@@ -101,7 +101,7 @@ TEST(Subtraction, NoAllocationWhenInlineFits) {
     const big_int_256 b{-1};
     const big_int_256 r        = a - b; // 2^64 — still fits inline in a 256-bit inline buffer.
     const big_int_256 expected = big_int_256{1} << 64;
-    EXPECT_EQ(r.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(r));
     EXPECT_EQ(r, expected);
 }
 
@@ -200,7 +200,7 @@ TEST(Subtraction, AgreesWithAdditionOfNegated) {
 TEST(Subtraction, RvalueLhsReusesStorage) {
     big_int     a      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
     const auto* a_data = a.representation().data();
-    ASSERT_GT(a.capacity(), 0u);
+    ASSERT_FALSE(is_inplace(a));
     const big_int r = std::move(a) - big_int{1}; // 2^64 - 1 trims to one limb
     EXPECT_EQ(r.representation().data(), a_data);
     EXPECT_EQ(r, std::numeric_limits<std::uint64_t>::max());
@@ -210,7 +210,7 @@ TEST(Subtraction, RvalueRhsReusesStorage) {
     const big_int small{1};
     big_int       b      = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
     const auto*   b_data = b.representation().data();
-    ASSERT_GT(b.capacity(), 0u);
+    ASSERT_FALSE(is_inplace(b));
     const big_int r = small - std::move(b); // 1 - 2^64 = -(2^64 - 1)
     EXPECT_EQ(r.representation().data(), b_data);
     EXPECT_EQ(r, -big_int{std::numeric_limits<std::uint64_t>::max()});
@@ -264,7 +264,7 @@ TEST(Subtraction, RvalueLhsSmallerMagnitudeTriggersGrow) {
     // result trims back to a single limb (`2^64 - 3 = 0xFFFF...FFFD`).
     big_int       a = big_int{3};                                                      // inline, 1 limb
     const big_int b = big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1}; // 2^64
-    EXPECT_EQ(a.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(a));
     const big_int r        = std::move(a) - b; // 3 - 2^64 = -(2^64 - 3)
     const big_int expected = -(big_int{std::numeric_limits<std::uint64_t>::max()} + big_int{1} - big_int{3});
     EXPECT_EQ(r, expected);
@@ -272,7 +272,7 @@ TEST(Subtraction, RvalueLhsSmallerMagnitudeTriggersGrow) {
     ASSERT_EQ(r.representation().size(), 1u);
     EXPECT_EQ(r.representation()[0], std::numeric_limits<std::uint64_t>::max() - 2U);
     // The grow left the destination on the heap, even after the trim.
-    EXPECT_GT(r.capacity(), 0u);
+    EXPECT_FALSE(is_inplace(r));
 }
 
 TEST(Subtraction, RvaluePrimitiveMix) {
@@ -312,11 +312,11 @@ TEST(Subtraction, LvalueCopiesLargerOperand) {
 
     const big_int r1 = small - big; // rhs larger -> copy-and-negate-rhs path
     EXPECT_EQ(r1, -(big - small));
-    EXPECT_GE(r1.capacity(), 2u);
+    EXPECT_GE(r1.representation_capacity(), 2u);
 
     const big_int r2 = big - small; // lhs larger -> copy-lhs path
     EXPECT_EQ(r2, big - small);
-    EXPECT_GE(r2.capacity(), 2u);
+    EXPECT_GE(r2.representation_capacity(), 2u);
 }
 
 TEST(Subtraction, SmallConsistencyWithInt) {
@@ -461,7 +461,7 @@ TEST(CompoundSubtraction, BorrowAcrossLimbPromotesToHeap) {
     ASSERT_EQ(a.representation().size(), 2u);
     EXPECT_EQ(a.representation()[0], uint_multiprecision_t{0});
     EXPECT_EQ(a.representation()[1], uint_multiprecision_t{1});
-    EXPECT_GT(a.capacity(), 0u);
+    EXPECT_FALSE(is_inplace(a));
 }
 
 TEST(CompoundSubtraction, MultiLimbShrinksToSingleLimb) {
@@ -534,7 +534,7 @@ TEST(CompoundSubtraction, NoAllocationWhenInlineFits) {
     big_int_256 a{10};
     a -= big_int_256{3};
     EXPECT_EQ(a, 7);
-    EXPECT_EQ(a.capacity(), 0u);
+    EXPECT_TRUE(is_inplace(a));
 }
 
 TEST(CompoundSubtraction, ChainedAccumulation) {
