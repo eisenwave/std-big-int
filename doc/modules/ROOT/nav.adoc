@@ -2,11 +2,21 @@
 // SPDX-License-Identifier: BSL-1.0
 
 * xref:overview.adoc[Overview]
+* xref:build_and_usage.adoc[Build and Usage]
+** xref:build_and_usage.adoc#build_and_usage_dependencies[Dependencies]
+** xref:build_and_usage.adoc#build_and_usage_build[Building]
+** xref:build_and_usage.adoc#build_and_usage_install[Installation]
+** xref:build_and_usage.adoc#build_and_usage_cmake[CMake configuration]
+** xref:build_and_usage.adoc#build_and_usage_using[Using `beman.big_int`]
 * xref:examples.adoc[Examples]
 ** xref:examples.adoc#examples_foundational[Foundational Examples]
+*** xref:examples.adoc#examples_factorial[Factorial]
 *** xref:examples.adoc#examples_literals[User-defined literals]
 *** xref:examples.adoc#examples_charconv[Numeric conversions]
-
+** xref:examples.adoc#examples_advanced[Advanced Examples]
+*** xref:examples.adoc#examples_fibonacci[Fibonacci]
+*** xref:examples.adoc#examples_roots[Roots]
+*** xref:examples.adoc#examples_primes[Primes]
 *** xref:examples.adoc#examples_rsa[RSA]
 * xref:api_reference.adoc[]
 ** xref:api_reference.adoc#api_namespaces[Namespaces]
@@ -32,3 +42,4 @@
 ** xref:literals.adoc#literals_suffix[The n and _n suffixes]
 ** xref:literals.adoc#literals_bases[Bases, separators, and sign]
 ** xref:literals.adoc#literals_constexpr[Compile-time evaluation]
+* xref:references.adoc[References]

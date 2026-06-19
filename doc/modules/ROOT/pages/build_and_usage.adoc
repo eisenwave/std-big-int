@@ -1,0 +1,199 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#build_and_usage]
+= Build and Usage
+:idprefix: build_and_usage_
+
+This page describes how to build `beman.big_int`, install it, and integrate it
+into an existing codebase with CMake. Once integrated, `beman::big_int` behaves
+very much like a built-in integral type: it works seamlessly with detailed
+algorithms, built-in types, and visualization features such as output-streaming
+and string representation, while efficient move-semantics keep intuitive,
+easy-to-read code performant. For full runnable programs that exercise these
+features, see xref:examples.adoc[Examples].
+
+[#build_and_usage_dependencies]
+== Dependencies
+
+This project requires at least the following to build:
+
+* A C++ compiler that conforms to the C++23 standard or greater
+* CMake 3.30 or later
+* (Test only) GoogleTest
+
+You can disable building tests by setting the CMake option
+`BEMAN_BIG_INT_BUILD_TESTS` to `OFF` when configuring the project.
+
+[#build_and_usage_platforms]
+=== Tested platforms
+
+These are not necessarily the only supported platforms, but these are the ones that we test.
+
+[cols="1,1,1,2", options="header"]
+|===
+| Compiler | Version | C++ Standards | Standard Library
+
+| GCC | >= 11 | >= pass:[C++23] | libstdc++
+| Clang | >= 17 | >= pass:[C++23] | libstdc++, libc++
+| AppleClang | latest | >= pass:[C++23] | libc++
+| MSVC | latest | >= pass:[C++23] | MSVC STL
+|===
+
+[#build_and_usage_build]
+== Building
+
+You can build `beman.big_int` using a CMake workflow preset:
+
+[source,bash]
+----
+cmake --workflow --preset gcc-release
+----
+
+To list the available workflow presets, you can invoke:
+
+[source,bash]
+----
+cmake --list-presets=workflow
+----
+
+For details on building `beman.big_int` without using a CMake preset, refer to
+the https://github.com/eisenwave/std-big-int/blob/main/CONTRIBUTING.md[Contributing Guidelines].
+
+[#build_and_usage_simd]
+=== Optional: SIMD-accelerated multiplication
+
+By default, multiplication of very large integers uses an exact integer
+number-theoretic transform for its FFT tier. This is correct on every conforming
+compiler and imposes no special build requirements.
+
+A faster double-precision floating-point transform with hand-written SIMD kernels
+(ARM NEON, x86 AVX2, selected at runtime) is available behind the CMake option
+`BEMAN_BIG_INT_SIMD_MUL` (default `OFF`):
+
+[source,bash]
+----
+cmake --preset gcc-release -DBEMAN_BIG_INT_SIMD_MUL=ON
+----
+
+[IMPORTANT]
+====
+The SIMD path is exact *only* under the default IEEE round-to-nearest mode with
+no fast-math and no floating-point contraction. When built with this project's
+CMake, the required flags (`-ffp-contract=off -fno-fast-math`, or `/fp:strict` on
+MSVC) are applied to the relevant translation units automatically. If you build
+with a different build system you must guarantee that floating-point environment
+yourself, or results may be silently incorrect. The default integer path has no
+such requirement.
+====
+
+[#build_and_usage_install]
+== Installation
+
+To install `beman.big_int` globally after building with the `gcc-release` preset,
+you can run:
+
+[source,bash]
+----
+sudo cmake --install build/gcc-release
+----
+
+Alternatively, to install to a prefix, for example `/opt/beman`, you can run:
+
+[source,bash]
+----
+sudo cmake --install build/gcc-release --prefix /opt/beman
+----
+
+This will generate the following directory structure:
+
+----
+/opt/beman
+|-- include/
+|   \-- beman/
+|       \-- big_int/
+|           |-- big_int.hpp
+|           \-- ...
+\-- lib/
+    \-- cmake/
+        \-- beman.big_int/
+            |-- beman.big_int-config-version.cmake
+            |-- beman.big_int-config.cmake
+            \-- beman.big_int-targets.cmake
+----
+
+[#build_and_usage_cmake]
+== CMake configuration
+
+If you installed `beman.big_int` to a prefix, you can specify that prefix to your
+CMake project using `CMAKE_PREFIX_PATH`; for example,
+`-DCMAKE_PREFIX_PATH=/opt/beman`.
+
+You need to bring in the `beman.big_int` package to define the `beman::big_int`
+CMake target:
+
+[source,cmake]
+----
+find_package(beman.big_int REQUIRED)
+----
+
+You will then need to add `beman::big_int` to the link libraries of any libraries
+or executables that include `beman.big_int` headers:
+
+[source,cmake]
+----
+target_link_libraries(yourlib PUBLIC beman::big_int)
+----
+
+[#build_and_usage_using]
+== Using `beman.big_int`
+
+To use `beman.big_int` in your C++ project, include an appropriate
+`beman.big_int` header from your source code:
+
+[source,c++]
+----
+#include <beman/big_int.hpp>
+----
+
+[NOTE]
+====
+`beman.big_int` headers are to be included with the `beman/big_int/` prefix.
+Altering include search paths to spell the include target another way (e.g.
+`#include <big_int.hpp>`) is unsupported.
+====
+
+The straightforward program below shows usage of `beman.big_int`. It computes and
+verifies the value of 100! in its full, pure-integral, non-truncated form:
+
+[source,c++]
+----
+#include <beman/big_int.hpp>
+
+#include <iomanip>
+#include <iostream>
+
+template <class BigIntType>
+constexpr auto factorial(unsigned int n) -> BigIntType {
+    return (n <= 1) ? 1 : n * factorial<BigIntType>(n - 1);
+}
+
+auto main() -> int {
+    using beman::big_int::big_int;
+
+    // Compute the 100th Factorial number.
+    const big_int fact_100{factorial<big_int>(100)};
+
+    using namespace beman::big_int::literals;
+
+    const big_int bn_ctrl{
+        93326215443944152681699238856266700490715968264381621468592963895217599993229915608941463976156518286253697920827223758251185210916864000000000000000000000000_n};
+
+    const bool result_is_ok{fact_100 == bn_ctrl};
+
+    std::cout << "fact_100:\n"
+              << to_string(fact_100) << "\n\nresult_is_ok: " << std::boolalpha << result_is_ok << std::endl;
+
+    return result_is_ok ? 0 : -1;
+}
+----
