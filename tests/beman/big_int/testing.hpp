@@ -5,7 +5,7 @@
 #include <ostream>
 #include <span>
 
-#include <beman/big_int/big_int.hpp>
+#include <beman/big_int.hpp>
 
 namespace beman::big_int {
 

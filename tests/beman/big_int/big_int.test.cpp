@@ -1,7 +1,7 @@
 #include <type_traits>
 #include <cstddef>
 
-#include <beman/big_int/big_int.hpp>
+#include <beman/big_int.hpp>
 
 #include "testing.hpp"
 
