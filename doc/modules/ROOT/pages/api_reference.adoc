@@ -26,3 +26,15 @@
 | xref:big_int_type.adoc#big_int_type_basic_big_int[`basic_big_int`] | The template of a big integer type. Analogous to `std::basic_string`
 | xref:big_int_type.adoc#big_int_type_using_big_int[`big_int`] | A big integer type using default small value optimizations and allocator
 |===
+
+[#api_functions]
+== Functions
+
+=== <charconv>
+
+[cols="1,2", options="header"]
+|===
+| Function | Description
+| xref:charconv.adoc#charconv_to_chars[`to_chars`] | Writes the textual representation of a `basic_big_int` into a character buffer
+| xref:charconv.adoc#charconv_from_chars[`from_chars`] | Parses a `basic_big_int` from its textual representation
+|===

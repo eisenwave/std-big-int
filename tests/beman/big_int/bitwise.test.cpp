@@ -9,7 +9,7 @@
 
 #include <gtest/gtest.h>
 
-#include <beman/big_int/big_int.hpp>
+#include <beman/big_int.hpp>
 
 using beman::big_int::big_int;
 using beman::big_int::uint_multiprecision_t;

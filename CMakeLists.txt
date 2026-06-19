@@ -120,7 +120,10 @@ endif()
 
 target_sources(
     beman.big_int
-    PUBLIC FILE_SET HEADERS BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    PUBLIC
+        FILE_SET HEADERS
+            BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+            FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/beman/big_int.hpp"
 )
 
 set_target_properties(

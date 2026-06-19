@@ -257,7 +257,7 @@ def main():
     print()
     print("#include <gtest/gtest.h>")
     print()
-    print("#include <beman/big_int/big_int.hpp>")
+    print("#include <beman/big_int.hpp>")
     print()
     print("using beman::big_int::big_int;")
     print("using beman::big_int::uint_multiprecision_t;")
