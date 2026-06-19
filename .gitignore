@@ -14,5 +14,9 @@
 # Clion settings
 *.idea
 
+# Claude
+*.claude
 CLAUDE.md
+
+# Mac
 *.DS_Store
