@@ -3,6 +3,7 @@
 
 * xref:overview.adoc[Overview]
 * xref:examples.adoc[Examples]
+** xref:examples.adoc#examples_literals[User-defined literals]
 ** xref:examples.adoc#examples_charconv[Numeric conversions]
 ** xref:examples.adoc#examples_rsa[RSA]
 * xref:api_reference.adoc[]
@@ -25,3 +26,7 @@
 * xref:charconv.adoc[`<charconv>` Conversions]
 ** xref:charconv.adoc#charconv_to_chars[to_chars]
 ** xref:charconv.adoc#charconv_from_chars[from_chars]
+* xref:literals.adoc[User-Defined Literals]
+** xref:literals.adoc#literals_suffix[The n and _n suffixes]
+** xref:literals.adoc#literals_bases[Bases, separators, and sign]
+** xref:literals.adoc#literals_constexpr[Compile-time evaluation]

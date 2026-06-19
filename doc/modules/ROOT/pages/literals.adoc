@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#literals]
+= User-Defined Literals
+:idprefix: literals_
+
+`beman::big_int` provides user-defined literals that let you write a `big_int`
+constant directly in source code, free of the range limits of the built-in
+integer literals. A literal such as `123_n` parses its digits at compile time
+and yields a `big_int` (the alias for `basic_big_int` over the default
+allocator).
+
+[#literals_synopsis]
+== Synopsis
+
+[source,c++]
+----
+namespace beman::big_int {
+inline namespace literals {
+inline namespace big_int_literals {
+
+template <char... digits>
+constexpr big_int operator""n() noexcept(/* fits without allocating */);
+
+template <char... digits>
+constexpr big_int operator""_n() noexcept(/* fits without allocating */);
+
+} // namespace big_int_literals
+} // namespace literals
+} // namespace beman::big_int
+----
+
+Both operators are templated on the literal's digit sequence, so the value is
+known to the compiler and is validated and parsed during translation.
+
+[#literals_scope]
+== Bringing the literals into scope
+
+The operators are declared in the inline namespace
+`beman::big_int::literals`. As with the standard library's literal operators,
+the recommended way to use them is a single using-directive:
+
+[source,c++]
+----
+using namespace beman::big_int::literals;
+
+auto x = 123_n; // x is a beman::big_int::big_int
+----
+
+Because the namespace is inline, the qualified names
+`beman::big_int::literals` and `beman::big_int::big_int_literals` refer to the
+same set of operators.
+
+[#literals_suffix]
+== The `n` and `_n` suffixes
+
+The two suffixes are equivalent `n` and `_n` produce the same `big_int`. They exist so that portable
+code has a suffix it can always rely on:
+
+* `n` is the suffix intended by the C++29 proposal. A bare suffix that begins
+  with a letter is reserved to the implementation, which is exactly what a
+  standard-library literal is, so it is the natural spelling.
+* `_n` is provided because some compilers do not yet accept a template literal
+  operator whose suffix does not begin with an underscore. Prefer `_n` when you
+  need code that compiles everywhere today.
+
+[#literals_bases]
+== Bases, separators, and sign
+
+The text between the suffix and any leading sign follows the same grammar as a
+built-in integer literal:
+
+* *Base.* Digits are decimal (base 10) by default. A `0x` (or `0X`) prefix selects
+  hexadecimal, `0b` (or `0B`) selects binary, and a leading `0` selects octal.
+  Letters in a hexadecimal literal may be written in either case.
+* *Digit separators.* A single quote (`'`) may appear between two digits to
+  group them, exactly as in `1'000'000_n`. The separators are removed before
+  parsing.
+* *Sign.* A literal is always non-negative; there is no sign inside the
+  literal. Write a negative value by applying unary minus to the literal, as in
+  `-42_n`.
+
+[source,c++]
+----
+using namespace beman::big_int::literals;
+
+auto a = 255_n;         // decimal
+auto b = 0xFF_n;        // hexadecimal, equal to a
+auto c = 0b1111'1111_n; // binary, equal to a
+auto d = 0377_n;        // octal, equal to a
+auto e = -1'000'000_n;  // unary minus applied to 1000000_n
+----
+
+[#literals_constexpr]
+== Compile-time evaluation
+
+A literal is always parsed and validated during translation; an ill-formed
+literal (for example, one containing a digit that is invalid for its base) is a
+compile-time error rather than a runtime failure.
+
+A literal whose value is small enough to fit in `big_int` 's inline storage is a true constant expression and can initialize a `constexpr` variable.
+Such a literal also constructs without allocating, so `operator""n` is `noexcept` for it.
+A literal too large for the inline storage will allocate, and when declared as `constexpr big_int ...`,
+the value must be destroyed before run-time, as allocations are non-transient.
+That construction allocates, so the operator is potentially-throwing for such literals.
