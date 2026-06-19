@@ -3,9 +3,11 @@
 
 * xref:overview.adoc[Overview]
 * xref:examples.adoc[Examples]
-** xref:examples.adoc#examples_literals[User-defined literals]
-** xref:examples.adoc#examples_charconv[Numeric conversions]
-** xref:examples.adoc#examples_rsa[RSA]
+** xref:examples.adoc#examples_foundational[Foundational Examples]
+*** xref:examples.adoc#examples_literals[User-defined literals]
+*** xref:examples.adoc#examples_charconv[Numeric conversions]
+
+*** xref:examples.adoc#examples_rsa[RSA]
 * xref:api_reference.adoc[]
 ** xref:api_reference.adoc#api_namespaces[Namespaces]
 ** xref:api_reference.adoc#api_types[Types]

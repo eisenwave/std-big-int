@@ -4,10 +4,14 @@
 [#examples]
 :idprefix: examples_
 
-All the following examples can be found in the `examples/` folder of this library
+All the following examples can be found in the `examples/` folder of this library.
+We will first start with the basics and then move on to more advanced examples.
+
+[#examples_foundational]
+== Foundational Examples
 
 [#examples_literals]
-== User-defined literals
+=== User-defined literals
 
 .This https://github.com/eisenwave/std-big-int/blob/main/examples/literals.cpp[example] demonstrates writing `beman::big_int` constants directly in source code with the `_n` literal suffix, including non-decimal bases, digit separators, and negative values
 ====
@@ -28,7 +32,7 @@ result_is_ok: true
 ====
 
 [#examples_charconv]
-== Numeric conversions
+=== Numeric conversions
 
 .This https://github.com/eisenwave/std-big-int/blob/main/examples/charconv.cpp[example] demonstrates parsing a `beman::big_int` from text with `from_chars` and rendering it back with `to_chars`
 ====
@@ -47,8 +51,11 @@ result_is_ok: true
 ----
 ====
 
+[#examples_advanced]
+== Advanced Examples
+
 [#examples_rsa]
-== RSA
+=== RSA
 
 .This https://github.com/eisenwave/std-big-int/blob/main/examples/rsa.cpp[example] demonstrates the usage of `beman::big_int` in the RSA algorithm
 ====
