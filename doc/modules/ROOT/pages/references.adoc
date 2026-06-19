@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#references]
+= References
+:idprefix: references_
+
+[1] R. P. Brent and P. Zimmermann, _Modern Computer Arithmetic_, Cambridge Monographs on Applied and Computational Mathematics, vol. 18. Cambridge, U.K.: Cambridge University Press, 2011.
+
+[2] D. E. Knuth, _The Art of Computer Programming, Vol. 2: Seminumerical Algorithms_, 3rd ed. Boston, MA, USA: Addison-Wesley, 1997.
+
+[3] J. Arndt, _Matters Computational: Ideas, Algorithms, Source Code_. Berlin, Germany: Springer-Verlag, 2011.
+
+[4] C. Burnikel and J. Ziegler, "Fast recursive division," Max-Planck-Institut für Informatik, Saarbrücken, Germany, Tech. Rep. MPI-I-98-1-022, Oct. 1998.
+
+[5] M. Bodrato, "Towards optimal Toom-Cook multiplication for univariate and multivariate polynomials in characteristic 2 and 0," in _Proc. 1st Int. Workshop Arithmetic of Finite Fields (WAIFI 2007)_, ser. Lecture Notes in Computer Science, C. Carlet and B. Sunar, Eds., vol. 4547. Berlin, Germany: Springer, Jun. 2007, pp. 116–133.
+
+[6] M. Bodrato, "High degree Toom'n'half for balanced and unbalanced multiplication," in _Proc. 20th IEEE Symp. Computer Arithmetic (ARITH 2011)_, E. Antelo, D. Hough, and P. Ienne, Eds. Washington, DC, USA: IEEE Computer Society, Jul. 2011, pp. 15–22.

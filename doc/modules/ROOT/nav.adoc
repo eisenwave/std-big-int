@@ -42,3 +42,4 @@
 ** xref:literals.adoc#literals_suffix[The n and _n suffixes]
 ** xref:literals.adoc#literals_bases[Bases, separators, and sign]
 ** xref:literals.adoc#literals_constexpr[Compile-time evaluation]
+* xref:references.adoc[References]
