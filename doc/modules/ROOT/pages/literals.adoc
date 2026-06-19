@@ -55,8 +55,7 @@ same set of operators.
 [#literals_suffix]
 == The `n` and `_n` suffixes
 
-The two suffixes are equivalent -- `operator""_n` simply forwards to
-`operator""n` -- and produce the same `big_int`. They exist so that portable
+The two suffixes are equivalent `n` and `_n` produce the same `big_int`. They exist so that portable
 code has a suffix it can always rely on:
 
 * `n` is the suffix intended by the C++29 proposal. A bare suffix that begins
@@ -72,7 +71,7 @@ code has a suffix it can always rely on:
 The text between the suffix and any leading sign follows the same grammar as a
 built-in integer literal:
 
-* *Base.* Digits are decimal by default. A `0x` (or `0X`) prefix selects
+* *Base.* Digits are decimal (base 10) by default. A `0x` (or `0X`) prefix selects
   hexadecimal, `0b` (or `0B`) selects binary, and a leading `0` selects octal.
   Letters in a hexadecimal literal may be written in either case.
 * *Digit separators.* A single quote (`'`) may appear between two digits to
@@ -100,11 +99,8 @@ A literal is always parsed and validated during translation; an ill-formed
 literal (for example, one containing a digit that is invalid for its base) is a
 compile-time error rather than a runtime failure.
 
-A literal whose value is small enough to fit in `big_int` 's inline storage is a
-true constant expression and can initialize a `constexpr` variable. Such a
-literal also constructs without allocating, so `operator""n` is `noexcept` for
-it. A literal too large for the inline storage cannot be a `constexpr big_int`,
-because a heap-allocating `big_int` cannot persist as a constant; the library
-still computes its limbs at compile time and uses them to initialize the value
-quickly at run time. That construction allocates, so the operator is
-potentially-throwing for such literals.
+A literal whose value is small enough to fit in `big_int` 's inline storage is a true constant expression and can initialize a `constexpr` variable.
+Such a literal also constructs without allocating, so `operator""n` is `noexcept` for it.
+A literal too large for the inline storage will allocate, and when declared as `constexpr big_int ...`,
+the value must be destroyed before run-time, as allocations are non-transient.
+That construction allocates, so the operator is potentially-throwing for such literals.
