@@ -19,6 +19,10 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 This can be used as a template for those intending to write Beman libraries.
 It may also find use as a minimal and modern  C++ project structure.
 
+## Documentation
+
+For the full library documentation please see our [GitHub Pages Site](https://eisenwave.github.io/std-big-int/build_and_usage.html).
+
 ## License
 
 `beman.big_int` is dual-licensed under Boost Software License 1.0 and the Apache License v2.0 with LLVM Exceptions.
@@ -28,7 +32,7 @@ It may also find use as a minimal and modern  C++ project structure.
 For build requirements and supported platforms, building, the optional
 SIMD-accelerated multiplication, installation, CMake integration, and basic
 usage, see the
-[Build and Usage](doc/modules/ROOT/pages/build_and_usage.adoc) documentation.
+[Build and Usage](https://eisenwave.github.io/std-big-int/build_and_usage.html) documentation.
 
 ## Development
 
@@ -36,5 +40,5 @@ See the [Contributing Guidelines](CONTRIBUTING.md).
 
 ## References
 
-See the [References](doc/modules/ROOT/pages/references.adoc) documentation for the
+See the [References](https://eisenwave.github.io/std-big-int/references.html) documentation for the
 works underpinning the algorithms used in this library.
