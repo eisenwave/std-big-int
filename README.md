@@ -21,7 +21,7 @@ It may also find use as a minimal and modern  C++ project structure.
 
 ## License
 
-`beman.big_int` is licensed under the Apache License v2.0 with LLVM Exceptions.
+`beman.big_int` is dual-licensed under Boost Software License 1.0 and the Apache License v2.0 with LLVM Exceptions.
 
 ## Building and Usage
 
