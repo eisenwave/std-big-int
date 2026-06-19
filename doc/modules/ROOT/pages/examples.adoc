@@ -6,6 +6,26 @@
 
 All the following examples can be found in the `examples/` folder of this library
 
+[#examples_charconv]
+== Numeric conversions
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/charconv.cpp[example] demonstrates parsing a `beman::big_int` from text with `from_chars` and rendering it back with `to_chars`
+====
+[source, c++]
+----
+include::example$charconv.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+decimal: 340282366920938463463374607431768211457
+hex:     100000000000000000000000000000001
+
+result_is_ok: true
+----
+====
+
 [#examples_rsa]
 == RSA
 

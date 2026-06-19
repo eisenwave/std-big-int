@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#charconv]
+= `<charconv>` Conversions
+:idprefix: charconv_
+
+`beman::big_int` provides `to_chars` and `from_chars` overloads that convert
+between a `basic_big_int` and its textual representation. They mirror the
+behavior of the standard `std::to_chars` and `std::from_chars` functions from
+`<charconv>`: the conversion is locale-independent, never allocates a result
+buffer of its own, never throws, and is usable in a constant expression.
+
+[#charconv_synopsis]
+== Synopsis
+
+[source,c++]
+----
+namespace beman::big_int {
+
+template <std::size_t b, class A>
+constexpr std::to_chars_result
+to_chars(char* first, char* last, const basic_big_int<b, A>& value, int base = 10);
+
+template <std::size_t b, class A>
+constexpr std::from_chars_result
+from_chars(const char* first, const char* last, basic_big_int<b, A>& value, int base = 10);
+
+} // namespace beman::big_int
+----
+
+In every base, digits with a value below ten use the characters `0`-`9`; digits
+with a value of ten or more use the lowercase letters `a`-`z` when writing and
+accept either case when reading. No prefix (such as `0x`) is written or
+consumed, and no leading whitespace is skipped.
+
+[#charconv_to_chars]
+== `to_chars`
+
+[source,c++]
+----
+template <std::size_t b, class A>
+constexpr std::to_chars_result
+to_chars(char* first, char* last, const basic_big_int<b, A>& value, int base = 10);
+----
+
+Writes the integer value of `value` into the character range `[first, last)`,
+in the given `base`, as if by repeated division. The magnitude is written with
+no leading zeros, except that a value of zero is written as the single
+character `0`. A negative value is prefixed with a `-`; non-negative values are
+written with no sign. No null terminator is written.
+
+* *Preconditions:* `[first, last)` is a valid range, and `2 \<= base \<= 36`.
+* *Postconditions:* None.
+* *Returns:* A `std::to_chars_result`. On success, `ec == std::errc{}` and `ptr` is the one-past-the-end pointer of the characters written. If the range is too small to hold the full representation, `ec == std::errc::value_too_large`, `ptr == last`, and the contents of `[first, last)` are unspecified.
+* *Throws:* Nothing.
+* *Remarks:* The function is usable in a constant expression. When the magnitude fits in a single limb (or, where wider, in a `std::uintmax_t`) the conversion is delegated to `std::to_chars`; larger magnitudes use the library's own multiprecision conversion.
+
+[#charconv_from_chars]
+== `from_chars`
+
+[source,c++]
+----
+template <std::size_t b, class A>
+constexpr std::from_chars_result
+from_chars(const char* first, const char* last, basic_big_int<b, A>& value, int base = 10);
+----
+
+Parses an integer from the longest prefix of `[first, last)` that forms a valid
+number in the given `base` and, on success, stores it in `value`. The accepted
+grammar is an optional leading `-` followed by one or more digits valid for
+`base`. A leading `+` is not accepted, and a `-` is the only sign recognized.
+Parsing stops at the first character that is not a valid digit, so trailing
+characters (for example, a `.` or a digit that is out of range for `base`) are
+left unconsumed and still constitute a successful parse of the prefix before
+them.
+
+Because `basic_big_int` is elastic, it grows to hold whatever value is parsed;
+unlike the built-in integer conversions, `from_chars` never reports
+`std::errc::result_out_of_range`.
+
+* *Preconditions:* `[first, last)` is a valid range.
+* *Postconditions:* If `ec == std::errc{}`, `value` holds the parsed integer; otherwise `value` is unchanged.
+* *Returns:* A `std::from_chars_result`. On success, `ec == std::errc{}` and `ptr` points one past the last character consumed. If the range does not begin with a valid number -- because it is empty, `first` is null, it contains only a `-`, `base` is outside `[2, 36]`, or the first character is not a valid digit -- then `ec == std::errc::invalid_argument`, `value` is unchanged, and `ptr == last`.
+* *Throws:* Nothing.
+* *Remarks:* The function is usable in a constant expression.
