@@ -3,4 +3,5 @@
 # - toom: Andrei Toom (Toom-Cook multiplication algorithm) -> not "tomb"
 # - ser: IEEE citation format abbreviation for "series"
 # - vEw: From the package-lock.json
-ignore-words-list = toom,ser,vEw
+# - statics: Static memory contents
+ignore-words-list = toom,ser,vEw,statics
