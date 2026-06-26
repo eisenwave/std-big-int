@@ -156,6 +156,46 @@
       "cacheVariables": {
         "BEMAN_BIG_INT_SIMD_MUL": "ON"
       }
+    },
+    {
+      "name": "gcc-release-benchmarks",
+      "displayName": "GCC Release Build (benchmarks)",
+      "inherits": [
+        "gcc-release"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
+      "name": "llvm-release-benchmarks",
+      "displayName": "Clang Release Build (benchmarks)",
+      "inherits": [
+        "llvm-release"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
+      "name": "appleclang-release-benchmarks",
+      "displayName": "Appleclang Release Build (benchmarks)",
+      "inherits": [
+        "appleclang-release"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
+      "name": "msvc-release-benchmarks",
+      "displayName": "MSVC Release Build (benchmarks)",
+      "inherits": [
+        "msvc-release"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_BUILD_BENCHMARKS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -244,6 +284,34 @@
     {
       "name": "msvc-release-simd",
       "configurePreset": "msvc-release-simd",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "gcc-release-benchmarks",
+      "configurePreset": "gcc-release-benchmarks",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "llvm-release-benchmarks",
+      "configurePreset": "llvm-release-benchmarks",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "appleclang-release-benchmarks",
+      "configurePreset": "appleclang-release-benchmarks",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "msvc-release-benchmarks",
+      "configurePreset": "msvc-release-benchmarks",
       "inherits": [
         "_root-build"
       ]
