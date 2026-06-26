@@ -12,7 +12,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
-#include <string>
 
 #include <beman/big_int/big_int.hpp>
 #include <beman/big_int/detail/base_conversion.hpp>
@@ -509,48 +508,6 @@ from_chars(const char* const begin, const char* const end, basic_big_int<b, A>& 
     }
     return {returned_end, std::errc{}};
 }
-
-namespace detail {
-
-template <class C, std::size_t b, class A>
-[[nodiscard]] constexpr std::basic_string<C> to_basic_string(const basic_big_int<b, A>& x, const int base) {
-    BEMAN_BIG_INT_ASSERT(base >= 2 && base <= 36);
-    constexpr std::size_t minus_sign_size = 1;
-
-    // For up to 1 bit, we need at most one digit in any base.
-    // Otherwise, the digit width in any base is generally `log_base(x) + 1`.
-    // To convert from the width (which is `log2(x) + 1`), we need to decrement,
-    // convert the binary logarithm to a logarithm base `base`, and increment.
-    const auto        width           = x.width_mag();
-    const std::size_t required_digits = width <= 1
-                                            ? std::size_t{1} + minus_sign_size
-                                            : detail::approximate_ceil_div_log2(width - 1, base) + 1 + minus_sign_size;
-
-#ifdef __cpp_lib_string_resize_and_overwrite
-    std::basic_string<C> result;
-    result.resize_and_overwrite(required_digits, [&](char* const data, const std::size_t n) {
-        const auto [p, ec] = to_chars(data, data + n, x, base);
-        BEMAN_BIG_INT_ASSERT(ec == std::errc{});
-        return static_cast<std::size_t>(p - data);
-    });
-#else
-    std::basic_string<C> result(required_digits, char{});
-    const auto [p, ec] = to_chars(result.data(), result.data() + result.size(), x, base);
-    BEMAN_BIG_INT_ASSERT(ec == std::errc{});
-    result.resize(static_cast<std::size_t>(p - result.data()));
-#endif
-
-    return result;
-}
-
-} // namespace detail
-
-template <std::size_t b, class A>
-[[nodiscard]] constexpr std::string to_string(const basic_big_int<b, A>& x, const int base = 10) {
-    return detail::to_basic_string<char>(x, base);
-}
-
-// TODO(eisenwave): to_wstring.
 
 namespace detail {
 
