@@ -20,7 +20,7 @@
     #include <string_view>
     #include <type_traits>
 
-    #include <beman/big_int/charconv.hpp> // for beman::big_int::to_string
+    #include <beman/big_int/string.hpp> // for beman::big_int::to_string
 
 namespace beman::big_int::detail {
 
