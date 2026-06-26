@@ -33,6 +33,16 @@ option(
     ${PROJECT_IS_TOP_LEVEL}
 )
 
+# [CMAKE.SKIP_BENCHMARKS]
+# Off by default: it fetches google/benchmark and is only meaningful in a release
+# build. Enable with a release preset to compare big_int against the builtin
+# integer types (see tests/beman/big_int/perf).
+option(
+    BEMAN_BIG_INT_BUILD_BENCHMARKS
+    "Enable building the Google Benchmark micro-benchmarks (big_int vs builtin integer types). Default: OFF. Values: { ON, OFF }."
+    OFF
+)
+
 # for find of beman-install-library
 include(infra/cmake/beman-install-library.cmake)
 
@@ -142,4 +152,10 @@ endif()
 
 if(BEMAN_BIG_INT_BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+# Benchmarks live under the tests tree but do not depend on the test target, so
+# they are added directly here and can be built with tests disabled.
+if(BEMAN_BIG_INT_BUILD_BENCHMARKS)
+    add_subdirectory(tests/beman/big_int/perf)
 endif()
