@@ -3,5 +3,6 @@
 target_sources(
     beman.big_int
     PUBLIC
-        FILE_SET HEADERS FILES big_int.hpp charconv.hpp literals.hpp format.hpp
+        FILE_SET HEADERS
+            FILES big_int.hpp charconv.hpp string.hpp literals.hpp format.hpp
 )
