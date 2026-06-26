@@ -22,7 +22,7 @@ inline static auto nop() noexcept -> void { asm volatile("nop"); }
 void* operator new(std::size_t size) {
     // This is a naive and not completely functional
     // implementation of operator new(). In particular, there is
-    // no sensible momory management or reaction to buffer overflow.
+    // no sensible memory management or reaction to buffer overflow.
     static volatile std::uint8_t  buffer[std::size_t{UINT8_C(16)}];
     static volatile std::uint8_t* get_ptr = buffer;
 
