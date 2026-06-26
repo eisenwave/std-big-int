@@ -71,6 +71,27 @@ result_is_ok: true
 ----
 ====
 
+[#examples_string]
+=== String conversions
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/string.cpp[example] demonstrates rendering a `beman::big_int` to a `std::string` with `to_string` and to a `std::wstring` with `to_wstring`
+====
+[source, c++]
+----
+include::example$string.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+decimal:  340282366920938463463374607431768211456
+hex:      100000000000000000000000000000000
+negative: -100000000000000000000000000000000
+
+result_is_ok: true
+----
+====
+
 [#examples_advanced]
 == Advanced Examples
 
