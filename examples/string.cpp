@@ -28,7 +28,7 @@ auto main() -> int {
     const bool         wide_ok  = wide_hex == std::wstring(hex.begin(), hex.end());
 
     const bool result_is_ok = decimal == "340282366920938463463374607431768211456" && // 2^128
-                              hex == "1" + std::string(32, '0') &&                      // 2^128 == 16^32
+                              hex == "1" + std::string(32, '0') &&                    // 2^128 == 16^32
                               negative == "-" + hex && wide_ok;
 
     std::cout << "decimal:  " << decimal << "\n"
