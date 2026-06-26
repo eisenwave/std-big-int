@@ -42,4 +42,7 @@
 ** xref:literals.adoc#literals_suffix[The n and _n suffixes]
 ** xref:literals.adoc#literals_bases[Bases, separators, and sign]
 ** xref:literals.adoc#literals_constexpr[Compile-time evaluation]
+* xref:benchmarks.adoc[Benchmarks]
+** xref:benchmarks.adoc#benchmarks_small_value[Small-value optimization]
+** xref:benchmarks.adoc#benchmarks_libraries[big_int vs Boost.Multiprecision and GMP]
 * xref:references.adoc[References]
