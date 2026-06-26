@@ -7,7 +7,7 @@
 
 == Introduction
 
-C++ currently provides no portable support for integers wider than 64 bits.
+pass:[C++] currently provides no portable support for integers wider than 64 bits.
 This is one of the oldest and most widely recognized gaps in the language, which authors have attempted to fill several times, and all proposed a `std::integer` class with infinite precision.
 Each of these attempts failed — not because there was a lack of interest or motivation, but because the task turned out to be too great of a challenge.
 
