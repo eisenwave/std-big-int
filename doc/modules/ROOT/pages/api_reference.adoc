@@ -47,3 +47,11 @@
 | xref:string.adoc#string_to_string[`to_string`] | Returns a `std::string` holding the textual representation of a `basic_big_int`
 | xref:string.adoc#string_to_wstring[`to_wstring`] | Returns a `std::wstring` holding the textual representation of a `basic_big_int`
 |===
+
+=== Numeric functions
+
+[cols="1,2", options="header"]
+|===
+| Function | Description
+| xref:numeric.adoc#numeric_abs[`abs`] | Returns the absolute value (magnitude) of a `basic_big_int`
+|===

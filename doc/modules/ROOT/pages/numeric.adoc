@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#numeric]
+= Numeric Functions
+:idprefix: numeric_
+
+`beman::big_int` provides non-member numeric functions that operate on
+`basic_big_int` values. They live in the `beman::big_int` namespace and are
+found by argument-dependent lookup, so an unqualified `abs(x)` resolves to them
+when `x` is a `basic_big_int`. Include them with `<beman/big_int/numeric.hpp>`,
+or transitively through the umbrella `<beman/big_int.hpp>`.
+
+[#numeric_synopsis]
+== Synopsis
+
+[source,c++]
+----
+namespace beman::big_int {
+
+template <class T>
+    requires /* T is a basic_big_int (after removing cv-qualifiers and references) */
+constexpr std::remove_cvref_t<T> abs(T&& x);
+
+} // namespace beman::big_int
+----
+
+[#numeric_abs]
+== `abs`
+
+[source,c++]
+----
+template <class T>
+    requires /* T is a basic_big_int (after removing cv-qualifiers and references) */
+constexpr std::remove_cvref_t<T> abs(T&& x);
+----
+
+Returns the absolute value (the magnitude) of `x`.
+
+Unlike `std::abs`, this function can never overflow: `basic_big_int` is
+unbounded, so the magnitude of every value is representable.
+
+* *Constraints:* `std::remove_cvref_t<T>` is a specialization of `basic_big_int`.
+* *Returns:* A `basic_big_int` equal in magnitude to `x` and not less than `0`.
+* *Throws:* The sign manipulation itself does not throw.
+  For an lvalue argument, any exception thrown while allocating the
+  copied result (for example, `std::bad_alloc`); a value held in the in-place
+  buffer, and any rvalue argument, allocates nothing.
+* *Remarks:* The function is usable in a constant expression.
