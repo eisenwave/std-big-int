@@ -45,10 +45,10 @@ using beman::big_int::uint_multiprecision_t;
 template <std::size_t min_inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
 class basic_big_int;
 
-template <size_t b, class A>
+template <std::size_t b, class A>
 constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, A>&, int = 10);
 
-template <size_t b, class A>
+template <std::size_t b, class A>
 constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int = 10);
 
 namespace detail {
@@ -269,10 +269,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::size_t, class>
     friend class basic_big_int;
 
-    template <size_t b, class A>
+    template <std::size_t b, class A>
     friend constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, A>&, int);
 
-    template <size_t b, class A>
+    template <std::size_t b, class A>
     friend constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int);
 
     friend struct ::std::hash<basic_big_int>;
