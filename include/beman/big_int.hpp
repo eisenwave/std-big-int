@@ -12,7 +12,9 @@
 
 #include <beman/big_int/big_int.hpp>
 #include <beman/big_int/charconv.hpp>
+#include <beman/big_int/string.hpp>
 #include <beman/big_int/literals.hpp>
 #include <beman/big_int/format.hpp>
+#include <beman/big_int/numeric.hpp>
 
 #endif // BEMAN_BIG_INT_HPP

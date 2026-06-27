@@ -246,6 +246,11 @@ constexpr bool eval_bitwise_into_spans(const std::span<const uint_multiprecision
 }
 } // namespace detail
 
+// [big.int.numeric], non-member numeric functions (defined in <beman/big_int/numeric.hpp>).
+template <class T>
+    requires detail::is_basic_big_int_v<T>
+constexpr std::remove_cvref_t<T> abs(T&& x);
+
 // [big.int.class], class template basic_big_int
 template <std::size_t min_inplace_bits, class Allocator>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
@@ -530,6 +535,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // [big.int.div], division
     template <class L, class R>
     friend constexpr div_result<detail::common_big_int_type<L, R>> div_rem_to_zero(L&&, R&&);
+
+    // [big.int.numeric], non-member numeric functions
+    template <class T>
+        requires detail::is_basic_big_int_v<T>
+    friend constexpr std::remove_cvref_t<T> abs(T&& x);
 
   private:
     template <detail::unsigned_integer T>

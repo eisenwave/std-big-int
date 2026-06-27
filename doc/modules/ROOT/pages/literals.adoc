@@ -58,7 +58,7 @@ same set of operators.
 The two suffixes are equivalent `n` and `_n` produce the same `big_int`. They exist so that portable
 code has a suffix it can always rely on:
 
-* `n` is the suffix intended by the C++29 proposal. A bare suffix that begins
+* `n` is the suffix intended by the pass:[C++29] proposal. A bare suffix that begins
   with a letter is reserved to the implementation, which is exactly what a
   standard-library literal is, so it is the natural spelling.
 * `_n` is provided because some compilers do not yet accept a template literal

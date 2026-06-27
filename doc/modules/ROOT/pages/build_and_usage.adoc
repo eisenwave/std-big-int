@@ -18,7 +18,7 @@ features, see xref:examples.adoc[Examples].
 
 This project requires at least the following to build:
 
-* A C++ compiler that conforms to the C++23 standard or greater
+* A pass:[C++] compiler that conforms to the pass:[C++23] standard or greater
 * CMake 3.30 or later
 * (Test only) GoogleTest
 
@@ -32,11 +32,11 @@ These are not necessarily the only supported platforms, but these are the ones t
 
 [cols="1,1,1,2", options="header"]
 |===
-| Compiler | Version | C++ Standards | Standard Library
+| Compiler | Version | pass:[C++] Standards | Standard Library
 
-| GCC | >= 11 | >= pass:[C++23] | libstdc++
-| Clang | >= 17 | >= pass:[C++23] | libstdc++, libc++
-| AppleClang | latest | >= pass:[C++23] | libc++
+| GCC | >= 11 | >= pass:[C++23] | pass:[libstdc++]
+| Clang | >= 17 | >= pass:[C++23] | pass:[libstdc++], pass:[libc++]
+| AppleClang | latest | >= pass:[C++23] | pass:[libc++]
 | MSVC | latest | >= pass:[C++23] | MSVC STL
 |===
 
@@ -148,7 +148,7 @@ target_link_libraries(yourlib PUBLIC beman::big_int)
 [#build_and_usage_using]
 == Using `beman.big_int`
 
-To use `beman.big_int` in your C++ project, include an appropriate
+To use `beman.big_int` in your pass:[C++] project, include an appropriate
 `beman.big_int` header from your source code:
 
 [source,c++]
