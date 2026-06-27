@@ -13,169 +13,50 @@
 
 namespace local {
 
-// Forward declaration of ring_allocator_base.
-template <const std::uint_fast32_t buffer_size>
-class ring_allocator_base;
+struct ring_arena {
+    std::array<std::byte, std::size_t{0x2000U}> buffer;
 
-// Global comparison operators (required by the standard).
-template <const std::uint_fast32_t buffer_size>
-auto operator==(const ring_allocator_base<buffer_size>&, const ring_allocator_base<buffer_size>&) noexcept -> bool;
-
-template <const std::uint_fast32_t buffer_size>
-auto operator!=(const ring_allocator_base<buffer_size>&, const ring_allocator_base<buffer_size>&) noexcept -> bool;
-
-template <const std::uint_fast32_t buffer_size>
-class ring_allocator_base {
-  private:
-    static constexpr std::uint_fast8_t buffer_alignment{UINT8_C(16)};
-
-  public:
-    using size_type       = std::size_t;
-    using difference_type = std::ptrdiff_t;
-
-    virtual ~ring_allocator_base() = default;
-
-  protected:
-    static constexpr std::uint_fast8_t bufffer_alignment{UINT8_C(16)};
-
-    ring_allocator_base() noexcept = default;
-
-    ring_allocator_base(const ring_allocator_base&) noexcept = default;
-
-    ring_allocator_base(ring_allocator_base&&) noexcept = default;
-
-    auto operator=(const ring_allocator_base&) noexcept -> ring_allocator_base& = default;
-    auto operator=(ring_allocator_base&&) noexcept -> ring_allocator_base&      = default;
-
-    // The ring allocator's buffer type.
-    struct buffer_type {
-        static constexpr size_type local_buf_size{static_cast<size_type>(buffer_size)};
-
-        std::array<std::uint8_t, local_buf_size> arena;
-
-        buffer_type() noexcept {}
-    };
-
-    // The ring allocator's memory allocation.
-    static auto do_allocate(size_type chunk_size) -> void* {
-        alignas(bufffer_alignment) static buffer_type buffer{};
-
-        static std::uint8_t* get_ptr{buffer.arena.data()};
-
-        // Get the newly allocated pointer.
-        std::uint8_t* p{get_ptr};
-
-        // Increment the get-pointer for the next allocation.
-        // Be sure to handle the buffer alignment.
-
-        const std::uint_fast8_t misaligned_amount(chunk_size % buffer_alignment);
-
-        if (misaligned_amount != UINT8_C(0)) {
-            chunk_size += size_type(buffer_alignment - misaligned_amount);
-        }
-
-        get_ptr += chunk_size;
-
-        // Does this attempted allocation overflow the capacity of the buffer?
-        const bool is_overflow{(get_ptr >= (buffer.arena.data() + buffer_type::local_buf_size))};
-
-        if (is_overflow) {
-            // The buffer has overflowed.
-
-#if (defined(__GNUC__) && !defined(__clang__))
-    #if (__GNUC__ >= 12)
-        #pragma GCC diagnostic push
-        #pragma GCC diagnostic ignored "-Warray-bounds"
-    #endif
-#endif
-
-            // Reset the allocated pointer to the bottom of the buffer
-            // and increment the next get-pointer.
-            p       = &buffer.arena[std::size_t{UINT8_C(0)}];
-            get_ptr = &buffer.arena[chunk_size];
-
-#if (defined(__GNUC__) && !defined(__clang__))
-    #if (__GNUC__ >= 12)
-        #pragma GCC diagnostic pop
-    #endif
-#endif
-        }
-
-        return static_cast<void*>(p);
-    }
-
-    // Global comparison operators (required by the standard).
-    friend auto operator==(const ring_allocator_base&, const ring_allocator_base&) noexcept -> bool { return true; }
-    friend auto operator!=(const ring_allocator_base&, const ring_allocator_base&) noexcept -> bool { return false; }
+    std::size_t head{};
+    std::size_t outstanding{};
+    std::size_t peak_outstanding{};
+    std::size_t allocations{};
 };
 
-template <typename T, const std::uint_fast32_t buffer_size>
-class ring_allocator;
+ring_arena arena_instance{};
 
-template <const std::uint_fast32_t buffer_size>
-class ring_allocator<void, buffer_size> : public ring_allocator_base<buffer_size> {
-  public:
-    using value_type    = void;
-    using pointer       = value_type*;
-    using const_pointer = const value_type*;
+template <class T>
+struct ring_allocator {
+    using value_type = T;
 
-    template <typename U>
-    struct rebind {
-        using other = ring_allocator<U, buffer_size>;
-    };
-};
+    ring_arena* arena_ptr = nullptr;
 
-template <typename T, const std::uint_fast32_t buffer_size>
-class ring_allocator : public ring_allocator_base<buffer_size> {
-  public:
-    static_assert(sizeof(T) <= ring_allocator_base<buffer_size>::buffer_type::local_buf_size,
-                  "The size of the allocation object can not exceed the buffer size.");
+    ring_allocator() : arena_ptr(&arena_instance) {}
+    explicit ring_allocator(ring_arena* a) : arena_ptr(a) {}
+    template <class U>
+    ring_allocator(const ring_allocator<U>& other) : arena_ptr(other.arena_ptr) {}
 
-    using value_type      = T;
-    using pointer         = value_type*;
-    using const_pointer   = const value_type*;
-    using reference       = value_type&;
-    using const_reference = const value_type&;
-
-    ring_allocator() noexcept = default;
-
-    ring_allocator(const ring_allocator&) noexcept : ring_allocator_base<buffer_size>(ring_allocator()) {}
-    ring_allocator(ring_allocator&&) noexcept : ring_allocator_base<buffer_size>(std::move(ring_allocator())) {}
-
-    auto operator=(const ring_allocator&) noexcept -> ring_allocator& = default;
-    auto operator=(ring_allocator&&) noexcept -> ring_allocator&      = default;
-
-    template <typename U>
-    ring_allocator(const ring_allocator<U, buffer_size>&) noexcept {}
-
-    ~ring_allocator() override = default;
-
-    template <typename U>
-    struct rebind {
-        using other = ring_allocator<U, buffer_size>;
-    };
-
-    auto max_size() const noexcept -> typename ring_allocator<void, buffer_size>::size_type {
-        return ring_allocator_base<buffer_size>::buffer_type::size / sizeof(value_type);
+    T* allocate(const std::size_t n) {
+        const std::size_t bytes = n * sizeof(T);
+        std::size_t       at    = (arena_ptr->head + alignof(T) - 1) & ~(alignof(T) - 1);
+        if (at + bytes > arena_ptr->buffer.size()) {
+            at = 0; // wrap
+            if (bytes > arena_ptr->buffer.size()) {
+                return nullptr;
+            }
+        }
+        arena_ptr->head = at + bytes;
+        arena_ptr->outstanding += bytes;
+        arena_ptr->peak_outstanding = std::max(arena_ptr->peak_outstanding, arena_ptr->outstanding);
+        ++arena_ptr->allocations;
+        return reinterpret_cast<T*>(arena_ptr->buffer.data() + at);
     }
 
-    auto address(reference x) const -> pointer { return &x; }
-    auto address(const_reference x) const -> const_pointer { return &x; }
+    void deallocate(T*, const std::size_t n) noexcept { arena_ptr->outstanding -= n * sizeof(T); }
 
-    auto allocate(typename ring_allocator<void, buffer_size>::size_type count,
-                  typename ring_allocator<void, buffer_size>::const_pointer = nullptr) -> pointer {
-        const typename ring_allocator<void, buffer_size>::size_type chunk_size = count * sizeof(value_type);
-
-        void* p = ring_allocator<void, buffer_size>::do_allocate(chunk_size);
-
-        return static_cast<pointer>(p);
+    template <class U>
+    bool operator==(const ring_allocator<U>& other) const {
+        return true;
     }
-
-    auto construct(pointer p, const value_type& x) noexcept -> void { new (static_cast<void*>(p)) value_type(x); }
-
-    auto destroy(pointer p) noexcept -> void { p->~value_type(); }
-
-    auto deallocate(pointer, typename ring_allocator<void, buffer_size>::size_type) noexcept -> void {}
 };
 
 } // namespace local
@@ -183,12 +64,6 @@ class ring_allocator : public ring_allocator_base<buffer_size> {
 static auto do_one_test() -> bool;
 
 static auto do_one_test() -> bool {
-    using allocator_type = local::ring_allocator<beman::big_int::uint_multiprecision_t, std::uint_fast32_t{0x2000U}>;
-
-    using wi_type = beman::big_int::basic_big_int<std::numeric_limits<typename allocator_type::value_type>::digits,
-                                                  allocator_type>;
-
-    using wi_result_type = wi_type;
 
     constexpr char pstr_wi_val_a[] =
         "fee6f3060ed3f90fdd79fe414418f8d9dc08bbe4470b658ca8f167fc3ce48821a79f8f9df51d795cbb88cb6e3a5e5f46b56f06991d6a9"
@@ -214,15 +89,22 @@ static auto do_one_test() -> bool {
         "138e315d7cd09179d55782534c96b32f21d808e0764b3a341ccc1c20543da2ef9620a5c877fa330bfc43556ddf8069c3fa04e3081b699"
         "b8673346f82d112c49bf17fa7c52cc9fbbe91a8d7f8";
 
-    wi_type        wi_val_a{};
-    wi_type        wi_val_b{};
-    wi_result_type wi_val_ctrl{};
+    using ring_allocator_type = local::ring_allocator<beman::big_int::uint_multiprecision_t>;
+
+    using ring_big_int_type =
+        beman::big_int::basic_big_int<beman::big_int::big_int::inplace_bits, ring_allocator_type>;
+
+    const ring_allocator_type alloc(&local::arena_instance);
+
+    ring_big_int_type wi_val_a{alloc};
+    ring_big_int_type wi_val_b{alloc};
+    ring_big_int_type wi_val_ctrl{alloc};
 
     static_cast<void>(from_chars(pstr_wi_val_a, pstr_wi_val_a + sizeof(pstr_wi_val_a), wi_val_a, 16));
     static_cast<void>(from_chars(pstr_wi_val_b, pstr_wi_val_b + sizeof(pstr_wi_val_a), wi_val_b, 16));
     static_cast<void>(from_chars(pstr_wi_val_ctrl, pstr_wi_val_ctrl + sizeof(pstr_wi_val_ctrl), wi_val_ctrl, 16));
 
-    const wi_result_type wi_val_c{wi_val_a * wi_val_b};
+    const ring_big_int_type wi_val_c = wi_val_a * wi_val_b;
 
     const bool result_is_ok{(wi_val_ctrl == wi_val_c)};
 
@@ -251,9 +133,15 @@ auto app_benchmark_get_standalone_result() -> bool;
 auto app_benchmark_run_standalone() -> bool {
     auto result_is_ok = true;
 
-    for (unsigned i = 0U; i < 64U; ++i) {
-        result_is_ok &= app::benchmark::run_std_big_int();
+    constexpr unsigned trials{64U};
+
+    unsigned index{};
+
+    for (; ((index < trials) && result_is_ok); ++index) {
+        result_is_ok = (app::benchmark::run_std_big_int() && result_is_ok);
     }
+
+    result_is_ok = ((index == trials) && result_is_ok);
 
     app_benchmark_standalone_result = static_cast<std::uint32_t>(
         result_is_ok ? app_benchmark_standalone_foodcafe : static_cast<std::uint32_t>(UINT32_C(0xFFFFFFFF)));
