@@ -1,10 +1,6 @@
 
-/*
- Copyright Christopher Kormanyos 2007 - 2026.
- Distributed under the Boost Software License,
- Version 1.0. (See accompanying file LICENSE_1_0.txt
- or copy at http://www.boost.org/LICENSE_1_0.txt)
-*/
+/* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception */
+/* SPDX-License-Identifier: BSL-1.0 */
 
 /* Linker script for STM32F4xx ARM(R) Cortex(TM)-M4 MCU */
 
@@ -16,8 +12,8 @@ OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 
 /* The beginning and end of the program ROM area */
-/* Set up a ROM area with a size of 512K */
-_rom_size  = 0x00080000;
+/* Set up a ROM area with a size of 256K */
+_rom_size  = 0x00040000;
 _rom_begin = 0x08000000;
 _rom_end   = _rom_begin + _rom_size;
 

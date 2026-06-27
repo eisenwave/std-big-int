@@ -1,9 +1,5 @@
-# ///////////////////////////////////////////////////////////////////
-# //  Copyright Christopher Kormanyos 2020 - 2024.
-# //  Distributed under the Boost Software License,
-# //  Version 1.0. (See accompanying file LICENSE_1_0.txt
-# //  or copy at http://www.boost.org/LICENSE_1_0.txt)
-# //
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# SPDX-License-Identifier: BSL-1.0
 
 # Connect to the target (e.g., OpenOCD or another GDB server).
 target remote localhost:9999
