@@ -53,7 +53,7 @@ jobs:
         working-directory: ./tests/beman/big_int/metal/
       - name: run-test-on-target
         run: |
-          sleep 2
+          sleep 10
           PATH="${{ runner.workspace }}/std-big-int/tests/beman/big_int/metal/emu_env/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi/bin:$PATH"
           echo 'Run test on target'
           echo
