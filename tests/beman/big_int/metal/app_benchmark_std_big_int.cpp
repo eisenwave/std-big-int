@@ -222,7 +222,7 @@ static auto do_one_test() -> bool {
     static_cast<void>(from_chars(pstr_b,    pstr_b    + sizeof(pstr_a),    val_b, 16));
     static_cast<void>(from_chars(pstr_ctrl, pstr_ctrl + sizeof(pstr_ctrl), val_ctrl, 16));
 
-    const bn_type val_c{wi_val_a * wi_val_b};
+    const bn_type val_c{val_a * val_b};
 
     const bool result_is_ok{(val_ctrl == val_c)};
 
