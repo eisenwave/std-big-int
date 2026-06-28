@@ -13,8 +13,9 @@
 
 namespace local {
 
+template <const std::size_t ArenaSize>
 struct ring_arena {
-    std::array<std::byte, std::size_t{0x2000U}> buffer;
+    std::array<std::byte, ArenaSize> buffer;
 
     std::size_t head{};
     std::size_t outstanding{};
@@ -22,18 +23,20 @@ struct ring_arena {
     std::size_t allocations{};
 };
 
-ring_arena arena_instance{};
-
-template <class T>
-struct ring_allocator {
+template <class T, const std::size_t ArenaSize>
+class ring_allocator {
+  public:
     using value_type = T;
 
-    ring_arena* arena_ptr;
-
-    explicit ring_allocator(ring_arena* a = &arena_instance) : arena_ptr(a) {}
+    explicit ring_allocator(ring_arena<ArenaSize>* = nullptr) : arena_ptr(&arena_instance) {}
 
     template <class U>
-    ring_allocator(const ring_allocator<U>& other) : arena_ptr(other.arena_ptr) {}
+    ring_allocator(const ring_allocator<U, ArenaSize>&) : arena_ptr(&arena_instance) {}
+
+    template <typename U>
+    struct rebind {
+        using other = ring_allocator<U, ArenaSize>;
+    };
 
     T* allocate(const std::size_t n) {
         const std::size_t bytes = n * sizeof(T);
@@ -54,10 +57,18 @@ struct ring_allocator {
     void deallocate(T*, const std::size_t n) noexcept { arena_ptr->outstanding -= n * sizeof(T); }
 
     template <class U>
-    bool operator==(const ring_allocator<U>& other) const {
+    bool operator==(const ring_allocator<U, ArenaSize>& other) const {
         return true;
     }
+
+  private:
+    static ring_arena<ArenaSize> arena_instance;
+
+    ring_arena<ArenaSize>* arena_ptr{&arena_instance};
 };
+
+template <class T, const std::size_t ArenaSize>
+ring_arena<ArenaSize> ring_allocator<T, ArenaSize>::arena_instance{};
 
 } // namespace local
 
@@ -89,12 +100,10 @@ static auto do_one_test() -> bool;
 
 static auto do_one_test() -> bool {
 
-    using ring_allocator_type = local::ring_allocator<beman::big_int::uint_multiprecision_t>;
+    using ring_allocator_type = local::ring_allocator<beman::big_int::uint_multiprecision_t, std::size_t{0x2000U}>;
 
     using ring_big_int_type =
         beman::big_int::basic_big_int<beman::big_int::big_int::inplace_bits, ring_allocator_type>;
-
-    const ring_allocator_type alloc(&local::arena_instance);
 
     using namespace beman::big_int::literals;
 
@@ -106,7 +115,7 @@ static auto do_one_test() -> bool {
     static_cast<void>(from_chars(pstr_b, pstr_b + std::strlen(pstr_b), val_b, 16));
     static_cast<void>(from_chars(pstr_ctrl, pstr_ctrl + std::strlen(pstr_ctrl), val_ctrl, 16));
 
-    const ring_big_int_type val_c = val_a * val_b;
+    const ring_big_int_type val_c{val_a * val_b};
 
     const bool result_is_ok{(val_ctrl == val_c)};
 
