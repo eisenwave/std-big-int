@@ -1,78 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <util/util_ring_allocator.hpp>
+
 #include <beman/big_int/big_int.hpp>
 #include <beman/big_int/literals.hpp>
 
-#include <algorithm>
-#include <array>
-#include <cstddef>
-#include <cstdint>
 #include <cstring>
-
-namespace local {
-
-template <const std::size_t ArenaSize>
-struct ring_arena {
-    std::array<std::byte, ArenaSize> buffer;
-
-    std::size_t head{};
-    std::size_t outstanding{};
-    std::size_t peak_outstanding{};
-    std::size_t allocations{};
-};
-
-template <class T, const std::size_t ArenaSize>
-class ring_allocator {
-  public:
-    using value_type = T;
-
-    ring_allocator() {}
-
-    template <class U>
-    ring_allocator(const ring_allocator<U, ArenaSize>&) {}
-
-    template <typename U>
-    struct rebind {
-        using other = ring_allocator<U, ArenaSize>;
-    };
-
-    T* allocate(const std::size_t n) {
-
-        ring_arena<ArenaSize>* arena_ptr{&arena_instance};
-
-        const std::size_t bytes = n * sizeof(T);
-        std::size_t       at    = (arena_ptr->head + alignof(T) - 1) & ~(alignof(T) - 1);
-        if (at + bytes > arena_ptr->buffer.size()) {
-            at = 0; // wrap
-            if (bytes > arena_ptr->buffer.size()) {
-                return nullptr;
-            }
-        }
-        arena_ptr->head = at + bytes;
-        arena_ptr->outstanding += bytes;
-        arena_ptr->peak_outstanding = std::max(arena_ptr->peak_outstanding, arena_ptr->outstanding);
-        ++arena_ptr->allocations;
-        return reinterpret_cast<T*>(static_cast<void*>(arena_ptr->buffer.data() + at));
-    }
-
-    auto deallocate(T*, const std::size_t n) noexcept -> void {
-        ring_arena<ArenaSize>* arena_ptr{&arena_instance};
-
-        arena_ptr->outstanding -= n * sizeof(T);
-    }
-
-  private:
-    static ring_arena<ArenaSize> arena_instance;
-
-    friend auto operator==(const ring_allocator&, const ring_allocator&) noexcept -> bool { return true; }
-
-    friend auto operator!=(const ring_allocator&, const ring_allocator&) noexcept -> bool { return false; }
-};
-
-template <class T, const std::size_t ArenaSize>
-ring_arena<ArenaSize> ring_allocator<T, ArenaSize>::arena_instance;
-} // namespace local
 
 const char pstr_a[] =
     "fee6f3060ed3f90fdd79fe414418f8d9dc08bbe4470b658ca8f167fc3ce48821a79f8f9df51d795cbb88cb6e3a5e5f46b56f06991d6a92978"
@@ -102,7 +36,7 @@ static auto do_one_test() -> bool;
 
 static auto do_one_test() -> bool {
 
-    using ring_allocator_type = local::ring_allocator<beman::big_int::uint_multiprecision_t, std::size_t{0x2000U}>;
+    using ring_allocator_type = util::ring_allocator<beman::big_int::uint_multiprecision_t, std::size_t{0x2000U}>;
 
     using ring_big_int_type =
         beman::big_int::basic_big_int<beman::big_int::big_int::inplace_bits, ring_allocator_type>;
