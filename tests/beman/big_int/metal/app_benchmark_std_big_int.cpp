@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 
 namespace local {
 
@@ -28,10 +27,10 @@ class ring_allocator {
   public:
     using value_type = T;
 
-    explicit ring_allocator(ring_arena<ArenaSize>* = nullptr) : arena_ptr(&arena_instance) {}
+    ring_allocator() {}
 
     template <class U>
-    ring_allocator(const ring_allocator<U, ArenaSize>&) : arena_ptr(&arena_instance) {}
+    ring_allocator(const ring_allocator<U, ArenaSize>&) {}
 
     template <typename U>
     struct rebind {
@@ -39,6 +38,9 @@ class ring_allocator {
     };
 
     T* allocate(const std::size_t n) {
+
+        ring_arena<ArenaSize>* arena_ptr{&arena_instance};
+
         const std::size_t bytes = n * sizeof(T);
         std::size_t       at    = (arena_ptr->head + alignof(T) - 1) & ~(alignof(T) - 1);
         if (at + bytes > arena_ptr->buffer.size()) {
@@ -51,25 +53,25 @@ class ring_allocator {
         arena_ptr->outstanding += bytes;
         arena_ptr->peak_outstanding = std::max(arena_ptr->peak_outstanding, arena_ptr->outstanding);
         ++arena_ptr->allocations;
-        return reinterpret_cast<T*>(arena_ptr->buffer.data() + at);
+        return reinterpret_cast<T*>(static_cast<void*>(arena_ptr->buffer.data() + at));
     }
 
-    void deallocate(T*, const std::size_t n) noexcept { arena_ptr->outstanding -= n * sizeof(T); }
+    auto deallocate(T*, const std::size_t n) noexcept -> void {
+        ring_arena<ArenaSize>* arena_ptr{&arena_instance};
 
-    template <class U>
-    bool operator==(const ring_allocator<U, ArenaSize>& other) const {
-        return true;
+        arena_ptr->outstanding -= n * sizeof(T);
     }
 
   private:
     static ring_arena<ArenaSize> arena_instance;
 
-    ring_arena<ArenaSize>* arena_ptr{&arena_instance};
+    friend auto operator==(const ring_allocator&, const ring_allocator&) noexcept -> bool { return true; }
+
+    friend auto operator!=(const ring_allocator&, const ring_allocator&) noexcept -> bool { return false; }
 };
 
 template <class T, const std::size_t ArenaSize>
-ring_arena<ArenaSize> ring_allocator<T, ArenaSize>::arena_instance{};
-
+ring_arena<ArenaSize> ring_allocator<T, ArenaSize>::arena_instance;
 } // namespace local
 
 const char pstr_a[] =
