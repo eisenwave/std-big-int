@@ -12,9 +12,11 @@
 // std::allocator big_ints, which would catch any corruption from the ring's
 // wraparound reuse.
 
+#include "util/util_ring_allocator.hpp"
+
 #include <beman/big_int.hpp>
+
 #include <gtest/gtest.h>
-#include <util/util_ring_allocator.hpp>
 
 #include <random>
 #include <string>
