@@ -1,6 +1,7 @@
 #ifndef BEMAN_BIG_INT_UTIL_RING_ALLOCATOR_HPP
 #define BEMAN_BIG_INT_UTIL_RING_ALLOCATOR_HPP
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
