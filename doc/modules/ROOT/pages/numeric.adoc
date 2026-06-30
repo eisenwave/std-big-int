@@ -22,6 +22,10 @@ template <class T>
     requires /* T is a basic_big_int (after removing cv-qualifiers and references) */
 constexpr std::remove_cvref_t<T> abs(T&& x);
 
+template <class R, std::size_t b, class A>
+    requires /* R is a signed or unsigned integer type */
+constexpr R saturating_cast(const basic_big_int<b, A>& x) noexcept;
+
 } // namespace beman::big_int
 ----
 
@@ -47,3 +51,31 @@ unbounded, so the magnitude of every value is representable.
   copied result (for example, `std::bad_alloc`); a value held in the in-place
   buffer, and any rvalue argument, allocates nothing.
 * *Remarks:* The function is usable in a constant expression.
+
+[#numeric_saturating_cast]
+== `saturating_cast`
+
+[source,c++]
+----
+template <class R, std::size_t b, class A>
+    requires /* R is a signed or unsigned integer type */
+constexpr R saturating_cast(const basic_big_int<b, A>& x) noexcept;
+----
+
+Converts `x` to the integer type `R`, clamping the result to the range of `R`
+when the value of `x` does not fit. This is the saturating counterpart to the
+`explicit operator R()` conversion, which instead truncates the value modulo
+the width of `R`.
+
+* *Constraints:* `R` is a signed or unsigned integer type.
+* *Returns:* If the integer value of `x` is representable as a value of type
+  `R`, that value; otherwise the largest or smallest value representable by `R`,
+  whichever is closer to the value of `x`. In particular, a value greater than
+  the maximum of `R` saturates to that maximum, a value less than the minimum
+  saturates to the minimum, and every negative value yields `0` when `R` is
+  unsigned.
+* *Throws:* Nothing; the function is `noexcept`.
+* *Remarks:* The function is usable in a constant expression. The bounds of `R`
+  are derived from its width, so extended integer types and bit-precise
+  integers (`_BitInt`) are supported even where they lack a
+  `std::numeric_limits` specialization.
