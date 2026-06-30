@@ -120,7 +120,7 @@ template <signed_integer T>
     using U = detail::make_unsigned_t<T>;
     BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
     BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4146) // unary minus on unsigned is intentional
-    return x < 0 ? -static_cast<U>(x) : static_cast<U>(x);
+    return x < 0 ? static_cast<U>(-static_cast<U>(x)) : static_cast<U>(x);
     BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
