@@ -28,7 +28,7 @@ constexpr std::remove_cvref_t<T> abs(T&& x) {
 template <class R, std::size_t b, class A>
     requires detail::signed_or_unsigned<R>
 constexpr R saturating_cast(const basic_big_int<b, A>& x) noexcept {
-    using U                     = detail::make_unsigned_t<R>;
+    using U = detail::make_unsigned_t<R>;
 
     constexpr std::size_t width = detail::width_v<R>;
     if constexpr (detail::unsigned_integer<R>) {
