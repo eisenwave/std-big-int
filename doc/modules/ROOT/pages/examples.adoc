@@ -10,6 +10,54 @@ We will first start with the basics and then move on to more advanced examples.
 [#examples_foundational]
 == Foundational Examples
 
+[#examples_construction]
+=== Construction
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/construction.cpp[example] demonstrates the many ways to create a `beman::big_int`: from built-in integers, from floating-point values, from a user-defined literal, by copy and move, and from a range of limbs
+====
+[source, c++]
+----
+include::example$construction.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+zero:         0
+from_int:     -123456789
+from_ull:     18446744073709551615
+from_double:  1000000000000000
+truncated:    -42
+from_literal: 170141183460469231731687303715884105728
+
+result_is_ok: true
+----
+====
+
+[#examples_operators]
+=== Fundamental operators
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/operators.cpp[example] demonstrates the fundamental arithmetic, comparison, bitwise, shift, increment, and compound-assignment operators of `beman::big_int`
+====
+[source, c++]
+----
+include::example$operators.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+sum:        1000000000007
+difference: 999999999993
+product:    7000000000000
+quotient:   142857142857 remainder 1
+complement: -1000000000001
+2^100:      1267650600228229401496703205376
+
+result_is_ok: true
+----
+====
+
 [#examples_factorial]
 === Factorial
 
@@ -87,6 +135,75 @@ include::example$string.cpp[]
 decimal:  340282366920938463463374607431768211456
 hex:      100000000000000000000000000000000
 negative: -100000000000000000000000000000000
+
+result_is_ok: true
+----
+====
+
+[#examples_numeric]
+=== Numeric functions
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/numeric.cpp[example] demonstrates the free numeric helpers in `<beman/big_int/numeric.hpp>`: `abs` for the magnitude of a value, and `saturating_cast` for range-clamped narrowing to a built-in integer
+====
+[source, c++]
+----
+include::example$numeric.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+magnitude:   170141183460469231731687303715884105728
+clamped_hi:  2147483647
+clamped_lo:  -2147483648
+clamped_neg: 0
+exact:       12345
+
+result_is_ok: true
+----
+====
+
+[#examples_division]
+=== Integer division
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/division.cpp[example] demonstrates the `div_rem_to_zero` free function, which computes the quotient and remainder together in a single division
+====
+[source, c++]
+----
+include::example$division.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+dividend:  100000000000000000000000000000000
+divisor:   1000000007
+quotient:  99999999300000004899999
+remainder: 965700007
+
+result_is_ok: true
+----
+====
+
+[#examples_io]
+=== Formatting and output
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/io.cpp[example] demonstrates displaying a `beman::big_int` by converting it to text with `to_string` and by formatting it with `std::format`
+====
+[source, c++]
+----
+include::example$io.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+decimal: 340282366920938463463374607431768211456
+hex:     100000000000000000000000000000000
+format {:#x}:  0x100000000000000000000000000000000
+format {:b}:   101010
+format {:>12}: '         255'
+format {:+}:   +7
 
 result_is_ok: true
 ----
