@@ -17,7 +17,7 @@ We will first start with the basics and then move on to more advanced examples.
 ====
 [source, c++]
 ----
-include::example$construction.cpp[]
+include::examples$construction.cpp[]
 ----
 
 .Expected Output
@@ -41,7 +41,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$operators.cpp[]
+include::examples$operators.cpp[]
 ----
 
 .Expected Output
@@ -65,7 +65,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$factorial.cpp[]
+include::examples$factorial.cpp[]
 ----
 
 .Expected Output
@@ -85,7 +85,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$literals.cpp[]
+include::examples$literals.cpp[]
 ----
 
 .Expected Output
@@ -106,7 +106,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$charconv.cpp[]
+include::examples$charconv.cpp[]
 ----
 
 .Expected Output
@@ -126,7 +126,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$string.cpp[]
+include::examples$string.cpp[]
 ----
 
 .Expected Output
@@ -147,7 +147,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$numeric.cpp[]
+include::examples$numeric.cpp[]
 ----
 
 .Expected Output
@@ -170,7 +170,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$division.cpp[]
+include::examples$division.cpp[]
 ----
 
 .Expected Output
@@ -192,7 +192,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$io.cpp[]
+include::examples$io.cpp[]
 ----
 
 .Expected Output
@@ -219,7 +219,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$fibonacci.cpp[]
+include::examples$fibonacci.cpp[]
 ----
 
 .Expected Output
@@ -239,7 +239,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$roots.cpp[]
+include::examples$roots.cpp[]
 ----
 
 .Expected Output
@@ -262,7 +262,7 @@ result_is_ok: true
 ====
 [source, c++]
 ----
-include::example$primes.cpp[]
+include::examples$primes.cpp[]
 ----
 
 .Expected Output
@@ -311,7 +311,7 @@ prime density: 1/324.1
 ====
 [source, c++]
 ----
-include::example$rsa.cpp[]
+include::examples$rsa.cpp[]
 ----
 
 .Expected Output
