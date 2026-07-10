@@ -12,7 +12,7 @@ OUTPUT_FORMAT("elf32-littlearm", "elf32-littlearm", "elf32-littlearm")
 OUTPUT_ARCH(arm)
 
 /* The beginning and end of the program ROM area */
-/* Set up a ROM area with a size of 245K */
+/* Set up a ROM area with a size of 256K */
 _rom_size  = 0x00040000;
 _rom_begin = 0x08000000;
 _rom_end   = _rom_begin + _rom_size;

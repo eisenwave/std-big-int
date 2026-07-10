@@ -226,7 +226,7 @@ to reproduce a row.
 roughly 3x of GMP across the entire range, including the largest sizes where it
 previously fell behind (about 5.3x at 131,072 limbs before the FFT existed).
 . `cpp_int` only reaches as high as Karatsuba multiplication, so both `big_int`
-and `gmp_int` pull ahead at medium-high digit counts; `big_int`'s lead over
+and `gmp_int` pull ahead at medium-high digit counts; the lead `big_int` has over
 `cpp_int` grows to roughly 6x by 131,072 limbs.
 
 A finer-grained sweep over mixed limb counts (4 to 30,000 limbs) shows the same
@@ -261,7 +261,7 @@ https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/div_
 
 . `cpp_int` uses a variant of Knuth long division at all limb counts, which is
 quadratic, so `big_int` and `gmp_int` pull ahead rapidly at medium-high digit
-counts; `big_int`'s lead over `cpp_int` grows to roughly 8x by 8,192 limbs.
+counts; the lead `big_int` has over `cpp_int` grows to roughly 8x by 8,192 limbs.
 
 A finer-grained sweep over mixed limb counts (4 to 30,000 limbs) shows the same
 trend, with `big_int` within roughly 2x--4x of GMP across the whole range; again
@@ -277,7 +277,8 @@ Sub-quadratic base conversion underlies the library's `<charconv>` support (the
 convenient interface for converting big integers to and from their string
 representations. The performance of these operations is governed primarily by the
 efficiency of the underlying multiplication and division algorithms described
-above.
+above. This holds for converting to and from string representations in any
+base other than 16. For base 16, the string conversions have linear complexity.
 
 [#benchmarks_order_n]
 == Order-N operations
