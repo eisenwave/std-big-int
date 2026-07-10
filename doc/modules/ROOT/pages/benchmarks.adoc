@@ -38,7 +38,7 @@ Three tiers are measured for every operation:
 * *64-bit tier* -- `std::int64_t` against the default `big_int`
 (`basic_big_int<64>`, one inplace limb). Operands are sized so the result stays
 within 64 bits, so `big_int` never leaves inplace storage.
-* *128-bit tier* -- `__int128` against `basic_big_int<128>` (two inplace limbs),
+* *128-bit tier* -- compares `__int128` with `basic_big_int<128>` (two inplace limbs),
 the natural same-width counterpart. Built only where `__int128` exists.
 * *Large (heap) contrast* -- the same `big_int` operations on multi-limb,
 heap-allocated operands (roughly pass:[2^320] and pass:[2^256]), to show the cost
@@ -97,7 +97,7 @@ fence that stops the compiler from hoisting or deleting the work. That fence is
 identical in every cell, so read the table across a row (relative cost) rather
 than as the absolute cost of a single instruction.
 * Even against the builtins the small-value path stays within a small constant
-factor, and for division `big_int`'s two-limb path (11.6 ns) is in the same
+factor, and for division the two-limb path of `big_int` (11.6 ns) is in the same
 ballpark as the native `__int128` divide (3.2 ns), which is itself a library call
 rather than a single instruction.
 
