@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "copy-examples": "node copy-examples.js",
+    "build": "npm run copy-examples && antora antora-playbook.yml"
+  },
   "devDependencies": {
     "@antora/cli": "3.1.15",
     "@antora/site-generator": "3.1.15",
