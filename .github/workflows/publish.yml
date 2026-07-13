@@ -29,7 +29,9 @@ jobs:
       - name: Install Antora and Dependencies
         run: npm ci
       - name: Generate Site
-        run: npx antora antora-playbook.yml
+        # `npm run build` copies the repo-root examples/ into the Antora
+        # example family (see copy-examples.js) before running Antora.
+        run: npm run build
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
