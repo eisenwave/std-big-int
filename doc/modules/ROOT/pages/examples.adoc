@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 [#examples]
+= Examples
 :idprefix: examples_
 
 All the following examples can be found in the `examples/` folder of this library.

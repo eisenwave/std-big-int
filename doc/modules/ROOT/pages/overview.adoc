@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: BSL-1.0
 
 [#overview]
+:idprefix: overview_
 
 = `beman::big_int`: A reference implementation for https://isocpp.org/files/papers/D4444R0.html[P4444]
 
+[#overview_introduction]
 == Introduction
 
 pass:[C++] currently provides no portable support for integers wider than 64 bits.
@@ -13,11 +15,13 @@ Each of these attempts failed — not because there was a lack of interest or mo
 
 `std::big_int` is to `long long` what `std::string` is to `char[N]`: sure, a fixed size is sufficient for some use cases, but comes with a constant threat of overflow and undefined behavior, and that threat is easily eliminated at some acceptable runtime cost.
 
+[#overview_motivation]
 == Motivation
 
 This repository contains our reference implementation of `std::big_int` as `beman::big_int`.
 It is designed to be both portable and performant, with all features specified in https://isocpp.org/files/papers/D4444R0.html[P4444].
 
+[#overview_supported_compilers]
 == Supported Compilers
 
 This repository requires a minimum of pass:[C++23], and is tested on the following compilers:
