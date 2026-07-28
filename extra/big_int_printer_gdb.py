@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # SPDX-License-Identifier: BSL-1.0
 #
-# Pretty printer for beman::big_int::basic_big_int<min_inplace_bits, Allocator>.
+# Pretty printer for beman::big_int::basic_big_int<min_inplace_bits, Allocator, LimbType>.
 #
 # Layout (see include/beman/big_int/big_int.hpp):
 #   class basic_big_int {
