@@ -9,8 +9,8 @@
 
 namespace beman::big_int {
 
-template <std::size_t b, class A, class Limb>
-std::ostream& operator<<(std::ostream& out, const basic_big_int<b, A, Limb>& x) {
+template <std::size_t b, class A, class LimbType>
+std::ostream& operator<<(std::ostream& out, const basic_big_int<b, A, LimbType>& x) {
     return out << to_string(x);
 }
 
@@ -41,9 +41,9 @@ template <class IntegralType>
 // representation_capacity() model, an in-place value has representation_capacity() equal to
 // inplace_capacity (capacity() reports inplace_bits); a heap-allocated value exceeds it.
 // Found by ADL from the tests because basic_big_int lives in this namespace.
-template <std::size_t b, class A, class Limb>
-[[nodiscard]] constexpr bool is_inplace(const basic_big_int<b, A, Limb>& x) noexcept {
-    return x.representation_capacity() == basic_big_int<b, A, Limb>::inplace_capacity;
+template <std::size_t b, class A, class LimbType>
+[[nodiscard]] constexpr bool is_inplace(const basic_big_int<b, A, LimbType>& x) noexcept {
+    return x.representation_capacity() == basic_big_int<b, A, LimbType>::inplace_capacity;
 }
 
 // Returns the number of bytes before the trailing run of zero bytes.

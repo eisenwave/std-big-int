@@ -46,9 +46,9 @@ static_assert(basic_big_int<127, big_int::allocator_type>::inplace_bits == 128,
 template <class T>
 struct is_exact_big_int;
 
-template <std::size_t b, class A, class Limb>
-struct is_exact_big_int<basic_big_int<b, A, Limb>> : std::bool_constant<b == basic_big_int<b, A, Limb>::inplace_bits> {
-};
+template <std::size_t b, class A, class LimbType>
+struct is_exact_big_int<basic_big_int<b, A, LimbType>>
+    : std::bool_constant<b == basic_big_int<b, A, LimbType>::inplace_bits> {};
 
 static_assert(is_exact_big_int<big_int>::value,
               "The min_inplace_bits should match inplace_bits exactly for big_int, "
