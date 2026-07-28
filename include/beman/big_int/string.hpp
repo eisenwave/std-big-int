@@ -29,8 +29,8 @@ namespace detail {
 // narrow result is widened afterwards. The digit alphabet and the minus sign
 // belong to the basic execution character set, whose member values are
 // preserved by the narrow-to-wide conversion.
-template <class C, std::size_t b, class A>
-[[nodiscard]] constexpr std::basic_string<C> to_basic_string(const basic_big_int<b, A>& x, const int base) {
+template <class C, std::size_t b, class A, class Limb>
+[[nodiscard]] constexpr std::basic_string<C> to_basic_string(const basic_big_int<b, A, Limb>& x, const int base) {
     BEMAN_BIG_INT_ASSERT(base >= 2 && base <= 36);
     constexpr std::size_t minus_sign_size = 1;
 
@@ -66,13 +66,13 @@ template <class C, std::size_t b, class A>
 
 } // namespace detail
 
-template <std::size_t b, class A>
-[[nodiscard]] constexpr std::string to_string(const basic_big_int<b, A>& x, const int base = 10) {
+template <std::size_t b, class A, class Limb>
+[[nodiscard]] constexpr std::string to_string(const basic_big_int<b, A, Limb>& x, const int base = 10) {
     return detail::to_basic_string<char>(x, base);
 }
 
-template <std::size_t b, class A>
-[[nodiscard]] constexpr std::wstring to_wstring(const basic_big_int<b, A>& x, const int base = 10) {
+template <std::size_t b, class A, class Limb>
+[[nodiscard]] constexpr std::wstring to_wstring(const basic_big_int<b, A, Limb>& x, const int base = 10) {
     return detail::to_basic_string<wchar_t>(x, base);
 }
 
