@@ -42,25 +42,39 @@ namespace beman::big_int {
 using beman::big_int::uint_multiprecision_t;
 
 // Forward decl so that we can define our concepts
-template <std::size_t min_inplace_bits, class Allocator = std::allocator<uint_multiprecision_t>>
+template <std::size_t min_inplace_bits,
+          class Allocator = std::allocator<uint_multiprecision_t>,
+          class LimbType  = uint_multiprecision_t>
 class basic_big_int;
 
-template <std::size_t b, class A>
-constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, A>&, int = 10);
+template <std::size_t b, class A, class LimbType>
+constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, A, LimbType>&, int = 10);
 
-template <std::size_t b, class A>
-constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int = 10);
+template <std::size_t b, class A, class LimbType>
+constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A, LimbType>&, int = 10);
 
 namespace detail {
 
 template <class>
 struct is_basic_big_int : std::false_type {};
 
-template <std::size_t b, class A>
-struct is_basic_big_int<basic_big_int<b, A>> : std::true_type {};
+template <std::size_t b, class A, class LimbType>
+struct is_basic_big_int<basic_big_int<b, A, LimbType>> : std::true_type {};
 
 template <class T>
 inline constexpr bool is_basic_big_int_v = is_basic_big_int<std::remove_cvref_t<T>>::value;
+
+// Recovers the limb type of a basic_big_int specialization, which is otherwise private.
+template <class>
+struct limb_type_of {};
+
+template <std::size_t b, class A, class LimbType>
+struct limb_type_of<basic_big_int<b, A, LimbType>> {
+    using type = LimbType;
+};
+
+template <class T>
+using limb_type_of_t = typename limb_type_of<std::remove_cvref_t<T>>::type;
 
 // [big.ing.expos]
 template <class T>
@@ -98,9 +112,10 @@ inline constexpr bool no_alloc_constructible_from = []() {
     }
 }();
 
-template <std::size_t b, class A, class T>
+template <std::size_t b, class A, class LimbType, class T>
 inline constexpr bool is_implicit_constructible_from =
-    detail::signed_or_unsigned<std::remove_cvref_t<T>> || std::is_same_v<std::remove_cvref_t<T>, basic_big_int<b, A>>;
+    detail::signed_or_unsigned<std::remove_cvref_t<T>> ||
+    std::is_same_v<std::remove_cvref_t<T>, basic_big_int<b, A, LimbType>>;
 
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
 using std::allocation_result;
@@ -252,10 +267,15 @@ template <class T>
 constexpr std::remove_cvref_t<T> abs(T&& x);
 
 // [big.int.class], class template basic_big_int
-template <std::size_t min_inplace_bits, class Allocator>
+template <std::size_t min_inplace_bits, class Allocator, class LimbType>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
-    using limb_type        = uint_multiprecision_t;
+    // The limb type is a template parameter so that a future revision can change it without
+    // changing the signature of basic_big_int. Only uint_multiprecision_t is supported today:
+    // the compiled multiplication and division kernels in src/ have a fixed-limb ABI.
+    static_assert(std::is_same_v<LimbType, uint_multiprecision_t>, "LimbType must be uint_multiprecision_t.");
+
+    using limb_type        = LimbType;
     using signed_limb_type = detail::int_multiprecision_t;
 
 #ifdef BEMAN_BIG_INT_HAS_WIDE_INT
@@ -268,17 +288,20 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     using size_type      = std::size_t;
     using pointer        = typename std::allocator_traits<Allocator>::pointer;
     using const_pointer  = typename std::allocator_traits<Allocator>::const_pointer;
-    static_assert(std::is_same_v<typename Allocator::value_type, uint_multiprecision_t>,
-                  "Allocator::value_type must be uint_multiprecision_t.");
+    static_assert(std::is_same_v<typename Allocator::value_type, limb_type>,
+                  "Allocator::value_type must be the limb type.");
 
-    template <std::size_t, class>
+    template <std::size_t, class, class>
     friend class basic_big_int;
 
-    template <std::size_t b, class A>
-    friend constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, A>&, int);
+    // These two spell the limb parameter `OtherLimbType` rather than `LimbType`: a member template
+    // may not redeclare a template parameter of the enclosing class ([temp.local]).
+    template <std::size_t b, class A, class OtherLimbType>
+    friend constexpr std::from_chars_result
+    from_chars(const char*, const char*, basic_big_int<b, A, OtherLimbType>&, int);
 
-    template <std::size_t b, class A>
-    friend constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A>&, int);
+    template <std::size_t b, class A, class OtherLimbType>
+    friend constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, A, OtherLimbType>&, int);
 
     friend struct ::std::hash<basic_big_int>;
 
@@ -351,7 +374,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // of constructors with conditional explicit + requires.
     template <detail::arbitrary_arithmetic T>
         requires(!std::same_as<std::remove_cvref_t<T>, basic_big_int>)
-    constexpr explicit(!detail::is_implicit_constructible_from<inplace_bits, Allocator, T>)
+    constexpr explicit(!detail::is_implicit_constructible_from<inplace_bits, Allocator, limb_type, T>)
         basic_big_int(T&& value) noexcept(detail::no_alloc_constructible_from<inplace_bits, T>)
         : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{} {
         if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
@@ -890,34 +913,34 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
 // Internal accessors
 
-template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::is_representation_inplace() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr bool basic_big_int<b, A, LimbType>::is_representation_inplace() const noexcept {
     return m_capacity == 0;
 }
 
-template <std::size_t b, class A>
-constexpr std::uint32_t basic_big_int<b, A>::limb_count() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::uint32_t basic_big_int<b, A, LimbType>::limb_count() const noexcept {
     constexpr std::uint32_t negative_zero_size_and_sign = 0x8000'0000U;
     BEMAN_BIG_INT_DEBUG_ASSERT(m_size_and_sign != negative_zero_size_and_sign);
     return m_size_and_sign & 0x7FFF'FFFFU;
 }
 
-template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::is_negative() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr bool basic_big_int<b, A, LimbType>::is_negative() const noexcept {
     constexpr std::uint32_t negative_zero_size_and_sign = 0x8000'0000U;
     BEMAN_BIG_INT_DEBUG_ASSERT(m_size_and_sign != negative_zero_size_and_sign);
     return (m_size_and_sign & 0x8000'0000U) != 0;
 }
 
-template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::is_zero() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr bool basic_big_int<b, A, LimbType>::is_zero() const noexcept {
     // We have the invariant that the sign bit is never set for zero magnitude,
     // so negative numbers short-circuit here.
     return !is_negative() && unchecked_is_magnitude_zero();
 }
 
-template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::unchecked_is_magnitude_zero() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr bool basic_big_int<b, A, LimbType>::unchecked_is_magnitude_zero() const noexcept {
     const std::uint32_t unchecked_limb_count = m_size_and_sign & 0x7FFF'FFFFU;
     const limb_type*    limbs                = limb_ptr();
     for (std::uint32_t i = 0; i < unchecked_limb_count; ++i) {
@@ -928,32 +951,32 @@ constexpr bool basic_big_int<b, A>::unchecked_is_magnitude_zero() const noexcept
     return true;
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::unchecked_set_limb_count(const std::uint32_t n) noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::unchecked_set_limb_count(const std::uint32_t n) noexcept {
     BEMAN_BIG_INT_DEBUG_ASSERT(n != 0);
     m_size_and_sign = (m_size_and_sign & 0x8000'0000U) | n;
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::unchecked_set_sign(const bool s) noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::unchecked_set_sign(const bool s) noexcept {
     m_size_and_sign = (m_size_and_sign & 0x7FFF'FFFFU) | (static_cast<std::uint32_t>(s) << 31);
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::negate() noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::negate() noexcept {
     if (!is_zero()) {
         m_size_and_sign ^= 0x8000'0000U;
     }
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::set_zero() noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::set_zero() noexcept {
     limb_ptr()[0]   = 0;
     m_size_and_sign = 1;
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::unchecked_trim_magnitude() noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::unchecked_trim_magnitude() noexcept {
     const limb_type* const limbs = limb_ptr();
     std::uint32_t          size  = m_size_and_sign & 0x7FFF'FFFFU;
     if (size > 1 && limbs[size - 1] == 0) {
@@ -966,25 +989,25 @@ constexpr void basic_big_int<b, A>::unchecked_trim_magnitude() noexcept {
     }
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::limb_ptr() noexcept -> limb_type* {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::limb_ptr() noexcept -> limb_type* {
     return is_representation_inplace() ? m_storage.limbs : m_storage.data;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::limb_ptr() const noexcept -> const limb_type* {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::limb_ptr() const noexcept -> const limb_type* {
     return is_representation_inplace() ? m_storage.limbs : m_storage.data;
 }
 
-template <std::size_t b, class A>
-constexpr std::span<uint_multiprecision_t> basic_big_int<b, A>::limb_span() noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::span<uint_multiprecision_t> basic_big_int<b, A, LimbType>::limb_span() noexcept {
     return {limb_ptr(), limb_count()};
 }
 
 // [big.int.cons] — constructors
 
-template <std::size_t b, class A>
-constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
+template <std::size_t b, class A, class LimbType>
+constexpr basic_big_int<b, A, LimbType>::basic_big_int(const basic_big_int& x)
     : m_capacity{0}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{x.m_alloc} {
     if (x.limb_count() <= inplace_capacity) {
         if (x.is_representation_inplace()) {
@@ -1009,8 +1032,8 @@ constexpr basic_big_int<b, A>::basic_big_int(const basic_big_int& x)
     }
 }
 
-template <std::size_t b, class A>
-constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
+template <std::size_t b, class A, class LimbType>
+constexpr basic_big_int<b, A, LimbType>::basic_big_int(basic_big_int&& x) noexcept
     : m_capacity{x.m_capacity}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{std::move(x.m_alloc)} {
     if (x.is_representation_inplace()) {
         for (size_type i = 0; i < inplace_capacity; ++i) {
@@ -1024,14 +1047,14 @@ constexpr basic_big_int<b, A>::basic_big_int(basic_big_int&& x) noexcept
     }
 }
 
-template <std::size_t b, class A>
-constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(const basic_big_int& x) {
+template <std::size_t b, class A, class LimbType>
+constexpr basic_big_int<b, A, LimbType>& basic_big_int<b, A, LimbType>::operator=(const basic_big_int& x) {
     assign_value(x);
     return *this;
 }
 
-template <std::size_t b, class A>
-constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x) noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr basic_big_int<b, A, LimbType>& basic_big_int<b, A, LimbType>::operator=(basic_big_int&& x) noexcept {
     // Invariant: `assign_value` with `extra_space == 0` and an rvalue `src`
     // never allocates -- either `*this` already fits `x.limb_count()`, or we
     // steal `x`'s heap buffer, or `x` is inline and fits inline in `*this`.
@@ -1047,10 +1070,9 @@ constexpr basic_big_int<b, A>& basic_big_int<b, A>::operator=(basic_big_int&& x)
 // heap operand's storage while the freed pointer is adopted by the other.
 // The allocator participates only when `propagate_on_container_swap` holds;
 // otherwise [container.reqmts] requires the two allocators to compare equal.
-template <std::size_t b, class A>
-constexpr void
-basic_big_int<b, A>::swap(basic_big_int& x) noexcept(std::allocator_traits<A>::propagate_on_container_swap::value ||
-                                                     std::allocator_traits<A>::is_always_equal::value) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::swap(basic_big_int& x) noexcept(
+    std::allocator_traits<A>::propagate_on_container_swap::value || std::allocator_traits<A>::is_always_equal::value) {
     if (this == std::addressof(x)) {
         return;
     }
@@ -1089,9 +1111,9 @@ basic_big_int<b, A>::swap(basic_big_int& x) noexcept(std::allocator_traits<A>::p
     }
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::arbitrary_arithmetic T>
-constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_type& a) noexcept(
+constexpr basic_big_int<b, A, LimbType>::basic_big_int(const T& value, const allocator_type& a) noexcept(
     detail::no_alloc_constructible_from<inplace_bits, T>)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
     if constexpr (std::is_floating_point_v<std::remove_cvref_t<T>>) {
@@ -1116,10 +1138,10 @@ constexpr basic_big_int<b, A>::basic_big_int(const T& value, const allocator_typ
     }
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::input_iterator I, std::sentinel_for<I> S>
     requires detail::signed_or_unsigned<std::iter_value_t<I>>
-constexpr basic_big_int<b, A>::basic_big_int(I begin, S end, const allocator_type& a)
+constexpr basic_big_int<b, A, LimbType>::basic_big_int(I begin, S end, const allocator_type& a)
     : m_capacity{0}, m_size_and_sign{1}, m_storage{}, m_alloc{a} {
 
     if constexpr (std::ranges::sized_range<std::ranges::subrange<I, S>>) {
@@ -1145,16 +1167,16 @@ constexpr basic_big_int<b, A>::basic_big_int(I begin, S end, const allocator_typ
     }
 }
 
-template <std::size_t b, class A>
-constexpr basic_big_int<b, A>::~basic_big_int() {
+template <std::size_t b, class A, class LimbType>
+constexpr basic_big_int<b, A, LimbType>::~basic_big_int() {
     free_storage();
 }
 
 // [big.int.modifiers]
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::signed_or_unsigned S>
-constexpr auto basic_big_int<b, A>::operator>>=(const S s) -> basic_big_int& {
+constexpr auto basic_big_int<b, A, LimbType>::operator>>=(const S s) -> basic_big_int& {
     // If this pattern comes up more often, we should consider something like a `safe_cast` utility.
     // This would convert to another type and signal whether the result is exactly representable.
     if constexpr (std::is_signed_v<S>) {
@@ -1167,9 +1189,9 @@ constexpr auto basic_big_int<b, A>::operator>>=(const S s) -> basic_big_int& {
     return *this;
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::signed_or_unsigned S>
-constexpr auto basic_big_int<b, A>::operator<<=(const S s) -> basic_big_int& {
+constexpr auto basic_big_int<b, A, LimbType>::operator<<=(const S s) -> basic_big_int& {
     if constexpr (std::is_signed_v<S>) {
         BEMAN_BIG_INT_DEBUG_ASSERT(s >= 0);
         BEMAN_BIG_INT_DEBUG_ASSERT(static_cast<detail::make_unsigned_t<S>>(s) <= shift_max);
@@ -1180,8 +1202,8 @@ constexpr auto basic_big_int<b, A>::operator<<=(const S s) -> basic_big_int& {
     return *this;
 }
 
-template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::unchecked_increment_magnitude() {
+template <std::size_t b, class A, class LimbType>
+constexpr bool basic_big_int<b, A, LimbType>::unchecked_increment_magnitude() {
     limb_type* const limbs    = limb_ptr();
     bool             carry_in = true;
     for (size_type i = 0; carry_in && i < limb_count(); ++i) {
@@ -1197,8 +1219,8 @@ constexpr bool basic_big_int<b, A>::unchecked_increment_magnitude() {
     return carry_in;
 }
 
-template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::unchecked_decrement_magnitude() {
+template <std::size_t b, class A, class LimbType>
+constexpr bool basic_big_int<b, A, LimbType>::unchecked_decrement_magnitude() {
     limb_type* const limbs     = limb_ptr();
     bool             borrow_in = true;
     for (size_type i = 0; borrow_in && i < limb_count(); ++i) {
@@ -1217,8 +1239,8 @@ constexpr bool basic_big_int<b, A>::unchecked_decrement_magnitude() {
     return borrow_in;
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::shift_left(const shift_type s) {
     BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
     if (s == 0) {
         return;
@@ -1260,8 +1282,8 @@ constexpr void basic_big_int<b, A>::shift_left(const shift_type s) {
     }
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::shift_right(const shift_type s) {
     BEMAN_BIG_INT_DEBUG_ASSERT(s <= shift_max);
     if (s == 0) {
         return;
@@ -1319,8 +1341,8 @@ constexpr void basic_big_int<b, A>::shift_right(const shift_type s) {
 
 // [big.int.ops]
 
-template <std::size_t b, class A>
-constexpr std::size_t basic_big_int<b, A>::width_mag() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::size_t basic_big_int<b, A, LimbType>::width_mag() const noexcept {
     const auto count = limb_count();
     const auto top   = limb_ptr()[count - 1];
     if (top == 0) {
@@ -1329,27 +1351,28 @@ constexpr std::size_t basic_big_int<b, A>::width_mag() const noexcept {
     return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)));
 }
 
-template <std::size_t b, class A>
-constexpr std::span<const uint_multiprecision_t> basic_big_int<b, A>::representation() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::span<const uint_multiprecision_t> basic_big_int<b, A, LimbType>::representation() const noexcept {
     return {limb_ptr(), limb_count()};
 }
 
-template <std::size_t b, class A>
-constexpr std::size_t basic_big_int<b, A>::representation_size() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::size_t basic_big_int<b, A, LimbType>::representation_size() const noexcept {
     // Number of limbs spanned by the magnitude: a single limb for a zero value,
     // otherwise ceil(width_mag() / bits_per_limb). Equals representation().size().
     return is_zero() ? size_type{1} : detail::div_to_pos_inf(width_mag(), bits_per_limb);
 }
 
-template <std::size_t b, class A>
-constexpr typename basic_big_int<b, A>::allocator_type basic_big_int<b, A>::get_allocator() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr typename basic_big_int<b, A, LimbType>::allocator_type
+basic_big_int<b, A, LimbType>::get_allocator() const noexcept {
     return m_alloc;
 }
 
-template <std::size_t b, class A>
-constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::size_t basic_big_int<b, A, LimbType>::size() const noexcept {
     if (is_negative()) {
-        basic_big_int<b, A> negated(*this);
+        basic_big_int<b, A, LimbType> negated(*this);
         negated.negate();
         return negated.size();
     } else if (is_zero()) {
@@ -1359,14 +1382,14 @@ constexpr std::size_t basic_big_int<b, A>::size() const noexcept {
     }
 }
 
-template <std::size_t b, class A>
-constexpr std::size_t basic_big_int<b, A>::max_size() noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::size_t basic_big_int<b, A, LimbType>::max_size() noexcept {
     // Maximum number of bits the magnitude may occupy.
     return max_representation_size() * bits_per_limb;
 }
 
-template <std::size_t b, class A>
-constexpr std::size_t basic_big_int<b, A>::max_representation_size() noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::size_t basic_big_int<b, A, LimbType>::max_representation_size() noexcept {
     // A limb count occupies 31 bits of the control word; in addition, the bit count reported
     // by max_size() must be representable in size_type. The smaller of the two limits wins.
     constexpr size_type storage_cap  = (size_type{1} << 31U) - 1U;
@@ -1374,33 +1397,33 @@ constexpr std::size_t basic_big_int<b, A>::max_representation_size() noexcept {
     return std::min(storage_cap, overflow_cap);
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::reserve(const size_type n) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::reserve(const size_type n) {
     // n is a bit count; reserve enough limbs to hold it.
     reserve_representation(detail::div_to_pos_inf(n, bits_per_limb));
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::reserve_representation(const size_type n) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::reserve_representation(const size_type n) {
     // Reserve room for at least n representation limbs.
     grow(n);
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::capacity() const noexcept -> size_type {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::capacity() const noexcept -> size_type {
     // Number of bits of storage currently available without reallocating.
     return representation_capacity() * bits_per_limb;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::representation_capacity() const noexcept -> size_type {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::representation_capacity() const noexcept -> size_type {
     // Usable limb capacity: the in-place limb count, or the dynamic allocation size once
     // the value has spilled to the heap. Never drops below inplace_capacity.
     return std::max<size_type>(inplace_capacity, m_capacity);
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::shrink_to_fit() {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::shrink_to_fit() {
     const auto count = limb_count();
 
     if (is_representation_inplace() || m_capacity <= count) {
@@ -1433,32 +1456,32 @@ constexpr void basic_big_int<b, A>::shrink_to_fit() {
 
 // [big.int.unary]
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator+() const& -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator+() const& -> basic_big_int {
     return *this;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator+() && noexcept -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator+() && noexcept -> basic_big_int {
     return std::move(*this);
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator-() const& -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator-() const& -> basic_big_int {
     auto copy = *this;
     copy.negate();
     return copy;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator-() && noexcept -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator-() && noexcept -> basic_big_int {
     auto copy = std::move(*this);
     copy.negate();
     return copy;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator~() const& -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator~() const& -> basic_big_int {
     // Bitwise operations emulate two's complement behavior,
     // where ~x is mathematically (-x - 1).
     auto copy = *this;
@@ -1467,8 +1490,8 @@ constexpr auto basic_big_int<b, A>::operator~() const& -> basic_big_int {
     return copy;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator~() && -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator~() && -> basic_big_int {
     // See also the const& overload.
     // Unlike operator-, we cannot make this noexcept because the decrement may reallocate.
     auto copy = std::move(*this);
@@ -1477,8 +1500,8 @@ constexpr auto basic_big_int<b, A>::operator~() && -> basic_big_int {
     return copy;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator++() & -> basic_big_int& {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator++() & -> basic_big_int& {
     if (is_negative()) {
         unchecked_decrement_magnitude();
         if (limb_count() == 1 && limb_ptr()[0] == 0) {
@@ -1490,15 +1513,15 @@ constexpr auto basic_big_int<b, A>::operator++() & -> basic_big_int& {
     return *this;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator++(int) & -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator++(int) & -> basic_big_int {
     auto copy = *this;
     ++(*this);
     return copy;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator--() & -> basic_big_int& {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator--() & -> basic_big_int& {
     if (is_negative()) {
         unchecked_increment_magnitude();
     } else {
@@ -1509,8 +1532,8 @@ constexpr auto basic_big_int<b, A>::operator--() & -> basic_big_int& {
     return *this;
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::operator--(int) & -> basic_big_int {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::operator--(int) & -> basic_big_int {
     auto copy = *this;
     --(*this);
     return copy;
@@ -1545,9 +1568,9 @@ constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept 
     }
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::cv_unqualified_arithmetic T, bool ignore_sign>
-constexpr T basic_big_int<b, A>::to() const noexcept {
+constexpr T basic_big_int<b, A, LimbType>::to() const noexcept {
     if constexpr (std::is_same_v<T, bool>) {
         return !is_zero();
     } else if constexpr (std::is_floating_point_v<T>) {
@@ -1723,9 +1746,9 @@ inline constexpr binary_op_form classify_form_v = [] {
 
 } // namespace detail
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::bitwise_op op, class T>
-constexpr auto basic_big_int<b, A>::bitwise_assign_impl(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::bitwise_assign_impl(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -1760,7 +1783,7 @@ constexpr auto basic_big_int<b, A>::bitwise_assign_impl(T&& rhs) -> basic_big_in
 //   * one  `basic_big_int` lvalue   -> copy it (the other side is a primitive)
 //
 // `common_big_int_type` only yields a type when both `basic_big_int` operands are the
-// exact same `basic_big_int<b, A>` instantiation, so the operand type already matches
+// exact same `basic_big_int<b, A, LimbType>` instantiation, so the operand type already matches
 // `Result` and no explicit type-equality guard is needed.
 template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
@@ -1896,9 +1919,9 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     }
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::bitwise_op op, class L, class R>
-constexpr detail::common_big_int_type<L, R> basic_big_int<b, A>::bitwise_impl(L&& x, R&& y) {
+constexpr detail::common_big_int_type<L, R> basic_big_int<b, A, LimbType>::bitwise_impl(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
 
@@ -1917,10 +1940,11 @@ constexpr detail::common_big_int_type<L, R> basic_big_int<b, A>::bitwise_impl(L&
     }
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::bitwise_op op, std::size_t extent>
-constexpr void basic_big_int<b, A>::bitwise_in_place(const std::span<const uint_multiprecision_t, extent> other,
-                                                     const bool                                           other_neg) {
+constexpr void
+basic_big_int<b, A, LimbType>::bitwise_in_place(const std::span<const uint_multiprecision_t, extent> other,
+                                                const bool                                           other_neg) {
     const bool this_neg = is_negative();
 
     const auto run = [&]<bool NL, bool NR>() {
@@ -2125,9 +2149,9 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
     }
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::signed_or_unsigned Integer>
-constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexcept {
+constexpr bool basic_big_int<b, A, LimbType>::equals_integer(const Integer x) const noexcept {
     if constexpr (std::is_unsigned_v<Integer>) {
         if (is_negative()) {
             return false;
@@ -2144,16 +2168,16 @@ constexpr bool basic_big_int<b, A>::equals_integer(const Integer x) const noexce
     }
 }
 
-template <std::size_t b, class A>
-constexpr bool basic_big_int<b, A>::equals_big_int(const basic_big_int& x) const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr bool basic_big_int<b, A, LimbType>::equals_big_int(const basic_big_int& x) const noexcept {
     // We can do fancier things in the future, but this works for now.
     return equals_limbs(x.representation(), x.is_negative());
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::size_t extent>
-constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_multiprecision_t, extent> limbs,
-                                                 const bool limbs_negative) const noexcept {
+constexpr bool basic_big_int<b, A, LimbType>::equals_limbs(const std::span<const uint_multiprecision_t, extent> limbs,
+                                                           const bool limbs_negative) const noexcept {
     if (is_negative() != limbs_negative) {
         return false;
     }
@@ -2193,9 +2217,9 @@ constexpr bool basic_big_int<b, A>::equals_limbs(const std::span<const uint_mult
     return true;
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::signed_or_unsigned Integer>
-constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Integer x) const noexcept {
+constexpr std::strong_ordering basic_big_int<b, A, LimbType>::compare_integer(const Integer x) const noexcept {
     if constexpr (std::is_unsigned_v<Integer>) {
         if (is_negative()) {
             return std::strong_ordering::less;
@@ -2224,17 +2248,17 @@ constexpr std::strong_ordering basic_big_int<b, A>::compare_integer(const Intege
     }
 }
 
-template <std::size_t b, class A>
-constexpr std::strong_ordering basic_big_int<b, A>::compare_big_int(const basic_big_int& x) const noexcept {
+template <std::size_t b, class A, class LimbType>
+constexpr std::strong_ordering basic_big_int<b, A, LimbType>::compare_big_int(const basic_big_int& x) const noexcept {
     // We can do fancier things in the future, but this works for now.
     return compare_limbs(x.representation(), x.is_negative());
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::size_t extent>
 constexpr std::strong_ordering
-basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, extent> limbs,
-                                   const bool limbs_negative) const noexcept {
+basic_big_int<b, A, LimbType>::compare_limbs(const std::span<const uint_multiprecision_t, extent> limbs,
+                                             const bool limbs_negative) const noexcept {
     // A mismatch between signs lets us short-circuit without comparing the magnitudes.
     const auto sign_compare = limbs_negative <=> is_negative();
     if (std::is_neq(sign_compare)) {
@@ -2252,10 +2276,11 @@ basic_big_int<b, A>::compare_limbs(const std::span<const uint_multiprecision_t, 
 // Adds `(other, other_neg)` into `*this` in place. Shared core for `operator+` and
 // `operator-`: the caller chooses the destination (an rvalue operand's storage or a
 // copy of an lvalue operand) and supplies the other side as a limb span + sign.
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::size_t extent_other>
-constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_multiprecision_t, extent_other> other,
-                                                 const bool other_neg) {
+constexpr void
+basic_big_int<b, A, LimbType>::add_in_place(const std::span<const uint_multiprecision_t, extent_other> other,
+                                            const bool                                                 other_neg) {
     const bool this_neg = is_negative();
 
     if (this_neg == other_neg) {
@@ -2344,12 +2369,12 @@ constexpr void basic_big_int<b, A>::add_in_place(const std::span<const uint_mult
 // Computes `(a, a_neg) + (b, b_neg)` directly into `*this`.
 // Fuses copy and potential second allocation
 // Precondition: `a.size() >= b.size()`
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multiprecision_t, extent_a> a,
-                                             const bool                                             a_neg,
-                                             const std::span<const uint_multiprecision_t, extent_b> b_span,
-                                             const bool                                             b_neg) {
+constexpr void basic_big_int<b, A, LimbType>::add_into(const std::span<const uint_multiprecision_t, extent_a> a,
+                                                       const bool                                             a_neg,
+                                                       const std::span<const uint_multiprecision_t, extent_b> b_span,
+                                                       const bool                                             b_neg) {
     BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= b_span.size());
 
     if (a_neg == b_neg) {
@@ -2541,12 +2566,13 @@ constexpr void basic_big_int<b, A>::add_into(const std::span<const uint_multipre
 }
 
 // Computes `a * b` and stores the result into `*this`.
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_multiprecision_t, extent_a> a,
-                                                  const bool                                             a_neg,
-                                                  const std::span<const uint_multiprecision_t, extent_b> b_span,
-                                                  const bool                                             b_neg) {
+constexpr void
+basic_big_int<b, A, LimbType>::multiply_into(const std::span<const uint_multiprecision_t, extent_a> a,
+                                             const bool                                             a_neg,
+                                             const std::span<const uint_multiprecision_t, extent_b> b_span,
+                                             const bool                                             b_neg) {
     const auto a_trimmed = a.first(detail::trimmed_size_span(a));
     const auto b_trimmed = b_span.first(detail::trimmed_size_span(b_span));
 
@@ -2591,11 +2617,11 @@ constexpr void basic_big_int<b, A>::multiply_into(const std::span<const uint_mul
     unchecked_set_sign(a_neg != b_neg && !unchecked_is_magnitude_zero());
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::bitwise_op op, bool neg_left, bool neg_right, std::size_t extent_a, std::size_t extent_b>
-constexpr basic_big_int<b, A>
-basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
-                                           const std::span<const uint_multiprecision_t, extent_b> rhs) {
+constexpr basic_big_int<b, A, LimbType>
+basic_big_int<b, A, LimbType>::make_bitwise_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
+                                                     const std::span<const uint_multiprecision_t, extent_b> rhs) {
     constexpr bool res_neg = detail::eval_bitwise<op>(neg_left, neg_right);
 
     const std::size_t n = [&]() -> std::size_t {
@@ -2625,13 +2651,13 @@ basic_big_int<b, A>::make_bitwise_of_limbs(const std::span<const uint_multipreci
     return result;
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::bitwise_op op, std::size_t extent_a, std::size_t extent_b>
-constexpr basic_big_int<b, A>
-basic_big_int<b, A>::dispatch_bitwise(const std::span<const uint_multiprecision_t, extent_a> lhs,
-                                      const bool                                             lhs_neg,
-                                      const std::span<const uint_multiprecision_t, extent_b> rhs,
-                                      const bool                                             rhs_neg) {
+constexpr basic_big_int<b, A, LimbType>
+basic_big_int<b, A, LimbType>::dispatch_bitwise(const std::span<const uint_multiprecision_t, extent_a> lhs,
+                                                const bool                                             lhs_neg,
+                                                const std::span<const uint_multiprecision_t, extent_b> rhs,
+                                                const bool                                             rhs_neg) {
     if (!lhs_neg && !rhs_neg) {
         return make_bitwise_of_limbs<op, false, false>(lhs, rhs);
     }
@@ -2703,9 +2729,9 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
 // `*this` is always the destination, so we skip the copy/move step that the free
 // `operator+` / `operator-` need and fold `rhs` directly into our own storage via
 // `add_in_place`.
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator+=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator+=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -2717,9 +2743,9 @@ constexpr auto basic_big_int<b, A>::operator+=(T&& rhs) -> basic_big_int&
     return *this;
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator-=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator-=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -2736,9 +2762,9 @@ constexpr auto basic_big_int<b, A>::operator-=(T&& rhs) -> basic_big_int&
 }
 
 // Compound multiplication assignment.
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator*=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator*=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -2766,14 +2792,14 @@ constexpr auto basic_big_int<b, A>::operator*=(T&& rhs) -> basic_big_int&
 // Single-limb divisor fast path from Knuth
 // Avoids allocating a remainder scratch buffer and a `t` buffer: we just stream the quotient through `*this`'s
 // limbs and carry a single remainder limb between iterations.
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::size_t extent_a>
 constexpr uint_multiprecision_t
-basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision_t, extent_a> dividend,
-                                       const bool                                             dividend_neg,
-                                       const uint_multiprecision_t                            divisor,
-                                       const bool                                             divisor_neg,
-                                       const detail::division_op                              op) {
+basic_big_int<b, A, LimbType>::divmod_into_short(const std::span<const uint_multiprecision_t, extent_a> dividend,
+                                                 const bool                                             dividend_neg,
+                                                 const uint_multiprecision_t                            divisor,
+                                                 const bool                                             divisor_neg,
+                                                 const detail::division_op                              op) {
     BEMAN_BIG_INT_ASSERT(divisor != 0);
 
     const bool want_quotient = op != detail::division_op::rem;
@@ -2815,10 +2841,9 @@ basic_big_int<b, A>::divmod_into_short(const std::span<const uint_multiprecision
     return remainder;
 }
 
-template <std::size_t b, class A>
-constexpr uint_multiprecision_t basic_big_int<b, A>::divmod_in_place_short(const uint_multiprecision_t divisor,
-                                                                           const bool                  divisor_neg,
-                                                                           const detail::division_op   op) {
+template <std::size_t b, class A, class LimbType>
+constexpr uint_multiprecision_t basic_big_int<b, A, LimbType>::divmod_in_place_short(
+    const uint_multiprecision_t divisor, const bool divisor_neg, const detail::division_op op) {
     BEMAN_BIG_INT_ASSERT(divisor != 0);
 
     const bool                  want_quotient = op != detail::division_op::rem;
@@ -2842,13 +2867,14 @@ constexpr uint_multiprecision_t basic_big_int<b, A>::divmod_in_place_short(const
 //   3) |dividend| < |divisor|,
 //   4) single-limb divisor
 // before falling through to `detail::divide_dispatch`.
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <std::size_t extent_a, std::size_t extent_b>
-constexpr auto basic_big_int<b, A>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
-                                                const bool                                             dividend_neg,
-                                                const std::span<const uint_multiprecision_t, extent_b> divisor,
-                                                const bool                                             divisor_neg,
-                                                const detail::division_op op) -> basic_big_int {
+constexpr auto
+basic_big_int<b, A, LimbType>::divmod_into(const std::span<const uint_multiprecision_t, extent_a> dividend,
+                                           const bool                                             dividend_neg,
+                                           const std::span<const uint_multiprecision_t, extent_b> divisor,
+                                           const bool                                             divisor_neg,
+                                           const detail::division_op op) -> basic_big_int {
     const auto dividend_trim = dividend.first(detail::trimmed_size_span(dividend));
     const auto divisor_trim  = divisor.first(detail::trimmed_size_span(divisor));
 
@@ -3074,9 +3100,9 @@ constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
 }
 
 // Compound division and modulus assignments.
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator/=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator/=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -3118,9 +3144,9 @@ constexpr auto basic_big_int<b, A>::operator/=(T&& rhs) -> basic_big_int&
     return *this;
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator%=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator%=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     if constexpr (detail::is_basic_big_int_v<std::remove_cvref_t<T>>) {
@@ -3161,25 +3187,25 @@ constexpr auto basic_big_int<b, A>::operator%=(T&& rhs) -> basic_big_int&
     return *this;
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator&=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator&=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     return bitwise_assign_impl<detail::bitwise_op::and_>(std::forward<T>(rhs));
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator|=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator|=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     return bitwise_assign_impl<detail::bitwise_op::or_>(std::forward<T>(rhs));
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <class T>
-constexpr auto basic_big_int<b, A>::operator^=(T&& rhs) -> basic_big_int&
+constexpr auto basic_big_int<b, A, LimbType>::operator^=(T&& rhs) -> basic_big_int&
     requires detail::common_big_int_type_with<T, basic_big_int>
 {
     return bitwise_assign_impl<detail::bitwise_op::xor_>(std::forward<T>(rhs));
@@ -3187,9 +3213,9 @@ constexpr auto basic_big_int<b, A>::operator^=(T&& rhs) -> basic_big_int&
 
 // private helpers
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::unsigned_integer T>
-constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
+constexpr void basic_big_int<b, A, LimbType>::assign_magnitude(T value) noexcept {
     constexpr size_type value_limbs = detail::div_to_pos_inf(detail::width_v<T>, bits_per_limb);
     if constexpr (value_limbs == 1) {
         limb_ptr()[0] = static_cast<limb_type>(value);
@@ -3219,9 +3245,9 @@ constexpr void basic_big_int<b, A>::assign_magnitude(T value) noexcept {
     }
 }
 
-template <std::size_t b, class A>
+template <std::size_t b, class A, class LimbType>
 template <detail::cv_unqualified_floating_point F>
-constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
+constexpr void basic_big_int<b, A, LimbType>::assign_from_float(const F value) noexcept {
     using traits = detail::ieee_traits<F>;
 #ifdef BEMAN_BIG_INT_UNSUPPORTED_LONG_DOUBLE
     static_assert(!std::is_same_v<F, long double>, "long double is not supported on this platform");
@@ -3259,8 +3285,8 @@ constexpr void basic_big_int<b, A>::assign_from_float(const F value) noexcept {
     unchecked_set_sign(sign);
 }
 
-template <std::size_t b, class A>
-constexpr auto basic_big_int<b, A>::alloc_limbs(const size_type n) -> alloc_result {
+template <std::size_t b, class A, class LimbType>
+constexpr auto basic_big_int<b, A, LimbType>::alloc_limbs(const size_type n) -> alloc_result {
     BEMAN_BIG_INT_ASSERT(n != 0);
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
     if constexpr (detail::traits_has_allocate_at_least<alloc_traits, A>) {
@@ -3273,8 +3299,8 @@ constexpr auto basic_big_int<b, A>::alloc_limbs(const size_type n) -> alloc_resu
 #endif
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::free_limbs(pointer p, const size_type n) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::free_limbs(pointer p, const size_type n) {
     BEMAN_BIG_INT_ASSERT(p != nullptr);
     BEMAN_BIG_INT_ASSERT(n != 0);
     // Need to suppress known false positive warning.
@@ -3285,15 +3311,15 @@ constexpr void basic_big_int<b, A>::free_limbs(pointer p, const size_type n) {
     BEMAN_BIG_INT_DIAGNOSTIC_POP()
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::free_storage() {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::free_storage() {
     if (!is_representation_inplace()) {
         free_limbs(m_storage.data, m_capacity);
     }
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::grow(const size_type limbs_needed) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::grow(const size_type limbs_needed) {
     const size_type current_cap = is_representation_inplace() ? inplace_capacity : m_capacity;
     if (limbs_needed <= current_cap) {
         return;
@@ -3311,9 +3337,10 @@ constexpr void basic_big_int<b, A>::grow(const size_type limbs_needed) {
     m_capacity     = static_cast<std::uint32_t>(allocation.count);
 }
 
-template <std::size_t b, class A>
-constexpr void
-basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const size_type n, const alloc_result out) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::copy_n_to_allocation(const limb_type* const p,
+                                                                   const size_type        n,
+                                                                   const alloc_result     out) {
     BEMAN_BIG_INT_ASSERT(p != nullptr);
     BEMAN_BIG_INT_ASSERT(out.ptr != nullptr);
     BEMAN_BIG_INT_ASSERT(n <= out.count);
@@ -3340,8 +3367,8 @@ basic_big_int<b, A>::copy_n_to_allocation(const limb_type* const p, const size_t
 #endif
 }
 
-template <std::size_t b, class A>
-constexpr void basic_big_int<b, A>::push_back_limb(limb_type limb) {
+template <std::size_t b, class A, class LimbType>
+constexpr void basic_big_int<b, A, LimbType>::push_back_limb(limb_type limb) {
     const auto count = limb_count();
     if (count >= (is_representation_inplace() ? inplace_capacity : m_capacity)) {
         grow(count + 1); // exponential growth
@@ -3354,10 +3381,13 @@ constexpr void basic_big_int<b, A>::push_back_limb(limb_type limb) {
 // `basic_big_int<N, A>` whose inline storage is large enough to hold the value
 // without any heap allocation.
 // Bridges consteval-computed values to runtime.
-// The result preserves the source's allocator type and instance.
+// The result preserves the source's allocator and limb types, and the allocator instance.
 template <typename Generator>
 [[nodiscard]] consteval auto copy_to_runtime() {
-    constexpr std::size_t bits_per_limb = sizeof(uint_multiprecision_t) * CHAR_BIT;
+    using source_type = std::remove_cvref_t<decltype(Generator{}())>;
+    using limb_type   = detail::limb_type_of_t<source_type>;
+
+    constexpr std::size_t bits_per_limb = detail::width_v<limb_type>;
 
     constexpr std::size_t target_bits = []() consteval {
         const auto v = Generator{}();
@@ -3365,8 +3395,7 @@ template <typename Generator>
         return w == 0 ? bits_per_limb : ((w + bits_per_limb - 1) / bits_per_limb) * bits_per_limb;
     }();
 
-    using source_type = std::remove_cvref_t<decltype(Generator{}())>;
-    using result_type = basic_big_int<target_bits, typename source_type::allocator_type>;
+    using result_type = basic_big_int<target_bits, typename source_type::allocator_type, limb_type>;
 
     auto src = Generator{}();
     return result_type{src, src.get_allocator()};
@@ -3377,8 +3406,8 @@ using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
 
 namespace pmr {
 
-template <std::size_t b>
-using basic_big_int = beman::big_int::basic_big_int<b, std::pmr::polymorphic_allocator<uint_multiprecision_t>>;
+template <std::size_t b, class LimbType = uint_multiprecision_t>
+using basic_big_int = beman::big_int::basic_big_int<b, std::pmr::polymorphic_allocator<LimbType>, LimbType>;
 
 using big_int = basic_big_int<beman::big_int::big_int::inplace_bits>;
 
@@ -3387,10 +3416,10 @@ using big_int = basic_big_int<beman::big_int::big_int::inplace_bits>;
 } // namespace beman::big_int
 
 // [big.int.hash], hash support
-template <std::size_t b, class A>
-struct std::hash<beman::big_int::basic_big_int<b, A>> {
+template <std::size_t b, class A, class LimbType>
+struct std::hash<beman::big_int::basic_big_int<b, A, LimbType>> {
 
-    std::size_t operator()(const beman::big_int::basic_big_int<b, A>& x) const noexcept {
+    std::size_t operator()(const beman::big_int::basic_big_int<b, A, LimbType>& x) const noexcept {
         return beman::big_int::detail::siphash(x.representation(), x.is_negative());
     }
 };

@@ -21,11 +21,11 @@ avoid allocating at all, use xref:charconv.adoc[`to_chars`] directly.
 ----
 namespace beman::big_int {
 
-template <std::size_t b, class A>
-constexpr std::string to_string(const basic_big_int<b, A>& value, int base = 10);
+template <std::size_t b, class A, class LimbType>
+constexpr std::string to_string(const basic_big_int<b, A, LimbType>& value, int base = 10);
 
-template <std::size_t b, class A>
-constexpr std::wstring to_wstring(const basic_big_int<b, A>& value, int base = 10);
+template <std::size_t b, class A, class LimbType>
+constexpr std::wstring to_wstring(const basic_big_int<b, A, LimbType>& value, int base = 10);
 
 } // namespace beman::big_int
 ----
@@ -42,8 +42,8 @@ values of ten or more use the lowercase letters `a`-`z`. No prefix (such as
 
 [source,c++]
 ----
-template <std::size_t b, class A>
-constexpr std::string to_string(const basic_big_int<b, A>& value, int base = 10);
+template <std::size_t b, class A, class LimbType>
+constexpr std::string to_string(const basic_big_int<b, A, LimbType>& value, int base = 10);
 ----
 
 Returns a `std::string` holding `value` rendered in the given `base`.
@@ -58,8 +58,8 @@ Returns a `std::string` holding `value` rendered in the given `base`.
 
 [source,c++]
 ----
-template <std::size_t b, class A>
-constexpr std::wstring to_wstring(const basic_big_int<b, A>& value, int base = 10);
+template <std::size_t b, class A, class LimbType>
+constexpr std::wstring to_wstring(const basic_big_int<b, A, LimbType>& value, int base = 10);
 ----
 
 Behaves exactly like `to_string`, but returns a `std::wstring`. The digit

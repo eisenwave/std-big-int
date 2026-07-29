@@ -25,9 +25,9 @@ constexpr std::remove_cvref_t<T> abs(T&& x) {
 // Casts `x` to `R`, clamping to the range of `R`. If the integer value of `x`
 // is representable as `R`, that value is returned; otherwise the largest or
 // smallest representable value of `R`, whichever is closer to `x`.
-template <class R, std::size_t b, class A>
+template <class R, std::size_t b, class A, class LimbType>
     requires detail::signed_or_unsigned<R>
-constexpr R saturating_cast(const basic_big_int<b, A>& x) noexcept {
+constexpr R saturating_cast(const basic_big_int<b, A, LimbType>& x) noexcept {
     using U = detail::make_unsigned_t<R>;
 
     constexpr std::size_t width = detail::width_v<R>;
