@@ -46,9 +46,8 @@ static_assert(basic_big_int<127, uint_multiprecision_t, big_int::allocator_type>
 template <class T>
 struct is_exact_big_int;
 
-template <std::size_t b, class LimbType, class A>
-struct is_exact_big_int<basic_big_int<b, LimbType, A>>
-    : std::bool_constant<b == basic_big_int<b, LimbType, A>::inplace_bits> {};
+template <std::size_t b, class L, class A>
+struct is_exact_big_int<basic_big_int<b, L, A>> : std::bool_constant<b == basic_big_int<b, L, A>::inplace_bits> {};
 
 static_assert(is_exact_big_int<big_int>::value,
               "The min_inplace_bits should match inplace_bits exactly for big_int, "
@@ -68,7 +67,7 @@ static_assert(!detail::common_big_int_type_with<int, int>,
               "There must be no common big_int type between two fundamental types.");
 
 // The limb type is the second template parameter and defaults to uint_multiprecision_t, and the
-// allocator defaults to std::allocator<LimbType>, so the explicit spelling must name the same type
+// allocator defaults to std::allocator<Limb>, so the explicit spelling must name the same type
 // as the abbreviated one.
 static_assert(
     std::is_same_v<big_int, basic_big_int<64, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>>);

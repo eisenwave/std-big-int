@@ -53,11 +53,11 @@ inline constexpr auto digit_value_table = []() consteval {
 
 } // namespace detail
 
-template <size_t b, class LimbType, class A>
+template <size_t b, class L, class A>
 constexpr std::to_chars_result
-to_chars(char* const begin, char* const end, const basic_big_int<b, LimbType, A>& x, const int base) {
-    using size_type                   = typename basic_big_int<b, LimbType, A>::size_type;
-    constexpr size_type bits_per_limb = basic_big_int<b, LimbType, A>::bits_per_limb;
+to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, const int base) {
+    using size_type                   = typename basic_big_int<b, L, A>::size_type;
+    constexpr size_type bits_per_limb = basic_big_int<b, L, A>::bits_per_limb;
 
     BEMAN_BIG_INT_DEBUG_ASSERT(begin);
     BEMAN_BIG_INT_DEBUG_ASSERT(end);
@@ -295,10 +295,10 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, LimbType, A>
     BEMAN_BIG_INT_ASSERT(false);
 }
 
-template <std::size_t b, class LimbType, class A>
+template <std::size_t b, class L, class A>
 [[nodiscard]] constexpr std::from_chars_result
-from_chars(const char* const begin, const char* const end, basic_big_int<b, LimbType, A>& out, const int base) {
-    using size_type = typename basic_big_int<b, LimbType, A>::size_type;
+from_chars(const char* const begin, const char* const end, basic_big_int<b, L, A>& out, const int base) {
+    using size_type = typename basic_big_int<b, L, A>::size_type;
 
     if (begin == nullptr || begin == end || base < 2 || base > 36) {
         return {end, std::errc::invalid_argument};

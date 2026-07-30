@@ -22,9 +22,9 @@ template <class T>
     requires /* T is a basic_big_int (after removing cv-qualifiers and references) */
 constexpr std::remove_cvref_t<T> abs(T&& x);
 
-template <class R, std::size_t b, class LimbType, class A>
+template <class R, std::size_t b, class L, class A>
     requires /* R is a signed or unsigned integer type */
-constexpr R saturating_cast(const basic_big_int<b, LimbType, A>& x) noexcept;
+constexpr R saturating_cast(const basic_big_int<b, L, A>& x) noexcept;
 
 } // namespace beman::big_int
 ----
@@ -57,9 +57,9 @@ unbounded, so the magnitude of every value is representable.
 
 [source,c++]
 ----
-template <class R, std::size_t b, class LimbType, class A>
+template <class R, std::size_t b, class L, class A>
     requires /* R is a signed or unsigned integer type */
-constexpr R saturating_cast(const basic_big_int<b, LimbType, A>& x) noexcept;
+constexpr R saturating_cast(const basic_big_int<b, L, A>& x) noexcept;
 ----
 
 Converts `x` to the integer type `R`, clamping the result to the range of `R`
