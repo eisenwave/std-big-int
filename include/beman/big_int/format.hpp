@@ -269,8 +269,8 @@ namespace std {
 // Standards-conformant formatter for beman::big_int, mirroring the standard integer
 // formatters: fill/align, sign, '#', sign-aware '0', static and dynamic width, the
 // 'b'/'B'/'o'/'d'/'x'/'X'/'c' types, and the 'L' locale option, for both char and wchar_t.
-template <std::size_t B, class A, class LimbType, class charT>
-struct formatter<beman::big_int::basic_big_int<B, A, LimbType>, charT> {
+template <std::size_t B, class LimbType, class A, class charT>
+struct formatter<beman::big_int::basic_big_int<B, LimbType, A>, charT> {
     beman::big_int::detail::format_spec<charT> spec_;
 
     template <class ParseContext>
@@ -404,10 +404,10 @@ struct formatter<beman::big_int::basic_big_int<B, A, LimbType>, charT> {
     }
 
     template <class FormatContext>
-    typename FormatContext::iterator format(const beman::big_int::basic_big_int<B, A, LimbType>& value,
+    typename FormatContext::iterator format(const beman::big_int::basic_big_int<B, LimbType, A>& value,
                                             FormatContext&                                       fc) const {
         namespace d    = beman::big_int::detail;
-        using big_type = beman::big_int::basic_big_int<B, A, LimbType>;
+        using big_type = beman::big_int::basic_big_int<B, LimbType, A>;
 
         std::size_t width = spec_.has_width ? spec_.width : std::size_t{0};
         if (spec_.width_is_arg) {

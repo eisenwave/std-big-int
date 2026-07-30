@@ -313,7 +313,7 @@ struct pocs_alloc {
     }
 };
 
-using pocs_big_int = basic_big_int<64, pocs_alloc<uint_multiprecision_t>>;
+using pocs_big_int = basic_big_int<64, uint_multiprecision_t, pocs_alloc<uint_multiprecision_t>>;
 
 // propagate_on_container_swap is true and the allocator is stateful, so the
 // member swap is still unconditionally noexcept.

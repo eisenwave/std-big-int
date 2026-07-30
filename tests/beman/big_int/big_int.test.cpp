@@ -37,18 +37,18 @@ static_assert(std::is_same_v<detail::wider_t<bit_int<32>>, bit_int<64>>);
 static_assert(std::is_same_v<detail::wider_t<bit_uint<32>>, bit_uint<64>>);
 #endif
 
-template class basic_big_int<big_int::inplace_bits, big_int::allocator_type, uint_multiprecision_t>;
+template class basic_big_int<big_int::inplace_bits, uint_multiprecision_t, big_int::allocator_type>;
 
-static_assert(basic_big_int<128, big_int::allocator_type>::inplace_bits == 128);
-static_assert(basic_big_int<127, big_int::allocator_type>::inplace_bits == 128,
+static_assert(basic_big_int<128, uint_multiprecision_t, big_int::allocator_type>::inplace_bits == 128);
+static_assert(basic_big_int<127, uint_multiprecision_t, big_int::allocator_type>::inplace_bits == 128,
               "inplace_bits was expected to be rounded to the next multiple of 32.");
 
 template <class T>
 struct is_exact_big_int;
 
-template <std::size_t b, class A, class LimbType>
-struct is_exact_big_int<basic_big_int<b, A, LimbType>>
-    : std::bool_constant<b == basic_big_int<b, A, LimbType>::inplace_bits> {};
+template <std::size_t b, class LimbType, class A>
+struct is_exact_big_int<basic_big_int<b, LimbType, A>>
+    : std::bool_constant<b == basic_big_int<b, LimbType, A>::inplace_bits> {};
 
 static_assert(is_exact_big_int<big_int>::value,
               "The min_inplace_bits should match inplace_bits exactly for big_int, "
@@ -58,26 +58,29 @@ static_assert(sizeof(void*) != 8 || sizeof(big_int) == 16, "On 64-bit, big_int m
 static_assert(detail::common_big_int_type_with<big_int, big_int>);
 static_assert(detail::common_big_int_type_with<big_int, int>);
 static_assert(detail::common_big_int_type_with<big_int, unsigned>);
-static_assert(!detail::common_big_int_type_with<big_int, basic_big_int<1, std::allocator<uint_multiprecision_t>>>,
-              "There must be no common type for mixed allocators.");
+static_assert(
+    !detail::common_big_int_type_with<big_int,
+                                      basic_big_int<1, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>>,
+    "There must be no common type for mixed allocators.");
 static_assert(!detail::common_big_int_type_with<big_int, float>,
               "There must be no common type between big_int and floating-point types.");
 static_assert(!detail::common_big_int_type_with<int, int>,
               "There must be no common big_int type between two fundamental types.");
 
-// The limb type is the third template parameter and defaults to uint_multiprecision_t, so the
-// explicit spelling must name the same type as the abbreviated one.
+// The limb type is the second template parameter and defaults to uint_multiprecision_t, and the
+// allocator defaults to std::allocator<LimbType>, so the explicit spelling must name the same type
+// as the abbreviated one.
 static_assert(
-    std::is_same_v<big_int, basic_big_int<64, std::allocator<uint_multiprecision_t>, uint_multiprecision_t>>);
+    std::is_same_v<big_int, basic_big_int<64, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>>);
 static_assert(std::is_same_v<basic_big_int<256>,
-                             basic_big_int<256, std::allocator<uint_multiprecision_t>, uint_multiprecision_t>>);
+                             basic_big_int<256, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>>);
 static_assert(std::is_same_v<pmr::big_int,
                              basic_big_int<big_int::inplace_bits,
-                                           std::pmr::polymorphic_allocator<uint_multiprecision_t>,
-                                           uint_multiprecision_t>>);
+                                           uint_multiprecision_t,
+                                           std::pmr::polymorphic_allocator<uint_multiprecision_t>>>);
 static_assert(std::is_same_v<pmr::basic_big_int<256>, pmr::basic_big_int<256, uint_multiprecision_t>>);
 static_assert(
-    detail::is_basic_big_int_v<basic_big_int<128, std::allocator<uint_multiprecision_t>, uint_multiprecision_t>>);
+    detail::is_basic_big_int_v<basic_big_int<128, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>>);
 static_assert(std::is_same_v<detail::limb_type_of_t<big_int>, uint_multiprecision_t>);
 
 using namespace beman::big_int::literals;
@@ -99,7 +102,7 @@ static_assert(1'000'000'000'000'000'000'000'000'000_n == 0x33b'2e3c'9fd0'803c'e8
 TEST(BigIntType, ExplicitLimbTypeArgument) {
     using beman::big_int::uint_multiprecision_t;
     using explicit_big_int =
-        beman::big_int::basic_big_int<256, std::allocator<uint_multiprecision_t>, uint_multiprecision_t>;
+        beman::big_int::basic_big_int<256, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>;
 
     explicit_big_int x{1};
     for (int i = 0; i < 40; ++i) {

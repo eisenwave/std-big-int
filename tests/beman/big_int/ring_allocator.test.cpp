@@ -30,7 +30,7 @@ using uint_t = beman::big_int::uint_multiprecision_t;
 
 using ring_alloc_type = util::ring_allocator<uint_t, std::size_t{64} << 20U>;
 
-using ring_big_int = beman::big_int::basic_big_int<big_int::inplace_bits, ring_alloc_type>;
+using ring_big_int = beman::big_int::basic_big_int<big_int::inplace_bits, uint_t, ring_alloc_type>;
 
 big_int random_value(const std::size_t limbs, std::mt19937_64& rng, const bool negative) {
     big_int x = 1;

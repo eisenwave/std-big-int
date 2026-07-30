@@ -39,18 +39,18 @@ using uint_multiprecision_t = unsigned long long;
 // the basic_big_int will have available for the small-object optimization.
 // LimbType names the limb type, and shall be uint_multiprecision_t.
 template <std::size_t min_inplace_bits,
-          class Allocator = std::allocator<uint_multiprecision_t>,
-          class LimbType  = uint_multiprecision_t>
+          class LimbType  = uint_multiprecision_t,
+          class Allocator = std::allocator<LimbType>>
 class basic_big_int;
 
 // Default specialization with a stateless allocator.
-using big_int = basic_big_int<64, std::allocator<uint_multiprecision_t>>;
+using big_int = basic_big_int<64, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>;
 
 namespace pmr {
 
 // Specialization parameterized on std::pmr::polymorphic_allocator.
 template <std::size_t b, class LimbType = uint_multiprecision_t>
-using basic_big_int = beman::big_int::basic_big_int<b, std::pmr::polymorphic_allocator<LimbType>, LimbType>;
+using basic_big_int = beman::big_int::basic_big_int<b, LimbType, std::pmr::polymorphic_allocator<LimbType>>;
 
 using big_int = basic_big_int</* same in-place bits as the default big_int */>;
 
@@ -86,8 +86,8 @@ same specialization or a built-in signed or unsigned integer type.
 [source,c++]
 ----
 template <std::size_t min_inplace_bits,
-          class Allocator = std::allocator<uint_multiprecision_t>,
-          class LimbType  = uint_multiprecision_t>
+          class LimbType  = uint_multiprecision_t,
+          class Allocator = std::allocator<LimbType>>
 class basic_big_int {
   public:
     // member types
