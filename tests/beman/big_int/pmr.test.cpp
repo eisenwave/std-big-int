@@ -89,10 +89,10 @@ class counting_resource final : public std::pmr::memory_resource {
 
 // ----- Type-level checks -----
 
-static_assert(std::is_same_v<pmr_big_int, basic_big_int<64, poly_alloc>>);
+static_assert(std::is_same_v<pmr_big_int, basic_big_int<64, uint_multiprecision_t, poly_alloc>>);
 static_assert(std::is_same_v<typename pmr_big_int::allocator_type, poly_alloc>);
-static_assert(std::is_same_v<pmr_basic_big_int<256>, basic_big_int<256, poly_alloc>>);
-static_assert(std::is_same_v<pmr_basic_big_int<1024>, basic_big_int<1024, poly_alloc>>);
+static_assert(std::is_same_v<pmr_basic_big_int<256>, basic_big_int<256, uint_multiprecision_t, poly_alloc>>);
+static_assert(std::is_same_v<pmr_basic_big_int<1024>, basic_big_int<1024, uint_multiprecision_t, poly_alloc>>);
 
 // Allocator-aware: enables uses-allocator construction inside pmr containers.
 static_assert(std::uses_allocator_v<pmr_big_int, poly_alloc>);
@@ -172,8 +172,8 @@ TEST(Pmr, UnsignedIntegralConstructionWithResource) {
 
 // ----- Construction from another (non-pmr) big_int -----
 //
-// `basic_big_int<64, std::pmr::polymorphic_allocator<...>>` is a distinct type
-// from `basic_big_int<64, std::allocator<...>>`, so this conversion goes
+// `basic_big_int<64, uint_multiprecision_t, std::pmr::polymorphic_allocator<...>>` is a distinct type
+// from `basic_big_int<64, uint_multiprecision_t, std::allocator<...>>`, so this conversion goes
 // through the explicit cross-instantiation constructor.
 
 TEST(Pmr, ConstructFromNonPmrBigInt) {

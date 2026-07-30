@@ -23,22 +23,22 @@ namespace beman::big_int {
 
 namespace detail {
 
-template <class LimbType>
-static auto msb_limb(LimbType x) -> int {
-    if (x == LimbType{0}) {
+template <class Limb>
+static auto msb_limb(Limb x) -> int {
+    if (x == Limb{0}) {
         return -1;
     }
 
-    constexpr LimbType limb_mask{LimbType{1} << (std::numeric_limits<LimbType>::digits - 1)};
+    constexpr Limb limb_mask{Limb{1} << (std::numeric_limits<Limb>::digits - 1)};
 
     int bpos{};
 
-    while ((x & limb_mask) == LimbType{0}) {
+    while ((x & limb_mask) == Limb{0}) {
         ++bpos;
         x <<= 1;
     }
 
-    return (std::numeric_limits<LimbType>::digits - 1) - bpos;
+    return (std::numeric_limits<Limb>::digits - 1) - bpos;
 }
 
 static auto msb(const big_int& m) -> int {

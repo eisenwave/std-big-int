@@ -52,7 +52,9 @@ consteval bool test_macro_form() {
 static_assert(test_macro_form());
 
 consteval bool test_allocator_preserved() {
-    using custom_big_int = beman::big_int::basic_big_int<32, std::allocator<beman::big_int::uint_multiprecision_t>>;
+    using custom_big_int = beman::big_int::basic_big_int<32,
+                                                         beman::big_int::uint_multiprecision_t,
+                                                         std::allocator<beman::big_int::uint_multiprecision_t>>;
     constexpr auto v     = beman::big_int::copy_to_runtime<decltype([]() { return custom_big_int{42}; })>();
     static_assert(std::is_same_v<typename decltype(v)::allocator_type, custom_big_int::allocator_type>);
     return v.representation()[0] == 42U;
