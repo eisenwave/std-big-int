@@ -54,7 +54,7 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
     //                   to figure out a single call path for all cases once some
     //                   optimization examples are available. Every op-code cojnts!
 
-    multiply_long_low_level(result.data(), a.data(), b.data(), a.size(), b.size());
+    multiply_long_low_level(result.data(), a.data(), a.size(), b.data(), b.size());
 }
 
 // ---------------------------------------------------------------------------

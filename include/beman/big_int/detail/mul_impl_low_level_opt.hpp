@@ -11,8 +11,8 @@ namespace beman::big_int::detail {
 // Forward declaration.
 extern "C" constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
                                                   const uint_multiprecision_t* p_a,
-                                                  const uint_multiprecision_t* p_b,
                                                   const std::size_t            len_a,
+                                                  const uint_multiprecision_t* p_b,
                                                   const std::size_t            len_b) noexcept;
 
 // ---------------------------------------------------------------------------
@@ -40,8 +40,8 @@ extern "C" constexpr void multiply_long_low_level(uint_multiprecision_t*       p
 //                       of iterative isolation.
 extern "C" constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
                                                   const uint_multiprecision_t* p_a,
-                                                  const uint_multiprecision_t* p_b,
                                                   const std::size_t            len_a,
+                                                  const uint_multiprecision_t* p_b,
                                                   const std::size_t            len_b) noexcept {
 
     // Low-level schoolbook multiplication intended to be iteratively worked
