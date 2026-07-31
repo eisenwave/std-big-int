@@ -5,6 +5,8 @@
 #define BEMAN_BIG_INT_SPAN_OPS_HPP
 
 #include <beman/big_int/detail/config.hpp>
+#include <beman/big_int/detail/wide_ops.hpp>
+
 #include <algorithm>
 #include <bit>
 #include <initializer_list>
