@@ -9,11 +9,11 @@
 namespace beman::big_int::detail {
 
 // Forward declaration.
-extern "C" static inline constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
-                                                                const uint_multiprecision_t* p_a,
-                                                                const uint_multiprecision_t* p_b,
-                                                                const std::size_t            len_a,
-                                                                const std::size_t            len_b) noexcept;
+extern "C" constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
+                                                  const uint_multiprecision_t* p_a,
+                                                  const uint_multiprecision_t* p_b,
+                                                  const std::size_t            len_a,
+                                                  const std::size_t            len_b) noexcept;
 
 // ---------------------------------------------------------------------------
 // TODO(ckormanyos): This is a temporary iteration toward low-level optimization
@@ -38,14 +38,16 @@ extern "C" static inline constexpr void multiply_long_low_level(uint_multiprecis
 //                     * Transform the subroutine into a naked assembly implementation.
 //                     * Remove any redundant calling perhaps left over from the process
 //                       of iterative isolation.
-extern "C" static inline constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
-                                                                const uint_multiprecision_t* p_a,
-                                                                const uint_multiprecision_t* p_b,
-                                                                const std::size_t            len_a,
-                                                                const std::size_t            len_b) noexcept {
+extern "C" constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
+                                                  const uint_multiprecision_t* p_a,
+                                                  const uint_multiprecision_t* p_b,
+                                                  const std::size_t            len_a,
+                                                  const std::size_t            len_b) noexcept {
+
     // Low-level schoolbook multiplication intended to be iteratively worked
     // into C/asm for selected architectures in the non-constexpr, non-consteval
-    // path.
+    // path. This could be inline assembly for some compiler/assembler systems
+    // or implemented in an assembly source file for others.
 
     {
         uint_multiprecision_t carry = 0;
