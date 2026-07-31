@@ -19,6 +19,13 @@
 
 namespace beman::big_int::detail {
 
+// Forward declaration.
+constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
+                                       const uint_multiprecision_t* p_a,
+                                       const uint_multiprecision_t* p_b,
+                                       const std::size_t            len_a,
+                                       const std::size_t            len_b) noexcept;
+
 // ---------------------------------------------------------------------------
 // Long (classical) O(n*m) multiplication. Writes exactly `a.size() + b.size()`
 // limbs into `result.first(a.size() + b.size())`; limbs beyond that are
@@ -34,35 +41,69 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
 
-    // The key invariant from Boost is:
-    //   double_limb_max - 2 * limb_max >= limb_max * limb_max
-    // This means that: widening_mul(a[i], b[j]).high + carry + bool_carry
-    // can never overflow a single limb, so we only need a single-limb carry.
+    // TODO(ckormanyos): Do we have to identify and differentiate the runtime
+    //                   path from the consteval path here?
 
-    // First row (i=0): write directly into result without reading. This avoids
-    // the pre-zero precondition that the accumulating path below would need.
+    // TODO(ckormanyos): It is here where we do architectural work including
+    //                   preprocessor switches for isolation of the core
+    //                   architectures utilizing low-level optimization. These steps
+    //                   are expected to be carried out later.
+
+    multiply_long_low_level(result.data(), a.data(), b.data(), a.size(), b.size());
+}
+
+// ---------------------------------------------------------------------------
+// TODO(ckormanyos): This is a temporary iteration toward low-level optimization
+//                   of schoolbook multiplication. Low-level primitives including
+//                   pointers and lengths are used for multiplication - such as
+//                   can be used in C/asm. This routine is intended to be iteratively
+//                   isolated runtime path only in several steps.
+//                   The isolation steps might include:
+//                     * The pairs as return types from primitives might need to be
+//                       broken up into two lines each. Or use a slightly different
+//                       approach on input/output params.
+//                     * Alternatively, this subroutine might simmply be entirely
+//                       rewritten in C/asm, ultimately moving to assembly.
+//                     * Place the subroutine in s aseparace C++ file with extern "C"
+//                       linkage.
+//                     * Isolate the runtime path (if not already done so) and call
+//                       the isolated (now in source file) routine only for the
+//                       runtime path.
+//                     * Transform the subroutine into a naked assembly implementation.
+//                     * Remove any redundant calling perhaps left over from the process
+//                       of iterative isolation.
+constexpr void multiply_long_low_level(uint_multiprecision_t*       p_result,
+                                       const uint_multiprecision_t* p_a,
+                                       const uint_multiprecision_t* p_b,
+                                       const std::size_t            len_a,
+                                       const std::size_t            len_b) noexcept {
+
+    // Low-level schoolbook multiplication intended to be iteratively worked
+    // into C/asm for selected architectures in the non-constexpr, non-consteval
+    // path.
+
     {
         uint_multiprecision_t carry = 0;
-        for (std::size_t j = 0; j < b.size(); ++j) {
-            const auto [lo, hi] = widening_mul(a[0], b[j]);
+        for (std::size_t j = 0; j < len_b; ++j) {
+            const auto [lo, hi] = widening_mul(*p_a, *(p_b + j));
             const auto [s, c]   = carrying_add(lo, carry);
-            result[j]           = s;
+            *(p_result + j)     = s;
             carry               = hi + static_cast<uint_multiprecision_t>(c);
         }
-        result[b.size()] = carry;
+        *(p_result + len_b) = carry;
     }
 
     // Subsequent rows: accumulate onto values written by previous rows.
-    for (std::size_t i = 1; i < a.size(); ++i) {
+    for (std::size_t i = 1; i < len_a; ++i) {
         uint_multiprecision_t carry = 0;
-        for (std::size_t j = 0; j < b.size(); ++j) {
-            const auto [lo, hi] = widening_mul(a[i], b[j]);
-            const auto [s1, c1] = carrying_add(lo, result[i + j]);
-            const auto [s2, c2] = carrying_add(s1, carry);
-            result[i + j]       = s2;
-            carry               = hi + static_cast<uint_multiprecision_t>(c1) + static_cast<uint_multiprecision_t>(c2);
+        for (std::size_t j = 0; j < len_b; ++j) {
+            const auto [lo, hi]   = widening_mul(*(p_a + i), *(p_b + j));
+            const auto [s1, c1]   = carrying_add(lo, *(p_result + (i + j)));
+            const auto [s2, c2]   = carrying_add(s1, carry);
+            *(p_result + (i + j)) = s2;
+            carry = hi + static_cast<uint_multiprecision_t>(c1) + static_cast<uint_multiprecision_t>(c2);
         }
-        result[i + b.size()] = carry;
+        *(p_result + (i + len_b)) = carry;
     }
 }
 

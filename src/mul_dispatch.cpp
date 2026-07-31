@@ -190,7 +190,7 @@ std::size_t multiply_runtime(const std::span<uint_multiprecision_t>       result
         return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
     }
 
-    // Long multiplication fallback.
+    // Schoolbook long multiplication runtime fallback.
     multiply_long(result, a, b);
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
