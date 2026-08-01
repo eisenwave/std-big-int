@@ -9,6 +9,7 @@
 #include <span>
 
 #include <beman/big_int/detail/config.hpp>
+#include <beman/big_int/detail/mul_impl_runtime.hpp>
 #include <beman/big_int/detail/scratch_allocator.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
 
@@ -191,7 +192,11 @@ std::size_t multiply_runtime(const std::span<uint_multiprecision_t>       result
     }
 
     // Schoolbook long multiplication runtime fallback.
-    multiply_long(result, a, b);
+    if BEMAN_BIG_INT_IS_CONSTEVAL {
+        multiply_long(result, a, b);
+    } else {
+        multiply_long_runtime(result.data(), a.data(), a.size(), b.data(), b.size());
+    }
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
 

@@ -7,7 +7,6 @@
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
 #include <beman/big_int/detail/scratch_allocator.hpp>
-#include <beman/big_int/detail/mul_impl_low_level_opt.hpp>
 
 #include <algorithm>
 #include <bit>
@@ -28,33 +27,43 @@ namespace beman::big_int::detail {
 constexpr void multiply_long(const std::span<uint_multiprecision_t>       result,
                              const std::span<const uint_multiprecision_t> a,
                              const std::span<const uint_multiprecision_t> b) noexcept {
+
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + b.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(!a.empty());
     BEMAN_BIG_INT_DEBUG_ASSERT(!b.empty());
 
-    // TODO(ckormanyos): Do we have to identify and differentiate the runtime
-    //                   path from the constexpr/consteval path here?
+    // The key invariant from Boost is:
+    //   double_limb_max - 2 * limb_max >= limb_max * limb_max
+    // This means that: widening_mul(a[i], b[j]).high + carry + bool_carry
+    // can never overflow a single limb, so we only need a single-limb carry.
 
-    // TODO(ckormanyos): It is here where we do architectural work including
-    //                   preprocessor switches for isolation of the core
-    //                   architectures utilizing low-level optimization.
-    //                   These steps are expected to be carried out later.
+    // First row (i=0): write directly into result without reading. This avoids
+    // the pre-zero precondition that the accumulating path below would need.
+    {
+        uint_multiprecision_t carry = 0;
+        for (std::size_t j = 0; j < b.size(); ++j) {
+            const auto [lo, hi] = widening_mul(a[0], b[j]);
+            const auto [s, c]   = carrying_add(lo, carry);
+            result[j]           = s;
+            carry               = hi + static_cast<uint_multiprecision_t>(c);
+        }
+        result[b.size()] = carry;
+    }
 
-    // TODO(ckormanyos): We will need some proprocessor stuff like the following.
-
-#if defined(BEMAN_BIG_INT_UNKNOWN_OPTIMIZED_ARCH_X86_64)
-#else
-#endif
-
-    // TODO(ckormanyos): Routing through multiply_long(...) to get to
-    //                   multiply_long_low_level(...) might be cumbersome
-    //                   and/or inefficient. It might be better in the long run
-    //                   to figure out a single call path for all cases once some
-    //                   optimization examples are available. Every op-code cojnts!
-
-    multiply_long_low_level(result.data(), a.data(), a.size(), b.data(), b.size());
+    // Subsequent rows: accumulate onto values written by previous rows.
+    for (std::size_t i = 1; i < a.size(); ++i) {
+        uint_multiprecision_t carry = 0;
+        for (std::size_t j = 0; j < b.size(); ++j) {
+            const auto [lo, hi] = widening_mul(a[i], b[j]);
+            const auto [s1, c1] = carrying_add(lo, result[i + j]);
+            const auto [s2, c2] = carrying_add(s1, carry);
+            result[i + j]       = s2;
+            carry               = hi + static_cast<uint_multiprecision_t>(c1) + static_cast<uint_multiprecision_t>(c2);
+        }
+        result[i + b.size()] = carry;
+    }
 }
 
 // ---------------------------------------------------------------------------
