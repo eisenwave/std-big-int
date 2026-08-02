@@ -34,7 +34,7 @@ std::size_t square_runtime(const std::span<uint_multiprecision_t>       result,
 
     // Tiny squares: plain schoolbook beats the three-pass squaring basecase.
     if (n < square_long_cutoff) {
-        if (BEMAN_BIG_INT_IS_NOT_CONSTEVAL) {
+        if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
             // TODO(ckormanyos): Will the runtime optimized long multiplication
             //                   need to take special precautions for self-aliasing
             //                   the data in the span of a?
