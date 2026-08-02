@@ -26,18 +26,17 @@ extern "C" inline void multiply_long_runtime_dummy(beman::big_int::uint_multipre
 namespace beman::big_int::detail {
 
 // ---------------------------------------------------------------------------
-// TODO(ckormanyos): This is a further iteration toward low-level optimization
-//                   of schoolbook multiplication.
-//                   * The runtime path has been isolated and multiply_long_runtime
-//                     is no longer constexpr. It can be specialized in assembly
-//                     for a selected first architecture now.
-//                   * Use preprocessor switches (that have not yet been invented)
-//                     to identify, for example generic, unknown-x86_64 and
-//                     write the subrotutine multiply_long_runtime(...) separately
-//                     for the case of unknown-x86_64.
-//                   * multiply_long_runtime(...) can be either inlined or embedded
-//                     in an assembly file, since its name is already de-mangled
-//                     through the use of C-linkage via extern "C".
+// TODO(ckormanyos): You will need to set the preprocessor switch *after*
+//                   implementing the assembly code. When that is done,
+//                   this function will need to be activated only when
+//                   #if !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+//                   is detected via preprocessor (notice the NOT).
+
+//                   And use only one of the functions multiply_long_runtime.
+//                   The skeleton function will not be needed after the setup
+//                   of the architecture becomes clear.
+
+// #endif // !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
 
 extern "C" inline void multiply_long_runtime(uint_multiprecision_t*       p_result,
                                              const uint_multiprecision_t* p_a,
