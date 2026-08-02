@@ -837,10 +837,11 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
         const scratch_allocator<Allocator> hooks(alloc);
         return multiply_runtime(result, a, b, hooks.heap());
     }
-
-    // Long multiplication fallback
-    multiply_long(result, a, b);
-    return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
+    else {
+        // Long multiplication fallback explicitly on the constexpr path.
+        multiply_long(result, a, b);
+        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
+    }
 }
 
 // ---------------------------------------------------------------------------

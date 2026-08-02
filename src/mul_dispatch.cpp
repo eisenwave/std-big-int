@@ -34,7 +34,15 @@ std::size_t square_runtime(const std::span<uint_multiprecision_t>       result,
 
     // Tiny squares: plain schoolbook beats the three-pass squaring basecase.
     if (n < square_long_cutoff) {
-        multiply_long(result.first(result_total), a, a);
+        if (BEMAN_BIG_INT_IS_NOT_CONSTEVAL) {
+            // TODO(ckormanyos): Will the runtime optimized long multiplication
+            //                   need to take special precautions for self-aliasing
+            //                   the data in the span of a?
+            multiply_long_runtime(result.first(result_total).data(), a.data(), a.size(), a.data(), a.size());
+        }
+        else {
+            multiply_long(result.first(result_total), a, a);
+        }
         return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
     }
 
@@ -191,12 +199,9 @@ std::size_t multiply_runtime(const std::span<uint_multiprecision_t>       result
         return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
     }
 
-    // Schoolbook long multiplication runtime fallback.
-    if BEMAN_BIG_INT_IS_CONSTEVAL {
-        multiply_long(result, a, b);
-    } else {
-        multiply_long_runtime(result.data(), a.data(), a.size(), b.data(), b.size());
-    }
+    // Schoolbook long multiplication runtime fallback (known to be on the runtime path).
+    multiply_long_runtime(result.data(), a.data(), a.size(), b.data(), b.size());
+
     return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
 
