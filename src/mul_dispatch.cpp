@@ -113,12 +113,6 @@ std::size_t multiply_runtime(const std::span<uint_multiprecision_t>       result
                              const std::span<const uint_multiprecision_t> a,
                              const std::span<const uint_multiprecision_t> b,
                              const scratch_heap_source&                   heap) {
-
-    // TODO(ckormanyos): This is a dummy assembly routine. Remove
-    //                   when no longer needed as an example.
-    //                   Also the x86_64 architecture check should
-    //                   be done here as well, not just in cmake.
-
     BEMAN_BIG_INT_DEBUG_ASSERT(a.size() >= 2);
     BEMAN_BIG_INT_DEBUG_ASSERT(b.size() >= 2);
     BEMAN_BIG_INT_DEBUG_ASSERT(a.back() != 0);

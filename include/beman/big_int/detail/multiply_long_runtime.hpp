@@ -23,10 +23,12 @@ extern "C" inline void multiply_long_runtime_dummy(beman::big_int::uint_multipre
                                                    const std::size_t /*len_b*/) noexcept {}
 #endif
 
+// #if !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+
 namespace beman::big_int::detail {
 
 // ---------------------------------------------------------------------------
-// TODO(ckormanyos): You will need to set the preprocessor switch *after*
+// TODO(ckormanyos): The preprocessor switch above should be set *after*
 //                   implementing the assembly code. When that is done,
 //                   this function will need to be activated only when
 //                   #if !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
@@ -35,8 +37,6 @@ namespace beman::big_int::detail {
 //                   And use only one of the functions multiply_long_runtime.
 //                   The skeleton function will not be needed after the setup
 //                   of the architecture becomes clear.
-
-// #endif // !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
 
 extern "C" inline void multiply_long_runtime(uint_multiprecision_t*       p_result,
                                              const uint_multiprecision_t* p_a,
@@ -69,5 +69,7 @@ extern "C" inline void multiply_long_runtime(uint_multiprecision_t*       p_resu
 }
 
 } // namespace beman::big_int::detail
+
+// #endif !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
 
 #endif // BEMAN_BIG_INT_MULTIPLY_LONG_RUNTIME_HPP
