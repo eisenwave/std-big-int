@@ -9,7 +9,7 @@
 #include <span>
 
 #include <beman/big_int/detail/config.hpp>
-#include <beman/big_int/detail/mul_impl_runtime.hpp>
+#include <beman/big_int/detail/multiply_long_runtime.hpp>
 #include <beman/big_int/detail/scratch_allocator.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
 
@@ -39,8 +39,7 @@ std::size_t square_runtime(const std::span<uint_multiprecision_t>       result,
             //                   need to take special precautions for self-aliasing
             //                   the data in the span of a?
             multiply_long_runtime(result.first(result_total).data(), a.data(), a.size(), a.data(), a.size());
-        }
-        else {
+        } else {
             multiply_long(result.first(result_total), a, a);
         }
         return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});

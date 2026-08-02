@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <beman/big_int/detail/mul_impl.hpp>
-#include <beman/big_int/detail/mul_impl_runtime.hpp>
+#include <beman/big_int/detail/multiply_long_runtime.hpp>
 
 namespace beman::big_int::detail {
 

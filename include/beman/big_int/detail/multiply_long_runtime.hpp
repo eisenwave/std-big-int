@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
-#ifndef BEMAN_BIG_INT_MUL_IMPL_RUNTIME_HPP
-#define BEMAN_BIG_INT_MUL_IMPL_RUNTIME_HPP
+#ifndef BEMAN_BIG_INT_MULTIPLY_LONG_RUNTIME_HPP
+#define BEMAN_BIG_INT_MULTIPLY_LONG_RUNTIME_HPP
 
 #include <beman/big_int/detail/wide_ops.hpp>
 
@@ -55,4 +55,4 @@ extern "C" inline void multiply_long_runtime(uint_multiprecision_t*       p_resu
 
 } // namespace beman::big_int::detail
 
-#endif // BEMAN_BIG_INT_MUL_IMPL_RUNTIME_HPP
+#endif // BEMAN_BIG_INT_MULTIPLY_LONG_RUNTIME_HPP
