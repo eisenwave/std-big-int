@@ -28,6 +28,7 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
     // exclusively on the runtime path by design.
     if (a.size() < effective_fallback || b.size() < effective_fallback) {
         multiply_long_runtime(result.first(a.size() + b.size()).data(), a.data(), a.size(), b.data(), b.size());
+        multiply_long_runtime_dummy(nullptr, nullptr, std::size_t{}, nullptr, std::size_t{});
         return;
     }
 

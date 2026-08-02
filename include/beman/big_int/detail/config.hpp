@@ -22,6 +22,17 @@
     #define BEMAN_BIG_INT_GNUC __GNUC__
 #endif // __GNUC__
 
+#if defined(BEMAN_BIG_INT_CLANG) && defined(_M_X64)
+    #define BEMAN_BIG_INT_ARCH_X86_64_CLANG
+#endif
+#if defined(BEMAN_BIG_INT_GCC) && defined(__x86_64__)
+    #define BEMAN_BIG_INT_ARCH_X86_64_GCC
+#endif
+
+#if defined(BEMAN_BIG_INT_ARCH_X86_64_GCC) || defined(BEMAN_BIG_INT_ARCH_X86_64_CLANG)
+    #define BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG
+#endif
+
 // Builtin detection ===========================================================
 
 #ifdef __has_builtin

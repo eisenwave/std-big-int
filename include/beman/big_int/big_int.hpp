@@ -14,11 +14,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <memory_resource>
 #include <ranges>
 #include <span>
 #include <utility>
 #include <type_traits>
-#include <memory_resource>
 
 #if __has_include(<stdfloat>)
     #include <stdfloat>

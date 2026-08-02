@@ -60,6 +60,21 @@ add_library(
 add_library(beman::big_int ALIAS beman.big_int)
 target_compile_features(beman.big_int PUBLIC cxx_std_23)
 
+# Only enable assembly and add the assembly source when using GCC or Clang
+# This avoids trying to compile .s files with toolchains that may not support
+# the same assembler syntax or where we don't want the assembly unit.
+if(
+    (
+        CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+        OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+        OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"
+    )
+    AND (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
+)
+    enable_language(ASM)
+    target_sources(beman.big_int PRIVATE src/multiply_long_runtime.s)
+endif()
+
 # Multiplication's FFT tier. By default it is an integer Montgomery NTT
 # (src/ntt.cpp, src/fft_mul.cpp): pure integer arithmetic, exact on every
 # conforming compiler with no floating-point-environment assumptions.

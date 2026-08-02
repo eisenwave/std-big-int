@@ -6,6 +6,23 @@
 
 #include <beman/big_int/detail/wide_ops.hpp>
 
+// TODO(ckormanyos): This is a dummy assembly routine. Remove
+//                   when no longer needed as an example.
+
+#if defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+extern "C" void multiply_long_runtime_dummy(beman::big_int::uint_multiprecision_t*       p_result,
+                                            const beman::big_int::uint_multiprecision_t* p_a,
+                                            const std::size_t                            len_a,
+                                            const beman::big_int::uint_multiprecision_t* p_b,
+                                            const std::size_t                            len_b) noexcept;
+#else
+extern "C" inline void multiply_long_runtime_dummy(beman::big_int::uint_multiprecision_t* /*p_result*/,
+                                                   const beman::big_int::uint_multiprecision_t* /*p_a*/,
+                                                   const std::size_t /*len_a*/,
+                                                   const beman::big_int::uint_multiprecision_t* /*p_b*/,
+                                                   const std::size_t /*len_b*/) noexcept {}
+#endif
+
 namespace beman::big_int::detail {
 
 // ---------------------------------------------------------------------------
@@ -27,7 +44,6 @@ extern "C" inline void multiply_long_runtime(uint_multiprecision_t*       p_resu
                                              const std::size_t            len_a,
                                              const uint_multiprecision_t* p_b,
                                              const std::size_t            len_b) noexcept {
-
     {
         uint_multiprecision_t carry = 0;
         for (std::size_t j = 0; j < len_b; ++j) {
