@@ -35,13 +35,9 @@ std::size_t square_runtime(const std::span<uint_multiprecision_t>       result,
     // Tiny squares: plain schoolbook beats the three-pass squaring basecase.
     if (n < square_long_cutoff) {
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
-            auto res_first_total{result.first(result_total)};
-
-            MULTIPLY_LONG_RUNTIME(res_first_total, a, a);
+            MULTIPLY_LONG_RUNTIME(result.first(result_total), a, a);
         } else {
-            auto res_first_total{result.first(result_total)};
-
-            multiply_long(res_first_total, a, a);
+            multiply_long(result.first(result_total), a, a);
         }
         return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
     }

@@ -11,11 +11,11 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wcomment")
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wcomment")
 
 // TODO(ckormanyos): Toggle to/from using assembly by commenting or
-//                   uncommenting one of the following two lines.
+//                   uncommenting one of the following two macros.
 //                   When the upper macro is active, assembly is used.
 //                   When the lower macro is active, C++ code is used.
 //                   Only one macro should be activated at any time.
-//                   Note that the upper macro spans two lines.
+//                   Note that the upper macro spans multiple lines.
 
 #define MULTIPLY_LONG_RUNTIME(PARAM_RESULT, PARAM_A, PARAM_B) \
     ::multiply_long_runtime(                                  \
