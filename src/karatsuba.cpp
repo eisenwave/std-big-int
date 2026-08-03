@@ -27,8 +27,9 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
     // The runtime subroutine is selected because karatsuba is
     // exclusively on the runtime path by design.
     if (a.size() < effective_fallback || b.size() < effective_fallback) {
-        multiply_long_runtime(result.first(a.size() + b.size()).data(), a.data(), a.size(), b.data(), b.size());
-        multiply_long_runtime_dummy(nullptr, nullptr, std::size_t{}, nullptr, std::size_t{});
+        auto res_first_ab{result.first(a.size() + b.size())};
+
+        MULTIPLY_LONG_RUNTIME(res_first_ab, a, b);
         return;
     }
 

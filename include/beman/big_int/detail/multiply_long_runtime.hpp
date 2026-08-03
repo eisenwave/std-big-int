@@ -6,37 +6,40 @@
 
 #include <beman/big_int/detail/wide_ops.hpp>
 
-// TODO(ckormanyos): This is a dummy assembly routine. Remove
-//                   when no longer needed as an example.
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wcomment")
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wcomment")
+
+// TODO(ckormanyos): Toggle to/from using assembly by commenting or
+//                   uncommenting one of the following two lines.
+//                   When the upper macro is active, assembly is used.
+//                   When the lower macro is active, C++ code is used.
+//                   Only one macro should be activated at any time.
+//                   Note that the upper macro spans two lines.
+
+// #define MULTIPLY_LONG_RUNTIME(PARAM_RESULT, PARAM_A, PARAM_B) \
+//     multiply_long_runtime((PARAM_RESULT).data(), (PARAM_A).data(), (PARAM_A).size(), (PARAM_B).data(), (PARAM_B).size())
+#define MULTIPLY_LONG_RUNTIME(PARAM_RESULT, PARAM_A, PARAM_B) multiply_long((PARAM_RESULT), (PARAM_A), (PARAM_B))
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 #if defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
-extern "C" void multiply_long_runtime_dummy(beman::big_int::uint_multiprecision_t*       p_result,
-                                            const beman::big_int::uint_multiprecision_t* p_a,
-                                            const std::size_t                            len_a,
-                                            const beman::big_int::uint_multiprecision_t* p_b,
-                                            const std::size_t                            len_b) noexcept;
+extern "C" void multiply_long_runtime(beman::big_int::uint_multiprecision_t*       p_result,
+                                      const beman::big_int::uint_multiprecision_t* p_a,
+                                      const std::size_t                            len_a,
+                                      const beman::big_int::uint_multiprecision_t* p_b,
+                                      const std::size_t                            len_b) noexcept;
 #else
-extern "C" inline void multiply_long_runtime_dummy(beman::big_int::uint_multiprecision_t* /*p_result*/,
-                                                   const beman::big_int::uint_multiprecision_t* /*p_a*/,
-                                                   const std::size_t /*len_a*/,
-                                                   const beman::big_int::uint_multiprecision_t* /*p_b*/,
-                                                   const std::size_t /*len_b*/) noexcept {}
+extern "C" inline void multiply_long_runtime(beman::big_int::uint_multiprecision_t* /*p_result*/,
+                                             const beman::big_int::uint_multiprecision_t* /*p_a*/,
+                                             const std::size_t /*len_a*/,
+                                             const beman::big_int::uint_multiprecision_t* /*p_b*/,
+                                             const std::size_t /*len_b*/) noexcept {}
 #endif
 
-// #if !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+#if !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
 
 namespace beman::big_int::detail {
-
-// ---------------------------------------------------------------------------
-// TODO(ckormanyos): The preprocessor switch above should be set *after*
-//                   implementing the assembly code. When that is done,
-//                   this function will need to be activated only when
-//                   #if !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
-//                   is detected via preprocessor (notice the NOT).
-
-//                   And use only one of the functions multiply_long_runtime.
-//                   The skeleton function will not be needed after the setup
-//                   of the architecture becomes clear.
 
 extern "C" inline void multiply_long_runtime(uint_multiprecision_t*       p_result,
                                              const uint_multiprecision_t* p_a,
@@ -70,6 +73,6 @@ extern "C" inline void multiply_long_runtime(uint_multiprecision_t*       p_resu
 
 } // namespace beman::big_int::detail
 
-// #endif !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+#endif // !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
 
 #endif // BEMAN_BIG_INT_MULTIPLY_LONG_RUNTIME_HPP
