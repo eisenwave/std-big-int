@@ -18,8 +18,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wcomment")
 //                   Note that the upper macro spans two lines.
 
 // #define MULTIPLY_LONG_RUNTIME(PARAM_RESULT, PARAM_A, PARAM_B) \
-//     multiply_long_runtime((PARAM_RESULT).data(), (PARAM_A).data(), (PARAM_A).size(), (PARAM_B).data(),
-//     (PARAM_B).size())
+//         multiply_long_runtime((PARAM_RESULT).data(), (PARAM_A).data(), (PARAM_A).size(), (PARAM_B).data(), (PARAM_B).size())
 #define MULTIPLY_LONG_RUNTIME(PARAM_RESULT, PARAM_A, PARAM_B) multiply_long((PARAM_RESULT), (PARAM_A), (PARAM_B))
 
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
