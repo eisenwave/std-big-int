@@ -48,7 +48,6 @@ multiply_long_runtime:
 
     mov     r12, rbx    # r12 = len_a
     shl     r12, 3      # r12 *= 8
-    neg     r12         # r12 = -r12
 
     mov     r13, rbx
     shr     rbx, 2      # rbx = len_a / 4
@@ -82,15 +81,16 @@ multiply_long_runtime:
 .set i, i + 1
 .endr
 
-    lea     rsi, [rsi + 32]                 # increment ptr
-    lea     rdi, [rdi + 32]                 # increment ptr
-    dec     r14                             # loop_counter--
-    jnz     .Lgeneric_x64_inner_loop_4x_unroll    # if (loop_counter != 0) { goto unroll_loop_start; }
+    lea     rsi, [rsi + 32]                     # increment ptr
+    lea     rdi, [rdi + 32]                     # increment ptr
+    dec     r14                                 # loop_counter--
+    jnz     .Lgeneric_x64_inner_loop_4x_unroll  # if (loop_counter != 0) { goto unroll_loop_start; }
 
 .p2align 4
 .Lgeneric_x64_before_inner_loop_rmdr:
 
     mov     r14, r13                # loop_counter = len_a % 4
+    test    r14, r14
     jz      .Lgeneric_x64_outer_loop_end
 
 .p2align 4
@@ -106,21 +106,22 @@ multiply_long_runtime:
 
     mov     r11, rdx                # temp = high64
 
-    lea     rsi, [rsi + 8]          # increment ptr
-    lea     rdi, [rdi + 8]          # increment ptr
-    dec     r14                     # loop_counter--
-    jnz     .Lgeneric_x64_inner_loop_rmdr # if (loop_counter != 0) { goto rmdr_loop_start; }
+    lea     rsi, [rsi + 8]                  # increment ptr
+    lea     rdi, [rdi + 8]                  # increment ptr
+    dec     r14                             # loop_counter--
+    jnz     .Lgeneric_x64_inner_loop_rmdr   # if (loop_counter != 0) { goto rmdr_loop_start; }
 
+.p2align 4
 .Lgeneric_x64_outer_loop_end:
 
     mov     QWORD PTR [rdi], r11        # result[len_a + j] = temp
     sub     rsi, r12                    # rollback the a ptr
     sub     rdi, r12                    # rollback the result ptr
 
-    add     rdi, 8                      # increment the result ptr for next iter
-    add     rcx, 8                      # increment the b ptr for next iter
-    dec     r8                          # len_b--
-    jnz     .Lgeneric_x64_outer_loop_start    # if (len_b != 0) { goto outer_loop_start; }
+    add     rdi, 8                          # increment the result ptr for next iter
+    add     rcx, 8                          # increment the b ptr for next iter
+    dec     r8                              # len_b--
+    jnz     .Lgeneric_x64_outer_loop_start  # if (len_b != 0) { goto outer_loop_start; }
 
 .Lgeneric_x64_end:
 
