@@ -22,7 +22,7 @@
     #define BEMAN_BIG_INT_GNUC __GNUC__
 #endif // __GNUC__
 
-// Devansh: The extra check for (__x86_64__) allows to use clang on 
+// Devansh: The extra check for (__x86_64__) allows to use clang on
 //          linux as well as the macro (_M_X64) is unique to MSVC
 #if defined(BEMAN_BIG_INT_CLANG) && (defined(__x86_64__) || defined(_M_X64))
     #define BEMAN_BIG_INT_ARCH_X86_64_CLANG
