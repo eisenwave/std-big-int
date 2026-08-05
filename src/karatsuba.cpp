@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <beman/big_int/detail/mul_impl.hpp>
+#include <beman/big_int/detail/multiply_long_runtime.hpp>
 
 namespace beman::big_int::detail {
 
@@ -21,9 +22,13 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
 
     const std::size_t effective_fallback = cutoff_override == 0 ? karatsuba_fallback : cutoff_override;
 
-    // First, check if we have enough limbs to justify karatsuba
+    // First, check if we have enough limbs to justify karatsuba.
+    // If not, simply utilize runtime schoolbook long multiplication.
+    // The runtime subroutine is selected because karatsuba is
+    // exclusively on the runtime path by design.
     if (a.size() < effective_fallback || b.size() < effective_fallback) {
-        multiply_long(result.first(a.size() + b.size()), a, b);
+        ::beman_big_int_multiply_long_runtime(
+            result.first(a.size() + b.size()).data(), a.data(), a.size(), b.data(), b.size());
         return;
     }
 

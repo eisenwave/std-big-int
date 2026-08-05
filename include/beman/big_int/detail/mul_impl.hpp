@@ -5,7 +5,6 @@
 #define BEMAN_BIG_INT_MUL_IMPL_HPP
 
 #include <beman/big_int/detail/config.hpp>
-#include <beman/big_int/detail/wide_ops.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
 #include <beman/big_int/detail/scratch_allocator.hpp>
 
@@ -28,6 +27,7 @@ namespace beman::big_int::detail {
 constexpr void multiply_long(const std::span<uint_multiprecision_t>       result,
                              const std::span<const uint_multiprecision_t> a,
                              const std::span<const uint_multiprecision_t> b) noexcept {
+
     BEMAN_BIG_INT_DEBUG_ASSERT(result.size() >= a.size() + b.size());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != a.data());
     BEMAN_BIG_INT_DEBUG_ASSERT(result.data() != b.data());
@@ -39,10 +39,11 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
     // This means that: widening_mul(a[i], b[j]).high + carry + bool_carry
     // can never overflow a single limb, so we only need a single-limb carry.
 
+    uint_multiprecision_t carry = 0;
+
     // First row (i=0): write directly into result without reading. This avoids
     // the pre-zero precondition that the accumulating path below would need.
     {
-        uint_multiprecision_t carry = 0;
         for (std::size_t j = 0; j < b.size(); ++j) {
             const auto [lo, hi] = widening_mul(a[0], b[j]);
             const auto [s, c]   = carrying_add(lo, carry);
@@ -54,7 +55,7 @@ constexpr void multiply_long(const std::span<uint_multiprecision_t>       result
 
     // Subsequent rows: accumulate onto values written by previous rows.
     for (std::size_t i = 1; i < a.size(); ++i) {
-        uint_multiprecision_t carry = 0;
+        carry = 0;
         for (std::size_t j = 0; j < b.size(); ++j) {
             const auto [lo, hi] = widening_mul(a[i], b[j]);
             const auto [s1, c1] = carrying_add(lo, result[i + j]);
@@ -836,11 +837,11 @@ constexpr std::size_t multiply_dispatch(const std::span<uint_multiprecision_t>  
     if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
         const scratch_allocator<Allocator> hooks(alloc);
         return multiply_runtime(result, a, b, hooks.heap());
+    } else {
+        // Long multiplication fallback explicitly on the constexpr path.
+        multiply_long(result, a, b);
+        return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
     }
-
-    // Long multiplication fallback
-    multiply_long(result, a, b);
-    return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), a.size() + b.size()});
 }
 
 // ---------------------------------------------------------------------------
