@@ -122,9 +122,9 @@ auto main(int argc, char** argv) -> int {
     constexpr unsigned limb_bits{
         static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    // argv[1] = operand width in limbs, argv[2] = trial count (both optional). The
-    // defaults reproduce the original single 512-limb, 0x4000-trial run; passing a
-    // size sweeps the big_int / cpp_int / gmp_int comparison table.
+    // argv[1] = trial count (optional). The limb-widths are hard-coded
+    // over a uniform integral distribution
+
     const std::uint32_t max_trial{(argc > 1) ? static_cast<std::uint32_t>(std::strtoul(argv[1], nullptr, 10))
                                              : static_cast<std::uint32_t>(UINT32_C(0x4000))};
     auto                trial = static_cast<std::uint32_t>(UINT32_C(0));
@@ -255,7 +255,7 @@ auto main(int argc, char** argv) -> int {
              << "..." << dist_limbs.b() << " with rhs asymmetric" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
         strm << std::fixed << std::setprecision(1);
-        strm << "us per op big_int / ctrl / rel    : " << avg_bn << " / " << avg_ctrl << " / [" << avg_bn / avg_ctrl
+        strm << "us per op big_int / ctrl / rel      : " << avg_bn << " / " << avg_ctrl << " / [" << avg_bn / avg_ctrl
              << "]\n";
 
         std::cout << strm.str() << std::endl;

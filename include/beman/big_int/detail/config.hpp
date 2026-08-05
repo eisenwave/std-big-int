@@ -22,8 +22,9 @@
     #define BEMAN_BIG_INT_GNUC __GNUC__
 #endif // __GNUC__
 
-// Devansh: The extra check for (__x86_64__) allows to use clang on
-//          linux as well as the macro (_M_X64) is unique to MSVC
+// Special architecture assembly long-multiplication optimization ==============
+// This is only available for x86_64 on GCC/clang at the moment ================
+
 #if defined(BEMAN_BIG_INT_CLANG) && (defined(__x86_64__) || defined(_M_X64))
     #define BEMAN_BIG_INT_ARCH_X86_64_CLANG
 #endif
@@ -34,6 +35,12 @@
 
 #if defined(BEMAN_BIG_INT_ARCH_X86_64_GCC) || defined(BEMAN_BIG_INT_ARCH_X86_64_CLANG)
     #define BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG
+#endif
+
+#if defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+    #define BEMAN_BIG_INT_ARCH_X86_64_INLINE
+#else
+    #define BEMAN_BIG_INT_ARCH_X86_64_INLINE inline
 #endif
 
 // Builtin detection ===========================================================

@@ -6,39 +6,16 @@
 
 #include <beman/big_int/detail/wide_ops.hpp>
 
-BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wcomment")
-BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_CLANG("-Wcomment")
-
-// TODO(ckormanyos): Toggle to/from using assembly by commenting or
-//                   uncommenting one of the following two macros.
-//                   When the upper macro is active, assembly is used.
-//                   When the lower macro is active, C++ code is used.
-//                   Only one macro should be activated at any time.
-//                   Note that the upper macro spans multiple lines.
-
-#define MULTIPLY_LONG_RUNTIME(PARAM_RESULT, PARAM_A, PARAM_B) \
-    ::multiply_long_runtime(                                  \
-        (PARAM_RESULT).data(), (PARAM_A).data(), (PARAM_A).size(), (PARAM_B).data(), (PARAM_B).size())
-// #define MULTIPLY_LONG_RUNTIME(PARAM_RESULT, PARAM_A, PARAM_B) multiply_long((PARAM_RESULT), (PARAM_A), (PARAM_B))
-
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
-
+extern "C" void BEMAN_BIG_INT_ARCH_X86_64_INLINE
+beman_big_int_multiply_long_runtime(beman::big_int::uint_multiprecision_t*       p_result,
+                                    const beman::big_int::uint_multiprecision_t* p_a,
+                                    const std::size_t                            len_a,
+                                    const beman::big_int::uint_multiprecision_t* p_b,
+                                    const std::size_t                            len_b) noexcept
 #if defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
-
-extern "C" void multiply_long_runtime(beman::big_int::uint_multiprecision_t*       p_result,
-                                      const beman::big_int::uint_multiprecision_t* p_a,
-                                      const std::size_t                            len_a,
-                                      const beman::big_int::uint_multiprecision_t* p_b,
-                                      const std::size_t                            len_b) noexcept;
-
+    ;
 #else
-
-extern "C" inline void multiply_long_runtime(beman::big_int::uint_multiprecision_t*       p_result,
-                                             const beman::big_int::uint_multiprecision_t* p_a,
-                                             const std::size_t                            len_a,
-                                             const beman::big_int::uint_multiprecision_t* p_b,
-                                             const std::size_t                            len_b) noexcept {
+{
     {
         beman::big_int::uint_multiprecision_t carry = 0;
         for (std::size_t j = 0; j < len_b; ++j) {

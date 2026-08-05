@@ -72,7 +72,10 @@ if(
     AND (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
 )
     enable_language(ASM)
-    target_sources(beman.big_int PRIVATE src/multiply_long_runtime.s)
+    target_sources(
+        beman.big_int
+        PRIVATE src/multiply_long_runtime_x86_64_generic.s
+    )
 endif()
 
 # Multiplication's FFT tier. By default it is an integer Montgomery NTT

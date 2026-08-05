@@ -2,17 +2,17 @@
 # SPDX-License-Identifier: BSL-1.0
 
 .intel_syntax noprefix
-.text
 
+# Empty, but present, GNU-stack section
 .section .note.GNU-stack,"",%progbits
 
-# Return to the text section for code/symbols
+# Enter the text section for code/symbols
 .text
 
 # Schoolbook long multiplication, baseline x86-64 only (no SSE/AVX, no BMI2/ADX).
 
-.globl multiply_long_runtime
-.type multiply_long_runtime, @function
+.globl beman_big_int_multiply_long_runtime
+.type beman_big_int_multiply_long_runtime, @function
 
 #   rdi -> p_result
 #   rsi -> p_a
@@ -74,7 +74,7 @@
 
 .endm
 
-multiply_long_runtime:
+beman_big_int_multiply_long_runtime:
 .cfi_startproc
 
     push    rbx
@@ -210,4 +210,4 @@ multiply_long_runtime:
     ret
 
 .cfi_endproc
-.size multiply_long_runtime, .-multiply_long_runtime
+.size beman_big_int_multiply_long_runtime, .-beman_big_int_multiply_long_runtime
