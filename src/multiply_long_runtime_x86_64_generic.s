@@ -7,7 +7,7 @@
 .section .note.GNU-stack,"",%progbits
 
 # Enter the text section for code/symbols
-.text
+.section .text
 
 # Schoolbook long multiplication, baseline x86-64 only (no SSE/AVX, no BMI2/ADX).
 

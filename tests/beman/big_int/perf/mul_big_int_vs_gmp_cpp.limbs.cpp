@@ -122,7 +122,7 @@ auto main(int argc, char** argv) -> int {
     constexpr unsigned limb_bits{
         static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    // argv[1] = trial count (optional, default is 0x400). The limb-widths are
+    // argv[1] = trial count (optional, default is 0x4000). The limb-widths are
     // hard-coded over a uniform integral distribution.
 
     const std::uint32_t max_trial{(argc > 1) ? static_cast<std::uint32_t>(std::strtoul(argv[1], nullptr, 10))
@@ -165,13 +165,10 @@ auto main(int argc, char** argv) -> int {
         local::ctrl_int ctrl_a{"0x" + str_pair.first};
         local::ctrl_int ctrl_b{"0x" + str_pair.second};
 
-        local::big_int  bn_c{};
-        local::ctrl_int ctrl_c{};
-
         {
             const auto start{std::chrono::high_resolution_clock::now()};
 
-            bn_c = bn_a * bn_b;
+            bn_a *= bn_b;
 
             const auto stop{std::chrono::high_resolution_clock::now()};
 
@@ -183,7 +180,7 @@ auto main(int argc, char** argv) -> int {
         {
             const auto start{std::chrono::high_resolution_clock::now()};
 
-            ctrl_c = ctrl_a * ctrl_b;
+            ctrl_a *= ctrl_b;
 
             const auto stop{std::chrono::high_resolution_clock::now()};
 
@@ -195,7 +192,7 @@ auto main(int argc, char** argv) -> int {
         std::vector<char> vec_char_result(std::size_t{result_length_in_ascii_chars}, '\0');
 
         static_cast<void>(to_chars(
-            vec_char_result.data(), vec_char_result.data() + std::size_t{result_length_in_ascii_chars}, bn_c, 16));
+            vec_char_result.data(), vec_char_result.data() + std::size_t{result_length_in_ascii_chars}, bn_b, 16));
 
         const std::string bn_str(vec_char_result.data());
 
@@ -204,7 +201,7 @@ auto main(int argc, char** argv) -> int {
         {
             std::stringstream strm{};
 
-            strm << std::hex << ctrl_c;
+            strm << std::hex << ctrl_b;
 
             ctrl_str = strm.str();
         }
@@ -216,7 +213,7 @@ auto main(int argc, char** argv) -> int {
         {
             if ((trial > 0U) && ((trial % 32U) == UINT32_C(0))) {
                 const double average_op_time_us_bn =
-                    (static_cast<double>(elapsed_total_ops_bn) / static_cast<double>(trial)) / 1000.0;
+                    (static_cast<double>(elapsed_total_ops_bn) / static_cast<double>(trial));
 
                 {
                     std::stringstream strm{};
@@ -228,7 +225,7 @@ auto main(int argc, char** argv) -> int {
                 }
 
                 const double average_op_time_us_ctrl =
-                    (static_cast<double>(elapsed_total_ops_ctrl) / static_cast<double>(trial)) / 1000.0;
+                    (static_cast<double>(elapsed_total_ops_ctrl) / static_cast<double>(trial));
 
                 {
                     std::stringstream strm{};
@@ -254,7 +251,7 @@ auto main(int argc, char** argv) -> int {
         strm << "Summary                            : " << trial << " trials, limbs variable " << dist_limbs.a()
              << "..." << dist_limbs.b() << " with rhs asymmetric" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
-        strm << std::fixed << std::setprecision(1);
+        strm << std::fixed << std::setprecision(2);
         strm << "us per op big_int / ctrl / rel      : " << avg_bn << " / " << avg_ctrl << " / [" << avg_bn / avg_ctrl
              << "]\n";
 
