@@ -122,8 +122,8 @@ auto main(int argc, char** argv) -> int {
     constexpr unsigned limb_bits{
         static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    // argv[1] = trial count (optional). The limb-widths are hard-coded
-    // over a uniform integral distribution
+    // argv[1] = trial count (optional, default is 0x400). The limb-widths are
+    // hard-coded over a uniform integral distribution.
 
     const std::uint32_t max_trial{(argc > 1) ? static_cast<std::uint32_t>(std::strtoul(argv[1], nullptr, 10))
                                              : static_cast<std::uint32_t>(UINT32_C(0x4000))};
@@ -139,13 +139,14 @@ auto main(int argc, char** argv) -> int {
 
     for (; ((trial < max_trial) && result_total_is_ok); ++trial) {
 
+        const unsigned limbs{dist_limbs(rng)};
+
         // The left-hand operand has a different limb count than the right-hand operand.
         // The left-hand operand is the numerator, and it is rigged to be greater than
         // the denominator via multiplication with dist_rhs(rng), which is >= 1.1.
         const unsigned length_in_bits_lhs{static_cast<unsigned>(static_cast<double>(limbs) * dist_rhs(rng)) *
                                           limb_bits};
 
-        const unsigned limbs{dist_limbs(rng)};
         const unsigned length_in_bits_rhs{limbs * limb_bits};
 
         const unsigned result_length_in_ascii_chars{(limb_bits + length_in_bits_lhs - length_in_bits_rhs) / 4U};

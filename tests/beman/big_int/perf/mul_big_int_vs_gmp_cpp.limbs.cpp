@@ -122,8 +122,8 @@ auto main(int argc, char** argv) -> int {
     constexpr unsigned limb_bits{
         static_cast<unsigned>(std::numeric_limits<::beman::big_int::uint_multiprecision_t>::digits)};
 
-    // argv[1] = trial count (optional). The limb-widths are hard-coded
-    // over a uniform integral distribution
+    // argv[1] = trial count (optional, default is 0x400). The limb-widths are
+    // hard-coded over a uniform integral distribution.
 
     const std::uint32_t max_trial{(argc > 1) ? static_cast<std::uint32_t>(std::strtoul(argv[1], nullptr, 10))
                                              : static_cast<std::uint32_t>(UINT32_C(0x4000))};
