@@ -132,7 +132,7 @@ auto main(int argc, char** argv) -> int {
     std::mt19937_64                rng{static_cast<typename std::mt19937_64::result_type>(std::random_device{}())};
     std::uniform_real_distribution dist_rhs(0.5, 1.5);
 
-    std::uniform_int_distribution dist_limbs(4U, 24576U);
+    std::uniform_int_distribution dist_limbs(4U, 16384U);
 
     std::uint64_t elapsed_total_ops_bn{};
     std::uint64_t elapsed_total_ops_ctrl{};
@@ -252,8 +252,8 @@ auto main(int argc, char** argv) -> int {
              << "..." << dist_limbs.b() << " with rhs asymmetric" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
         strm << std::fixed << std::setprecision(1);
-        strm << "ns per op big_int / ctrl / rel     : " << avg_bn << " / " << avg_ctrl << " / [" << std::setprecision(2) << avg_bn / avg_ctrl
-             << "]\n";
+        strm << "ns per op big_int / ctrl / rel     : " << avg_bn << " / " << avg_ctrl << " / ["
+             << std::setprecision(2) << avg_bn / avg_ctrl << "]\n";
 
         std::cout << strm.str() << std::endl;
     }

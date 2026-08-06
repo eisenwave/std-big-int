@@ -255,8 +255,8 @@ auto main(int argc, char** argv) -> int {
              << "..." << dist_limbs.b() << " with rhs asymmetric" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
         strm << std::fixed << std::setprecision(1);
-        strm << "ns per op big_int / ctrl / rel     : " << avg_bn << " / " << avg_ctrl << " / [" << std::setprecision(2) << avg_bn / avg_ctrl
-             << "]\n";
+        strm << "ns per op big_int / ctrl / rel     : " << avg_bn << " / " << avg_ctrl << " / ["
+             << std::setprecision(2) << avg_bn / avg_ctrl << "]\n";
 
         std::cout << strm.str() << std::endl;
     }
