@@ -67,5 +67,6 @@
 ** xref:benchmarks.adoc#benchmarks_libraries[big_int vs Boost.Multiprecision and GMP]
 ** xref:benchmarks.adoc#benchmarks_base_conversion[Base conversion and string representations]
 ** xref:benchmarks.adoc#benchmarks_order_n[Order-N operations]
+** xref:benchmarks.adoc#benchmarks_arch_opts[Architecture-specific optimizations]
 ** xref:benchmarks.adoc#benchmarks_sources[Source programs]
 * xref:references.adoc[References]

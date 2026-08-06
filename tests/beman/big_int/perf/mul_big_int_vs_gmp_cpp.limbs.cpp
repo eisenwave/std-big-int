@@ -132,7 +132,7 @@ auto main(int argc, char** argv) -> int {
     std::mt19937_64                rng{static_cast<typename std::mt19937_64::result_type>(std::random_device{}())};
     std::uniform_real_distribution dist_rhs(0.5, 1.5);
 
-    std::uniform_int_distribution dist_limbs(4U, 24576U);
+    std::uniform_int_distribution dist_limbs(4U, 16384U);
 
     std::uint64_t elapsed_total_ops_bn{};
     std::uint64_t elapsed_total_ops_ctrl{};
@@ -212,26 +212,26 @@ auto main(int argc, char** argv) -> int {
 
         {
             if ((trial > 0U) && ((trial % 32U) == UINT32_C(0))) {
-                const double average_op_time_us_bn =
+                const double average_op_time_ns_bn =
                     (static_cast<double>(elapsed_total_ops_bn) / static_cast<double>(trial));
 
                 {
                     std::stringstream strm{};
 
-                    strm << "trial: " << trial << ", average_op_time_us_bn:   " << std::setprecision(1) << std::fixed
-                         << average_op_time_us_bn;
+                    strm << "trial: " << trial << ", average_op_time_ns_bn:   " << std::setprecision(1) << std::fixed
+                         << average_op_time_ns_bn;
 
                     std::cout << strm.str() << std::endl;
                 }
 
-                const double average_op_time_us_ctrl =
+                const double average_op_time_ns_ctrl =
                     (static_cast<double>(elapsed_total_ops_ctrl) / static_cast<double>(trial));
 
                 {
                     std::stringstream strm{};
 
-                    strm << "trial: " << trial << ", average_op_time_us_ctrl: " << std::setprecision(1) << std::fixed
-                         << average_op_time_us_ctrl;
+                    strm << "trial: " << trial << ", average_op_time_ns_ctrl: " << std::setprecision(1) << std::fixed
+                         << average_op_time_ns_ctrl;
 
                     std::cout << strm.str() << std::endl;
                 }
@@ -242,8 +242,8 @@ auto main(int argc, char** argv) -> int {
     result_total_is_ok = ((trial == max_trial) && result_total_is_ok);
 
     {
-        const double avg_bn   = (trial != 0U ? static_cast<double>(elapsed_total_ops_bn) / trial : 0.0) / 1000.0;
-        const double avg_ctrl = (trial != 0U ? static_cast<double>(elapsed_total_ops_ctrl) / trial : 0.0) / 1000.0;
+        const double avg_bn   = (trial != 0U ? static_cast<double>(elapsed_total_ops_bn) / trial : 0.0);
+        const double avg_ctrl = (trial != 0U ? static_cast<double>(elapsed_total_ops_ctrl) / trial : 0.0);
 
         std::stringstream strm;
 
@@ -251,9 +251,9 @@ auto main(int argc, char** argv) -> int {
         strm << "Summary                            : " << trial << " trials, limbs variable " << dist_limbs.a()
              << "..." << dist_limbs.b() << " with rhs asymmetric" << '\n';
         strm << "result_total_is_ok                 : " << std::boolalpha << result_total_is_ok << '\n';
-        strm << std::fixed << std::setprecision(2);
-        strm << "us per op big_int / ctrl / rel      : " << avg_bn << " / " << avg_ctrl << " / [" << avg_bn / avg_ctrl
-             << "]\n";
+        strm << std::fixed << std::setprecision(1);
+        strm << "ns per op big_int / ctrl / rel     : " << avg_bn << " / " << avg_ctrl << " / ["
+             << std::setprecision(2) << avg_bn / avg_ctrl << "]\n";
 
         std::cout << strm.str() << std::endl;
     }
