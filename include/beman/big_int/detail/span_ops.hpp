@@ -9,7 +9,6 @@
 
 #include <algorithm>
 #include <bit>
-#include <cstring>
 #include <initializer_list>
 #include <ranges>
 #include <utility>
@@ -44,12 +43,7 @@ namespace beman::big_int::detail {
 
 // Returns true if all limbs in the span are zero
 constexpr bool is_span_zero(const std::span<const uint_multiprecision_t> s) noexcept {
-    for (const auto limb : s) {
-        if (limb != 0) {
-            return false;
-        }
-    }
-    return true;
+    return std::ranges::all_of(s, [](const uint_multiprecision_t limb) { return limb == 0; });
 }
 
 // Returns true if the trimmed span holds exactly a power of two (a single set
@@ -754,7 +748,7 @@ shift_left_n_and_add_into_tmp(const std::span<uint_multiprecision_t>       tmp,
         if (addend.empty()) {
             return 0;
         }
-        std::memcpy(tmp.data(), addend.data(), addend.size() * sizeof(uint_multiprecision_t));
+        std::ranges::copy(addend, tmp.begin());
         return addend.size();
     }
 
@@ -810,7 +804,7 @@ horner_eval_into_tmp(const std::span<uint_multiprecision_t>                     
         return 0;
     }
     auto it = coeffs.begin();
-    std::memcpy(tmp.data(), it->data(), it->size() * sizeof(uint_multiprecision_t));
+    std::ranges::copy(*it, tmp.begin());
     std::size_t size = it->size();
     for (++it; it != coeffs.end(); ++it) {
         size = shift_left_n_and_add_into_tmp(tmp, size, shift, *it);
@@ -939,7 +933,7 @@ constexpr void recover_pair(const std::span<uint_multiprecision_t>       lower_d
                             const std::span<uint_multiprecision_t>       tmp_scratch) noexcept {
     // Stage (s + |d|) in tmp_scratch first; the subtract-into-destination step
     // below would otherwise clobber s_view / d_view if either aliases a destination.
-    std::memset(tmp_scratch.data(), 0, tmp_scratch.size() * sizeof(uint_multiprecision_t));
+    std::ranges::fill(tmp_scratch, uint_multiprecision_t{0});
     const bool sum_carry = add_unsigned_spans(tmp_scratch, s_view, d_view);
     BEMAN_BIG_INT_DEBUG_ASSERT(!sum_carry);
     const std::size_t plus_size = std::max(s_view.size(), d_view.size());
@@ -955,8 +949,8 @@ constexpr void recover_pair(const std::span<uint_multiprecision_t>       lower_d
 
     // (s + |d|)/2 into the other destination.
     const std::span<uint_multiprecision_t> plus_dst = sign_d ? higher_dst : lower_dst;
-    std::memset(plus_dst.data(), 0, plus_dst.size() * sizeof(uint_multiprecision_t));
-    std::memcpy(plus_dst.data(), plus_span.data(), plus_span.size() * sizeof(uint_multiprecision_t));
+    std::ranges::fill(plus_dst, uint_multiprecision_t{0});
+    std::ranges::copy(plus_span, plus_dst.begin());
     {
         const auto rem = shift_right_one(plus_dst);
         BEMAN_BIG_INT_DEBUG_ASSERT(rem == 0);
