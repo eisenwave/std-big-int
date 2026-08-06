@@ -4,6 +4,8 @@
 #include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/multiply_long_runtime.hpp>
 
+#include <cstring>
+
 namespace beman::big_int::detail {
 
 void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
@@ -72,7 +74,8 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
         trimmed_size_span(std::span<const uint_multiprecision_t>{result_low.data(), a_l.size() + b_l.size()});
 
     // Zero unused limbs in result_low region
-    std::ranges::fill(result_low.subspan(result_low_size), uint_multiprecision_t{0});
+    std::memset(result_low.data() + result_low_size, 0,
+                (result_low.size() - result_low_size) * sizeof(uint_multiprecision_t));
 
     // Compute result_high = a_h * b_h
     if (!result_high.empty()) {
@@ -83,7 +86,8 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
                 trimmed_size_span(std::span<const uint_multiprecision_t>{result_high.data(), a_h.size() + b_h.size()});
 
             // Zero unused limbs in result_high region
-            std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
+            std::memset(result_high.data() + result_high_size, 0,
+                        (result_high.size() - result_high_size) * sizeof(uint_multiprecision_t));
         } else {
             result_high = std::span<uint_multiprecision_t>{};
         }
@@ -104,7 +108,8 @@ void multiply_karatsuba(const std::span<uint_multiprecision_t>       result,
     }
 
     // Compute t1 = t2 * t3 = (a_h + a_l) * (b_h + b_l)
-    std::ranges::fill(t1, uint_multiprecision_t{0});
+    // Only zero the region that will be used by the recursive call
+    std::memset(t1.data(), 0, (t2_size + t3_size) * sizeof(uint_multiprecision_t));
     const auto t2_span = std::span<const uint_multiprecision_t>{t2.data(), t2_size};
     const auto t3_span = std::span<const uint_multiprecision_t>{t3.data(), t3_size};
     multiply_karatsuba(t1, t2_span, t3_span, scratch);
@@ -148,7 +153,7 @@ void square_karatsuba(const std::span<uint_multiprecision_t>       result,
     // Below the cutoff the three-pass squaring basecase wins. Unlike
     // multiply_long it accumulates, so its window must be zeroed first.
     if (a.size() < effective_cutoff) {
-        std::ranges::fill(result.first(2 * a.size()), uint_multiprecision_t{0});
+        std::memset(result.data(), 0, (2 * a.size()) * sizeof(uint_multiprecision_t));
         square_long(result.first(2 * a.size()), a);
         return;
     }
@@ -177,13 +182,15 @@ void square_karatsuba(const std::span<uint_multiprecision_t>       result,
     square_karatsuba(result_low, a_l, scratch);
     const std::size_t result_low_size =
         trimmed_size_span(std::span<const uint_multiprecision_t>{result_low.data(), 2 * a_l.size()});
-    std::ranges::fill(result_low.subspan(result_low_size), uint_multiprecision_t{0});
+    std::memset(result_low.data() + result_low_size, 0,
+                (result_low.size() - result_low_size) * sizeof(uint_multiprecision_t));
 
     // result_high = a_h^2
     square_karatsuba(result_high, a_h, scratch);
     const std::size_t result_high_size =
         trimmed_size_span(std::span<const uint_multiprecision_t>{result_high.data(), 2 * a_h.size()});
-    std::ranges::fill(result_high.subspan(result_high_size), uint_multiprecision_t{0});
+    std::memset(result_high.data() + result_high_size, 0,
+                (result_high.size() - result_high_size) * sizeof(uint_multiprecision_t));
 
     // t2 = a_h + a_l
     std::size_t t2_size = std::max(a_h.size(), a_l.size());
@@ -193,7 +200,8 @@ void square_karatsuba(const std::span<uint_multiprecision_t>       result,
     }
 
     // t1 = (a_h + a_l)^2
-    std::ranges::fill(t1, uint_multiprecision_t{0});
+    // Only zero the region that will be used by the recursive call
+    std::memset(t1.data(), 0, (2 * t2_size) * sizeof(uint_multiprecision_t));
     square_karatsuba(t1, std::span<const uint_multiprecision_t>{t2.data(), t2_size}, scratch);
     std::size_t t1_size = trimmed_size_span(std::span<const uint_multiprecision_t>{t1.data(), 2 * t2_size});
 

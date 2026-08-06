@@ -289,7 +289,7 @@ where the small-value optimization keeps them allocation-free, is covered in
 xref:benchmarks.adoc#benchmarks_small_value[the small-value section] above.
 
 [#benchmarks_arch_opts]
-== Processor architecture-specific optimizations
+== Architecture-specific optimizations
 
 Dedicated processor architecture-specific optimizations using hand-written
 assembly are advantageous regarding runtime performance for this library.
@@ -317,9 +317,9 @@ in its generic form. We have implemented basecase long multiplication
 in hand-coded assembly for `x86_64` on compiler systems GCC and clang,
 the detections of which happen at compile time.
 
-Results are shown in the tables below using an 11th Gen Intel(R) Core(TM) i9-11900K
-at 3.50GHz, 3401 Mhz, 8 Core(s), 16 Logical Processor(s), running Ubuntu 24.04
-within WSL2 compiled/assembled with GCC-13. Comparison of multiplication operations
+Results are shown in the tables below using an Intel(R) Core(TM) i9-11900K
+at 3.50GHz, running Ubuntu 24.04 within WSL2 compiled/assembled with GCC-13.
+Comparison of multiplication operations
 over a wide range of limb counts with and without assembly optimization
 are have been compared with the same calculations for GMP. The heats
 ran 131,072 trials for multiplication with limb counts ranging from 16-2,048
@@ -331,8 +331,8 @@ are observed for division.
 |===
 |  long mul impl  | `beman::big_int` [us-per-mul] | `boost::gmp_int` [us-per-mul] |  ratio   | rel improve [percent]
 
-| C++             |  305   |  95[1]   |  3.2  | --- |
-| hand-coded asm  |  210   |  95[1]   |  2.2  | 32  |
+| C++             |  305   |  95[1]   |  3.2  | ---
+| hand-coded asm  |  210   |  95[1]   |  2.2  | 32
 |===
 
 The relative performance improvement is almost one third, simply via creation and
