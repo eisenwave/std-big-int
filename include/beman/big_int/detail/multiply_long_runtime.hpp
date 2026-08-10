@@ -12,7 +12,7 @@ beman_big_int_multiply_long_runtime(beman::big_int::uint_multiprecision_t*      
                                     const std::size_t                            len_a,
                                     const beman::big_int::uint_multiprecision_t* p_b,
                                     const std::size_t                            len_b) noexcept
-#if defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+#if defined(BEMAN_BIG_INT_ARCH_X86_64)
     ;
 #else
 {
@@ -42,6 +42,6 @@ beman_big_int_multiply_long_runtime(beman::big_int::uint_multiprecision_t*      
     }
 }
 
-#endif // !defined(BEMAN_BIG_INT_ARCH_X86_64_GCC_OR_CLANG)
+#endif // !defined(BEMAN_BIG_INT_ARCH_X86_64)
 
 #endif // BEMAN_BIG_INT_MULTIPLY_LONG_RUNTIME_HPP

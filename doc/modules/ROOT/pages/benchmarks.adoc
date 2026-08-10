@@ -272,9 +272,9 @@ https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/div_
 [#benchmarks_base_conversion]
 == Base conversion and string representations
 
-Sub-quadratic base conversion underlies the library's `<charconv>` support (the
-`to_chars` and `from_chars` functions and the primitives beneath them), giving a
-convenient interface for converting big integers to and from their string
+Sub-quadratic base conversion is the basis for the library's `<charconv>` support.
+This includes the `to_chars` and `from_chars` functions and the primitives beneath them.
+These functions provide the interface for converting big integers to and from their string
 representations. The performance of these operations is governed primarily by the
 efficiency of the underlying multiplication and division algorithms described
 above. This holds for converting to and from string representations in any
@@ -292,56 +292,71 @@ xref:benchmarks.adoc#benchmarks_small_value[the small-value section] above.
 == Architecture-specific optimizations
 
 Dedicated architecture-specific optimizations using hand-written
-assembly are advantageous regarding runtime performance for this library.
+assembly can be very advantageous regarding runtime performance for this library.
 This is true for both the reference application as well as for potential,
 future adaptions of the library to other architectures.
 
 A particularly effective and straightforward assembly-based optimization
-is to hand-code the long multiplication algorithm in the
+is hand-coding the schoolbook long multiplication algorithm in the
 processor's assembly dialect. The simple optimization of schoolbook long multiplication
 percolates through many algorithms in the library. Not only is schoolbook
-long multiplication itself optimized, but also all the classical multiplication
+long multiplication itself accelerated, but also all the classical multiplication
 splitting-algorithms Karatsuba and all orders of Toom-Cook are optimized as well.
 This is because after the splitting of long limb spans is performed,
-the real work of these algorithms still falls through to basecase long multiplication.
-Simultaneously sub-quadratic large-limb-count long division and base conversion
-are optimized since they are built atop the multiplication algorithms
+the real work of these algorithms still falls through to basecase
+schoolbook long multiplication. Simultaneously sub-quadratic
+large-limb-count long division and base conversion
+directly benefit since they are built atop the multiplication algorithms
 and directly benefit from their optimizations.
 
 Experience shows, with one single assembly file that performs basecase
-schoolbook long multiplication, significant improvements in the performance
+schoolbook long multiplication, stark improvements in the performance
 of nearly the entire library can be achieved.
 
 One proof of concept is included for the popular `x86_64` architecture
 in its generic form. We have implemented basecase schoolbook long multiplication
-in hand-coded assembly for `x86_64` on compiler systems GCC and clang,
+in hand-coded assembly for `x86_64` on compiler systems GCC, clang and MSVC
 the detections of which happen at compile time.
 
-Performance results are shown in the tables below using an Intel(R) Core(TM) i9-11900K
-at 3.50GHz, running Ubuntu 24.04 within WSL2 compiled/assembled with GCC-13.
+An overview of multiplication performance is shown in the table below.
 Multiplication operations performed over a wide range of limb counts
-with and without assembly optimization have been compared with the same calculations for GMP.
-The heats ran 131,072 trials for multiplication with limb counts ranging from 16-2,048
+with and without assembly optimization have been compared with
+the same calculations for GMP (`gmp_int`). The heats ran 131,072 trials
+for multiplication with limb counts ranging from 16-2,048
 and for division with limb counts ranging from 16-3,072. The multiplication
 results are explicitly shown in the table below. Similar performance improvements
-are observed for division.
+are observed for division. For this measurement, an Intel(R) Core(TM) i9-11900K
+at 3.50GHz has been used.
 
 [cols="1,1,1,1,1", options="header"]
 |===
-|  long mul impl  | `beman::big_int` [us/mul] | `boost::gmp_int` [us/mul] |  ratio   | improvement [percent]
+|  system               | time C++ [us/mul] | time ASM [us/mul] | improvement [percent] | ratio ASM/`gmp_int`
 
-| C++             |  305   |  95[1]   |  3.2  | ---
-| hand-coded asm  |  210   |  95[1]   |  2.2  | 32
+| `big_int` (GCC/GAS)   |  305              |  210              | 32                    | 2.2
+| `big_int` (MSVC/MASM) |  380              |  230              | 60                    | 2.4
+| `gmp_int` (GCC/GAS)   |  ---              |   95              | ---                   |   1
 |===
 
-The relative performance improvement is almost one third, simply via creation
-and inclusion of a single hand-coded assembly routine for long multiplication.
+The relative performance improvement is significant;
+simply via creation of and inclusion of a single hand-coded assembly
+routine for schoolbook long multiplication.
 
 An adaption of the program
 https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/mul_big_int_vs_gmp_cpp.limbs.cpp[mul_big_int_vs_gmp_cpp.limbs.cpp]
-has been used for this local result. The implementation of the assembly subroutine
-`beman_big_int_multiply_long_runtime` for `x86_64` on GCC/clang can be found in
-https://github.com/eisenwave/std-big-int/blob/main/src/multiply_long_runtime_x86_64_generic.s[multiply_long_runtime_x86_64_generic.s].
+has been used for this runtime result. The implementations of the assembly subroutines
+`beman_big_int_multiply_long_runtime` for `x86_64` use with GCC(clang)/GAS and use with MSVC/MASM
+can be found in
+https://github.com/eisenwave/std-big-int/blob/main/src/multiply_long_runtime_x86_64_generic.s[multiply_long_runtime_x86_64_generic.s]
+and
+https://github.com/eisenwave/std-big-int/blob/main/src/multiply_long_runtime_x86_64_generic.asm[multiply_long_runtime_x86_64_generic.asm],
+respectively.
+
+. At the moment, the assembly optimized routines can not be used within
+a `constexpr` context (nor with `consteval`). The use of
+`beman_big_int_multiply_long_runtime` has been isolated exclusively
+to the runtime path. The `constexpr` path, however, remains available
+when compile-time evaluation is possible with no additional limitations
+imposed by the use of hand-coded assembly.
 
 [#benchmarks_sources]
 == Source programs
