@@ -81,8 +81,8 @@ beman_big_int_multiply_long_runtime PROC
     ; After 4 pushes (32 bytes), the 5th argument is at [rsp + 40 + 32] = [rsp + 72]
     mov     r10, QWORD PTR [rsp + 72]
 
-    ; no need to align rsp to 16-byte 
-    ; boundary as this is a leaf function 
+    ; no need to align rsp to 16-byte
+    ; boundary as this is a leaf function
 
     ; a * b is symmetric, so run the inner loop over the longer operand
 
