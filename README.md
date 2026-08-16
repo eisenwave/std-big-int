@@ -2,14 +2,28 @@
 
 <!--
 SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+SPDX-License-Identifier: BSL-1.0
 -->
 
 <!-- markdownlint-disable-next-line line-length -->
-![Library Status](https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg)
-![Continuous Integration Tests](https://github.com/eisenwave/std-big-int/actions/workflows/ci_tests.yml/badge.svg)
-![Lint Check (pre-commit)](https://github.com/eisenwave/std-big-int/actions/workflows/pre-commit-check.yml/badge.svg)
-[![Coverage](https://coveralls.io/repos/github/eisenwave/std-big-int/badge.svg?branch=main)](https://coveralls.io/github/eisenwave/std-big-int?branch=main)
-![Standard Target](https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg)
+<p align="center">
+    <a href="https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges">
+        <img src="https://raw.githubusercontent.com/bemanproject/beman/refs/heads/main/images/badges/beman_badge-beman_library_under_development.svg" alt="Library Status"></a>
+    <a href="https://github.com/eisenwave/std-big-int/actions">
+        <img src="https://github.com/eisenwave/std-big-int/actions/workflows/ci_tests.yml/badge.svg" alt="Continuous Integration Tests"></a>
+    <a href="https://github.com/eisenwave/std-big-int/actions">
+        <img src="https://github.com/eisenwave/std-big-int/actions/workflows/pre-commit-check/badge.svg" alt="Lint Check (pre-commit)"></a>
+    <a href="https://github.com/eisenwave/std-big-int/actions">
+        <img src="https://github.com/eisenwave/std-big-int/actions/workflows/fuzz.yml/badge.svg" alt="fuzz"></a>
+    <a href="https://github.com/eisenwave/std-big-int/actions">
+        <img src="https://github.com/eisenwave/std-big-int/actions/workflows/metal.yml/badge.svg" alt="metal"></a>
+    <a href="https://github.com/eisenwave/std-big-int/actions">
+        <img src="https://github.com/eisenwave/std-big-int/actions/workflows/publish.yml/badge.svg" alt="publish"></a>
+    <a href="https://coveralls.io/github/eisenwave/std-big-int?branch=main">
+        <img src="https://coveralls.io/repos/github/eisenwave/std-big-int/badge.svg?branch=main" alt="Coverity Scan"></a>
+    <a href="https://github.com/bemanproject/beman/blob/main/images/badges">
+        <img src="https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg" alt="Standard Target"></a>
+</p>
 
 **Implements**: `std::big_int` proposed in [P4444](https://isocpp.org/files/papers/D4444R0.html).
 
