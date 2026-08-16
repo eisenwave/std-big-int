@@ -5,10 +5,11 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 SPDX-License-Identifier: BSL-1.0
 -->
 
-<!-- markdownlint-disable-next-line line-length -->
 <p align="center">
     <a href="https://github.com/bemanproject/beman/blob/main/images/badges">
         <img src="https://github.com/bemanproject/beman/blob/main/images/badges/beman_badge-beman_library_under_development.svg" alt="Library Status"></a>
+    <a href="https://github.com/bemanproject/beman/blob/main/images/badges">
+        <img src="https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg" alt="Standard Target"></a>
     <a href="https://github.com/eisenwave/std-big-int/actions">
         <img src="https://github.com/eisenwave/std-big-int/actions/workflows/ci_tests.yml/badge.svg" alt="Continuous Integration Tests"></a>
     <a href="https://github.com/eisenwave/std-big-int/actions">
@@ -17,12 +18,10 @@ SPDX-License-Identifier: BSL-1.0
         <img src="https://github.com/eisenwave/std-big-int/actions/workflows/fuzz.yml/badge.svg" alt="fuzz"></a>
     <a href="https://github.com/eisenwave/std-big-int/actions">
         <img src="https://github.com/eisenwave/std-big-int/actions/workflows/metal.yml/badge.svg" alt="metal"></a>
-    <a href="https://github.com/eisenwave/std-big-int/actions">
-        <img src="https://github.com/eisenwave/std-big-int/actions/workflows/publish.yml/badge.svg" alt="publish"></a>
     <a href="https://coveralls.io/github/eisenwave/std-big-int?branch=main">
         <img src="https://coveralls.io/repos/github/eisenwave/std-big-int/badge.svg?branch=main" alt="Coverage"></a>
-    <a href="https://github.com/bemanproject/beman/blob/main/images/badges">
-        <img src="https://github.com/bemanproject/beman/blob/main/images/badges/cpp29.svg" alt="Standard Target"></a>
+    <a href="https://github.com/eisenwave/std-big-int/actions">
+        <img src="https://github.com/eisenwave/std-big-int/actions/workflows/publish.yml/badge.svg" alt="publish gh-pages"></a>
 </p>
 
 **Implements**: `std::big_int` proposed in [P4444](https://isocpp.org/files/papers/D4444R0.html).
