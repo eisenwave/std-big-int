@@ -26,6 +26,10 @@ template <class R, std::size_t b, class L, class A>
     requires /* R is a signed or unsigned integer type */
 constexpr R saturating_cast(const basic_big_int<b, L, A>& x) noexcept;
 
+template <class M, class N>
+    requires /* M and N have a common basic_big_int type */
+constexpr /* common basic_big_int type of M and N */ gcd(M m, N n);
+
 } // namespace beman::big_int
 ----
 
@@ -79,3 +83,74 @@ the width of `R`.
   are derived from its width, so extended integer types and bit-precise
   integers (`_BitInt`) are supported even where they lack a
   `std::numeric_limits` specialization.
+
+[#numeric_gcd]
+== `gcd`
+
+[source,c++]
+----
+template <class M, class N>
+    requires /* M and N have a common basic_big_int type */
+constexpr /* common basic_big_int type of M and N */ gcd(M m, N n);
+----
+
+Returns the greatest common divisor of `m` and `n`. This is the `basic_big_int`
+counterpart of `std::gcd`, and it accepts any combination of `basic_big_int` and
+built-in integer arguments as long as one of the two is a `basic_big_int`:
+
+[source,c++]
+----
+const big_int a = 1071_n;
+
+gcd(a, 462_n);         // big_int and big_int
+gcd(a, 462);           // big_int and int
+gcd(462U, a);          // unsigned and big_int
+gcd(a, -462LL);        // signs are ignored
+----
+
+* *Constraints:* One of `M` and `N` is a specialization of `basic_big_int`, and
+  the other is either the same specialization or a signed or unsigned integer
+  type. In particular, `bool`, character types, and floating-point types are
+  rejected, as are two different `basic_big_int` specializations; the constraint
+  is checked in the immediate context, so `gcd` drops out of overload resolution
+  rather than producing a hard error. Two built-in integers are the business of
+  `std::gcd`, not of this overload.
+* *Returns:* The greatest common divisor of `|m|` and `|n|`. The result is never
+  negative. If both arguments are zero the result is zero; otherwise
+  `gcd(x, 0)` is `|x|`.
+* *Throws:* Any exception thrown while allocating the result or the values the
+  reduction works on (for example, `std::bad_alloc`). Arguments whose magnitudes
+  both fit a single limb, and an argument pair where one magnitude fits a single
+  limb, are computed without allocating at all.
+* *Remarks:* The function is usable in a constant expression. The result uses
+  the allocator of the `basic_big_int` argument. Unlike `std::gcd`, no argument
+  can fail to be representable in the result type: `basic_big_int` is unbounded,
+  so the precondition that `std::gcd` places on `|m|` and `|n|` is vacuous here.
+  The arguments are taken by value, matching `std::gcd`, so an unqualified call
+  is unambiguous even where `std::gcd` is visible; pass an rvalue to hand a
+  `basic_big_int` argument's storage over to the computation.
+
+[#numeric_gcd_performance]
+=== Algorithm
+
+Operand magnitudes that fit a single limb are reduced by the binary (Stein)
+algorithm, and a single-limb operand reduces a wide one through one short
+division, so neither case allocates or divides more than once.
+
+Wider operands are reduced by Lehmer's algorithm in Jebelean's double-digit
+form: the two leading limbs of the pair are run through the Euclidean algorithm
+on their own, and the cofactors of the steps that are provably steps of the
+full-precision reduction are applied to the operands with two single-limb
+multiplications. That trades one division per Euclidean step for a pair of
+linear passes per limb of progress. Where the leading limbs determine nothing --
+operands that differ widely in size -- a division or a binary step carries the
+reduction instead.
+
+https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/gcd_bench.test.cpp[gcd_bench.test.cpp]
+measures the result against `boost::multiprecision::cpp_int`, which reduces
+wide operands with the same algorithm. It is built with the tests and runs when
+`BEMAN_BIG_INT_RUN_BENCHMARKS` is defined. On an Apple M4 Max (AppleClang,
+release build) the two agree to within 1% from 64 to 512 bits and stay within
+25% of each other through 4096 bits, while the cases that allocate nothing -- a
+wide operand against a single-limb or built-in integer one -- run about twice as
+fast.
