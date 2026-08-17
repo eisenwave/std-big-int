@@ -54,6 +54,26 @@ constexpr bool is_span_zero(const std::span<const uint_multiprecision_t> s) noex
     return !s.empty() && std::has_single_bit(s.back()) && is_span_zero(s.first(s.size() - 1));
 }
 
+// Bit index of the lowest set bit of a magnitude, i.e. the exponent of the
+// largest power of two that divides it. The magnitude must be nonzero.
+[[nodiscard]] constexpr std::size_t trailing_zero_bits_span(const std::span<const uint_multiprecision_t> x) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(!is_span_zero(x));
+    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    std::size_t           i         = 0;
+    while (x[i] == 0) {
+        ++i;
+    }
+    return i * limb_bits + static_cast<std::size_t>(std::countr_zero(x[i]));
+}
+
+// Limb `i` of a magnitude, or zero when the magnitude does not reach that far.
+// Lets an algorithm read two operands at the same limb positions without
+// special-casing the shorter one.
+[[nodiscard]] constexpr uint_multiprecision_t limb_or_zero(const std::span<const uint_multiprecision_t> x,
+                                                           const std::size_t                            i) noexcept {
+    return i < x.size() ? x[i] : uint_multiprecision_t{0};
+}
+
 // ---------------------------------------------------------------------------
 // Three-way compare of two little-endian unsigned spans.
 // Operands need not be trimmed: trailing zero limbs on either side are
@@ -548,6 +568,56 @@ divide_unsigned_short(const std::span<uint_multiprecision_t>       quotient,
 }
 
 // ---------------------------------------------------------------------------
+// Remainder of a multi-limb magnitude modulo a single limb.
+// Same normalize-once, stream-down-with-a-reciprocal structure as
+// divide_unsigned_short, but it keeps only the remainder, so no quotient buffer
+// (and no mutable copy of the dividend) is needed.
+//
+// Preconditions:
+//   - divisor != 0
+//   - dividend.size() >= 1
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr uint_multiprecision_t mod_unsigned_short(const std::span<const uint_multiprecision_t> dividend,
+                                                                 const uint_multiprecision_t divisor) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(divisor != 0);
+    BEMAN_BIG_INT_DEBUG_ASSERT(!dividend.empty());
+
+    if (dividend.size() == 1) {
+        return dividend[0] % divisor;
+    }
+
+    constexpr std::size_t limb_bits = width_v<uint_multiprecision_t>;
+    const auto            shift     = static_cast<unsigned>(std::countl_zero(divisor));
+
+    if (shift == 0) {
+        const uint_multiprecision_t v = reciprocal_word(divisor);
+        uint_multiprecision_t       r = 0;
+        for (std::size_t i = dividend.size(); i-- > 0;) {
+            r = div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = dividend[i], .high_bits = r}, divisor, v)
+                    .remainder;
+        }
+        return r;
+    }
+
+    // Normalize on the fly: the remainder of the bit-shifted dividend by the
+    // divisor shifted by the same amount is the wanted remainder, shifted up.
+    const uint_multiprecision_t d = divisor << shift;
+    const uint_multiprecision_t v = reciprocal_word(d);
+
+    uint_multiprecision_t cur = dividend[dividend.size() - 1];
+    uint_multiprecision_t r   = cur >> (limb_bits - shift);
+    for (std::size_t i = dividend.size() - 1; i > 0; --i) {
+        const uint_multiprecision_t next = dividend[i - 1];
+        const uint_multiprecision_t u =
+            funnel_shl(wide<uint_multiprecision_t>{.low_bits = next, .high_bits = cur}, shift);
+        r   = div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = u, .high_bits = r}, d, v).remainder;
+        cur = next;
+    }
+    r = div_2by1_preinv(wide<uint_multiprecision_t>{.low_bits = cur << shift, .high_bits = r}, d, v).remainder;
+    return r >> shift;
+}
+
+// ---------------------------------------------------------------------------
 // Fused multiply-subtract: result -= a * val over the low a.size() limbs of
 // `result`, in place. Returns the borrow-out limb (the amount owed at
 // position a.size(); always at most B-1, so a single limb suffices).
@@ -620,6 +690,57 @@ constexpr std::size_t multiply_single_limb(const std::span<uint_multiprecision_t
 }
 
 // ---------------------------------------------------------------------------
+// s.first(size) <- s.first(size) * mul + add, in place (the GMP mpn_mul_1 +
+// add fusion the base-conversion Horner basecase folds with; pass add == 0 for a
+// plain in-place multiply). `mul` must be non-zero, so the value never shrinks
+// and a trimmed value stays trimmed; `s` must allow one limb of growth whenever
+// the result needs it. Returns the new size.
+// ---------------------------------------------------------------------------
+[[nodiscard]] constexpr std::size_t mul_add_single_limb_in_place(const std::span<uint_multiprecision_t> s,
+                                                                 const std::size_t                      size,
+                                                                 const uint_multiprecision_t            mul,
+                                                                 const uint_multiprecision_t            add) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(size >= 1);
+    BEMAN_BIG_INT_DEBUG_ASSERT(size <= s.size());
+    BEMAN_BIG_INT_DEBUG_ASSERT(mul != 0);
+
+    uint_multiprecision_t carry = add;
+    for (std::size_t i = 0; i < size; ++i) {
+        const auto [lo, hi]              = widening_mul(s[i], mul);
+        const uint_multiprecision_t next = lo + carry;
+        carry                            = hi + static_cast<uint_multiprecision_t>(next < lo);
+        s[i]                             = next;
+    }
+    if (carry == 0) {
+        return size;
+    }
+    BEMAN_BIG_INT_DEBUG_ASSERT(size < s.size());
+    s[size] = carry;
+    return size + 1;
+}
+
+// ---------------------------------------------------------------------------
+// In-place dst -= src * val over all of `dst`, where the difference is known to
+// be non-negative. Unlike submul_single_limb, which hands the borrow at src's
+// top position back to its caller, this propagates it through the rest of `dst`,
+// so `dst` may span more limbs than `src`.
+// `dst.size()` must be >= src.size(); `dst` must NOT alias `src`.
+// ---------------------------------------------------------------------------
+constexpr void submul_single_limb_wide(const std::span<uint_multiprecision_t>       dst,
+                                       const std::span<const uint_multiprecision_t> src,
+                                       const uint_multiprecision_t                  val) noexcept {
+    BEMAN_BIG_INT_DEBUG_ASSERT(dst.size() >= src.size());
+
+    uint_multiprecision_t borrow = submul_single_limb(dst, src, val);
+    for (std::size_t i = src.size(); borrow != 0; ++i) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(i < dst.size());
+        const auto [value, next] = borrowing_sub(dst[i], borrow);
+        dst[i]                   = value;
+        borrow                   = static_cast<uint_multiprecision_t>(next);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers shared by the Toom-Cook variants. All operate on little-endian
 // multi-precision spans of uint_multiprecision_t limbs.
 // ---------------------------------------------------------------------------
@@ -680,6 +801,34 @@ shift_left_n(const std::span<uint_multiprecision_t> tmp, std::size_t size, const
 [[nodiscard]] constexpr std::size_t shift_left_one(const std::span<uint_multiprecision_t> tmp,
                                                    const std::size_t                      size) noexcept {
     return shift_left_n(tmp, size, 1u);
+}
+
+// In-place tmp[0..size) <<= bits, for a shift of any width: unlike shift_left_n,
+// `bits` may reach past a limb, and the whole-limb part of the shift is a move
+// rather than a pass over the limbs. Returns the new size; `tmp` must be large
+// enough to hold it.
+[[nodiscard]] constexpr std::size_t
+shift_left_bits(const std::span<uint_multiprecision_t> tmp, std::size_t size, const std::size_t bits) noexcept {
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    if (bits == 0) {
+        return size;
+    }
+
+    const std::size_t whole   = bits / local_limb_bits;
+    const auto        partial = static_cast<unsigned>(bits % local_limb_bits);
+
+    if (whole != 0) {
+        BEMAN_BIG_INT_DEBUG_ASSERT(tmp.size() >= size + whole);
+        const auto begin = tmp.begin();
+        std::copy_backward(
+            begin, begin + static_cast<std::ptrdiff_t>(size), begin + static_cast<std::ptrdiff_t>(size + whole));
+        std::fill_n(begin, static_cast<std::ptrdiff_t>(whole), uint_multiprecision_t{0});
+        size += whole;
+    }
+    if (partial != 0) {
+        size = shift_left_n(tmp, size, partial);
+    }
+    return size;
 }
 
 // In-place tmp <- addends[0] + addends[1] + ... + addends[N-1]; returns new size.
@@ -840,6 +989,33 @@ horner_eval_into_tmp(const std::span<uint_multiprecision_t>                     
 // Thin wrapper around shift_right_n for the common single-bit halving case.
 [[nodiscard]] constexpr uint_multiprecision_t shift_right_one(const std::span<uint_multiprecision_t> tmp) noexcept {
     return shift_right_n(tmp, 1u);
+}
+
+// In-place tmp[0..size) >>= bits, for a shift of any width: unlike shift_right_n,
+// `bits` may reach past a limb, and the whole-limb part of the shift is a move
+// rather than a pass over the limbs. Returns the trimmed limb count. Every bit
+// shifted out must be zero, which holds for the usual caller -- one shifting by a
+// trailing-zero count.
+[[nodiscard]] constexpr std::size_t
+shift_right_bits(const std::span<uint_multiprecision_t> tmp, const std::size_t size, const std::size_t bits) noexcept {
+    constexpr std::size_t local_limb_bits = width_v<uint_multiprecision_t>;
+    BEMAN_BIG_INT_DEBUG_ASSERT(size <= tmp.size());
+
+    const std::size_t whole   = bits / local_limb_bits;
+    const auto        partial = static_cast<unsigned>(bits % local_limb_bits);
+    BEMAN_BIG_INT_DEBUG_ASSERT(whole < size);
+
+    std::size_t n = size;
+    if (whole != 0) {
+        const auto first = tmp.begin() + static_cast<std::ptrdiff_t>(whole);
+        std::copy(first, tmp.begin() + static_cast<std::ptrdiff_t>(size), tmp.begin());
+        n = size - whole;
+    }
+    if (partial != 0) {
+        [[maybe_unused]] const uint_multiprecision_t dropped = shift_right_n(tmp.first(n), partial);
+        BEMAN_BIG_INT_DEBUG_ASSERT(dropped == 0);
+    }
+    return trimmed_size_span(tmp.first(n));
 }
 
 // In-place result[shift..) += src; asserts no carry out of the result span.
