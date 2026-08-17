@@ -47,6 +47,32 @@ TEST(VsCppInt, MulSpecific) {
         std::multiplies<>{}, "deadbeefcafebabef00dfacec0ffee1234567890abcdef", "1234567890abcdeffedcba9876543210"));
 }
 
+// `gcd` is found by argument-dependent lookup for both backends: ours for
+// beman::big_int, boost::multiprecision's for cpp_int. Both are documented to
+// return the non-negative gcd of the magnitudes, with gcd(0, 0) == 0.
+struct gcd_op {
+    template <class T>
+    [[nodiscard]] T operator()(const T& lhs, const T& rhs) const {
+        return gcd(lhs, rhs);
+    }
+};
+
+TEST(VsCppInt, GcdSpecific) {
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "0", "0"));
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "0", "deadbeef"));
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "deadbeef", "0"));
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "1", "deadbeefcafebabe"));
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "-deadbeef", "deadbeef"));            // sign is dropped
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "ffffffffffffffff", "ffffffffffff")); // single-limb operands
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "10000000000000000", "100000000"));   // powers of two
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "ffffffffffffffffffffffffffffffff", "ffffffffffffffff")); // 2^n - 1 pair
+    EXPECT_TRUE(check_cpp_int_equal(
+        gcd_op{}, "deadbeefcafebabef00dfacec0ffee1234567890abcdef", "1234567890abcdeffedcba9876543210"));
+    // A common factor planted in both operands, and a wide size gap.
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, "24936d5b6f95ea1d800", "36d5b6f95ea1d8000"));
+    EXPECT_TRUE(check_cpp_int_equal(gcd_op{}, random_big_int(4096), random_big_int(64)));
+}
+
 // ----- random parity sweep -----
 //
 // Bit widths chosen to exercise a spread of limb counts:
@@ -78,6 +104,7 @@ TEST(VsCppInt, SubRandom) { run_parity_sweep(std::minus<>{}); }
 TEST(VsCppInt, MulRandom) { run_parity_sweep(std::multiplies<>{}); }
 TEST(VsCppInt, DivRandom) { run_parity_sweep(std::divides<>{}); }
 TEST(VsCppInt, ModRandom) { run_parity_sweep(std::modulus<>{}); }
+TEST(VsCppInt, GcdRandom) { run_parity_sweep(gcd_op{}); }
 
 // Exercises zero-operand corner cases, which the random sweep is unlikely to
 // hit on its own.
