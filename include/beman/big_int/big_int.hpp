@@ -263,6 +263,10 @@ template <class T>
     requires detail::is_basic_big_int_v<T>
 constexpr std::remove_cvref_t<T> abs(T&& x);
 
+template <class M, class N>
+    requires detail::common_big_int_type_with<M, N>
+constexpr detail::common_big_int_type<M, N> gcd(M m, N n);
+
 // [big.int.class], class template basic_big_int
 template <std::size_t min_inplace_bits, class Limb, class Allocator>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
@@ -559,6 +563,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <class T>
         requires detail::is_basic_big_int_v<T>
     friend constexpr std::remove_cvref_t<T> abs(T&& x);
+
+    template <class M, class N>
+        requires detail::common_big_int_type_with<M, N>
+    friend constexpr detail::common_big_int_type<M, N> gcd(M m, N n);
 
   private:
     template <detail::unsigned_integer T>
