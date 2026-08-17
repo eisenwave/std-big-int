@@ -539,14 +539,23 @@ TEST(Gcd, LargerInplaceBuffer) {
     EXPECT_EQ(g, wide_big_int{(big_int{1} << 140) * 6});
     EXPECT_EQ(gcd(a, 48), wide_big_int{48});
     EXPECT_EQ(gcd(a, a), a);
-    // A shrinking result leaves no stale limbs behind in the in-place buffer.
     EXPECT_EQ(static_cast<std::uint64_t>(gcd(a, wide_big_int{48})), 48U);
     EXPECT_EQ(to_string(gcd(a, wide_big_int{48})), "48");
-#if defined(BEMAN_BIG_INT_HAS_BITINT) && BEMAN_BIG_INT_BITINT_MAXWIDTH >= 257
-    // A cast as wide as the buffer reads every in-place limb, so it sees any limb
-    // left over above the result's size.
-    EXPECT_TRUE(static_cast<bit_uint<256>>(gcd(a, wide_big_int{48})) == static_cast<bit_uint<256>>(48));
-#endif
+
+    // Two multi-limb operands whose gcd is one: the reduction runs over the
+    // in-place buffers and the result shrinks back to a single limb, which must
+    // convert and print as itself.
+    const wide_big_int coprime_lhs{(big_int{1} << 150) + 1};
+    const wide_big_int coprime_rhs{(big_int{1} << 150) + 3};
+    ASSERT_TRUE(is_inplace(coprime_lhs));
+    ASSERT_GT(coprime_lhs.representation().size(), 1U);
+
+    const wide_big_int one = gcd(coprime_lhs, coprime_rhs);
+
+    EXPECT_EQ(one, wide_big_int{1});
+    EXPECT_EQ(one.representation().size(), 1U);
+    EXPECT_EQ(static_cast<std::uint64_t>(one), 1U);
+    EXPECT_EQ(to_string(one), "1");
 }
 
 TEST(Gcd, PmrOperands) {
