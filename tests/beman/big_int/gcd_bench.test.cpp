@@ -56,8 +56,11 @@ struct operand_pair {
 }
 
 void emit(const char* const name, const std::size_t bits, const double ours, const double theirs) {
+    // A clock too coarse to time the reference leaves the ratio column at zero
+    // rather than dividing by it.
+    const double ratio = theirs > 0.0 ? ours / theirs : 0.0;
     std::cout << name << ',' << bits << ',' << std::fixed << std::setprecision(4) << ours << ',' << theirs << ','
-              << (theirs == 0.0 ? 0.0 : ours / theirs) << '\n';
+              << ratio << '\n';
 }
 
 void run_all() {
@@ -75,51 +78,53 @@ void run_all() {
         const int  reps  = bits <= 512 ? 2000 : (bits <= 2048 ? 200 : 50);
         const auto pairs = make_pairs(rng, bits, 32);
 
-        std::uint64_t sink   = 0;
-        const double  ours   = stopwatch::measure_time([&] {
+        // Summing the results' limb counts keeps them from being optimized away
+        // without a cast: the limb type is `unsigned long long` on some targets and
+        // `std::uint64_t` on others, so a cast to a fixed-width type is a useless
+        // cast on one of them, which the test warning set rejects.
+        std::size_t  alive  = 0;
+        const double ours   = stopwatch::measure_time([&] {
             for (int i = 0; i < reps; ++i) {
                 const operand_pair& pair = pairs[static_cast<std::size_t>(i) % pairs.size()];
-                sink += static_cast<std::uint64_t>(gcd(pair.big_lhs, pair.big_rhs).representation()[0]);
+                alive += gcd(pair.big_lhs, pair.big_rhs).representation().size();
             }
         });
-        const double  theirs = stopwatch::measure_time([&] {
+        const double theirs = stopwatch::measure_time([&] {
             for (int i = 0; i < reps; ++i) {
                 const operand_pair& pair = pairs[static_cast<std::size_t>(i) % pairs.size()];
-                sink += static_cast<std::uint64_t>(gcd(pair.cpp_lhs, pair.cpp_rhs).backend().limbs()[0]);
+                alive += gcd(pair.cpp_lhs, pair.cpp_rhs).backend().size();
             }
         });
         emit("balanced", bits, ours * 1e6 / reps, theirs * 1e6 / reps);
         std::cout.flush();
-        EXPECT_NE(sink, 0U); // Keep the results live.
+        EXPECT_NE(alive, 0U);
     }
 
     // The paths that never allocate: a single-limb operand against a wide one,
     // and a built-in integer operand.
-    const auto    wide      = make_pairs(rng, 4096, 1).front();
-    std::uint64_t sink      = 0;
-    const int     reps      = 2000;
-    const double  mixed_big = stopwatch::measure_time([&] {
+    const auto   wide      = make_pairs(rng, 4096, 1).front();
+    std::size_t  alive     = 0;
+    const int    reps      = 2000;
+    const double mixed_big = stopwatch::measure_time([&] {
         for (int i = 0; i < reps; ++i) {
-            sink +=
-                static_cast<std::uint64_t>(gcd(wide.big_lhs, big_int_type{0x9e3779b97f4a7c15ULL}).representation()[0]);
+            alive += gcd(wide.big_lhs, big_int_type{0x9e3779b97f4a7c15ULL}).representation().size();
         }
     });
-    const double  mixed_cpp = stopwatch::measure_time([&] {
+    const double mixed_cpp = stopwatch::measure_time([&] {
         for (int i = 0; i < reps; ++i) {
-            sink += static_cast<std::uint64_t>(
-                gcd(wide.cpp_lhs, cpp_int_type{0x9e3779b97f4a7c15ULL}).backend().limbs()[0]);
+            alive += gcd(wide.cpp_lhs, cpp_int_type{0x9e3779b97f4a7c15ULL}).backend().size();
         }
     });
     emit("wide_vs_single_limb", 4096, mixed_big * 1e6 / reps, mixed_cpp * 1e6 / reps);
 
     const double builtin_big = stopwatch::measure_time([&] {
         for (int i = 0; i < reps; ++i) {
-            sink += static_cast<std::uint64_t>(gcd(wide.big_lhs, 0x9e3779b97f4a7c15ULL).representation()[0]);
+            alive += gcd(wide.big_lhs, 0x9e3779b97f4a7c15ULL).representation().size();
         }
     });
     const double builtin_cpp = stopwatch::measure_time([&] {
         for (int i = 0; i < reps; ++i) {
-            sink += static_cast<std::uint64_t>(gcd(wide.cpp_lhs, 0x9e3779b97f4a7c15ULL).backend().limbs()[0]);
+            alive += gcd(wide.cpp_lhs, 0x9e3779b97f4a7c15ULL).backend().size();
         }
     });
     emit("wide_vs_builtin", 4096, builtin_big * 1e6 / reps, builtin_cpp * 1e6 / reps);
@@ -129,18 +134,18 @@ void run_all() {
     const double small_big = stopwatch::measure_time([&] {
         for (int i = 0; i < small_rep; ++i) {
             const operand_pair& pair = small[static_cast<std::size_t>(i) % small.size()];
-            sink += static_cast<std::uint64_t>(gcd(pair.big_lhs, pair.big_rhs).representation()[0]);
+            alive += gcd(pair.big_lhs, pair.big_rhs).representation().size();
         }
     });
     const double small_cpp = stopwatch::measure_time([&] {
         for (int i = 0; i < small_rep; ++i) {
             const operand_pair& pair = small[static_cast<std::size_t>(i) % small.size()];
-            sink += static_cast<std::uint64_t>(gcd(pair.cpp_lhs, pair.cpp_rhs).backend().limbs()[0]);
+            alive += gcd(pair.cpp_lhs, pair.cpp_rhs).backend().size();
         }
     });
     emit("single_limb", 64, small_big * 1e6 / small_rep, small_cpp * 1e6 / small_rep);
     std::cout.flush();
-    EXPECT_NE(sink, 0U);
+    EXPECT_NE(alive, 0U);
 }
 
 } // namespace local
