@@ -67,7 +67,7 @@ namespace detail {
 // before the span algorithms can see it; a `basic_big_int` already stores limbs,
 // so it needs no storage at all.
 template <class T>
-[[nodiscard]] constexpr auto gcd_operand_limbs(const T& x) noexcept {
+[[nodiscard]] constexpr auto operand_limbs(const T& x) noexcept {
     if constexpr (is_basic_big_int_v<T>) {
         return std::array<uint_multiprecision_t, 0>{};
     } else {
@@ -76,14 +76,26 @@ template <class T>
 }
 
 // The magnitude of an operand as a limb span, paired with the storage handed out
-// by `gcd_operand_limbs` for the fundamental-integer case.
+// by `operand_limbs` for the fundamental-integer case.
 template <class T, std::size_t n>
 [[nodiscard]] constexpr std::span<const uint_multiprecision_t>
-gcd_operand_magnitude(const T& x, const std::array<uint_multiprecision_t, n>& limbs) noexcept {
+operand_magnitude(const T& x, const std::array<uint_multiprecision_t, n>& limbs) noexcept {
     if constexpr (is_basic_big_int_v<T>) {
         return x.representation();
     } else {
         return std::span<const uint_multiprecision_t>{limbs.data(), n};
+    }
+}
+
+// The allocator that every value a mixed-operand function creates -- including
+// the one it returns -- is built with: the allocator of the big_int argument,
+// which is also what `abs` does.
+template <class M, class N>
+[[nodiscard]] constexpr auto operand_allocator(const M& m, const N& n) noexcept {
+    if constexpr (is_basic_big_int_v<M>) {
+        return m.get_allocator();
+    } else {
+        return n.get_allocator();
     }
 }
 
@@ -102,15 +114,7 @@ template <class M, class N>
     constexpr bool steal_n =
         form == binary_op_form::move_move || form == binary_op_form::copy_move || form == binary_op_form::int_move;
 
-    // Every value the function creates -- including the one it returns -- uses the
-    // allocator of the big_int argument, which is also what `abs` does.
-    const auto alloc = [&] {
-        if constexpr (is_basic_big_int_v<std::remove_cvref_t<M>>) {
-            return m.get_allocator();
-        } else {
-            return n.get_allocator();
-        }
-    }();
+    const auto alloc = detail::operand_allocator(m, n);
 
     // |value| as a result the algorithm below may consume in place: a handed-over
     // big_int gives up its storage, a borrowed one is copied. The `steal` tag is a
@@ -134,10 +138,10 @@ template <class M, class N>
 
     // Both operands are viewed as bare magnitudes: the signs are dropped here and
     // never looked at again.
-    const auto       m_store = detail::gcd_operand_limbs(m);
-    const auto       n_store = detail::gcd_operand_limbs(n);
-    const const_span m_mag   = detail::gcd_operand_magnitude(m, m_store);
-    const const_span n_mag   = detail::gcd_operand_magnitude(n, n_store);
+    const auto       m_store = detail::operand_limbs(m);
+    const auto       n_store = detail::operand_limbs(n);
+    const const_span m_mag   = detail::operand_magnitude(m, m_store);
+    const const_span n_mag   = detail::operand_magnitude(n, n_store);
     const const_span m_trim  = m_mag.first(detail::trimmed_size_span(m_mag));
     const const_span n_trim  = n_mag.first(detail::trimmed_size_span(n_mag));
 
@@ -230,6 +234,93 @@ template <class M, class N>
     return a;
 }
 
+// The driver behind `lcm`, which has no reduction of its own: the least common
+// multiple is the product of the two magnitudes with their greatest common
+// divisor taken out once, so the work is one `gcd`, one exact division, and one
+// multiplication. The operands are classified into `binary_op_form` the way
+// `gcd_impl` classifies its own, except that the gcd needs both of them, so the
+// storage of an operand the caller handed over is consumed by the division and
+// the multiplication that follow rather than by the reduction.
+template <class M, class N>
+[[nodiscard]] constexpr common_big_int_type<M, N> lcm_impl(M&& m, N&& n) {
+    using Result     = common_big_int_type<M, N>;
+    using const_span = std::span<const uint_multiprecision_t>;
+
+    constexpr auto form = classify_form_v<M, N>;
+    constexpr bool steal_m =
+        form == binary_op_form::move_move || form == binary_op_form::move_copy || form == binary_op_form::move_int;
+    constexpr bool steal_n =
+        form == binary_op_form::move_move || form == binary_op_form::copy_move || form == binary_op_form::int_move;
+
+    const auto alloc = detail::operand_allocator(m, n);
+
+    // One operand as a value the arithmetic below may consume: a big_int the
+    // caller handed over gives up its storage, and anything borrowed is copied
+    // with the result's allocator. The sign comes along and is dropped at the
+    // end. The `steal` tag is a parameter rather than a template argument because
+    // a lambda cannot take an explicit template argument at the call site.
+    const auto owned = [&alloc]<class T, bool steal>(T&& value, std::bool_constant<steal>) -> Result {
+        if constexpr (steal) {
+            return Result{std::move(value)};
+        } else {
+            return Result{value, alloc};
+        }
+    };
+
+    // Only the magnitudes are ever looked at; the result of `lcm` is the least
+    // common multiple of those, and so is never negative.
+    const auto       m_store = detail::operand_limbs(m);
+    const auto       n_store = detail::operand_limbs(n);
+    const const_span m_mag   = detail::operand_magnitude(m, m_store);
+    const const_span n_mag   = detail::operand_magnitude(n, n_store);
+    const const_span m_trim  = m_mag.first(detail::trimmed_size_span(m_mag));
+    const const_span n_trim  = n_mag.first(detail::trimmed_size_span(n_mag));
+
+    // lcm(x, 0) == 0: zero is the only multiple the two operands have in common,
+    // and so lcm(0, 0) == 0 as well.
+    if (detail::is_span_zero(m_trim) || detail::is_span_zero(n_trim)) {
+        return Result{0, alloc};
+    }
+
+    // Magnitudes that both fit a limb keep the whole computation scalar: the
+    // product of a cofactor and a limb spans at most two limbs, and a result
+    // that fits one is built as a single limb so that it can stay in the
+    // small-object buffer.
+    if (m_trim.size() == 1 && n_trim.size() == 1) {
+        const uint_multiprecision_t g        = detail::gcd_limbs(m_trim[0], n_trim[0]);
+        const uint_multiprecision_t cofactor = m_trim[0] / g;
+        const auto [low, high]               = detail::widening_mul(cofactor, n_trim[0]);
+        if (high == 0) {
+            return Result{low, alloc};
+        }
+        const std::array<uint_multiprecision_t, 2> limbs{low, high};
+        return Result{limbs.begin(), limbs.end(), alloc};
+    }
+
+    // `m` and `n` are lvalues here, so the reduction borrows both of them and
+    // leaves them to the division and the multiplication below.
+    const Result g = detail::gcd_impl(m, n);
+
+    // |m| * |n| with the greatest common divisor taken out once, and taken out
+    // before the multiplication so that no intermediate value is wider than the
+    // result. Compound assignment keeps the arithmetic in `dividend`, which is
+    // what carries `alloc` into the result: the binary operators build a result of
+    // their own, and it follows the allocator convention of an expression rather
+    // than `gcd`'s.
+    const auto reduce_and_multiply = [&g](Result dividend, const auto& other) -> Result {
+        dividend /= g; // Exact: `g` divides both operands.
+        dividend *= other;
+        return abs(std::move(dividend)); // The product carries the signs; the result has none.
+    };
+
+    // The operand with fewer limbs is the cheaper one to divide, and dividing it
+    // leaves the cheaper multiplication behind as well.
+    if (n_trim.size() < m_trim.size()) {
+        return reduce_and_multiply(owned(n, std::bool_constant<steal_n>{}), m);
+    }
+    return reduce_and_multiply(owned(m, std::bool_constant<steal_m>{}), n);
+}
+
 } // namespace detail
 
 // [numeric.gcd]
@@ -273,6 +364,47 @@ template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> gcd(M&& m, const basic_big_int<b, L, A>& n) {
     return detail::gcd_impl(std::forward<M>(m), n);
+}
+
+// [numeric.lcm]
+// Computes the least common multiple of integers m and n
+// If either `M` or `N` is not an integer type, or if either is
+// (possibly cv-qualified) `bool` the program is ill-formed
+// If either |M| or |N|, or the least common multiple of the two, is not
+// representable as a value of type `std::common_type<M, N>`, the behavior is
+// undefined. In this case the common type is always a `basic_big_int`, which is
+// unbounded, so no value can fail to be representable
+//
+// The operands are taken by forwarding reference, so a `basic_big_int` argument
+// the caller hands over has its storage consumed by the division or the
+// multiplication that produces the result. The overload set is spelled out the
+// way `gcd`'s is, and for the same reason: `std::lcm` is a candidate of every
+// unqualified call through argument-dependent lookup on the allocator, and only
+// a parameter that its plain type parameter cannot deduce makes these overloads
+// the more specialized ones.
+template <std::size_t b, class L, class A, class N>
+[[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> lcm(basic_big_int<b, L, A>&& m, N&& n) {
+    return detail::lcm_impl(std::move(m), std::forward<N>(n));
+}
+
+template <std::size_t b, class L, class A, class N>
+[[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> lcm(const basic_big_int<b, L, A>& m,
+                                                                                   N&&                           n) {
+    return detail::lcm_impl(m, std::forward<N>(n));
+}
+
+// The mirrored pair. `M` is held to an integer type so that a pair of big_ints
+// does not match both it and the overloads above.
+template <class M, std::size_t b, class L, class A>
+    requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
+[[nodiscard]] constexpr basic_big_int<b, L, A> lcm(M&& m, basic_big_int<b, L, A>&& n) {
+    return detail::lcm_impl(std::forward<M>(m), std::move(n));
+}
+
+template <class M, std::size_t b, class L, class A>
+    requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
+[[nodiscard]] constexpr basic_big_int<b, L, A> lcm(M&& m, const basic_big_int<b, L, A>& n) {
+    return detail::lcm_impl(std::forward<M>(m), n);
 }
 
 } // namespace beman::big_int
