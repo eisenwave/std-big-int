@@ -11,6 +11,7 @@ auto main() -> int {
     using beman::big_int::abs;
     using beman::big_int::big_int;
     using beman::big_int::gcd;
+    using beman::big_int::lcm;
     using beman::big_int::saturating_cast;
 
     // The free numeric helpers live in <beman/big_int/numeric.hpp>.
@@ -41,9 +42,17 @@ auto main() -> int {
     // Dividing both operands by their gcd leaves them coprime.
     const big_int coprime = gcd(lhs / divisor, rhs / divisor);
 
+    // 5. lcm is the companion of gcd: the smallest value that both operands
+    //    divide. The two split the product of the operands between them, which is
+    //    the identity checked below.
+    const big_int multiple  = lcm(lhs, rhs); // 23562 * 2^127
+    const big_int mixed_lcm = lcm(rhs, -15); // signs are ignored here too
+    const bool    split     = divisor * multiple == lhs * rhs;
+
     const bool result_is_ok = magnitude == (1_n << 127) && clamped_hi == std::numeric_limits<int>::max() &&
                               clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345 &&
-                              divisor == 21_n * (1_n << 121) && mixed == 42 && coprime == 1;
+                              divisor == 21_n * (1_n << 121) && mixed == 42 && coprime == 1 &&
+                              multiple == 23562_n * (1_n << 127) && mixed_lcm == 2310_n * (1_n << 120) && split;
 
     std::cout << "magnitude:   " << to_string(magnitude) << "\n"
               << "clamped_hi:  " << clamped_hi << "\n"
@@ -52,7 +61,10 @@ auto main() -> int {
               << "exact:       " << exact << "\n"
               << "divisor:     " << to_string(divisor) << "\n"
               << "mixed:       " << to_string(mixed) << "\n"
-              << "coprime:     " << to_string(coprime) << "\n\n"
+              << "coprime:     " << to_string(coprime) << "\n"
+              << "multiple:    " << to_string(multiple) << "\n"
+              << "mixed_lcm:   " << to_string(mixed_lcm) << "\n"
+              << "split:       " << std::boolalpha << split << "\n\n"
               << "result_is_ok: " << std::boolalpha << result_is_ok << std::endl;
 
     return result_is_ok ? 0 : -1;
