@@ -92,7 +92,6 @@ gcd_operand_magnitude(const T& x, const std::array<uint_multiprecision_t, n>& li
 // operand the caller handed over has its storage consumed, a borrowed one is
 // copied, and the paths that need no mutable copy borrow both.
 template <class M, class N>
-    requires common_big_int_type_with<M, N>
 [[nodiscard]] constexpr common_big_int_type<M, N> gcd_impl(M&& m, N&& n) {
     using Result     = common_big_int_type<M, N>;
     using const_span = std::span<const uint_multiprecision_t>;

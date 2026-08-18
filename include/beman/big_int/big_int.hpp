@@ -267,7 +267,6 @@ constexpr std::remove_cvref_t<T> abs(T&& x);
 // through this driver, which is the one that needs the representation.
 namespace detail {
 template <class M, class N>
-    requires common_big_int_type_with<M, N>
 constexpr common_big_int_type<M, N> gcd_impl(M&& m, N&& n);
 } // namespace detail
 
@@ -569,7 +568,6 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr std::remove_cvref_t<T> abs(T&& x);
 
     template <class M, class N>
-        requires detail::common_big_int_type_with<M, N>
     friend constexpr detail::common_big_int_type<M, N> detail::gcd_impl(M&& m, N&& n);
 
   private:
