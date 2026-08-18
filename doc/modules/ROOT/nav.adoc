@@ -63,6 +63,7 @@
 ** xref:numeric.adoc#numeric_abs[abs]
 ** xref:numeric.adoc#numeric_saturating_cast[saturating_cast]
 ** xref:numeric.adoc#numeric_gcd[gcd]
+** xref:numeric.adoc#numeric_lcm[lcm]
 * xref:benchmarks.adoc[Benchmarks]
 ** xref:benchmarks.adoc#benchmarks_small_value[Small-value optimization]
 ** xref:benchmarks.adoc#benchmarks_libraries[big_int vs Boost.Multiprecision and GMP]
