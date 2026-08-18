@@ -1136,8 +1136,8 @@ constexpr basic_big_int<b, L, A>::basic_big_int(const T& value, const allocator_
         unchecked_set_limb_count(count);
         unchecked_set_sign(value.is_negative());
     } else {
-        if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
-            unchecked_set_sign(value < 0);
+        if constexpr (detail::signed_integer<std::remove_cvref_t<T>>) {
+            unchecked_set_sign(value < std::remove_cvref_t<T>{0});
             assign_magnitude(detail::uabs(value));
         } else {
             assign_magnitude(value);

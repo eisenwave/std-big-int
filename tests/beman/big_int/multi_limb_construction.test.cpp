@@ -203,6 +203,19 @@ TEST(MultiLimbConstruction, FromSignedBitInt96LargeNegative) {
     EXPECT_EQ(static_cast<bi96>(x), value);
 }
 
+TEST(MultiLimbConstruction, ConstructFromSignedBitInt96WithAllocator) {
+    // The allocator-taking constructor is a separate overload from the one the
+    // tests above exercise, and it has to classify a bit-precise operand as
+    // signed the same way. `std::is_signed_v` is not specified for `_BitInt`, so
+    // a standard library that answers false for it would send a signed operand
+    // down the unsigned path.
+    std::allocator<beman::big_int::uint_multiprecision_t> a;
+    const bi96              value = -static_cast<bi96>(static_cast<bui96>(0xFFFFFFFFFFFFFFFFULL) << 16);
+    beman::big_int::big_int x(value, a);
+    EXPECT_EQ(static_cast<bi96>(x), value);
+    EXPECT_LT(x, 0);
+}
+
 TEST(MultiLimbConstruction, AssignFromUnsignedBitInt96) {
     const bui96 value = (static_cast<bui96>(0xCAFEBABEU) << 64) | static_cast<bui96>(0xDEADBEEF12345678ULL);
     beman::big_int::big_int x;

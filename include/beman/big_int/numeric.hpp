@@ -255,15 +255,20 @@ template <class M, class N>
     const auto alloc = detail::operand_allocator(m, n);
 
     // One operand as a value the arithmetic below may consume: a big_int the
-    // caller handed over gives up its storage, and anything borrowed is copied
-    // with the result's allocator. The sign comes along and is dropped at the
-    // end. The `steal` tag is a parameter rather than a template argument because
-    // a lambda cannot take an explicit template argument at the call site.
+    // caller handed over gives up its storage, a borrowed one is copied, and a
+    // fundamental integer contributes its magnitude -- so only a big_int operand
+    // can carry a sign into the product, and that one is dropped at the end. The
+    // `steal` tag is a parameter rather than a template argument because a lambda
+    // cannot take an explicit template argument at the call site.
     const auto owned = [&alloc]<class T, bool steal>(T&& value, std::bool_constant<steal>) -> Result {
-        if constexpr (steal) {
-            return Result{std::move(value)};
+        if constexpr (is_basic_big_int_v<std::remove_cvref_t<T>>) {
+            if constexpr (steal) {
+                return Result{std::move(value)};
+            } else {
+                return Result{value, alloc};
+            }
         } else {
-            return Result{value, alloc};
+            return Result{uabs(value), alloc};
         }
     };
 
