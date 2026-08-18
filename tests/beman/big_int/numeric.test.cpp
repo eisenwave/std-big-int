@@ -558,6 +558,47 @@ TEST(Gcd, LargerInplaceBuffer) {
     EXPECT_EQ(to_string(one), "1");
 }
 
+// Counts allocations so a test can pin down which calls allocate.
+class counting_resource final : public std::pmr::memory_resource {
+  public:
+    [[nodiscard]] std::size_t allocations() const noexcept { return m_allocations; }
+
+  private:
+    void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+        ++m_allocations;
+        return std::pmr::new_delete_resource()->allocate(bytes, alignment);
+    }
+    void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+        std::pmr::new_delete_resource()->deallocate(p, bytes, alignment);
+    }
+    [[nodiscard]] bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        return this == &other;
+    }
+
+    std::size_t m_allocations{0};
+};
+
+TEST(Gcd, BorrowedOperandsAreNotCopied) {
+    // The operands are forwarding references, so a call that needs no mutable copy
+    // of either one -- every path where a magnitude fits a single limb -- allocates
+    // nothing at all, however wide the borrowed operand is.
+    using pmr_big_int = beman::big_int::pmr::big_int;
+    counting_resource resource;
+    const pmr_big_int wide{(big_int{1} << 4096) * 21, &resource};
+    const pmr_big_int narrow{35, &resource};
+    ASSERT_FALSE(is_inplace(wide));
+
+    const std::size_t before = resource.allocations();
+    EXPECT_EQ(gcd(wide, narrow), pmr_big_int{7});
+    EXPECT_EQ(gcd(wide, 35), pmr_big_int{7});
+    EXPECT_EQ(gcd(35, wide), pmr_big_int{7});
+    EXPECT_EQ(resource.allocations(), before);
+
+    // Handing an operand over still works, and the result carries its value.
+    pmr_big_int handed_over{(big_int{1} << 4096) * 21, &resource};
+    EXPECT_EQ(gcd(std::move(handed_over), narrow), pmr_big_int{7});
+}
+
 TEST(Gcd, PmrOperands) {
     using pmr_big_int = beman::big_int::pmr::big_int;
     std::pmr::monotonic_buffer_resource resource;

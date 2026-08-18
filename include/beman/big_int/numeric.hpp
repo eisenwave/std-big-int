@@ -87,49 +87,49 @@ gcd_operand_magnitude(const T& x, const std::array<uint_multiprecision_t, n>& li
     }
 }
 
-} // namespace detail
-
-// [numeric.gcd]
-// Computes the greatest common divisor of integers m and n
-// If either `M` or `N` is not an integer type, or if either is
-// (possibly cv-qualified) `bool` the program is ill-formed
-// If either |M| or |N| is not representable as a value of type
-// `std::common_type<M, N>`, the behavior is undefined
-//
-// The common type here is always a `basic_big_int`, which is unbounded, so no
-// argument magnitude can fail to be representable. The result is never negative:
-// gcd(m, n) == gcd(|m|, |n|), and gcd(0, 0) is 0.
-//
-// The parameters are taken by value, matching `std::gcd`: the signature makes this
-// overload the more constrained of the two, so an unqualified call with a
-// `basic_big_int` argument is not ambiguous with `std::gcd`. Pass an rvalue to hand
-// a big_int argument's storage over to the algorithm.
+// The driver behind `gcd`, taking both operands as forwarding references and
+// classifying them into `binary_op_form` exactly as the binary operators do: an
+// operand the caller handed over has its storage consumed, a borrowed one is
+// copied, and the paths that need no mutable copy borrow both.
 template <class M, class N>
-    requires detail::common_big_int_type_with<M, N>
-[[nodiscard]] constexpr detail::common_big_int_type<M, N> gcd(M m, N n) {
-    using Result     = detail::common_big_int_type<M, N>;
+    requires common_big_int_type_with<M, N>
+[[nodiscard]] constexpr common_big_int_type<M, N> gcd_impl(M&& m, N&& n) {
+    using Result     = common_big_int_type<M, N>;
     using const_span = std::span<const uint_multiprecision_t>;
+
+    constexpr auto form = classify_form_v<M, N>;
+    constexpr bool steal_m =
+        form == binary_op_form::move_move || form == binary_op_form::move_copy || form == binary_op_form::move_int;
+    constexpr bool steal_n =
+        form == binary_op_form::move_move || form == binary_op_form::copy_move || form == binary_op_form::int_move;
 
     // Every value the function creates -- including the one it returns -- uses the
     // allocator of the big_int argument, which is also what `abs` does.
     const auto alloc = [&] {
-        if constexpr (detail::is_basic_big_int_v<M>) {
+        if constexpr (is_basic_big_int_v<std::remove_cvref_t<M>>) {
             return m.get_allocator();
         } else {
             return n.get_allocator();
         }
     }();
 
-    // |value| as a result the algorithm below may consume in place. A big_int
-    // argument was already copied into the parameter by the call, so its storage
-    // is handed over rather than copied again.
-    const auto magnitude_of = [&alloc]<class T>(T& value) -> Result {
-        if constexpr (detail::is_basic_big_int_v<T>) {
-            Result r{std::move(value)};
+    // |value| as a result the algorithm below may consume in place: a handed-over
+    // big_int gives up its storage, a borrowed one is copied. The `steal` tag is a
+    // parameter rather than a template argument because a lambda cannot take an
+    // explicit template argument at the call site.
+    const auto magnitude_of = [&alloc]<class T, bool steal>(T&& value, std::bool_constant<steal>) -> Result {
+        if constexpr (is_basic_big_int_v<std::remove_cvref_t<T>>) {
+            Result r = [&]() -> Result {
+                if constexpr (steal) {
+                    return Result{std::move(value)};
+                } else {
+                    return Result{value, alloc};
+                }
+            }();
             r.unchecked_set_sign(false);
             return r;
         } else {
-            return Result{detail::uabs(value), alloc};
+            return Result{uabs(value), alloc};
         }
     };
 
@@ -144,10 +144,10 @@ template <class M, class N>
 
     // gcd(x, 0) == |x|, and so gcd(0, 0) == 0.
     if (detail::is_span_zero(n_trim)) {
-        return magnitude_of(m);
+        return magnitude_of(m, std::bool_constant<steal_m>{});
     }
     if (detail::is_span_zero(m_trim)) {
-        return magnitude_of(n);
+        return magnitude_of(n, std::bool_constant<steal_n>{});
     }
 
     // Small operands never allocate: a magnitude that fits a limb is handled by
@@ -166,8 +166,8 @@ template <class M, class N>
     // Both magnitudes span several limbs, so the reduction needs writable copies
     // of them. Everything past this point works on `a` and `b`; the views above
     // are not touched again.
-    Result a = magnitude_of(m);
-    Result b = magnitude_of(n);
+    Result a = magnitude_of(m, std::bool_constant<steal_m>{});
+    Result b = magnitude_of(n, std::bool_constant<steal_n>{});
 
     // Euclidean steps while the operands are far apart in size: one division wipes
     // out a bit-length gap that the reduction below would otherwise grind away a
@@ -229,6 +229,51 @@ template <class M, class N>
         }
     }
     return a;
+}
+
+} // namespace detail
+
+// [numeric.gcd]
+// Computes the greatest common divisor of integers m and n
+// If either `M` or `N` is not an integer type, or if either is
+// (possibly cv-qualified) `bool` the program is ill-formed
+// If either |M| or |N| is not representable as a value of type
+// `std::common_type<M, N>`, the behavior is undefined.
+// In this case the common type is always a `basic_big_int`
+//
+// The operands are taken by forwarding reference, so a `basic_big_int` argument
+// the caller hands over has its storage consumed and a borrowed one is only copied
+// where the reduction needs a mutable value. The big_int operand is spelled as a
+// specialization rather than a deduced parameter on purpose: every basic_big_int
+// drags namespace std into argument-dependent lookup through its allocator, so
+// `std::gcd` is always a candidate too, and only a parameter that std::gcd's plain
+// type parameter cannot deduce makes these overloads the more specialized ones.
+// Whether the other operand is admissible is left to the return type, which is
+// ill-formed for anything but the same specialization or a signed or unsigned
+// integer type.
+template <std::size_t b, class L, class A, class N>
+[[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> gcd(basic_big_int<b, L, A>&& m, N&& n) {
+    return detail::gcd_impl(std::move(m), std::forward<N>(n));
+}
+
+template <std::size_t b, class L, class A, class N>
+[[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> gcd(const basic_big_int<b, L, A>& m,
+                                                                                   N&&                           n) {
+    return detail::gcd_impl(m, std::forward<N>(n));
+}
+
+// The mirrored pair. `M` is held to an integer type so that a pair of big_ints
+// does not match both it and the overloads above.
+template <class M, std::size_t b, class L, class A>
+    requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
+[[nodiscard]] constexpr basic_big_int<b, L, A> gcd(M&& m, basic_big_int<b, L, A>&& n) {
+    return detail::gcd_impl(std::forward<M>(m), std::move(n));
+}
+
+template <class M, std::size_t b, class L, class A>
+    requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
+[[nodiscard]] constexpr basic_big_int<b, L, A> gcd(M&& m, const basic_big_int<b, L, A>& n) {
+    return detail::gcd_impl(std::forward<M>(m), n);
 }
 
 } // namespace beman::big_int
