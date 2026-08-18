@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <compare>
+#include <cstddef>
+#include <cstdint>
 #include <limits>
+#include <memory_resource>
+#include <numeric> // std::gcd: the unqualified calls below must keep resolving to ours
+#include <random>
 #include <type_traits>
 #include <utility>
 
@@ -15,8 +20,11 @@
 namespace {
 
 using beman::big_int::abs;
+using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
+using beman::big_int::gcd;
 using beman::big_int::saturating_cast;
+using beman::big_int::to_string;
 using beman::big_int::uint_multiprecision_t;
 
 // `abs` always returns a prvalue of the decayed big_int type, regardless of the
@@ -240,6 +248,393 @@ TEST(SaturatingCast, LargeHeapValueInRange) {
     // ...but the same value overflows a signed long long and clamps.
     EXPECT_EQ(saturating_cast<long long>(big_unsigned), std::numeric_limits<long long>::max());
 }
+
+// ============================================================================
+// gcd
+// ============================================================================
+
+// The result is the common big_int type, whichever side the big_int sits on.
+static_assert(std::is_same_v<decltype(gcd(std::declval<big_int>(), std::declval<big_int>())), big_int>);
+static_assert(std::is_same_v<decltype(gcd(std::declval<const big_int&>(), std::declval<int>())), big_int>);
+static_assert(std::is_same_v<decltype(gcd(std::declval<unsigned long long>(), std::declval<big_int&>())), big_int>);
+
+// At least one argument must be a basic_big_int, and the other must be either the
+// same specialization or a signed or unsigned integer type. Everything else is
+// rejected without a hard error: bool, character types, floating-point types,
+// two built-in integers (which are `std::gcd`'s business), and two unrelated
+// basic_big_int specializations.
+template <class M, class N>
+concept has_gcd = requires(M m, N n) { gcd(m, n); };
+static_assert(has_gcd<big_int, big_int>);
+static_assert(has_gcd<big_int, int>);
+static_assert(has_gcd<int, big_int>);
+static_assert(has_gcd<big_int, unsigned long long>);
+static_assert(has_gcd<const big_int&, short>);
+static_assert(!has_gcd<big_int, bool>);
+static_assert(!has_gcd<big_int, char>);
+static_assert(!has_gcd<big_int, double>);
+static_assert(!has_gcd<int, long>);
+static_assert(!has_gcd<big_int, beman::big_int::pmr::big_int>);
+
+// The function is usable in a constant expression, for in-place values and for
+// multi-limb values whose reduction allocates.
+static_assert(gcd(big_int{12}, big_int{18}) == 6);
+static_assert(gcd(big_int{12}, 18) == 6);
+static_assert(gcd(-12, big_int{18}) == 6);
+static_assert(gcd(big_int{7}, big_int{13}) == 1);
+static_assert(gcd(big_int{0}, big_int{0}) == 0);
+static_assert(gcd(big_int{0}, big_int{-7}) == 7);
+static_assert(gcd(big_int{1} << 200, big_int{1} << 120) == big_int{1} << 120);
+static_assert(gcd(((big_int{1} << 400) - 1) * 3, ((big_int{1} << 400) - 1) * 5) == (big_int{1} << 400) - 1);
+
+namespace adl_probe {
+// `std::gcd` is visible here through <numeric>, and every basic_big_int drags
+// namespace std into argument-dependent lookup through its allocator, so an
+// unqualified call finds both. Ours is the more constrained overload and wins;
+// this pins that down.
+constexpr bool resolves_unqualified() { return gcd(beman::big_int::big_int{270}, 192) == 6; }
+} // namespace adl_probe
+static_assert(adl_probe::resolves_unqualified());
+
+// Euclid's algorithm over the (separately tested) division operator, used as an
+// independent reference for the property tests below.
+[[nodiscard]] big_int euclid_gcd(big_int a, big_int b) {
+    a = abs(std::move(a));
+    b = abs(std::move(b));
+    while (b != 0) {
+        big_int r = a % b;
+        a         = std::move(b);
+        b         = std::move(r);
+    }
+    return a;
+}
+
+// A value with exactly `bits` bits, reproducible across runs.
+[[nodiscard]] big_int random_value(std::mt19937_64& rng, const std::size_t bits) {
+    big_int v{0};
+    for (std::size_t produced = 0; produced < bits; produced += 32) {
+        v = (v << 32) | big_int{static_cast<std::uint32_t>(rng())};
+    }
+    return (v >> (((bits + 31) / 32) * 32 - bits)) | (big_int{1} << (bits - 1));
+}
+
+TEST(Gcd, SmallValues) {
+    EXPECT_EQ(gcd(big_int{12}, big_int{18}), 6);
+    EXPECT_EQ(gcd(big_int{18}, big_int{12}), 6);
+    EXPECT_EQ(gcd(big_int{270}, big_int{192}), 6);
+    EXPECT_EQ(gcd(big_int{7}, big_int{13}), 1);
+    EXPECT_EQ(gcd(big_int{1071}, big_int{462}), 21);
+    EXPECT_EQ(gcd(big_int{std::numeric_limits<uint_multiprecision_t>::max()},
+                  big_int{std::numeric_limits<uint_multiprecision_t>::max()}),
+              std::numeric_limits<uint_multiprecision_t>::max());
+}
+
+TEST(Gcd, ZeroAndOne) {
+    // gcd(x, 0) is |x|, which makes gcd(0, 0) zero.
+    EXPECT_EQ(gcd(big_int{0}, big_int{0}), 0);
+    EXPECT_EQ(gcd(big_int{0}, big_int{42}), 42);
+    EXPECT_EQ(gcd(big_int{42}, big_int{0}), 42);
+    EXPECT_EQ(gcd(big_int{-42}, big_int{0}), 42);
+    EXPECT_EQ(gcd(big_int{0}, big_int{1} << 200), big_int{1} << 200);
+    EXPECT_EQ(gcd(-(big_int{1} << 200), big_int{0}), big_int{1} << 200);
+
+    // One is coprime to everything.
+    EXPECT_EQ(gcd(big_int{1}, big_int{0}), 1);
+    EXPECT_EQ(gcd(big_int{1}, big_int{1} << 200), 1);
+    EXPECT_EQ(gcd((big_int{1} << 200) + 1, big_int{1}), 1);
+}
+
+TEST(Gcd, NegativeOperands) {
+    // The result is the gcd of the magnitudes, so it is never negative.
+    EXPECT_EQ(gcd(big_int{-12}, big_int{18}), 6);
+    EXPECT_EQ(gcd(big_int{12}, big_int{-18}), 6);
+    EXPECT_EQ(gcd(big_int{-12}, big_int{-18}), 6);
+    EXPECT_EQ((gcd(big_int{-12}, big_int{-18}) <=> 0), std::strong_ordering::greater);
+
+    const big_int large = (big_int{1} << 200) * 6;
+    EXPECT_EQ(gcd(-large, large), large);
+    EXPECT_EQ(gcd(-large, -large), large);
+    EXPECT_EQ(gcd(-large, big_int{1} << 200), big_int{1} << 200);
+}
+
+TEST(Gcd, Symmetric) {
+    std::mt19937_64 rng{7};
+    for (const std::size_t bits : {31U, 64U, 130U, 400U, 1500U}) {
+        const big_int a = random_value(rng, bits);
+        const big_int b = random_value(rng, bits + 17);
+        EXPECT_EQ(gcd(a, b), gcd(b, a)) << "bits=" << bits;
+        EXPECT_EQ(gcd(a, -b), gcd(-b, a)) << "bits=" << bits;
+    }
+}
+
+TEST(Gcd, MixedIntegerTypes) {
+    const big_int x{462};
+
+    EXPECT_EQ(gcd(x, 1071), 21);
+    EXPECT_EQ(gcd(1071, x), 21);
+    EXPECT_EQ(gcd(x, -1071), 21);
+    EXPECT_EQ(gcd(x, 1071U), 21);
+    EXPECT_EQ(gcd(x, static_cast<short>(1071)), 21);
+    EXPECT_EQ(gcd(x, 1071LL), 21);
+    EXPECT_EQ(gcd(x, 1071ULL), 21);
+    EXPECT_EQ(gcd(std::numeric_limits<long long>::min(), big_int{1} << 70), big_int{1} << 63);
+
+    // A built-in operand also works against a value far outside its own range.
+    const big_int huge = (big_int{1} << 300) * 15;
+    EXPECT_EQ(gcd(huge, 35), 5);
+    EXPECT_EQ(gcd(35, huge), 5);
+    EXPECT_EQ(gcd(huge, 0), huge);
+    EXPECT_EQ(gcd(0, huge), huge);
+}
+
+TEST(Gcd, LargeCommonFactor) {
+    const big_int factor = (big_int{1} << 130) + 12345;
+    const big_int a      = factor * ((big_int{1} << 200) + 7);
+    const big_int b      = factor * ((big_int{1} << 190) + 11);
+    ASSERT_FALSE(is_inplace(a));
+
+    const big_int g = gcd(a, b);
+    EXPECT_EQ(g % factor, 0);
+    EXPECT_EQ(a % g, 0);
+    EXPECT_EQ(b % g, 0);
+    EXPECT_EQ(g, euclid_gcd(a, b));
+}
+
+TEST(Gcd, PowersOfTwo) {
+    EXPECT_EQ(gcd(big_int{1} << 300, big_int{1} << 300), big_int{1} << 300);
+    EXPECT_EQ(gcd(big_int{1} << 300, big_int{1} << 64), big_int{1} << 64);
+    EXPECT_EQ(gcd(big_int{1} << 64, big_int{1} << 300), big_int{1} << 64);
+    EXPECT_EQ(gcd(big_int{1} << 300, big_int{1}), 1);
+
+    // An odd operand strips every factor of two from the other one.
+    EXPECT_EQ(gcd(big_int{1} << 300, big_int{3}), 1);
+    EXPECT_EQ(gcd((big_int{1} << 300) * 3, big_int{12}), 12);
+}
+
+TEST(Gcd, Mersenne) {
+    // gcd(2^a - 1, 2^b - 1) == 2^gcd(a, b) - 1.
+    const auto mersenne = [](const unsigned e) { return (big_int{1} << e) - 1; };
+    for (const unsigned a : {6U, 12U, 64U, 127U, 300U}) {
+        for (const unsigned b : {4U, 9U, 65U, 128U, 210U}) {
+            EXPECT_EQ(gcd(mersenne(a), mersenne(b)), mersenne(std::gcd(a, b))) << "a=" << a << " b=" << b;
+        }
+    }
+}
+
+TEST(Gcd, UnbalancedSizes) {
+    // A wide gap between the operand sizes is closed with division before the
+    // reduction proper; the result must not depend on that shortcut.
+    std::mt19937_64 rng{11};
+    for (const std::size_t wide_bits : {600U, 4096U}) {
+        for (const std::size_t narrow_bits : {2U, 64U, 65U, 200U}) {
+            const big_int wide_value   = random_value(rng, wide_bits);
+            const big_int narrow_value = random_value(rng, narrow_bits);
+            EXPECT_EQ(gcd(wide_value, narrow_value), euclid_gcd(wide_value, narrow_value))
+                << "wide=" << wide_bits << " narrow=" << narrow_bits;
+            EXPECT_EQ(gcd(narrow_value, wide_value), euclid_gcd(wide_value, narrow_value))
+                << "wide=" << wide_bits << " narrow=" << narrow_bits;
+        }
+    }
+}
+
+TEST(Gcd, Fibonacci) {
+    // Consecutive Fibonacci numbers are the worst case for a Euclidean
+    // reduction: every quotient is one, so the step count is maximal.
+    big_int previous{1};
+    big_int current{1};
+    for (int i = 0; i < 500; ++i) {
+        big_int next = previous + current;
+        previous     = std::move(current);
+        current      = std::move(next);
+    }
+    EXPECT_EQ(gcd(current, previous), 1);
+    EXPECT_EQ(gcd(current * 30, previous * 30), 30);
+    EXPECT_EQ(gcd(current, current), current);
+}
+
+TEST(Gcd, RandomAgainstEuclid) {
+    std::mt19937_64       rng{42};
+    constexpr std::size_t widths[] = {1, 32, 63, 64, 65, 128, 193, 256, 512, 1024};
+    for (const std::size_t a_bits : widths) {
+        for (const std::size_t b_bits : widths) {
+            for (int trial = 0; trial < 2; ++trial) {
+                big_int a = random_value(rng, a_bits);
+                big_int b = random_value(rng, b_bits);
+                if ((trial & 1) != 0) {
+                    a = -a;
+                }
+                if ((trial & 2) != 0) {
+                    b = -b;
+                }
+                ASSERT_EQ(gcd(a, b), euclid_gcd(a, b))
+                    << "a_bits=" << a_bits << " b_bits=" << b_bits << " trial=" << trial;
+            }
+        }
+    }
+}
+
+TEST(Gcd, DividesBothOperandsExactly) {
+    std::mt19937_64 rng{99};
+    for (const std::size_t bits : {70U, 256U, 1000U}) {
+        const big_int common = random_value(rng, bits / 2) * 6;
+        const big_int a      = common * random_value(rng, bits);
+        const big_int b      = common * random_value(rng, bits + 5);
+
+        const big_int g = gcd(a, b);
+        ASSERT_NE(g, 0);
+        EXPECT_EQ(a % g, 0) << "bits=" << bits;
+        EXPECT_EQ(b % g, 0) << "bits=" << bits;
+        EXPECT_EQ(g % common, 0) << "bits=" << bits;
+        // Dividing out the gcd leaves coprime cofactors.
+        EXPECT_EQ(gcd(a / g, b / g), 1) << "bits=" << bits;
+    }
+}
+
+TEST(Gcd, ArgumentsUnchanged) {
+    // The arguments are taken by value, so lvalues are left alone.
+    big_int       a      = (big_int{1} << 200) * 12;
+    big_int       b      = (big_int{1} << 190) * 18;
+    const big_int a_copy = a;
+    const big_int b_copy = b;
+
+    const big_int g = gcd(a, b);
+
+    EXPECT_EQ(g, (big_int{1} << 190) * 6);
+    EXPECT_EQ(a, a_copy);
+    EXPECT_EQ(b, b_copy);
+}
+
+TEST(Gcd, RvalueOperands) {
+    // An rvalue hands its storage to the reduction; the result is the same.
+    EXPECT_EQ(gcd((big_int{1} << 200) * 12, (big_int{1} << 190) * 18), (big_int{1} << 190) * 6);
+    EXPECT_EQ(gcd(big_int{1} << 200, 48), 16); // 48 == 2^4 * 3, and 2^200 has no factor of three
+
+    big_int moved_from = (big_int{1} << 200) * 462;
+    EXPECT_EQ(gcd(std::move(moved_from), 1071 * 2), 42);
+}
+
+TEST(Gcd, SmallResultFitsInPlace) {
+    // A result that fits the small-object buffer is not left on the heap, even
+    // when the operands were.
+    const big_int a = (big_int{1} << 300) * 21;
+    const big_int b = (big_int{1} << 4) * 35;
+    ASSERT_FALSE(is_inplace(a));
+
+    const big_int g = gcd(a, b);
+
+    EXPECT_EQ(g, 7 * 16);
+    EXPECT_TRUE(is_inplace(g));
+}
+
+TEST(Gcd, LargerInplaceBuffer) {
+    // A specialization whose small-object buffer spans several limbs exercises
+    // the reduction against in-place rather than heap storage.
+    using wide_big_int = basic_big_int<256>;
+    const wide_big_int a{(big_int{1} << 150) * 12};
+    const wide_big_int b{(big_int{1} << 140) * 18};
+    ASSERT_TRUE(is_inplace(a));
+
+    const wide_big_int g = gcd(a, b);
+
+    EXPECT_EQ(g, wide_big_int{(big_int{1} << 140) * 6});
+    EXPECT_EQ(gcd(a, 48), wide_big_int{48});
+    EXPECT_EQ(gcd(a, a), a);
+    EXPECT_EQ(static_cast<std::uint64_t>(gcd(a, wide_big_int{48})), 48U);
+    EXPECT_EQ(to_string(gcd(a, wide_big_int{48})), "48");
+
+    // Two multi-limb operands whose gcd is one: the reduction runs over the
+    // in-place buffers and the result shrinks back to a single limb, which must
+    // convert and print as itself.
+    const wide_big_int coprime_lhs{(big_int{1} << 150) + 1};
+    const wide_big_int coprime_rhs{(big_int{1} << 150) + 3};
+    ASSERT_TRUE(is_inplace(coprime_lhs));
+    ASSERT_GT(coprime_lhs.representation().size(), 1U);
+
+    const wide_big_int one = gcd(coprime_lhs, coprime_rhs);
+
+    EXPECT_EQ(one, wide_big_int{1});
+    EXPECT_EQ(one.representation().size(), 1U);
+    EXPECT_EQ(static_cast<std::uint64_t>(one), 1U);
+    EXPECT_EQ(to_string(one), "1");
+}
+
+// Counts allocations so a test can pin down which calls allocate.
+class counting_resource final : public std::pmr::memory_resource {
+  public:
+    [[nodiscard]] std::size_t allocations() const noexcept { return m_allocations; }
+
+  private:
+    void* do_allocate(std::size_t bytes, std::size_t alignment) override {
+        ++m_allocations;
+        return std::pmr::new_delete_resource()->allocate(bytes, alignment);
+    }
+    void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
+        std::pmr::new_delete_resource()->deallocate(p, bytes, alignment);
+    }
+    [[nodiscard]] bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
+        return this == &other;
+    }
+
+    std::size_t m_allocations{0};
+};
+
+TEST(Gcd, BorrowedOperandsAreNotCopied) {
+    // The operands are forwarding references, so a call that needs no mutable copy
+    // of either one -- every path where a magnitude fits a single limb -- allocates
+    // nothing at all, however wide the borrowed operand is.
+    using pmr_big_int = beman::big_int::pmr::big_int;
+    counting_resource resource;
+    const pmr_big_int wide{(big_int{1} << 4096) * 21, &resource};
+    const pmr_big_int narrow{35, &resource};
+    ASSERT_FALSE(is_inplace(wide));
+
+    const std::size_t before = resource.allocations();
+    EXPECT_EQ(gcd(wide, narrow), pmr_big_int{7});
+    EXPECT_EQ(gcd(wide, 35), pmr_big_int{7});
+    EXPECT_EQ(gcd(35, wide), pmr_big_int{7});
+    EXPECT_EQ(resource.allocations(), before);
+
+    // Handing an operand over still works, and the result carries its value.
+    pmr_big_int handed_over{(big_int{1} << 4096) * 21, &resource};
+    EXPECT_EQ(gcd(std::move(handed_over), narrow), pmr_big_int{7});
+}
+
+TEST(Gcd, PmrOperands) {
+    using pmr_big_int = beman::big_int::pmr::big_int;
+    std::pmr::monotonic_buffer_resource resource;
+    const pmr_big_int                   a{(big_int{1} << 300) * 12, &resource};
+    const pmr_big_int                   b{(big_int{1} << 290) * 18, &resource};
+
+    const pmr_big_int g = gcd(a, b);
+
+    EXPECT_EQ(g, pmr_big_int{(big_int{1} << 290) * 6});
+    EXPECT_EQ(g.get_allocator().resource(), &resource);
+    EXPECT_EQ(gcd(a, 42), pmr_big_int{6});
+}
+
+TEST(Gcd, CallableFullyQualified) {
+    // Reachable both through the using-declaration above (and ADL) and when
+    // named explicitly through its namespace.
+    EXPECT_EQ(beman::big_int::gcd(big_int{270}, 192), 6);
+}
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+TEST(Gcd, BitPreciseIntegers) {
+    // Bit-precise operands go through the same path as the standard integer types.
+    using u12 = bit_uint<12>;
+
+    EXPECT_EQ(gcd(big_int{462}, static_cast<u12>(1071)), 21);
+    EXPECT_EQ(gcd(static_cast<u12>(1071), big_int{462}), 21);
+    EXPECT_EQ(gcd((big_int{1} << 300) * 15, static_cast<u12>(35)), 5);
+
+    #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 96
+    // An operand wider than a limb is spelled out into limbs before the reduction.
+    using s96 = bit_int<96>;
+    EXPECT_EQ(gcd((big_int{1} << 300) * 15, static_cast<s96>(-35)), 5);
+    EXPECT_EQ(gcd(big_int{1} << 300, static_cast<s96>(1) << 80), big_int{1} << 80);
+    #endif
+}
+#endif
 
 #ifdef BEMAN_BIG_INT_HAS_BITINT
 TEST(SaturatingCast, BitPreciseIntegers) {

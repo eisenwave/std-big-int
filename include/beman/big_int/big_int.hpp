@@ -263,6 +263,13 @@ template <class T>
     requires detail::is_basic_big_int_v<T>
 constexpr std::remove_cvref_t<T> abs(T&& x);
 
+// `gcd` itself is a set of overloads in <beman/big_int/numeric.hpp>; they all run
+// through this driver, which is the one that needs the representation.
+namespace detail {
+template <class M, class N>
+constexpr common_big_int_type<M, N> gcd_impl(M&& m, N&& n);
+} // namespace detail
+
 // [big.int.class], class template basic_big_int
 template <std::size_t min_inplace_bits, class Limb, class Allocator>
 class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
@@ -559,6 +566,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <class T>
         requires detail::is_basic_big_int_v<T>
     friend constexpr std::remove_cvref_t<T> abs(T&& x);
+
+    template <class M, class N>
+    friend constexpr detail::common_big_int_type<M, N> detail::gcd_impl(M&& m, N&& n);
 
   private:
     template <detail::unsigned_integer T>

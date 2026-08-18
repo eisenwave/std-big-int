@@ -80,35 +80,6 @@ static_assert(std::has_single_bit(fast_input_basecase_chunks),
               "leaf groups must tile the ladder's power-of-two strides");
 
 // ---------------------------------------------------------------------------
-// s.first(size) <- s.first(size) * mul + add, in place (the GMP mpn_mul_1 +
-// add fusion the Horner basecase folds with). `mul` must be non-zero, so the
-// value never shrinks and a trimmed value stays trimmed; `s` must allow one
-// limb of growth whenever the result needs it. Returns the new size.
-// ---------------------------------------------------------------------------
-[[nodiscard]] constexpr std::size_t mul_add_single_limb_in_place(const std::span<uint_multiprecision_t> s,
-                                                                 const std::size_t                      size,
-                                                                 const uint_multiprecision_t            mul,
-                                                                 const uint_multiprecision_t            add) noexcept {
-    BEMAN_BIG_INT_DEBUG_ASSERT(size >= 1);
-    BEMAN_BIG_INT_DEBUG_ASSERT(size <= s.size());
-    BEMAN_BIG_INT_DEBUG_ASSERT(mul != 0);
-
-    uint_multiprecision_t carry = add;
-    for (std::size_t i = 0; i < size; ++i) {
-        const auto [lo, hi]              = widening_mul(s[i], mul);
-        const uint_multiprecision_t next = lo + carry;
-        carry                            = hi + static_cast<uint_multiprecision_t>(next < lo);
-        s[i]                             = next;
-    }
-    if (carry == 0) {
-        return size;
-    }
-    BEMAN_BIG_INT_DEBUG_ASSERT(size < s.size());
-    s[size] = carry;
-    return size + 1;
-}
-
-// ---------------------------------------------------------------------------
 // Quadratic basecase: packs the digit run into chunks (top chunk short) and
 // folds them MSD-first via acc = acc * big_base + chunk. `acc` must hold
 // base_conversion_chunk_count(digits.size(), base) limbs; only the returned

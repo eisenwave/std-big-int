@@ -54,4 +54,6 @@
 |===
 | Function | Description
 | xref:numeric.adoc#numeric_abs[`abs`] | Returns the absolute value (magnitude) of a `basic_big_int`
+| xref:numeric.adoc#numeric_saturating_cast[`saturating_cast`] | Converts a `basic_big_int` to a built-in integer type, clamping to its range
+| xref:numeric.adoc#numeric_gcd[`gcd`] | Returns the greatest common divisor of two integers, at least one of them a `basic_big_int`
 |===

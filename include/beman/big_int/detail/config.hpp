@@ -136,6 +136,13 @@ using bit_uint = unsigned _BitInt(N);
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH 0
 #endif // BITINT_MAXWIDTH
 
+// Workaround for Clang-19 ICE past 128 bits, even though it reports far more than that
+// Crashes in EmitAutoVarInit; fixed in Clang 20 by https://github.com/llvm/llvm-project/pull/112218
+#if defined(__clang__) && __clang_major__ == 19 && BEMAN_BIG_INT_BITINT_MAXWIDTH > 128
+    #undef BEMAN_BIG_INT_BITINT_MAXWIDTH
+    #define BEMAN_BIG_INT_BITINT_MAXWIDTH 128
+#endif
+
 // 32-bit/64-bit ===============================================================
 
 #include <cstdint>

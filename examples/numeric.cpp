@@ -10,6 +10,7 @@ auto main() -> int {
     using namespace beman::big_int::literals;
     using beman::big_int::abs;
     using beman::big_int::big_int;
+    using beman::big_int::gcd;
     using beman::big_int::saturating_cast;
 
     // The free numeric helpers live in <beman/big_int/numeric.hpp>.
@@ -30,14 +31,28 @@ auto main() -> int {
     // 3. A value that already fits the destination type is returned exactly.
     const int exact = saturating_cast<int>(12345_n);
 
+    // 4. gcd works on any mix of big_int and built-in integer arguments, and
+    //    always returns a non-negative result.
+    const big_int lhs = 1071_n * (1_n << 128);
+    const big_int rhs = 462_n * (1_n << 120);
+
+    const big_int divisor = gcd(lhs, rhs);  // 21 * 2^121: the common odd factor times the common power of two
+    const big_int mixed   = gcd(lhs, -462); // signs are ignored
+    // Dividing both operands by their gcd leaves them coprime.
+    const big_int coprime = gcd(lhs / divisor, rhs / divisor);
+
     const bool result_is_ok = magnitude == (1_n << 127) && clamped_hi == std::numeric_limits<int>::max() &&
-                              clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345;
+                              clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345 &&
+                              divisor == 21_n * (1_n << 121) && mixed == 42 && coprime == 1;
 
     std::cout << "magnitude:   " << to_string(magnitude) << "\n"
               << "clamped_hi:  " << clamped_hi << "\n"
               << "clamped_lo:  " << clamped_lo << "\n"
               << "clamped_neg: " << clamped_neg << "\n"
-              << "exact:       " << exact << "\n\n"
+              << "exact:       " << exact << "\n"
+              << "divisor:     " << to_string(divisor) << "\n"
+              << "mixed:       " << to_string(mixed) << "\n"
+              << "coprime:     " << to_string(coprime) << "\n\n"
               << "result_is_ok: " << std::boolalpha << result_is_ok << std::endl;
 
     return result_is_ok ? 0 : -1;
