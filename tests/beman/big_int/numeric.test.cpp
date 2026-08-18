@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory_resource>
-#include <numeric> // std::gcd: the unqualified calls below must keep resolving to ours
+#include <numeric> // std::gcd/std::lcm: the unqualified calls below must keep resolving to ours
 #include <random>
 #include <type_traits>
 #include <utility>
@@ -23,6 +23,7 @@ using beman::big_int::abs;
 using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
 using beman::big_int::gcd;
+using beman::big_int::lcm;
 using beman::big_int::saturating_cast;
 using beman::big_int::to_string;
 using beman::big_int::uint_multiprecision_t;
@@ -632,6 +633,367 @@ TEST(Gcd, BitPreciseIntegers) {
     using s96 = bit_int<96>;
     EXPECT_EQ(gcd((big_int{1} << 300) * 15, static_cast<s96>(-35)), 5);
     EXPECT_EQ(gcd(big_int{1} << 300, static_cast<s96>(1) << 80), big_int{1} << 80);
+    #endif
+}
+#endif
+
+// ============================================================================
+// lcm
+// ============================================================================
+
+// The result is the common big_int type, whichever side the big_int sits on.
+static_assert(std::is_same_v<decltype(lcm(std::declval<big_int>(), std::declval<big_int>())), big_int>);
+static_assert(std::is_same_v<decltype(lcm(std::declval<const big_int&>(), std::declval<int>())), big_int>);
+static_assert(std::is_same_v<decltype(lcm(std::declval<unsigned long long>(), std::declval<big_int&>())), big_int>);
+
+// The admissible operand pairs are exactly `gcd`'s: at least one basic_big_int,
+// and the other either the same specialization or a signed or unsigned integer
+// type. Everything else drops out of overload resolution without a hard error.
+template <class M, class N>
+concept has_lcm = requires(M m, N n) { lcm(m, n); };
+static_assert(has_lcm<big_int, big_int>);
+static_assert(has_lcm<big_int, int>);
+static_assert(has_lcm<int, big_int>);
+static_assert(has_lcm<big_int, unsigned long long>);
+static_assert(has_lcm<const big_int&, short>);
+static_assert(!has_lcm<big_int, bool>);
+static_assert(!has_lcm<big_int, char>);
+static_assert(!has_lcm<big_int, double>);
+static_assert(!has_lcm<int, long>);
+static_assert(!has_lcm<big_int, beman::big_int::pmr::big_int>);
+
+// The function is usable in a constant expression, for in-place values and for
+// multi-limb values whose computation allocates.
+static_assert(lcm(big_int{4}, big_int{6}) == 12);
+static_assert(lcm(big_int{4}, 6) == 12);
+static_assert(lcm(-4, big_int{6}) == 12);
+static_assert(lcm(big_int{7}, big_int{13}) == 91);
+static_assert(lcm(big_int{0}, big_int{0}) == 0);
+static_assert(lcm(big_int{0}, big_int{-7}) == 0);
+static_assert(lcm(big_int{1} << 200, big_int{1} << 120) == big_int{1} << 200);
+static_assert(lcm((big_int{1} << 400) - 1, ((big_int{1} << 400) - 1) * 3) == ((big_int{1} << 400) - 1) * 3);
+
+namespace lcm_adl_probe {
+// `std::lcm` is visible here through <numeric>, and every basic_big_int drags
+// namespace std into argument-dependent lookup through its allocator, so an
+// unqualified call finds both. Ours is the more constrained overload and wins;
+// this pins that down.
+constexpr bool resolves_unqualified() { return lcm(beman::big_int::big_int{270}, 192) == 8640; }
+} // namespace lcm_adl_probe
+static_assert(lcm_adl_probe::resolves_unqualified());
+
+// |a * b| / gcd(a, b) over the (separately tested) multiplication and division
+// operators, used as an independent reference for the property tests below.
+[[nodiscard]] big_int product_lcm(const big_int& a, const big_int& b) {
+    if (a == 0 || b == 0) {
+        return big_int{0};
+    }
+    return abs(a * b) / euclid_gcd(a, b);
+}
+
+TEST(Lcm, SmallValues) {
+    EXPECT_EQ(lcm(big_int{4}, big_int{6}), 12);
+    EXPECT_EQ(lcm(big_int{6}, big_int{4}), 12);
+    EXPECT_EQ(lcm(big_int{270}, big_int{192}), 8640);
+    EXPECT_EQ(lcm(big_int{7}, big_int{13}), 91);
+    EXPECT_EQ(lcm(big_int{1071}, big_int{462}), 23562);
+    EXPECT_EQ(lcm(big_int{12}, big_int{12}), 12);
+    // A product that overflows a limb is exactly where a fixed-width lcm would
+    // have to give up.
+    const auto limb_max = std::numeric_limits<uint_multiprecision_t>::max();
+    EXPECT_EQ(lcm(big_int{limb_max}, big_int{limb_max}), limb_max);
+    EXPECT_EQ(lcm(big_int{limb_max}, big_int{2}), big_int{limb_max} * 2);
+}
+
+TEST(Lcm, ZeroAndOne) {
+    // Zero is the only multiple that any operand has in common with zero.
+    EXPECT_EQ(lcm(big_int{0}, big_int{0}), 0);
+    EXPECT_EQ(lcm(big_int{0}, big_int{42}), 0);
+    EXPECT_EQ(lcm(big_int{42}, big_int{0}), 0);
+    EXPECT_EQ(lcm(big_int{-42}, big_int{0}), 0);
+    EXPECT_EQ(lcm(big_int{0}, big_int{1} << 200), 0);
+    EXPECT_EQ(lcm(-(big_int{1} << 200), big_int{0}), 0);
+
+    // One is a divisor of everything, so it never enlarges the other operand.
+    EXPECT_EQ(lcm(big_int{1}, big_int{0}), 0);
+    EXPECT_EQ(lcm(big_int{1}, big_int{1} << 200), big_int{1} << 200);
+    EXPECT_EQ(lcm((big_int{1} << 200) + 1, big_int{1}), (big_int{1} << 200) + 1);
+}
+
+TEST(Lcm, NegativeOperands) {
+    // The result is the lcm of the magnitudes, so it is never negative.
+    EXPECT_EQ(lcm(big_int{-4}, big_int{6}), 12);
+    EXPECT_EQ(lcm(big_int{4}, big_int{-6}), 12);
+    EXPECT_EQ(lcm(big_int{-4}, big_int{-6}), 12);
+    EXPECT_EQ((lcm(big_int{-4}, big_int{-6}) <=> 0), std::strong_ordering::greater);
+
+    const big_int large = (big_int{1} << 200) * 6;
+    EXPECT_EQ(lcm(-large, large), large);
+    EXPECT_EQ(lcm(-large, -large), large);
+    EXPECT_EQ(lcm(-large, big_int{1} << 200), large);
+}
+
+TEST(Lcm, Symmetric) {
+    std::mt19937_64 rng{7};
+    for (const std::size_t bits : {31U, 64U, 130U, 400U, 1500U}) {
+        const big_int a = random_value(rng, bits);
+        const big_int b = random_value(rng, bits + 17);
+        EXPECT_EQ(lcm(a, b), lcm(b, a)) << "bits=" << bits;
+        EXPECT_EQ(lcm(a, -b), lcm(-b, a)) << "bits=" << bits;
+    }
+}
+
+TEST(Lcm, MixedIntegerTypes) {
+    const big_int x{462};
+
+    EXPECT_EQ(lcm(x, 1071), 23562);
+    EXPECT_EQ(lcm(1071, x), 23562);
+    EXPECT_EQ(lcm(x, -1071), 23562);
+    EXPECT_EQ(lcm(x, 1071U), 23562);
+    EXPECT_EQ(lcm(x, static_cast<short>(1071)), 23562);
+    EXPECT_EQ(lcm(x, 1071LL), 23562);
+    EXPECT_EQ(lcm(x, 1071ULL), 23562);
+    // The magnitude of the most negative value of a type is not representable in
+    // that type, but it is in the result.
+    EXPECT_EQ(lcm(std::numeric_limits<long long>::min(), big_int{1} << 70), big_int{1} << 70);
+
+    // A built-in operand also works against a value far outside its own range.
+    const big_int huge = (big_int{1} << 300) * 15;
+    EXPECT_EQ(lcm(huge, 35), huge * 7);
+    EXPECT_EQ(lcm(35, huge), huge * 7);
+    EXPECT_EQ(lcm(huge, 0), 0);
+    EXPECT_EQ(lcm(0, huge), 0);
+}
+
+TEST(Lcm, MultipleOfBothOperands) {
+    const big_int factor = (big_int{1} << 130) + 12345;
+    const big_int a      = factor * ((big_int{1} << 200) + 7);
+    const big_int b      = factor * ((big_int{1} << 190) + 11);
+    ASSERT_FALSE(is_inplace(a));
+
+    const big_int l = lcm(a, b);
+
+    EXPECT_EQ(l % a, 0);
+    EXPECT_EQ(l % b, 0);
+    EXPECT_EQ(l, product_lcm(a, b));
+    // gcd and lcm split the product of the operands between them.
+    EXPECT_EQ(gcd(a, b) * l, a * b);
+}
+
+TEST(Lcm, DivisorAndMultiplePairs) {
+    // Where one operand divides the other, the larger one is already the least
+    // common multiple.
+    EXPECT_EQ(lcm(big_int{1} << 300, big_int{1} << 300), big_int{1} << 300);
+    EXPECT_EQ(lcm(big_int{1} << 300, big_int{1} << 64), big_int{1} << 300);
+    EXPECT_EQ(lcm(big_int{1} << 64, big_int{1} << 300), big_int{1} << 300);
+    EXPECT_EQ(lcm(big_int{1} << 300, big_int{1}), big_int{1} << 300);
+
+    // Coprime operands multiply out in full; an operand that divides the other
+    // adds nothing to it.
+    EXPECT_EQ(lcm(big_int{1} << 300, big_int{3}), (big_int{1} << 300) * 3);
+    EXPECT_EQ(lcm((big_int{1} << 300) * 3, big_int{12}), (big_int{1} << 300) * 3);
+}
+
+TEST(Lcm, Mersenne) {
+    // gcd(2^a - 1, 2^b - 1) == 2^gcd(a, b) - 1, so the lcm is the product with
+    // that factor divided out once.
+    const auto mersenne = [](const unsigned e) { return (big_int{1} << e) - 1; };
+    for (const unsigned a : {6U, 12U, 64U, 127U, 300U}) {
+        for (const unsigned b : {4U, 9U, 65U, 128U, 210U}) {
+            EXPECT_EQ(lcm(mersenne(a), mersenne(b)), mersenne(a) * mersenne(b) / mersenne(std::gcd(a, b)))
+                << "a=" << a << " b=" << b;
+        }
+    }
+}
+
+TEST(Lcm, UnbalancedSizes) {
+    // The operand with fewer limbs is the one that gets divided; the result must
+    // not depend on which side it was passed as.
+    std::mt19937_64 rng{11};
+    for (const std::size_t wide_bits : {600U, 4096U}) {
+        for (const std::size_t narrow_bits : {2U, 64U, 65U, 200U}) {
+            const big_int wide_value   = random_value(rng, wide_bits);
+            const big_int narrow_value = random_value(rng, narrow_bits);
+            EXPECT_EQ(lcm(wide_value, narrow_value), product_lcm(wide_value, narrow_value))
+                << "wide=" << wide_bits << " narrow=" << narrow_bits;
+            EXPECT_EQ(lcm(narrow_value, wide_value), product_lcm(wide_value, narrow_value))
+                << "wide=" << wide_bits << " narrow=" << narrow_bits;
+        }
+    }
+}
+
+TEST(Lcm, Fibonacci) {
+    // Consecutive Fibonacci numbers are coprime, so their lcm is their product.
+    big_int previous{1};
+    big_int current{1};
+    for (int i = 0; i < 500; ++i) {
+        big_int next = previous + current;
+        previous     = std::move(current);
+        current      = std::move(next);
+    }
+    EXPECT_EQ(lcm(current, previous), current * previous);
+    EXPECT_EQ(lcm(current * 30, previous * 30), current * previous * 30);
+    EXPECT_EQ(lcm(current, current), current);
+}
+
+TEST(Lcm, RandomAgainstProduct) {
+    std::mt19937_64       rng{42};
+    constexpr std::size_t widths[] = {1, 32, 63, 64, 65, 128, 193, 256, 512, 1024};
+    for (const std::size_t a_bits : widths) {
+        for (const std::size_t b_bits : widths) {
+            for (int trial = 0; trial < 2; ++trial) {
+                big_int a = random_value(rng, a_bits);
+                big_int b = random_value(rng, b_bits);
+                if ((trial & 1) != 0) {
+                    a = -a;
+                }
+                if ((trial & 2) != 0) {
+                    b = -b;
+                }
+                ASSERT_EQ(lcm(a, b), product_lcm(a, b))
+                    << "a_bits=" << a_bits << " b_bits=" << b_bits << " trial=" << trial;
+            }
+        }
+    }
+}
+
+TEST(Lcm, IsLeastCommonMultiple) {
+    std::mt19937_64 rng{99};
+    for (const std::size_t bits : {70U, 256U, 1000U}) {
+        const big_int common = random_value(rng, bits / 2) * 6;
+        const big_int a      = common * random_value(rng, bits);
+        const big_int b      = common * random_value(rng, bits + 5);
+
+        const big_int l = lcm(a, b);
+        ASSERT_NE(l, 0);
+        EXPECT_EQ(l % a, 0) << "bits=" << bits;
+        EXPECT_EQ(l % b, 0) << "bits=" << bits;
+        // Least: dividing out one operand leaves the other's cofactor, and those
+        // two cofactors are coprime.
+        EXPECT_EQ(gcd(l / a, l / b), 1) << "bits=" << bits;
+        EXPECT_EQ(l * gcd(a, b), a * b) << "bits=" << bits;
+    }
+}
+
+TEST(Lcm, ArgumentsUnchanged) {
+    // Borrowed operands are left alone.
+    big_int       a      = (big_int{1} << 200) * 12;
+    big_int       b      = (big_int{1} << 190) * 18;
+    const big_int a_copy = a;
+    const big_int b_copy = b;
+
+    const big_int l = lcm(a, b);
+
+    EXPECT_EQ(l, (big_int{1} << 200) * 36);
+    EXPECT_EQ(a, a_copy);
+    EXPECT_EQ(b, b_copy);
+}
+
+TEST(Lcm, RvalueOperands) {
+    // An rvalue hands its storage to the division or the multiplication; the
+    // result is the same.
+    EXPECT_EQ(lcm((big_int{1} << 200) * 12, (big_int{1} << 190) * 18), (big_int{1} << 200) * 36);
+    EXPECT_EQ(lcm(big_int{1} << 200, 48), (big_int{1} << 200) * 3); // 48 == 2^4 * 3
+
+    // 2^200 * 462 and 2142 share 42, so the cofactor the lcm picks up is 51.
+    big_int moved_from = (big_int{1} << 200) * 462;
+    EXPECT_EQ(lcm(std::move(moved_from), 1071 * 2), (big_int{1} << 200) * 462 * 51);
+}
+
+TEST(Lcm, SmallResultFitsInPlace) {
+    // A result that fits the small-object buffer is not left on the heap, even
+    // when an operand was.
+    const big_int a = (big_int{1} << 300) * 21;
+    const big_int b = big_int{35};
+    ASSERT_FALSE(is_inplace(a));
+
+    EXPECT_EQ(lcm(a, b), a * 5);
+    // Both magnitudes fitting a limb is the scalar path: its result stays in the
+    // buffer whenever it fits one limb.
+    const big_int small = lcm(big_int{21}, big_int{35});
+    EXPECT_EQ(small, 105);
+    EXPECT_TRUE(is_inplace(small));
+}
+
+TEST(Lcm, LargerInplaceBuffer) {
+    // A specialization whose small-object buffer spans several limbs exercises
+    // the computation against in-place rather than heap storage.
+    using wide_big_int = basic_big_int<256>;
+    const wide_big_int a{(big_int{1} << 150) * 12};
+    const wide_big_int b{(big_int{1} << 140) * 18};
+    ASSERT_TRUE(is_inplace(a));
+
+    const wide_big_int l = lcm(a, b);
+
+    EXPECT_EQ(l, wide_big_int{(big_int{1} << 150) * 36});
+    EXPECT_EQ(lcm(a, 48), wide_big_int{(big_int{1} << 150) * 12});
+    EXPECT_EQ(lcm(a, a), a);
+    EXPECT_EQ(static_cast<std::uint64_t>(lcm(wide_big_int{21}, wide_big_int{35})), 105U);
+    EXPECT_EQ(to_string(lcm(wide_big_int{21}, wide_big_int{35})), "105");
+
+    // Two multi-limb coprime operands: the product is taken in full.
+    const wide_big_int coprime_lhs{(big_int{1} << 150) + 1};
+    const wide_big_int coprime_rhs{(big_int{1} << 150) + 3};
+    ASSERT_GT(coprime_lhs.representation().size(), 1U);
+
+    EXPECT_EQ(lcm(coprime_lhs, coprime_rhs), wide_big_int{((big_int{1} << 150) + 1) * ((big_int{1} << 150) + 3)});
+}
+
+TEST(Lcm, SingleLimbOperandsDoNotAllocate) {
+    // Both magnitudes fitting a limb is the scalar path: a result that fits a
+    // limb as well is built directly, so the call allocates nothing -- and a zero
+    // operand short-circuits before any of that.
+    using pmr_big_int = beman::big_int::pmr::big_int;
+    counting_resource resource;
+    const pmr_big_int a{21, &resource};
+    const pmr_big_int b{35, &resource};
+
+    const std::size_t before = resource.allocations();
+    EXPECT_EQ(lcm(a, b), pmr_big_int{105});
+    EXPECT_EQ(lcm(a, 35), pmr_big_int{105});
+    EXPECT_EQ(lcm(35, a), pmr_big_int{105});
+    EXPECT_EQ(lcm(a, 0), 0);
+    EXPECT_EQ(lcm(0, a), 0);
+    EXPECT_EQ(resource.allocations(), before);
+}
+
+TEST(Lcm, PmrOperands) {
+    using pmr_big_int = beman::big_int::pmr::big_int;
+    std::pmr::monotonic_buffer_resource resource;
+    const pmr_big_int                   a{(big_int{1} << 300) * 12, &resource};
+    const pmr_big_int                   b{(big_int{1} << 290) * 18, &resource};
+
+    const pmr_big_int l = lcm(a, b);
+
+    EXPECT_EQ(l, pmr_big_int{(big_int{1} << 300) * 36});
+    EXPECT_EQ(l.get_allocator().resource(), &resource);
+    EXPECT_EQ(lcm(a, 42), pmr_big_int{(big_int{1} << 300) * 84});
+    // The zero result carries the allocator of the big_int operand too.
+    const pmr_big_int zero = lcm(a, 0);
+    EXPECT_EQ(zero, 0);
+    EXPECT_EQ(zero.get_allocator().resource(), &resource);
+}
+
+TEST(Lcm, CallableFullyQualified) {
+    // Reachable both through the using-declaration above (and ADL) and when
+    // named explicitly through its namespace.
+    EXPECT_EQ(beman::big_int::lcm(big_int{270}, 192), 8640);
+}
+
+#ifdef BEMAN_BIG_INT_HAS_BITINT
+TEST(Lcm, BitPreciseIntegers) {
+    // Bit-precise operands go through the same path as the standard integer types.
+    using u12 = bit_uint<12>;
+
+    EXPECT_EQ(lcm(big_int{462}, static_cast<u12>(1071)), 23562);
+    EXPECT_EQ(lcm(static_cast<u12>(1071), big_int{462}), 23562);
+    EXPECT_EQ(lcm((big_int{1} << 300) * 15, static_cast<u12>(35)), (big_int{1} << 300) * 105);
+
+    #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 96
+    // An operand wider than a limb is spelled out into limbs first.
+    using s96 = bit_int<96>;
+    EXPECT_EQ(lcm((big_int{1} << 300) * 15, static_cast<s96>(-35)), (big_int{1} << 300) * 105);
+    EXPECT_EQ(lcm(big_int{1} << 300, static_cast<s96>(1) << 80), big_int{1} << 300);
     #endif
 }
 #endif
