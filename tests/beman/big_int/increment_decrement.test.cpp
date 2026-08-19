@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: BSL-1.0
 
 #include <compare>
+#include <cstddef>
 #include <limits>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -190,6 +192,129 @@ TEST(IncrementDecrement, BitwiseNotCanAllocate) {
     EXPECT_EQ(y, -x - 1);
     EXPECT_EQ((y <=> 0), std::strong_ordering::less);
     EXPECT_FALSE(is_inplace(y));
+}
+
+constexpr std::size_t limb_bits = std::size_t{std::numeric_limits<uint_multiprecision_t>::digits};
+
+using big_int_256 = beman::big_int::basic_big_int<256>;
+
+// `--` and `++` are the only operations that can shrink a magnitude across a
+// limb boundary. is_normalized() lives in testing.hpp.
+
+consteval bool decrement_is_normalized(unsigned shift) {
+    big_int x = big_int{1} << shift;
+    --x;
+    return is_normalized(x) && x.width_mag() == shift && x == (big_int{1} << shift) - big_int{1};
+}
+static_assert(decrement_is_normalized(64));
+static_assert(decrement_is_normalized(128));
+static_assert(decrement_is_normalized(192));
+
+consteval bool increment_negative_is_normalized(unsigned shift) {
+    big_int x = -(big_int{1} << shift);
+    ++x;
+    return is_normalized(x) && x == -((big_int{1} << shift) - big_int{1});
+}
+static_assert(increment_negative_is_normalized(64));
+static_assert(increment_negative_is_normalized(128));
+
+// big_int_256 holds four limbs in the in-place buffer, so these never allocate.
+consteval big_int_256 decremented_inplace(unsigned shift) {
+    big_int_256 x{1};
+    x <<= shift;
+    --x;
+    return x;
+}
+static_assert(is_normalized(decremented_inplace(128)));
+static_assert(decremented_inplace(192).width_mag() == 192);
+
+TEST(IncrementDecrement, PrefixDecrementAcrossLimbBoundaryIsNormalized) {
+    for (const unsigned shift : {64U, 128U, 192U}) {
+        big_int x = big_int{1} << shift;
+        --x;
+
+        EXPECT_EQ(x, (big_int{1} << shift) - big_int{1}) << "shift " << shift;
+        EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
+        EXPECT_EQ(x.representation().size(), shift / limb_bits) << "shift " << shift;
+        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+    }
+}
+
+TEST(IncrementDecrement, PostfixDecrementAcrossLimbBoundaryIsNormalized) {
+    for (const unsigned shift : {64U, 128U, 192U}) {
+        big_int       x     = big_int{1} << shift;
+        const big_int old_x = x--;
+
+        EXPECT_TRUE(is_normalized(old_x)) << "shift " << shift;
+        EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
+        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+    }
+}
+
+TEST(IncrementDecrement, PrefixIncrementNegativeAcrossLimbBoundary) {
+    for (const unsigned shift : {64U, 128U, 192U}) {
+        big_int x = -(big_int{1} << shift);
+        ++x;
+
+        EXPECT_EQ(x, -((big_int{1} << shift) - big_int{1})) << "shift " << shift;
+        EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
+        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+    }
+}
+
+// operator~ has a const& and an && overload, and both end in a decrement.
+TEST(IncrementDecrement, BitwiseNotAcrossLimbBoundaryIsNormalized) {
+    for (const unsigned shift : {64U, 128U, 192U}) {
+        const big_int lvalue = -(big_int{1} << shift);
+
+        EXPECT_TRUE(is_normalized(~lvalue)) << "shift " << shift;
+        EXPECT_TRUE(is_normalized(~(-(big_int{1} << shift)))) << "shift " << shift;
+        EXPECT_EQ(~lvalue, (big_int{1} << shift) - big_int{1}) << "shift " << shift;
+    }
+}
+
+TEST(IncrementDecrement, PrefixDecrementInplaceAcrossLimbBoundaryIsNormalized) {
+    for (const unsigned shift : {64U, 128U, 192U}) {
+        big_int_256 x{1};
+        x <<= shift;
+        big_int_256 expected = x;
+        expected -= big_int_256{1};
+        --x;
+
+        EXPECT_TRUE(is_inplace(x)) << "shift " << shift;
+        EXPECT_EQ(x, expected) << "shift " << shift;
+        EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
+        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+    }
+}
+
+// A de-normalized magnitude reports width_mag() == 0, and the free operator>>
+// discards everything at or beyond that width, so it loses the value outright
+// rather than only mis-printing it. Compound >>= does not read width_mag().
+TEST(IncrementDecrement, DecrementAcrossLimbBoundaryKeepsMagnitudeObservers) {
+    const big_int expected = (big_int{1} << 128) - big_int{1};
+    big_int       x        = big_int{1} << 128;
+    --x;
+
+    ASSERT_EQ(x, expected);
+    EXPECT_EQ(x.size(), expected.size());
+    EXPECT_EQ(x.representation_size(), x.representation().size());
+    EXPECT_EQ(x >> 0, expected);
+    EXPECT_EQ(x >> 1, expected >> 1);
+    EXPECT_EQ(x >> 64, expected >> 64);
+    EXPECT_EQ(to_string(x), "340282366920938463463374607431768211455");
+}
+
+TEST(IncrementDecrement, DecrementToSingleLimbCanShrinkBackToInplace) {
+    big_int x = big_int{1} << 64;
+    ASSERT_FALSE(is_inplace(x));
+
+    --x;
+    x.shrink_to_fit();
+
+    EXPECT_TRUE(is_normalized(x));
+    EXPECT_TRUE(is_inplace(x));
+    EXPECT_EQ(x, big_int{std::numeric_limits<uint_multiprecision_t>::max()});
 }
 
 } // namespace

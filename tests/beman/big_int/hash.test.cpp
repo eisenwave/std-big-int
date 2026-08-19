@@ -358,4 +358,18 @@ TEST(Hash, BoundarySignedInt64Min) {
     EXPECT_EQ(h(i64_min), h(i64_min_copy));
 }
 
+TEST(Hash, DecrementAcrossLimbBoundaryPreservesHash) {
+    const std::hash<big_int> hasher;
+    for (const unsigned shift : {64U, 128U, 192U}) {
+        big_int x = big_int{1} << shift;
+        --x;
+
+        const big_int expected = (big_int{1} << shift) - big_int{1};
+        ASSERT_EQ(x, expected) << "shift " << shift;
+
+        EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
+        EXPECT_EQ(hasher(x), hasher(expected)) << "shift " << shift;
+    }
+}
+
 } // namespace
