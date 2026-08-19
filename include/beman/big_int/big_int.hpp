@@ -13,6 +13,8 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <limits>
 #include <memory>
 #include <memory_resource>
 #include <ranges>
@@ -3426,6 +3428,12 @@ template <std::size_t b, class L, class A>
 struct std::hash<beman::big_int::basic_big_int<b, L, A>> {
 
     std::size_t operator()(const beman::big_int::basic_big_int<b, L, A>& x) const noexcept {
+        // A value that `std::int64_t` can represent is hashed as a `std::int64_t`
+        const auto width = x.width_mag();
+        if (width < 64 || (width == 64 && x == std::numeric_limits<std::int64_t>::min())) {
+            return std::hash<std::int64_t>{}(static_cast<std::int64_t>(x));
+        }
+
         return beman::big_int::detail::siphash(x.representation(), x.is_negative());
     }
 };
