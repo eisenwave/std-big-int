@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <cstddef>
+#include <memory>
+#include <new>
+#include <type_traits>
+#include <utility>
+
 #include <beman/big_int.hpp>
 #include <gtest/gtest.h>
 
@@ -195,6 +201,83 @@ consteval bool test_reserve_representation_preserves_value() {
 static_assert(test_reserve_representation_preserves_value());
 
 // ----- runtime tests -----
+
+// A stateful allocator that propagates on copy and move assignment. Because it
+// holds state it is not always-equal, so a growing assignment cannot reuse or
+// steal the source's buffer and has to allocate. `id` lets the test observe
+// which allocator ends up owning the destination, and `fail` arms a throw.
+// Two words wide, so the owning basic_big_int has no trailing padding.
+template <class T>
+struct pocca_alloc {
+    using value_type                             = T;
+    using propagate_on_container_copy_assignment = std::true_type;
+    using propagate_on_container_move_assignment = std::true_type;
+
+    std::size_t id   = 0;
+    bool*       fail = nullptr;
+
+    pocca_alloc() = default;
+    explicit pocca_alloc(std::size_t allocator_id, bool* fail_flag = nullptr) noexcept
+        : id{allocator_id}, fail{fail_flag} {}
+    template <class U>
+    pocca_alloc(const pocca_alloc<U>& other) noexcept : id{other.id}, fail{other.fail} {}
+
+    [[nodiscard]] T* allocate(std::size_t n) {
+        if (fail != nullptr && *fail) {
+            throw std::bad_alloc{};
+        }
+        return std::allocator<T>{}.allocate(n);
+    }
+    void deallocate(T* p, std::size_t n) noexcept { std::allocator<T>{}.deallocate(p, n); }
+
+    template <class U>
+    bool operator==(const pocca_alloc<U>& other) const noexcept {
+        return id == other.id;
+    }
+};
+
+using pocca_big_int = beman::big_int::
+    basic_big_int<64, beman::big_int::uint_multiprecision_t, pocca_alloc<beman::big_int::uint_multiprecision_t>>;
+
+TEST(Allocation, PropagatingAssignmentAllocatesThroughSourceAllocator) {
+    pocca_big_int dst{7, pocca_alloc<beman::big_int::uint_multiprecision_t>{1U}};
+    pocca_big_int src{1, pocca_alloc<beman::big_int::uint_multiprecision_t>{2U}};
+    src <<= 4000;
+
+    dst = src;
+
+    EXPECT_EQ(dst, src);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
+TEST(Allocation, PropagatingMoveAssignmentStealsAndPublishesCount) {
+    pocca_big_int dst{7, pocca_alloc<beman::big_int::uint_multiprecision_t>{1U}};
+    pocca_big_int src{1, pocca_alloc<beman::big_int::uint_multiprecision_t>{2U}};
+    src <<= 4000;
+    const pocca_big_int expected = src;
+
+    dst = std::move(src);
+
+    EXPECT_EQ(dst, expected);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
+TEST(Allocation, PropagatingAssignmentIsStrongWhenAllocationThrows) {
+    bool          fail = false;
+    pocca_big_int dst{7, pocca_alloc<beman::big_int::uint_multiprecision_t>{1U}};
+    pocca_big_int src{1, pocca_alloc<beman::big_int::uint_multiprecision_t>{2U, &fail}};
+    src <<= 4000;
+
+    fail = true;
+    EXPECT_THROW(dst = src, std::bad_alloc);
+
+    // Strong: the value and the allocator both survive the failed assignment.
+    EXPECT_EQ(dst, 7);
+    EXPECT_EQ(dst.get_allocator().id, 1U);
+    fail = false;
+    dst  = src;
+    EXPECT_EQ(dst, src);
+}
 
 TEST(Allocation, SizeDefault) {
     beman::big_int::big_int x;
