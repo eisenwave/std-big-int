@@ -21,7 +21,7 @@ struct state_holder {
 
 namespace impl {
 
-constexpr state_holder sipround(state_holder s) {
+[[nodiscard]] constexpr state_holder sipround(state_holder s) {
     s.v0 += s.v1;
     s.v1 = std::rotl(s.v1, 13);
     s.v1 ^= s.v0;
@@ -42,7 +42,7 @@ constexpr state_holder sipround(state_holder s) {
     return s;
 }
 
-constexpr state_holder compress(state_holder s, const std::uint64_t m) {
+[[nodiscard]] constexpr state_holder compress(state_holder s, const std::uint64_t m) {
     s.v3 ^= m;
     s = sipround(s);
     s = sipround(s);
@@ -50,9 +50,22 @@ constexpr state_holder compress(state_holder s, const std::uint64_t m) {
     return s;
 }
 
+// Length of the little-endian byte string of the magnitude `limbs`, trimmed of its
+// most significant zero bytes. That is ceil(bit_width(magnitude) / 8), which does not
+// depend on how the magnitude is split into limbs. A zero magnitude has length zero.
+[[nodiscard]] constexpr std::size_t significant_byte_len(const std::span<const uint_multiprecision_t> limbs) noexcept {
+    for (std::size_t i = limbs.size(); i != 0; --i) {
+        if (const auto top = limbs[i - 1]; top != 0) {
+            return (i - 1) * sizeof(uint_multiprecision_t) +
+                   div_to_pos_inf(static_cast<std::size_t>(std::bit_width(top)), std::size_t{8});
+        }
+    }
+    return 0;
+}
+
 } // namespace impl
 
-constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs, const bool sign) {
+[[nodiscard]] constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs, const bool sign) {
 
     using impl::compress;
     using impl::sipround;
@@ -71,29 +84,34 @@ constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs
         s.v3 ^= std::numeric_limits<std::uint64_t>::max();
     }
 
-    const auto byte_len = limbs.size() * sizeof(uint_multiprecision_t);
+    // SipHash-2-4 over the little-endian byte string of the magnitude, trimmed of its
+    // most significant zero bytes.
+    constexpr std::size_t limb_bytes = sizeof(uint_multiprecision_t);
 
-    if constexpr (sizeof(uint_multiprecision_t) == sizeof(std::uint64_t)) {
-        for (const auto m : limbs) {
-            s = compress(s, static_cast<std::uint64_t>(m));
+    const auto byte_len = impl::significant_byte_len(limbs);
+
+    const auto limb_at = [limbs](const std::size_t i) -> std::uint64_t {
+        return i < limbs.size() ? static_cast<std::uint64_t>(limbs[i]) : std::uint64_t{0};
+    };
+
+    // Block k of that byte string
+    const auto block_at = [&limb_at](const std::size_t k) -> std::uint64_t {
+        if constexpr (limb_bytes == sizeof(std::uint64_t)) {
+            return limb_at(k);
+        } else {
+            return limb_at(k * 2) | (limb_at(k * 2 + 1) << 32U);
         }
-    } else {
-        // Pack pairs of uint32_t into uint64_t words
-        const auto pairs = limbs.size() / 2;
-        for (std::size_t i = 0; i < pairs; ++i) {
-            auto m = static_cast<std::uint64_t>(limbs[i * 2]) | (static_cast<std::uint64_t>(limbs[i * 2 + 1]) << 32);
-            s      = compress(s, m);
-        }
-        // Odd trailing uint_multiprecision_t folds into the final block
+    };
+
+    const auto blocks = byte_len / 8;
+    for (std::size_t k = 0; k != blocks; ++k) {
+        s = compress(s, block_at(k));
     }
 
-    // Final block: length in high byte + possible trailing uint32_t
-    auto b = static_cast<std::uint64_t>(byte_len) << 56;
-    if constexpr (sizeof(uint_multiprecision_t) == sizeof(std::uint32_t)) {
-        if (limbs.size() & 1) {
-            b |= static_cast<std::uint64_t>(limbs.back());
-        }
-    }
+    // Final block: length in the high byte, then the trailing partial block, which is
+    // the low byte_len % 8 bytes of the block past the last full one.
+    const auto tail_mask = (std::uint64_t{1} << ((byte_len % 8) * 8)) - 1;
+    const auto b         = (static_cast<std::uint64_t>(byte_len) << 56) | (block_at(blocks) & tail_mask);
 
     s = compress(s, b);
 

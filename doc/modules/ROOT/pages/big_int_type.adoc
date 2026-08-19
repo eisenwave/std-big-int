@@ -194,6 +194,10 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, S s);
 template <class T, _signed-or-unsigned_ S>
     requires /* remove_cvref_t<T> is a basic_big_int specialization */
 constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
+
+// [big.int.hash], hash support
+template <std::size_t b, class L, class A>
+struct std::hash<beman::big_int::basic_big_int<b, L, A>>;
 ----
 
 [#big_int_type_members]
@@ -824,4 +828,35 @@ allocator of `x`.
 
 * *Constraints:* `std::remove_cvref_t<T>` is a `basic_big_int` specialization.
 * *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift for the result type (`max_size()`).
+* *Postconditions:* None.
+
+[#big_int_type_hash]
+== Hash support
+
+[source,c++]
+----
+template <std::size_t b, class L, class A>
+struct std::hash<beman::big_int::basic_big_int<b, L, A>> {
+    std::size_t operator()(const beman::big_int::basic_big_int<b, L, A>& x) const noexcept;
+};
+----
+
+Returns a hash of the integer value of `x`.
+
+The digest is a function of that value and of nothing else. Equal values hash
+equally whatever their `min_inplace_bits`, `Limb`, and `Allocator` arguments, and
+whatever the width of
+xref:big_int_type.adoc#big_int_type_unit_multi_t[`uint_multiprecision_t`] on the
+target: a value hashes the same where limbs are 32 bits wide as it does where
+they are 64 bits wide.
+
+The digest is not itself part of the interface and may change between releases.
+It is currently SipHash-2-4 over the little-endian byte string of the magnitude,
+trimmed of its most significant zero bytes. That string is `width_mag()` bits
+rounded up to a whole number of bytes, so zero is hashed as the empty input. A
+negative value is distinguished from its magnitude before the string is absorbed.
+Where `std::size_t` is narrower than 64 bits, the digest is folded down to its
+width.
+
+* *Preconditions:* None.
 * *Postconditions:* None.
