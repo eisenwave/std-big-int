@@ -515,13 +515,16 @@ static constexpr std::int64_t sweep_values[]{int64_min,
                                              int64_max - 1,
                                              int64_max};
 
-TEST(Hash, MatchesBitPreciseHashInTheNarrowestRung) {
-    if constexpr (!detail::std_hashable<detail::hash_rung_64>) {
+// The bodies below are templates so that `if constexpr` really does discard the rung half
+// where the implementation hashes no `_BitInt`. In a non-template function both halves are
+// still checked, and naming `std::hash<rung>` there is an error rather than dead code.
+template <class rung>
+void check_narrowest_rung() {
+    if constexpr (!detail::std_hashable<rung>) {
         GTEST_SKIP() << "this implementation does not hash a 64-bit _BitInt";
     } else {
         // A `big_int` and a `_BitInt(64)` of the same value must agree, so that a program
         // can hash the two interchangeably.
-        using rung = detail::hash_rung_64;
         const std::hash<big_int> h{};
         const std::hash<rung>    builtin{};
 
@@ -544,15 +547,17 @@ TEST(Hash, MatchesBitPreciseHashInTheNarrowestRung) {
     }
 }
 
-TEST(Hash, AgreesWithInt64WhereTheTwoBuiltinDigestsAgree) {
-    // The narrowest rung and `std::int64_t` hold the same values, so wherever the
-    // implementation gives the two the same digest, which libc++ does since it hashes a
-    // scalar by its object representation, a `big_int` agrees with `std::int64_t` as well.
-    // Nothing to check where the implementation makes them differ, or hashes no `_BitInt`.
-    if constexpr (!detail::std_hashable<detail::hash_rung_64>) {
+TEST(Hash, MatchesBitPreciseHashInTheNarrowestRung) { check_narrowest_rung<detail::hash_rung_64>(); }
+
+// The narrowest rung and `std::int64_t` hold the same values, so wherever the implementation
+// gives the two the same digest, which libc++ does since it hashes a scalar by its object
+// representation, a `big_int` agrees with `std::int64_t` as well. Nothing to check where the
+// implementation makes them differ, or hashes no `_BitInt`.
+template <class rung>
+void check_int64_agreement() {
+    if constexpr (!detail::std_hashable<rung>) {
         GTEST_SKIP() << "this implementation does not hash a 64-bit _BitInt";
     } else {
-        using rung = detail::hash_rung_64;
         if (std::hash<rung>{}(rung{42}) != std::hash<std::int64_t>{}(42)) {
             GTEST_SKIP() << "this implementation hashes _BitInt(64) and std::int64_t differently";
         }
@@ -564,15 +569,16 @@ TEST(Hash, AgreesWithInt64WhereTheTwoBuiltinDigestsAgree) {
     }
 }
 
-TEST(Hash, MatchesBitPreciseHashAcrossInplaceBits) {
-    // The rung is chosen on the value, not on where the value is stored, so a value that
-    // is in place for one parameterization and heap-allocated for another still lands on
-    // the same digest.
-    if constexpr (!detail::std_hashable<detail::hash_rung_64>) {
+TEST(Hash, AgreesWithInt64WhereTheTwoBuiltinDigestsAgree) { check_int64_agreement<detail::hash_rung_64>(); }
+
+// The rung is chosen on the value, not on where the value is stored, so a value that is in
+// place for one parameterization and heap-allocated for another still lands on the same
+// digest.
+template <class rung>
+void check_rung_across_inplace_bits() {
+    if constexpr (!detail::std_hashable<rung>) {
         GTEST_SKIP() << "this implementation does not hash a 64-bit _BitInt";
     } else {
-        using rung = detail::hash_rung_64;
-
         static constexpr std::int64_t values[]{int64_min, -1, 0, 42, int64_max};
 
         for (const std::int64_t v : values) {
@@ -584,6 +590,8 @@ TEST(Hash, MatchesBitPreciseHashAcrossInplaceBits) {
         }
     }
 }
+
+TEST(Hash, MatchesBitPreciseHashAcrossInplaceBits) { check_rung_across_inplace_bits<detail::hash_rung_64>(); }
 
 TEST(Hash, BitPrecisePathEndsAtTheWidestRung) {
     // The value just past each end of the widest rung is hashed the other way, and must
