@@ -850,13 +850,17 @@ xref:big_int_type.adoc#big_int_type_unit_multi_t[`uint_multiprecision_t`] on the
 target: a value hashes the same where limbs are 32 bits wide as it does where
 they are 64 bits wide.
 
-The digest is not itself part of the interface and may change between releases.
-It is currently SipHash-2-4 over the little-endian byte string of the magnitude,
-trimmed of its most significant zero bytes. That string is `width_mag()` bits
-rounded up to a whole number of bytes, so zero is hashed as the empty input. A
-negative value is distinguished from its magnitude before the string is absorbed.
-Where `std::size_t` is narrower than 64 bits, the digest is folded down to its
-width.
+Where `x` is a value that `std::int64_t` can represent, the digest is
+`std::hash<std::int64_t>()(static_cast<std::int64_t>(x))`. A `basic_big_int` key and
+an `std::int64_t` key of the same value therefore hash alike, so the two can be
+hashed interchangeably over that range.
+
+Outside that range the digest is not itself part of the interface and may change
+between releases. It is currently SipHash-2-4 over the little-endian byte string of
+the magnitude, trimmed of its most significant zero bytes. That string is
+`width_mag()` bits rounded up to a whole number of bytes. A negative value is
+distinguished from its magnitude before the string is absorbed. Where `std::size_t`
+is narrower than 64 bits, the digest is folded down to its width.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
