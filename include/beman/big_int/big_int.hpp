@@ -1242,6 +1242,8 @@ constexpr bool basic_big_int<b, L, A>::unchecked_decrement_magnitude() {
         BEMAN_BIG_INT_DEBUG_ASSERT(limb_count() != 0);
         limbs[0] = 1;
         unchecked_set_limb_count(1);
+    } else {
+        unchecked_trim_magnitude();
     }
     return borrow_in;
 }

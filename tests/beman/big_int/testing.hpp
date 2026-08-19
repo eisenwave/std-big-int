@@ -46,6 +46,17 @@ template <std::size_t b, class L, class A>
     return x.representation_capacity() == basic_big_int<b, L, A>::inplace_capacity;
 }
 
+// True when x satisfies the trimmed-top-limb invariant, as named in the
+// add_in_place documentation. A single limb is always canonical,
+// including the zero representation, whose only limb is zero. The
+// representation_size() term is an independent read of the stored limb count,
+// which representation() alone would not expose.
+template <std::size_t b, class L, class A>
+[[nodiscard]] constexpr bool is_normalized(const basic_big_int<b, L, A>& x) noexcept {
+    const auto limbs = x.representation();
+    return (limbs.size() <= 1 || limbs.back() != uint_multiprecision_t{0}) && limbs.size() == x.representation_size();
+}
+
 // Returns the number of bytes before the trailing run of zero bytes.
 // Used to compare big_int representations against boost::multiprecision::cpp_int
 // limb arrays, where padding limbs may differ but the significant bytes match.
