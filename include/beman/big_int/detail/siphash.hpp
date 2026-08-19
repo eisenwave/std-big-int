@@ -21,7 +21,7 @@ struct state_holder {
 
 namespace impl {
 
-constexpr state_holder sipround(state_holder s) {
+[[nodiscard]] constexpr state_holder sipround(state_holder s) {
     s.v0 += s.v1;
     s.v1 = std::rotl(s.v1, 13);
     s.v1 ^= s.v0;
@@ -42,7 +42,7 @@ constexpr state_holder sipround(state_holder s) {
     return s;
 }
 
-constexpr state_holder compress(state_holder s, const std::uint64_t m) {
+[[nodiscard]] constexpr state_holder compress(state_holder s, const std::uint64_t m) {
     s.v3 ^= m;
     s = sipround(s);
     s = sipround(s);
@@ -53,10 +53,11 @@ constexpr state_holder compress(state_holder s, const std::uint64_t m) {
 // Length of the little-endian byte string of the magnitude `limbs`, trimmed of its
 // most significant zero bytes. That is ceil(bit_width(magnitude) / 8), which does not
 // depend on how the magnitude is split into limbs. A zero magnitude has length zero.
-constexpr std::size_t significant_byte_len(const std::span<const uint_multiprecision_t> limbs) noexcept {
+[[nodiscard]] constexpr std::size_t significant_byte_len(const std::span<const uint_multiprecision_t> limbs) noexcept {
     for (std::size_t i = limbs.size(); i != 0; --i) {
         if (const auto top = limbs[i - 1]; top != 0) {
-            return (i - 1) * sizeof(uint_multiprecision_t) + static_cast<std::size_t>((std::bit_width(top) + 7) / 8);
+            return (i - 1) * sizeof(uint_multiprecision_t) +
+                   div_to_pos_inf(static_cast<std::size_t>(std::bit_width(top)), std::size_t{8});
         }
     }
     return 0;
@@ -64,7 +65,7 @@ constexpr std::size_t significant_byte_len(const std::span<const uint_multipreci
 
 } // namespace impl
 
-constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs, const bool sign) {
+[[nodiscard]] constexpr std::size_t siphash(const std::span<const uint_multiprecision_t> limbs, const bool sign) {
 
     using impl::compress;
     using impl::sipround;
