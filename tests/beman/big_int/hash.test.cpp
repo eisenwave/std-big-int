@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
+#include <span>
 #include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
@@ -21,6 +24,102 @@ namespace {
 using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
 using namespace beman::big_int::literals;
+
+// ----- An independent SipHash-2-4, taking bytes rather than limbs -----
+
+// SipHash-2-4 over `in`, under the same key and with the same negative-sign fold
+// as detail::siphash. Deliberately a second implementation, and one that is given
+// bytes, so that agreement with it pins the digest to the value rather than to the
+// limbs the value happens to be stored in.
+[[nodiscard]] std::uint64_t reference_siphash24(const std::span<const std::uint8_t> in, const bool negative) {
+    constexpr std::uint64_t k0 = 0x0706050403020100ULL;
+    constexpr std::uint64_t k1 = 0x0f0e0d0c0b0a0908ULL;
+
+    std::uint64_t v0 = 0x736f6d6570736575ULL ^ k0;
+    std::uint64_t v1 = 0x646f72616e646f6dULL ^ k1;
+    std::uint64_t v2 = 0x6c7967656e657261ULL ^ k0;
+    std::uint64_t v3 = 0x7465646279746573ULL ^ k1;
+
+    const auto sip_round = [&v0, &v1, &v2, &v3]() {
+        v0 += v1;
+        v1 = std::rotl(v1, 13);
+        v1 ^= v0;
+        v0 = std::rotl(v0, 32);
+        v2 += v3;
+        v3 = std::rotl(v3, 16);
+        v3 ^= v2;
+        v0 += v3;
+        v3 = std::rotl(v3, 21);
+        v3 ^= v0;
+        v2 += v1;
+        v1 = std::rotl(v1, 17);
+        v1 ^= v2;
+        v2 = std::rotl(v2, 32);
+    };
+
+    const auto absorb = [&v0, &v3, &sip_round](const std::uint64_t m) {
+        v3 ^= m;
+        sip_round();
+        sip_round();
+        v0 ^= m;
+    };
+
+    if (negative) {
+        v3 ^= std::numeric_limits<std::uint64_t>::max();
+    }
+
+    const std::size_t n = in.size();
+
+    std::size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        std::uint64_t m = 0;
+        for (std::size_t j = 0; j < 8; ++j) {
+            m |= std::uint64_t{in[i + j]} << (j * 8);
+        }
+        absorb(m);
+    }
+
+    std::uint64_t b = (static_cast<std::uint64_t>(n) & 0xFFULL) << 56U;
+    for (std::size_t j = 0; i + j < n; ++j) {
+        b |= std::uint64_t{in[i + j]} << (j * 8);
+    }
+    absorb(b);
+
+    v2 ^= 0xFFULL;
+    sip_round();
+    sip_round();
+    sip_round();
+    sip_round();
+
+    return v0 ^ v1 ^ v2 ^ v3;
+}
+
+// The little-endian byte string of the magnitude of `x`, carrying no most
+// significant zero byte. Built from value-level operations only, so it never
+// observes a limb, and zero yields the empty string.
+[[nodiscard]] std::vector<std::uint8_t> magnitude_bytes(const big_int& x) {
+    big_int                   magnitude = beman::big_int::abs(x);
+    std::vector<std::uint8_t> bytes;
+    while (magnitude != 0) {
+        bytes.push_back(static_cast<std::uint8_t>(static_cast<std::uint64_t>(magnitude & big_int{0xFF})));
+        magnitude >>= 8;
+    }
+    return bytes;
+}
+
+// detail::siphash folds its 64-bit digest down where size_t is narrower.
+[[nodiscard]] constexpr std::size_t fold_to_size_t(const std::uint64_t h) {
+    if constexpr (sizeof(std::size_t) == sizeof(std::uint64_t)) {
+        return static_cast<std::size_t>(h);
+    } else {
+        const std::uint64_t folded = h ^ (h >> 32U);
+        return static_cast<std::size_t>(folded);
+    }
+}
+
+[[nodiscard]] std::size_t expected_hash(const big_int& x) {
+    return fold_to_size_t(reference_siphash24(magnitude_bytes(x), x < 0));
+}
 
 // ----- Type-level checks for the std::hash specialization -----
 
@@ -41,6 +140,16 @@ static_assert(std::is_default_constructible_v<std::hash<basic_big_int<32>>>);
 static_assert(std::is_default_constructible_v<std::hash<basic_big_int<256>>>);
 static_assert(std::is_default_constructible_v<std::hash<basic_big_int<1024>>>);
 static_assert(std::is_nothrow_invocable_r_v<std::size_t, std::hash<basic_big_int<256>>, const basic_big_int<256>&>);
+
+// ----- The digest is available during constant evaluation -----
+
+// std::hash::operator() is not constexpr, so nothing else in the suite evaluates the
+// digest at compile time. A zero magnitude is the empty input to SipHash-2-4, whose
+// published digest for that input is 726fdb47dd0e0e31.
+constexpr beman::big_int::uint_multiprecision_t zero_magnitude[]{0};
+static_assert(beman::big_int::detail::siphash(zero_magnitude, false) == fold_to_size_t(0x726fdb47dd0e0e31ULL));
+static_assert(beman::big_int::detail::siphash(zero_magnitude, false) !=
+              beman::big_int::detail::siphash(zero_magnitude, true));
 
 // ----- Determinism: hashing the same value twice yields the same hash -----
 
@@ -197,8 +306,8 @@ TEST(Hash, SingleVsMultiLimbDistinct) {
 // ----- Stability across different inplace_bits parameterizations -----
 
 TEST(Hash, CrossInplaceBitsForSmallValue) {
-    // The hash is computed over `representation()`, which is a span of
-    // `uint_multiprecision_t` limbs and is independent of `inplace_bits`.
+    // The hash is computed over the significant bytes of the magnitude, which do
+    // not depend on `inplace_bits`.
     // The hash must therefore agree across all parameterizations.
     const basic_big_int<32>   a{42};
     const basic_big_int<64>   b{42};
@@ -227,6 +336,69 @@ TEST(Hash, CrossInplaceBitsForZero) {
     const basic_big_int<2048> b{};
 
     EXPECT_EQ(std::hash<basic_big_int<32>>{}(a), std::hash<basic_big_int<2048>>{}(b));
+}
+
+// ----- The digest is a function of the value, not of the limb decomposition -----
+
+TEST(Hash, MatchesSipHash24OverTrimmedValueBytes) {
+    // [big.int.hash] requires the hash to depend only on the integer value, which
+    // includes not depending on the limb width. A single build cannot instantiate two
+    // limb widths, but it can check the property that makes them agree: the digest is
+    // SipHash-2-4 over the trimmed little-endian bytes of the magnitude. The reference
+    // is given those bytes, so it cannot observe the limb width either.
+    const std::hash<big_int> h{};
+
+    // Every magnitude width up to 264 bits, so every limb and block boundary of both
+    // limb widths is crossed, together with its neighbours and its negation.
+    for (unsigned width = 0; width <= 264; ++width) {
+        const big_int power = width == 0 ? big_int{0} : (big_int{1} << (width - 1));
+        for (const big_int& x : {power, power + big_int{1}, power - big_int{1}, -power}) {
+            EXPECT_EQ(h(x), expected_hash(x)) << "width " << width;
+        }
+    }
+
+    for (int i = -300; i <= 300; ++i) {
+        const big_int x{i};
+        EXPECT_EQ(h(x), expected_hash(x)) << "value " << i;
+    }
+
+    // All-ones magnitudes fill every byte; the sparse ones leave every interior byte,
+    // and every interior limb, zero. Both sides of the trimming rule are exercised.
+    for (unsigned bytes = 1; bytes <= 40; ++bytes) {
+        const big_int ones   = (big_int{1} << (8 * bytes)) - big_int{1};
+        const big_int sparse = (big_int{1} << (8 * bytes)) + big_int{1};
+        EXPECT_EQ(h(ones), expected_hash(ones)) << "bytes " << bytes;
+        EXPECT_EQ(h(sparse), expected_hash(sparse)) << "bytes " << bytes;
+    }
+}
+
+TEST(Hash, MatchesPublishedSipHash24Vectors) {
+    // The integer whose trimmed little-endian byte string is {0x00, 0x01, ..., k-1}
+    // is exactly the k-byte input of the published SipHash-2-4 test vectors, under the
+    // key detail::siphash uses. These digests are fixed by a reference outside this
+    // library, and so cannot follow the limb width. Zero takes the length-0 vector;
+    // there is no length-1 case, because {0x00} is not a trimmed byte string.
+    const std::hash<big_int> h{};
+
+    EXPECT_EQ(h(big_int{0}), fold_to_size_t(0x726fdb47dd0e0e31ULL));
+
+    static constexpr std::uint64_t digests[] = {
+        0x0d6c8009d9a94f5aULL, // {0x00, 0x01}
+        0x85676696d7fb7e2dULL, // {0x00, 0x01, 0x02}
+        0xcf2794e0277187b7ULL, // and so on up to
+        0x18765564cd99a68dULL,
+        0xcbc9466e58fee3ceULL,
+        0xab0200f58b01d137ULL,
+        0x93f5f5799a932462ULL, // {0x00, 0x01, ..., 0x07}
+    };
+
+    for (std::size_t k = 2; k <= 8; ++k) {
+        big_int x{0};
+        for (std::size_t i = k; i-- > 0;) {
+            x = (x << 8) + big_int{i};
+        }
+        EXPECT_EQ(h(x), fold_to_size_t(digests[k - 2])) << "length " << k;
+    }
 }
 
 // ----- Usability in standard unordered associative containers -----
