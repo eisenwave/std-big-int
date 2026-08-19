@@ -850,12 +850,23 @@ xref:big_int_type.adoc#big_int_type_unit_multi_t[`uint_multiprecision_t`] on the
 target: a value hashes the same where limbs are 32 bits wide as it does where
 they are 64 bits wide.
 
-Where `x` is a value that `std::int64_t` can represent, the digest is
-`std::hash<std::int64_t>()(static_cast<std::int64_t>(x))`. A `basic_big_int` key and
-an `std::int64_t` key of the same value therefore hash alike, so the two can be
-hashed interchangeably over that range.
+Where a builtin signed integer type can represent `x`, the digest is that of the
+narrowest such type, so a `basic_big_int` key and a builtin integer key of the same
+value hash alike and can be hashed interchangeably. The types are tried in the order
+`std::int64_t`, a 128-bit integer type, then a 256-bit bit-precise integer type, and
+one whose `std::hash` the implementation does not provide is passed over: the reach of
+the ladder therefore depends on the target and the standard library. `std::int64_t` is
+always available, `__int128` wherever the compiler has it, and `_BitInt` only where
+both the compiler and the library support it, which today means libc++ and no wider
+than 256 bits.
 
-Outside that range the digest is not itself part of the interface and may change
+Because the digest of such a value is the builtin's own, it carries whatever
+properties that digest has, including its collisions. An implementation whose hash of
+a wide integer type discards the bits above `std::size_t`, as libstdc++ does, gives
+`2^64^` and `0` the same digest here as well. Equality still separates them, so
+containers keyed on `basic_big_int` behave correctly.
+
+Beyond the widest rung the digest is not itself part of the interface and may change
 between releases. It is currently SipHash-2-4 over the little-endian byte string of
 the magnitude, trimmed of its most significant zero bytes. That string is
 `width_mag()` bits rounded up to a whole number of bytes. A negative value is
