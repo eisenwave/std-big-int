@@ -449,8 +449,12 @@ TEST(Hash, MatchesBuiltinHashInInt64Range) {
     constexpr std::int64_t min = std::numeric_limits<std::int64_t>::min();
     constexpr std::int64_t max = std::numeric_limits<std::int64_t>::max();
 
-    for (const std::int64_t v :
-         {min, min + 1, min / 2, -4294967296LL, -1LL, 0LL, 1LL, 4294967295LL, 4294967296LL, max / 2, max - 1, max}) {
+    // A typed array rather than a braced list: `std::int64_t` is `long` on some targets
+    // and `long long` on others, so a list of literals has no one deduced type.
+    static constexpr std::int64_t values[]{
+        min, min + 1, min / 2, -4294967296, -1, 0, 1, 4294967295, 4294967296, max / 2, max - 1, max};
+
+    for (const std::int64_t v : values) {
         EXPECT_EQ(h(big_int{v}), builtin(v)) << "value " << v;
     }
 
@@ -475,7 +479,9 @@ TEST(Hash, MatchesBuiltinHashAcrossInplaceBits) {
     constexpr std::int64_t min = std::numeric_limits<std::int64_t>::min();
     constexpr std::int64_t max = std::numeric_limits<std::int64_t>::max();
 
-    for (const std::int64_t v : {min, -1LL, 0LL, 42LL, max}) {
+    static constexpr std::int64_t values[]{min, -1, 0, 42, max};
+
+    for (const std::int64_t v : values) {
         const std::size_t expected = std::hash<std::int64_t>{}(v);
         EXPECT_EQ(std::hash<basic_big_int<32>>{}(basic_big_int<32>{v}), expected) << "value " << v;
         EXPECT_EQ(std::hash<basic_big_int<64>>{}(basic_big_int<64>{v}), expected) << "value " << v;
