@@ -3425,21 +3425,29 @@ using big_int = basic_big_int<beman::big_int::big_int::inplace_bits>;
 
 namespace beman::big_int::detail {
 
-// Occupies a rung of the hash ladder below whose builtin type the target lacks.
+// Occupies a rung of the hash ladder whose width the target's `_BitInt` cannot reach.
 // `std::hash` is disabled for it, so that rung is skipped.
 struct absent_hash_rung {};
 
-#if defined(__SIZEOF_INT128__)
-__extension__ using hash_extended_128 = __int128;
+#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 64
+using hash_rung_64 = bit_int<64>;
 #else
-using hash_extended_128 = absent_hash_rung;
+using hash_rung_64 = absent_hash_rung;
 #endif
 
-// Try and use bit_int<128> if we don't have __int128
 #if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
-using hash_bit_precise_128 = bit_int<128>;
+using hash_rung_128 = bit_int<128>;
 #else
-using hash_bit_precise_128 = absent_hash_rung;
+using hash_rung_128 = absent_hash_rung;
+#endif
+
+// One rung per object size rather than per width: an implementation that hashes a scalar
+// by its object representation gives every `_BitInt` of the same size one digest, and a
+// `_BitInt` past 64 bits occupies `ceil(N / 64)` words.
+#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 192
+using hash_rung_192 = bit_int<192>;
+#else
+using hash_rung_192 = absent_hash_rung;
 #endif
 
 // The known cap right now (19 Aug 26) is _BitInt(256)
@@ -3454,9 +3462,6 @@ concept std_hashable = sizeof(T) <= 4 * sizeof(std::size_t) && requires(const T&
     { std::hash<T>{}(v) } -> std::convertible_to<std::size_t>;
 };
 
-// One rung per width
-using hash_rung_128 = std::conditional_t<std_hashable<hash_extended_128>, hash_extended_128, hash_bit_precise_128>;
-
 // The width of a rung, or zero where the target lacks the type or the implementation does not hash it.
 template <class T>
 [[nodiscard]] consteval std::size_t hash_rung_bits() {
@@ -3468,8 +3473,10 @@ template <class T>
 }
 
 // Past this width no rung can hold the value, so the ladder is skipped outright.
-inline constexpr std::size_t widest_hash_rung_bits =
-    std::max({hash_rung_bits<std::int64_t>(), hash_rung_bits<hash_rung_128>(), hash_rung_bits<hash_rung_256>()});
+inline constexpr std::size_t widest_hash_rung_bits = std::max({hash_rung_bits<hash_rung_64>(),
+                                                               hash_rung_bits<hash_rung_128>(),
+                                                               hash_rung_bits<hash_rung_192>(),
+                                                               hash_rung_bits<hash_rung_256>()});
 
 // Hashes `x` as `T` where `T` can represent it, reporting whether it did.
 // A magnitude narrower than `T` is in range whatever its sign, and one of exactly `T`'s
@@ -3477,7 +3484,7 @@ inline constexpr std::size_t widest_hash_rung_bits =
 // width therefore selects the rung, and only the rung that wins pays for a conversion.
 template <class T, class BigInt>
 [[nodiscard]] bool
-hash_as_builtin(const BigInt& x, const std::size_t width, const bool negative, std::size_t& digest) noexcept {
+hash_as_bit_int(const BigInt& x, const std::size_t width, const bool negative, std::size_t& digest) noexcept {
     if constexpr (std_hashable<T>) {
         if (width < width_v<T> || (width == width_v<T> && negative && is_power_of_two_span(x.representation()))) {
             digest = std::hash<T>{}(static_cast<T>(x));
@@ -3501,9 +3508,10 @@ struct std::hash<beman::big_int::basic_big_int<b, L, A>> {
         const bool negative = x.is_negative();
         if (width <= detail::widest_hash_rung_bits) {
             std::size_t digest{};
-            if (detail::hash_as_builtin<std::int64_t>(x, width, negative, digest) ||
-                detail::hash_as_builtin<detail::hash_rung_128>(x, width, negative, digest) ||
-                detail::hash_as_builtin<detail::hash_rung_256>(x, width, negative, digest)) {
+            if (detail::hash_as_bit_int<detail::hash_rung_64>(x, width, negative, digest) ||
+                detail::hash_as_bit_int<detail::hash_rung_128>(x, width, negative, digest) ||
+                detail::hash_as_bit_int<detail::hash_rung_192>(x, width, negative, digest) ||
+                detail::hash_as_bit_int<detail::hash_rung_256>(x, width, negative, digest)) {
                 return digest;
             }
         }

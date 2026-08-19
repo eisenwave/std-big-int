@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -118,7 +119,7 @@ using namespace beman::big_int::literals;
     }
 }
 
-// ----- The ladder of builtin signed integer types std::hash defers to -----
+// ----- The ladder of signed `_BitInt` types std::hash defers to -----
 
 namespace detail = beman::big_int::detail;
 
@@ -144,7 +145,7 @@ template <class T>
         return false;
     } else {
         const big_int bound = big_int{1} << (detail::width_v<T> - 1);
-        return x >= -bound && x < bound;
+        return std::is_gteq(x <=> -bound) && std::is_lt(x <=> bound);
     }
 }
 
@@ -159,22 +160,29 @@ template <class T>
     return false;
 }
 
-// The rungs are nested ranges, so the widest one decides which path a value takes.
+// The rungs are nested ranges, so the widest one decides which path a value takes. Where
+// the implementation hashes no `_BitInt` at all, every value takes SipHash.
 [[nodiscard]] bool takes_builtin_path(const big_int& x) {
-    const big_int bound = big_int{1} << (widest_rung_bits - 1);
-    return x >= -bound && x < bound;
+    if constexpr (widest_rung_bits == 0) {
+        return false;
+    } else {
+        const big_int bound = big_int{1} << (widest_rung_bits - 1);
+        return std::is_gteq(x <=> -bound) && std::is_lt(x <=> bound);
+    }
 }
 
-// A value a builtin signed integer type can represent takes the digest of the narrowest
-// such type; everything else takes SipHash-2-4 over the trimmed bytes of the magnitude.
+// A value takes the digest of the narrowest signed `_BitInt` that can represent it, where
+// the implementation hashes that type; everything else takes SipHash-2-4 over the trimmed
+// bytes of the magnitude.
 [[nodiscard]] std::size_t expected_hash(const big_int& x) {
     std::size_t digest{};
-    if (expected_builtin_digest<std::int64_t>(x, digest) ||          //
+    if (expected_builtin_digest<detail::hash_rung_64>(x, digest) ||  //
         expected_builtin_digest<detail::hash_rung_128>(x, digest) || //
+        expected_builtin_digest<detail::hash_rung_192>(x, digest) || //
         expected_builtin_digest<detail::hash_rung_256>(x, digest)) {
         return digest;
     }
-    return fold_to_size_t(reference_siphash24(magnitude_bytes(x), x < 0));
+    return fold_to_size_t(reference_siphash24(magnitude_bytes(x), std::is_lt(x <=> 0)));
 }
 
 // ----- Type-level checks for the std::hash specialization -----
@@ -488,84 +496,128 @@ TEST(Hash, MatchesPublishedSipHash24Vectors) {
 
 // ----- Values in the range of std::int64_t hash as the builtin does -----
 
-TEST(Hash, MatchesBuiltinHashInInt64Range) {
-    // A `big_int` and an `std::int64_t` of the same value must agree, so that a program
-    // can hash the two interchangeably.
-    const std::hash<big_int>      h{};
-    const std::hash<std::int64_t> builtin{};
+// The values used to sweep the narrowest rung. A typed array rather than a braced list:
+// `std::int64_t` is `long` on some targets and `long long` on others, so a list of
+// literals has no one deduced type.
+constexpr std::int64_t int64_min = std::numeric_limits<std::int64_t>::min();
+constexpr std::int64_t int64_max = std::numeric_limits<std::int64_t>::max();
 
-    constexpr std::int64_t min = std::numeric_limits<std::int64_t>::min();
-    constexpr std::int64_t max = std::numeric_limits<std::int64_t>::max();
+static constexpr std::int64_t sweep_values[]{int64_min,
+                                             int64_min + 1,
+                                             int64_min / 2,
+                                             -4294967296,
+                                             -1,
+                                             0,
+                                             1,
+                                             4294967295,
+                                             4294967296,
+                                             int64_max / 2,
+                                             int64_max - 1,
+                                             int64_max};
 
-    // A typed array rather than a braced list: `std::int64_t` is `long` on some targets
-    // and `long long` on others, so a list of literals has no one deduced type.
-    static constexpr std::int64_t values[]{
-        min, min + 1, min / 2, -4294967296, -1, 0, 1, 4294967295, 4294967296, max / 2, max - 1, max};
+TEST(Hash, MatchesBitPreciseHashInTheNarrowestRung) {
+    if constexpr (!detail::std_hashable<detail::hash_rung_64>) {
+        GTEST_SKIP() << "this implementation does not hash a 64-bit _BitInt";
+    } else {
+        // A `big_int` and a `_BitInt(64)` of the same value must agree, so that a program
+        // can hash the two interchangeably.
+        using rung = detail::hash_rung_64;
+        const std::hash<big_int> h{};
+        const std::hash<rung>    builtin{};
 
-    for (const std::int64_t v : values) {
-        EXPECT_EQ(h(big_int{v}), builtin(v)) << "value " << v;
-    }
+        for (const std::int64_t v : sweep_values) {
+            EXPECT_EQ(h(big_int{v}), builtin(static_cast<rung>(v))) << "value " << v;
+        }
 
-    for (std::int64_t v = -300; v <= 300; ++v) {
-        EXPECT_EQ(h(big_int{v}), builtin(v)) << "value " << v;
-    }
+        for (std::int64_t v = -300; v <= 300; ++v) {
+            EXPECT_EQ(h(big_int{v}), builtin(static_cast<rung>(v))) << "value " << v;
+        }
 
-    // Every power of two in range, and its neighbours, so both sides of each limb and
-    // byte boundary of the builtin path are covered.
-    for (int bit = 0; bit < 63; ++bit) {
-        const std::int64_t power = std::int64_t{1} << bit;
-        for (const std::int64_t v : {power, power - 1, -power, -power + 1}) {
-            EXPECT_EQ(h(big_int{v}), builtin(v)) << "value " << v;
+        // Every power of two in range, and its neighbours, so both sides of each limb and
+        // byte boundary of the rung are covered.
+        for (int bit = 0; bit < 63; ++bit) {
+            const std::int64_t power = std::int64_t{1} << bit;
+            for (const std::int64_t v : {power, power - 1, -power, -power + 1}) {
+                EXPECT_EQ(h(big_int{v}), builtin(static_cast<rung>(v))) << "value " << v;
+            }
         }
     }
 }
 
-TEST(Hash, MatchesBuiltinHashAcrossInplaceBits) {
-    // The builtin path is taken on the value, not on where the value is stored, so a
-    // value that is in place for one parameterization and heap-allocated for another
-    // still lands on the builtin digest.
-    constexpr std::int64_t min = std::numeric_limits<std::int64_t>::min();
-    constexpr std::int64_t max = std::numeric_limits<std::int64_t>::max();
+TEST(Hash, AgreesWithInt64WhereTheTwoBuiltinDigestsAgree) {
+    // The narrowest rung and `std::int64_t` hold the same values, so wherever the
+    // implementation gives the two the same digest, which libc++ does since it hashes a
+    // scalar by its object representation, a `big_int` agrees with `std::int64_t` as well.
+    // Nothing to check where the implementation makes them differ, or hashes no `_BitInt`.
+    if constexpr (!detail::std_hashable<detail::hash_rung_64>) {
+        GTEST_SKIP() << "this implementation does not hash a 64-bit _BitInt";
+    } else {
+        using rung = detail::hash_rung_64;
+        if (std::hash<rung>{}(rung{42}) != std::hash<std::int64_t>{}(42)) {
+            GTEST_SKIP() << "this implementation hashes _BitInt(64) and std::int64_t differently";
+        }
 
-    static constexpr std::int64_t values[]{min, -1, 0, 42, max};
-
-    for (const std::int64_t v : values) {
-        const std::size_t expected = std::hash<std::int64_t>{}(v);
-        EXPECT_EQ(std::hash<basic_big_int<32>>{}(basic_big_int<32>{v}), expected) << "value " << v;
-        EXPECT_EQ(std::hash<basic_big_int<64>>{}(basic_big_int<64>{v}), expected) << "value " << v;
-        EXPECT_EQ(std::hash<basic_big_int<256>>{}(basic_big_int<256>{v}), expected) << "value " << v;
-        EXPECT_EQ(std::hash<basic_big_int<1024>>{}(basic_big_int<1024>{v}), expected) << "value " << v;
+        const std::hash<big_int> h{};
+        for (const std::int64_t v : sweep_values) {
+            EXPECT_EQ(h(big_int{v}), std::hash<std::int64_t>{}(v)) << "value " << v;
+        }
     }
 }
 
-TEST(Hash, BuiltinPathEndsAtTheWidestRung) {
-    // The value just past each end of the widest rung is hashed the other way, and must
-    // not collide with the boundary value it neighbours.
-    const std::hash<big_int> h{};
+TEST(Hash, MatchesBitPreciseHashAcrossInplaceBits) {
+    // The rung is chosen on the value, not on where the value is stored, so a value that
+    // is in place for one parameterization and heap-allocated for another still lands on
+    // the same digest.
+    if constexpr (!detail::std_hashable<detail::hash_rung_64>) {
+        GTEST_SKIP() << "this implementation does not hash a 64-bit _BitInt";
+    } else {
+        using rung = detail::hash_rung_64;
 
-    const big_int bound    = big_int{1} << (widest_rung_bits - 1);
-    const big_int max      = bound - big_int{1};
-    const big_int min      = -bound;
-    const big_int past_max = max + big_int{1};
-    const big_int past_min = min - big_int{1};
+        static constexpr std::int64_t values[]{int64_min, -1, 0, 42, int64_max};
 
-    ASSERT_TRUE(takes_builtin_path(max));
-    ASSERT_TRUE(takes_builtin_path(min));
-    ASSERT_FALSE(takes_builtin_path(past_max));
-    ASSERT_FALSE(takes_builtin_path(past_min));
-
-    EXPECT_EQ(h(max), expected_hash(max));
-    EXPECT_EQ(h(min), expected_hash(min));
-    EXPECT_EQ(h(past_max), expected_hash(past_max));
-    EXPECT_EQ(h(past_min), expected_hash(past_min));
-
-    EXPECT_NE(h(max), h(past_max));
-    EXPECT_NE(h(min), h(past_min));
-    EXPECT_NE(h(past_max), h(past_min));
+        for (const std::int64_t v : values) {
+            const std::size_t expected = std::hash<rung>{}(static_cast<rung>(v));
+            EXPECT_EQ(std::hash<basic_big_int<32>>{}(basic_big_int<32>{v}), expected) << "value " << v;
+            EXPECT_EQ(std::hash<basic_big_int<64>>{}(basic_big_int<64>{v}), expected) << "value " << v;
+            EXPECT_EQ(std::hash<basic_big_int<256>>{}(basic_big_int<256>{v}), expected) << "value " << v;
+            EXPECT_EQ(std::hash<basic_big_int<1024>>{}(basic_big_int<1024>{v}), expected) << "value " << v;
+        }
+    }
 }
 
-// Checks the values that can only be represented by rung `T`, which is the rung above one
-// of `narrower_bits` bits. Does nothing where the target has no such rung.
+TEST(Hash, BitPrecisePathEndsAtTheWidestRung) {
+    // The value just past each end of the widest rung is hashed the other way, and must
+    // not collide with the boundary value it neighbours.
+    if constexpr (widest_rung_bits == 0) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt, so every value takes SipHash";
+    } else {
+        const std::hash<big_int> h{};
+
+        const big_int bound    = big_int{1} << (widest_rung_bits - 1);
+        const big_int max      = bound - big_int{1};
+        const big_int min      = -bound;
+        const big_int past_max = max + big_int{1};
+        const big_int past_min = min - big_int{1};
+
+        ASSERT_TRUE(takes_builtin_path(max));
+        ASSERT_TRUE(takes_builtin_path(min));
+        ASSERT_FALSE(takes_builtin_path(past_max));
+        ASSERT_FALSE(takes_builtin_path(past_min));
+
+        EXPECT_EQ(h(max), expected_hash(max));
+        EXPECT_EQ(h(min), expected_hash(min));
+        EXPECT_EQ(h(past_max), expected_hash(past_max));
+        EXPECT_EQ(h(past_min), expected_hash(past_min));
+
+        EXPECT_NE(h(max), h(past_max));
+        EXPECT_NE(h(min), h(past_min));
+        EXPECT_NE(h(past_max), h(past_min));
+    }
+}
+
+// Checks the values that only rung `T` can represent, `T` being the rung above one of
+// `narrower_bits` bits, or the narrowest rung where that is zero. Does nothing where the
+// implementation does not hash `T`.
 template <class T>
 [[nodiscard]] std::size_t check_rung(const std::size_t narrower_bits) {
     std::size_t checked = 0;
@@ -578,8 +630,9 @@ template <class T>
         const std::hash<big_int> h{};
 
         // The narrower rung stops at a magnitude of 2^(narrower_bits - 1), so these are
-        // the first values past it, and the last this rung reaches.
-        const big_int first_beyond = big_int{1} << (narrower_bits - 1);
+        // the first values past it, and the last this rung reaches. With no narrower rung
+        // the sweep starts at one.
+        const big_int first_beyond = narrower_bits == 0 ? big_int{1} : big_int{1} << (narrower_bits - 1);
         const big_int largest      = (big_int{1} << (bits - 1)) - big_int{1};
 
         for (const big_int& x :
@@ -592,14 +645,24 @@ template <class T>
     return checked;
 }
 
-TEST(Hash, MatchesBuiltinHashOnTheWiderRungs) {
-    if constexpr (widest_rung_bits <= 64) {
-        GTEST_SKIP() << "no integer type wider than 64 bits is hashable on this target";
+TEST(Hash, MatchesBitPreciseHashOnEveryRung) {
+    if constexpr (widest_rung_bits == 0) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt, so every value takes SipHash";
     } else {
-        std::size_t checked = check_rung<detail::hash_rung_128>(64);
-        checked += check_rung<detail::hash_rung_256>(bits_128_rung != 0 ? bits_128_rung : 64);
+        // Each rung is checked against the widest rung narrower than it, skipping the ones
+        // this implementation does not hash.
+        constexpr std::size_t bits_64_rung  = rung_bits<detail::hash_rung_64>();
+        constexpr std::size_t bits_192_rung = rung_bits<detail::hash_rung_192>();
+        constexpr std::size_t below_128     = bits_64_rung;
+        constexpr std::size_t below_192     = bits_128_rung != 0 ? bits_128_rung : below_128;
+        constexpr std::size_t below_256     = bits_192_rung != 0 ? bits_192_rung : below_192;
 
-        // A rung was reported wider than 64 bits, so something must have been checked.
+        std::size_t checked = check_rung<detail::hash_rung_64>(0);
+        checked += check_rung<detail::hash_rung_128>(below_128);
+        checked += check_rung<detail::hash_rung_192>(below_192);
+        checked += check_rung<detail::hash_rung_256>(below_256);
+
+        // A rung was reported, so something must have been checked.
         EXPECT_GT(checked, 0U) << "widest rung " << widest_rung_bits << " bits";
     }
 }
