@@ -117,7 +117,17 @@ using namespace beman::big_int::literals;
     }
 }
 
+// Whether `x` is one of the values std::hash hands to the builtin std::int64_t hash.
+[[nodiscard]] bool fits_int64(const big_int& x) {
+    return x >= std::numeric_limits<std::int64_t>::min() && x <= std::numeric_limits<std::int64_t>::max();
+}
+
+// Values that `std::int64_t` can represent take the digest of that `std::int64_t`;
+// everything else takes SipHash-2-4 over the trimmed bytes of the magnitude.
 [[nodiscard]] std::size_t expected_hash(const big_int& x) {
+    if (fits_int64(x)) {
+        return std::hash<std::int64_t>{}(static_cast<std::int64_t>(x));
+    }
     return fold_to_size_t(reference_siphash24(magnitude_bytes(x), x < 0));
 }
 
@@ -343,9 +353,10 @@ TEST(Hash, CrossInplaceBitsForZero) {
 TEST(Hash, MatchesSipHash24OverTrimmedValueBytes) {
     // [big.int.hash] requires the hash to depend only on the integer value, which
     // includes not depending on the limb width. A single build cannot instantiate two
-    // limb widths, but it can check the property that makes them agree: the digest is
+    // limb widths, but it can check the properties that make them agree: a value in the
+    // range of `std::int64_t` is hashed as that `std::int64_t`, and everything else by
     // SipHash-2-4 over the trimmed little-endian bytes of the magnitude. The reference
-    // is given those bytes, so it cannot observe the limb width either.
+    // is given the value and those bytes, so it cannot observe the limb width either.
     const std::hash<big_int> h{};
 
     // Every magnitude width up to 264 bits, so every limb and block boundary of both
@@ -376,13 +387,36 @@ TEST(Hash, MatchesPublishedSipHash24Vectors) {
     // The integer whose trimmed little-endian byte string is {0x00, 0x01, ..., k-1}
     // is exactly the k-byte input of the published SipHash-2-4 test vectors, under the
     // key detail::siphash uses. These digests are fixed by a reference outside this
-    // library, and so cannot follow the limb width. Zero takes the length-0 vector;
-    // there is no length-1 case, because {0x00} is not a trimmed byte string.
+    // library, and so cannot follow the limb width. Lengths nine through sixteen are the
+    // shortest that carry a magnitude beyond the range of `std::int64_t`, so they take
+    // the SipHash path, and between them they cover every block and tail length.
     const std::hash<big_int> h{};
 
-    EXPECT_EQ(h(big_int{0}), fold_to_size_t(0x726fdb47dd0e0e31ULL));
-
     static constexpr std::uint64_t digests[] = {
+        0x9e0082df0ba9e4b0ULL, // {0x00, 0x01, ..., 0x08}
+        0x7a5dbbc594ddb9f3ULL, // {0x00, 0x01, ..., 0x09}
+        0xf4b32f46226bada7ULL, // and so on up to
+        0x751e8fbc860ee5fbULL,
+        0x14ea5627c0843d90ULL,
+        0xf723ca908e7af2eeULL,
+        0xa129ca6149be45e5ULL,
+        0x3f2acc7f57c29bdbULL, // {0x00, 0x01, ..., 0x0F}
+    };
+
+    for (std::size_t k = 9; k <= 16; ++k) {
+        big_int x{0};
+        for (std::size_t i = k; i-- > 0;) {
+            x = (x << 8) + big_int{i};
+        }
+        ASSERT_FALSE(fits_int64(x)) << "length " << k;
+        EXPECT_EQ(h(x), fold_to_size_t(digests[k - 9])) << "length " << k;
+    }
+
+    // The digest of the magnitude alone is still the published vector for the shorter
+    // inputs, even where std::hash now answers from the builtin instead. Zero takes the
+    // length-0 vector; there is no length-1 case, because {0x00} is not trimmed.
+    static constexpr std::uint64_t short_digests[] = {
+        0x726fdb47dd0e0e31ULL, // {}
         0x0d6c8009d9a94f5aULL, // {0x00, 0x01}
         0x85676696d7fb7e2dULL, // {0x00, 0x01, 0x02}
         0xcf2794e0277187b7ULL, // and so on up to
@@ -392,13 +426,94 @@ TEST(Hash, MatchesPublishedSipHash24Vectors) {
         0x93f5f5799a932462ULL, // {0x00, 0x01, ..., 0x07}
     };
 
+    EXPECT_EQ(beman::big_int::detail::siphash(big_int{0}.representation(), false), fold_to_size_t(short_digests[0]));
+
     for (std::size_t k = 2; k <= 8; ++k) {
         big_int x{0};
         for (std::size_t i = k; i-- > 0;) {
             x = (x << 8) + big_int{i};
         }
-        EXPECT_EQ(h(x), fold_to_size_t(digests[k - 2])) << "length " << k;
+        EXPECT_EQ(beman::big_int::detail::siphash(x.representation(), false), fold_to_size_t(short_digests[k - 1]))
+            << "length " << k;
     }
+}
+
+// ----- Values in the range of std::int64_t hash as the builtin does -----
+
+TEST(Hash, MatchesBuiltinHashInInt64Range) {
+    // A `big_int` and an `std::int64_t` of the same value must agree, so that a program
+    // can hash the two interchangeably.
+    const std::hash<big_int>      h{};
+    const std::hash<std::int64_t> builtin{};
+
+    constexpr std::int64_t min = std::numeric_limits<std::int64_t>::min();
+    constexpr std::int64_t max = std::numeric_limits<std::int64_t>::max();
+
+    for (const std::int64_t v :
+         {min, min + 1, min / 2, -4294967296LL, -1LL, 0LL, 1LL, 4294967295LL, 4294967296LL, max / 2, max - 1, max}) {
+        EXPECT_EQ(h(big_int{v}), builtin(v)) << "value " << v;
+    }
+
+    for (std::int64_t v = -300; v <= 300; ++v) {
+        EXPECT_EQ(h(big_int{v}), builtin(v)) << "value " << v;
+    }
+
+    // Every power of two in range, and its neighbours, so both sides of each limb and
+    // byte boundary of the builtin path are covered.
+    for (int bit = 0; bit < 63; ++bit) {
+        const std::int64_t power = std::int64_t{1} << bit;
+        for (const std::int64_t v : {power, power - 1, -power, -power + 1}) {
+            EXPECT_EQ(h(big_int{v}), builtin(v)) << "value " << v;
+        }
+    }
+}
+
+TEST(Hash, MatchesBuiltinHashAcrossInplaceBits) {
+    // The builtin path is taken on the value, not on where the value is stored, so a
+    // value that is in place for one parameterization and heap-allocated for another
+    // still lands on the builtin digest.
+    constexpr std::int64_t min = std::numeric_limits<std::int64_t>::min();
+    constexpr std::int64_t max = std::numeric_limits<std::int64_t>::max();
+
+    for (const std::int64_t v : {min, -1LL, 0LL, 42LL, max}) {
+        const std::size_t expected = std::hash<std::int64_t>{}(v);
+        EXPECT_EQ(std::hash<basic_big_int<32>>{}(basic_big_int<32>{v}), expected) << "value " << v;
+        EXPECT_EQ(std::hash<basic_big_int<64>>{}(basic_big_int<64>{v}), expected) << "value " << v;
+        EXPECT_EQ(std::hash<basic_big_int<256>>{}(basic_big_int<256>{v}), expected) << "value " << v;
+        EXPECT_EQ(std::hash<basic_big_int<1024>>{}(basic_big_int<1024>{v}), expected) << "value " << v;
+    }
+}
+
+TEST(Hash, BuiltinPathEndsAtTheInt64Boundary) {
+    // The value just past each end of the range is hashed the other way, and must not
+    // collide with the boundary value it neighbours.
+    const std::hash<big_int> h{};
+
+    const big_int max{std::numeric_limits<std::int64_t>::max()};
+    const big_int min{std::numeric_limits<std::int64_t>::min()};
+    const big_int past_max = max + big_int{1};
+    const big_int past_min = min - big_int{1};
+
+    ASSERT_TRUE(fits_int64(max));
+    ASSERT_TRUE(fits_int64(min));
+    ASSERT_FALSE(fits_int64(past_max));
+    ASSERT_FALSE(fits_int64(past_min));
+
+    EXPECT_EQ(h(max), expected_hash(max));
+    EXPECT_EQ(h(min), expected_hash(min));
+    EXPECT_EQ(h(past_max), expected_hash(past_max));
+    EXPECT_EQ(h(past_min), expected_hash(past_min));
+
+    EXPECT_NE(h(max), h(past_max));
+    EXPECT_NE(h(min), h(past_min));
+    EXPECT_NE(h(past_max), h(past_min));
+
+    // -2^63 is the one magnitude of full 64-bit width that stays on the builtin path;
+    // +2^63 has the same magnitude and must not follow it there.
+    const big_int negative_pow63 = min;
+    const big_int positive_pow63 = past_max;
+    EXPECT_EQ(h(negative_pow63), std::hash<std::int64_t>{}(std::numeric_limits<std::int64_t>::min()));
+    EXPECT_NE(h(positive_pow63), h(negative_pow63));
 }
 
 // ----- Usability in standard unordered associative containers -----

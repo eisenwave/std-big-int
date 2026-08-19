@@ -653,7 +653,7 @@ TEST(Pmr, HashEqualsAcrossResources) {
 }
 
 TEST(Pmr, HashEqualsBetweenPmrAndNonPmr) {
-    // The hash is computed over the limb span and sign bit, so a pmr value
+    // The hash is computed over the value alone, so a pmr value
     // and a non-pmr value that hold the same number must hash identically
     // (modulo the allocator type parameter on the std::hash<...> instantiation).
     const big_int     non_pmr{0xDEAD'BEEFU};
