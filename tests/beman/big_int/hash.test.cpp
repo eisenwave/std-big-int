@@ -728,8 +728,9 @@ constexpr std::size_t narrowest_bit_int_bits = 2;
 // `big_int` key of the same value exactly where that value needs `N`'s object size: one small
 // enough for a narrower rung takes the narrower rung's digest, which past the first step is a
 // digest over fewer bytes. Below the first step there is no narrower rung, so the whole range
-// of `_BitInt(N)` qualifies.
-[[nodiscard]] bool needs_own_object_size(const big_int& x, const std::size_t bits) {
+// of `_BitInt(N)` qualifies. Where the standard library hashes no `_BitInt` the sweep below
+// has no width to check, so this helper goes unused there.
+[[nodiscard, maybe_unused]] bool needs_own_object_size(const big_int& x, const std::size_t bits) {
     const std::size_t narrower = rung_below(bits);
     if (narrower == 0) {
         return true;
@@ -741,10 +742,12 @@ constexpr std::size_t narrowest_bit_int_bits = 2;
 // Checks a `big_int` against a `_BitInt(bits)` holding the same value, over both ends of that
 // type's range, both ends of the band of values it is the narrowest of its object size for,
 // and a spread in between. Reports how many values were checked, which is none where the
-// implementation does not hash the type.
-template <std::size_t bits>
+// implementation does not hash the type. `T` is a template parameter rather than a local
+// alias so that `std::hash<T>` stays dependent: on a target without `_BitInt` every width
+// names the same placeholder, and a compiler is free to reject a non-dependent use of it
+// even in the branch discarded below.
+template <std::size_t bits, class T = bit_int_of<bits>>
 [[nodiscard]] std::size_t check_width() {
-    using T = bit_int_of<bits>;
     if constexpr (!detail::std_hashable<T>) {
         return 0;
     } else {
