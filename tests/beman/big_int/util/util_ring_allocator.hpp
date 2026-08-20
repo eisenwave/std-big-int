@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
 #ifndef BEMAN_BIG_INT_UTIL_RING_ALLOCATOR_HPP
 #define BEMAN_BIG_INT_UTIL_RING_ALLOCATOR_HPP
 
