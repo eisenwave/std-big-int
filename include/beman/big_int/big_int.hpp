@@ -3311,6 +3311,9 @@ constexpr void basic_big_int<b, L, A>::check_length(const size_type limbs_needed
     }
 }
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
+
 template <std::size_t b, class L, class A>
 constexpr auto basic_big_int<b, L, A>::alloc_limbs_from(allocator_type& a, const size_type n) -> alloc_result {
     BEMAN_BIG_INT_ASSERT(n != 0);
@@ -3325,6 +3328,8 @@ constexpr auto basic_big_int<b, L, A>::alloc_limbs_from(allocator_type& a, const
     return {.ptr = alloc_traits::allocate(a, n), .count = n};
 #endif
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <std::size_t b, class L, class A>
 constexpr auto basic_big_int<b, L, A>::alloc_limbs(const size_type n) -> alloc_result {
@@ -3350,6 +3355,9 @@ constexpr void basic_big_int<b, L, A>::free_storage() {
     }
 }
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
+
 template <std::size_t b, class L, class A>
 constexpr void basic_big_int<b, L, A>::grow(const size_type limbs_needed) {
     const size_type current_cap = is_representation_inplace() ? inplace_capacity : m_capacity;
@@ -3374,6 +3382,8 @@ constexpr void basic_big_int<b, L, A>::grow(const size_type limbs_needed) {
     m_storage.data = allocation.ptr;
     m_capacity     = static_cast<std::uint32_t>(allocation.count);
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <std::size_t b, class L, class A>
 constexpr void
