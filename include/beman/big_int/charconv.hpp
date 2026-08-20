@@ -68,7 +68,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, co
         return {end, std::errc::value_too_large};
     }
 
-    const size_type width = x.width_mag();
+    const size_type width = x.size();
     if (width == 0) {
         *begin = '0';
         return {begin + 1, std::errc{}};

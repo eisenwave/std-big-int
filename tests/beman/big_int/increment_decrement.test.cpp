@@ -204,7 +204,7 @@ using big_int_256 = beman::big_int::basic_big_int<256>;
 consteval bool decrement_is_normalized(unsigned shift) {
     big_int x = big_int{1} << shift;
     --x;
-    return is_normalized(x) && x.width_mag() == shift && x == (big_int{1} << shift) - big_int{1};
+    return is_normalized(x) && x.size() == shift && x == (big_int{1} << shift) - big_int{1};
 }
 static_assert(decrement_is_normalized(64));
 static_assert(decrement_is_normalized(128));
@@ -226,7 +226,7 @@ consteval big_int_256 decremented_inplace(unsigned shift) {
     return x;
 }
 static_assert(is_normalized(decremented_inplace(128)));
-static_assert(decremented_inplace(192).width_mag() == 192);
+static_assert(decremented_inplace(192).size() == 192);
 
 TEST(IncrementDecrement, PrefixDecrementAcrossLimbBoundaryIsNormalized) {
     for (const unsigned shift : {64U, 128U, 192U}) {
@@ -236,7 +236,7 @@ TEST(IncrementDecrement, PrefixDecrementAcrossLimbBoundaryIsNormalized) {
         EXPECT_EQ(x, (big_int{1} << shift) - big_int{1}) << "shift " << shift;
         EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
         EXPECT_EQ(x.representation().size(), shift / limb_bits) << "shift " << shift;
-        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+        EXPECT_EQ(x.size(), shift) << "shift " << shift;
     }
 }
 
@@ -247,7 +247,7 @@ TEST(IncrementDecrement, PostfixDecrementAcrossLimbBoundaryIsNormalized) {
 
         EXPECT_TRUE(is_normalized(old_x)) << "shift " << shift;
         EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
-        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+        EXPECT_EQ(x.size(), shift) << "shift " << shift;
     }
 }
 
@@ -258,7 +258,7 @@ TEST(IncrementDecrement, PrefixIncrementNegativeAcrossLimbBoundary) {
 
         EXPECT_EQ(x, -((big_int{1} << shift) - big_int{1})) << "shift " << shift;
         EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
-        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+        EXPECT_EQ(x.size(), shift) << "shift " << shift;
     }
 }
 
@@ -284,13 +284,13 @@ TEST(IncrementDecrement, PrefixDecrementInplaceAcrossLimbBoundaryIsNormalized) {
         EXPECT_TRUE(is_inplace(x)) << "shift " << shift;
         EXPECT_EQ(x, expected) << "shift " << shift;
         EXPECT_TRUE(is_normalized(x)) << "shift " << shift;
-        EXPECT_EQ(x.width_mag(), shift) << "shift " << shift;
+        EXPECT_EQ(x.size(), shift) << "shift " << shift;
     }
 }
 
-// A de-normalized magnitude reports width_mag() == 0, and the free operator>>
+// A de-normalized magnitude reports size() == 0, and the free operator>>
 // discards everything at or beyond that width, so it loses the value outright
-// rather than only mis-printing it. Compound >>= does not read width_mag().
+// rather than only mis-printing it. Compound >>= does not read size().
 TEST(IncrementDecrement, DecrementAcrossLimbBoundaryKeepsMagnitudeObservers) {
     const big_int expected = (big_int{1} << 128) - big_int{1};
     big_int       x        = big_int{1} << 128;
