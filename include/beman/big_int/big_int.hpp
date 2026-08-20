@@ -3329,12 +3329,12 @@ constexpr auto basic_big_int<b, L, A>::alloc_limbs_from(allocator_type& a, const
 #endif
 }
 
-BEMAN_BIG_INT_DIAGNOSTIC_POP()
-
 template <std::size_t b, class L, class A>
 constexpr auto basic_big_int<b, L, A>::alloc_limbs(const size_type n) -> alloc_result {
     return alloc_limbs_from(m_alloc, n);
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <std::size_t b, class L, class A>
 constexpr void basic_big_int<b, L, A>::free_limbs(pointer p, const size_type n) {
