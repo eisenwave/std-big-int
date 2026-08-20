@@ -71,6 +71,16 @@ class, so that a future revision can change it without changing the signature of
 `Allocator::value_type` shall be `Limb`; a program that instantiates
 `basic_big_int` with any other limb type is ill-formed.
 
+[#big_int_type_length_limit]
+For a practical implementation the `big_int` does have a maximum size available as `max_size()`.
+Any operation that would need more storage than that, or the growth required by
+an arithmetic, shift, bitwise, assignment, or parsing operation, etc., throws
+`std::length_error`, on in an exception free environment `std::abort()`.
+The check happens before the allocator is consulted, so no allocation is attempted for a request that cannot be represented.
+A request that is within the limit but cannot be served reports the allocator's own failure (typically `std::bad_alloc`) instead.
+During constant evaluation the same condition is a compile-time error rather than an exception, since a thrown exception is not a
+constant expression.
+
 [#big_int_type_synopsis]
 == Synopsis
 
@@ -429,6 +439,7 @@ and returns `*this`, where `@` is the corresponding binary operator.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
+* *Throws:* `std::length_error` if the result would occupy more than `max_size()` bits; otherwise, any exception thrown during allocation.
 
 === Division and remainder compound assignment
 
@@ -459,6 +470,7 @@ by `2^s`, rounded toward negative infinity). Each returns `*this`.
 
 * *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift `max_size()`.
 * *Postconditions:* None.
+* *Throws:* `std::length_error` if the result would occupy more than `max_size()` bits; otherwise, any exception thrown during allocation.
 
 [#big_int_type_swap]
 == Swap
@@ -551,9 +563,12 @@ static constexpr size_type max_size() noexcept;
 
 Returns the maximum number of bits that the magnitude may occupy, that is,
 `max_representation_size() * std::numeric_limits<uint_multiprecision_t>::digits`.
+An operation that would grow the magnitude beyond this many bits throws
+`std::length_error`; see xref:big_int_type.adoc#big_int_type_length_limit[the length limit].
 
 * *Preconditions:* None.
 * *Postconditions:* None.
+* *Throws:* Nothing.
 
 === `max_representation_size`
 
@@ -567,6 +582,7 @@ is, `max_size() / std::numeric_limits<uint_multiprecision_t>::digits`.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
+* *Throws:* Nothing.
 
 === `reserve`
 
@@ -582,6 +598,7 @@ rounded up to a whole number of limbs; equivalent to
 
 * *Preconditions:* None.
 * *Postconditions:* If reallocation occurs, `capacity()` is greater than or equal to `n`; otherwise, `capacity()` is unchanged.
+* *Throws:* `std::length_error` if `n` is greater than `max_size()`; otherwise, any exception thrown during allocation. In either case `*this` is unchanged.
 
 === `reserve_representation`
 
@@ -596,6 +613,7 @@ number of limbs, so that storage can be allocated up front. Equivalent to
 
 * *Preconditions:* None.
 * *Postconditions:* If reallocation occurs, `representation_capacity()` is greater than or equal to `n`; otherwise, the capacity is unchanged.
+* *Throws:* `std::length_error` if `n` is greater than `max_representation_size()`; otherwise, any exception thrown during allocation. In either case `*this` is unchanged.
 
 === `capacity`
 
@@ -778,6 +796,7 @@ specialization or a built-in signed or unsigned integer type.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
+* *Throws:* `std::length_error` if the result would occupy more than `max_size()` bits; otherwise, any exception thrown during allocation.
 * *Remarks:* The bitwise operators (`&`, `|`, `^`) behave as if performed on a two's-complement representation in which non-negative numbers have infinitely many leading zero bits and negative numbers have infinitely many leading one bits.
 
 === Division and remainder operators
@@ -815,6 +834,7 @@ allocator of `x`.
 * *Constraints:* `std::remove_cvref_t<T>` is a `basic_big_int` specialization.
 * *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift for the result type (`max_size()`).
 * *Postconditions:* None.
+* *Throws:* `std::length_error` if the result would occupy more than `max_size()` bits; otherwise, any exception thrown during allocation.
 
 [#big_int_type_hash]
 == Hash support

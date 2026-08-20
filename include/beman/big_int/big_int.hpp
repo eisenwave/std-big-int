@@ -13,6 +13,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -125,6 +126,14 @@ struct allocation_result {
     SizeType count;
 };
 #endif // __cpp_lib_allocate_at_least
+
+[[noreturn]] inline void throw_length_error() {
+#ifdef BEMAN_BIG_INT_ALLOW_EXCEPTIONS
+    throw std::length_error("beman::big_int: requested size exceeds max_size()");
+#else
+    std::abort();
+#endif
+}
 
 // Returns the mathematically correct `abs(x)` for a given signed integer `x`,
 // where the result is an unsigned integer.
@@ -577,6 +586,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::cv_unqualified_floating_point F>
     constexpr void assign_from_float(F value) noexcept;
 
+    // Throws `std::length_error` if `limbs_needed` limbs cannot be represented
+    static constexpr void                       check_length(size_type limbs_needed);
     [[nodiscard]] static constexpr alloc_result alloc_limbs_from(allocator_type& a, size_type n);
     [[nodiscard]] constexpr alloc_result        alloc_limbs(size_type n);
     constexpr void                              free_limbs(pointer p, size_type n);
@@ -3294,8 +3305,19 @@ constexpr void basic_big_int<b, L, A>::assign_from_float(const F value) noexcept
 }
 
 template <std::size_t b, class L, class A>
+constexpr void basic_big_int<b, L, A>::check_length(const size_type limbs_needed) {
+    if (limbs_needed > max_representation_size()) {
+        detail::throw_length_error();
+    }
+}
+
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
+
+template <std::size_t b, class L, class A>
 constexpr auto basic_big_int<b, L, A>::alloc_limbs_from(allocator_type& a, const size_type n) -> alloc_result {
     BEMAN_BIG_INT_ASSERT(n != 0);
+    check_length(n);
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
     if constexpr (detail::traits_has_allocate_at_least<alloc_traits, A>) {
         return alloc_traits::allocate_at_least(a, n);
@@ -3311,6 +3333,8 @@ template <std::size_t b, class L, class A>
 constexpr auto basic_big_int<b, L, A>::alloc_limbs(const size_type n) -> alloc_result {
     return alloc_limbs_from(m_alloc, n);
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <std::size_t b, class L, class A>
 constexpr void basic_big_int<b, L, A>::free_limbs(pointer p, const size_type n) {
@@ -3331,6 +3355,9 @@ constexpr void basic_big_int<b, L, A>::free_storage() {
     }
 }
 
+BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
+BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4702)
+
 template <std::size_t b, class L, class A>
 constexpr void basic_big_int<b, L, A>::grow(const size_type limbs_needed) {
     const size_type current_cap = is_representation_inplace() ? inplace_capacity : m_capacity;
@@ -3338,9 +3365,15 @@ constexpr void basic_big_int<b, L, A>::grow(const size_type limbs_needed) {
         return;
     }
 
+    constexpr size_type cap_limit = max_representation_size();
+    if (limbs_needed > cap_limit) {
+        detail::throw_length_error();
+    }
+
     // libstdc++ and libc++ normally double storage each allocation
     // MSVC does 1.5x instead of 2x
-    const size_type    new_cap    = std::max(limbs_needed, 2 * current_cap);
+    // Only the doubling is clamped, so the capacity itself stays representable.
+    const size_type    new_cap    = std::min(std::max(limbs_needed, 2 * current_cap), cap_limit);
     const alloc_result allocation = alloc_limbs(new_cap);
     copy_n_to_allocation(limb_ptr(), limb_count(), allocation);
 
@@ -3349,6 +3382,8 @@ constexpr void basic_big_int<b, L, A>::grow(const size_type limbs_needed) {
     m_storage.data = allocation.ptr;
     m_capacity     = static_cast<std::uint32_t>(allocation.count);
 }
+
+BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
 template <std::size_t b, class L, class A>
 constexpr void
