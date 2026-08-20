@@ -10,6 +10,7 @@
 #if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 
     #include <algorithm>
+    #include <array>
     #include <climits>
     #include <cstddef>
     #include <cstdint>
@@ -31,6 +32,10 @@ enum class align_kind : std::uint8_t { defaulted, left, right, center };
 // The sign option. `minus` (only negatives get a sign) is the default.
 enum class sign_kind : std::uint8_t { minus, plus, space };
 
+// The fill is one character of the format string's encoding, which UTF-8 spells in up to four
+// code units and UTF-16 in up to two.
+inline constexpr std::size_t max_fill_units = 4;
+
 // Padding is expected and acceptable.
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
@@ -38,7 +43,10 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 // A fully parsed std-format-spec for a big_int argument.
 template <class charT>
 struct format_spec {
-    charT       fill         = static_cast<charT>(' ');
+    // The fill character, held as the code units that spell it.
+    std::array<charT, max_fill_units> fill{static_cast<charT>(' ')};
+    std::size_t                       fill_units = 1;
+
     align_kind  align        = align_kind::defaulted;
     sign_kind   sign         = sign_kind::minus;
     bool        alt          = false; // '#'
@@ -70,6 +78,66 @@ template <class charT>
 template <class charT>
 [[nodiscard]] constexpr align_kind to_align(const charT c) noexcept {
     return c == charT('<') ? align_kind::left : c == charT('>') ? align_kind::right : align_kind::center;
+}
+
+// Number of code units in the character beginning at `it`, or 0 when the units there do not
+// form one. `char` is taken to be UTF-8, and `wchar_t` to be UTF-16 or UTF-32 by its width, so
+// a multi-byte fill character in a UTF-8 format string, or a surrogate pair in a UTF-16 one,
+// counts as the single character it is to the standard formatters.
+template <class charT, class It>
+[[nodiscard]] constexpr std::size_t char_units(It it, const It end) {
+    if (it == end) {
+        return 0;
+    }
+    const auto unit = [](const charT c) {
+        return static_cast<std::uint32_t>(static_cast<std::make_unsigned_t<charT>>(c));
+    };
+    const std::uint32_t lead = unit(*it);
+
+    if constexpr (sizeof(charT) == 1) {
+        std::size_t   units = 0;
+        std::uint32_t low   = 0x80; // range the next continuation unit may take, narrowed for
+        std::uint32_t high  = 0xBF; // the leads that would otherwise admit an overlong form,
+                                    // a surrogate, or a value above U+10FFFF
+        if (lead < 0x80) {
+            return 1;
+        } else if (lead >= 0xC2 && lead <= 0xDF) {
+            units = 2;
+        } else if (lead >= 0xE0 && lead <= 0xEF) {
+            units = 3;
+            low   = lead == 0xE0 ? 0xA0 : low;
+            high  = lead == 0xED ? 0x9F : high;
+        } else if (lead >= 0xF0 && lead <= 0xF4) {
+            units = 4;
+            low   = lead == 0xF0 ? 0x90 : low;
+            high  = lead == 0xF4 ? 0x8F : high;
+        } else {
+            return 0;
+        }
+        for (std::size_t i = 1; i < units; ++i) {
+            if (++it == end) {
+                return 0;
+            }
+            const std::uint32_t continuation = unit(*it);
+            if (continuation < low || continuation > high) {
+                return 0;
+            }
+            low  = 0x80;
+            high = 0xBF;
+        }
+        return units;
+    } else if constexpr (sizeof(charT) == 2) {
+        if (lead >= 0xD800 && lead <= 0xDBFF) { // a high surrogate needs its low surrogate
+            if (++it == end) {
+                return 0;
+            }
+            const std::uint32_t trail = unit(*it);
+            return (trail >= 0xDC00 && trail <= 0xDFFF) ? 2 : 0;
+        }
+        return (lead >= 0xDC00 && lead <= 0xDFFF) ? 0 : 1;
+    } else {
+        return (lead <= 0x10FFFF && (lead < 0xD800 || lead > 0xDFFF)) ? 1 : 0;
+    }
 }
 
 // Uppercases an ASCII letter; leaves everything else untouched (locale-independent).
@@ -169,10 +237,18 @@ OutputIt emit_number(OutputIt                        out,
             ++out;
         }
     };
-    const auto put_fill = [&out](const charT c, const std::size_t n) {
+    const auto put_zeros = [&out](const std::size_t n) {
         for (std::size_t i = 0; i < n; ++i) {
-            *out = c;
+            *out = static_cast<charT>('0');
             ++out;
+        }
+    };
+    const auto put_fill = [&out, &spec](const std::size_t n) {
+        for (std::size_t i = 0; i < n; ++i) {
+            for (std::size_t u = 0; u < spec.fill_units; ++u) {
+                *out = spec.fill[u];
+                ++out;
+            }
         }
     };
 
@@ -187,7 +263,7 @@ OutputIt emit_number(OutputIt                        out,
     if (spec.zero_pad && spec.align == align_kind::defaulted) {
         put_ascii(sign);
         put_ascii(prefix);
-        put_fill(static_cast<charT>('0'), pad);
+        put_zeros(pad);
         put_body();
         return out;
     }
@@ -203,21 +279,23 @@ OutputIt emit_number(OutputIt                        out,
     } else {
         left = pad;
     }
-    put_fill(spec.fill, left);
+    put_fill(left);
     put_ascii(sign);
     put_ascii(prefix);
     put_body();
-    put_fill(spec.fill, right);
+    put_fill(right);
     return out;
 }
 
 // Emits a single character padded to `width`. The `c` type aligns left by default.
 template <class charT, class OutputIt>
 OutputIt emit_char_field(OutputIt out, const charT ch, const format_spec<charT>& spec, const std::size_t width) {
-    const auto put_fill = [&out](const charT c, const std::size_t n) {
+    const auto put_fill = [&out, &spec](const std::size_t n) {
         for (std::size_t i = 0; i < n; ++i) {
-            *out = c;
-            ++out;
+            for (std::size_t u = 0; u < spec.fill_units; ++u) {
+                *out = spec.fill[u];
+                ++out;
+            }
         }
     };
 
@@ -239,10 +317,10 @@ OutputIt emit_char_field(OutputIt out, const charT ch, const format_spec<charT>&
     } else {
         right = pad;
     }
-    put_fill(spec.fill, left);
+    put_fill(left);
     *out = ch;
     ++out;
-    put_fill(spec.fill, right);
+    put_fill(right);
     return out;
 }
 
@@ -292,17 +370,22 @@ struct formatter<beman::big_int::basic_big_int<B, L, A>, charT> {
             return it;
         }
 
-        // fill-and-align: if the second character is an alignment, the first is the fill.
+        // fill-and-align: if an alignment follows the first character, that character is the
+        // fill. The fill may span several code units, so its length is measured, not assumed.
         {
-            auto next = it;
-            if (next != end) {
+            const std::size_t units = d::char_units<charT>(it, end);
+            auto              next  = it;
+            for (std::size_t i = 0; i < units; ++i) {
                 ++next;
             }
-            if (next != end && d::is_align(*next) && *it != charT('{') && *it != charT('}')) {
-                spec_.fill  = *it;
-                spec_.align = d::to_align(*next);
-                it          = next;
-                ++it;
+            if (units != 0 && next != end && d::is_align(*next) && *it != charT('{') && *it != charT('}')) {
+                for (std::size_t i = 0; i < units; ++i) {
+                    spec_.fill[i] = *it;
+                    ++it;
+                }
+                spec_.fill_units = units;
+                spec_.align      = d::to_align(*next);
+                ++it; // `it` reached `next`, so this steps past the alignment character
             } else if (d::is_align(*it)) {
                 spec_.align = d::to_align(*it);
                 ++it;

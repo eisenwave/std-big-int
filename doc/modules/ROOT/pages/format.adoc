@@ -84,12 +84,13 @@ truncated.
 Without an explicit alignment the default is right for every numeric
 presentation type and left for the `c` type, matching the standard formatters.
 
-NOTE: The fill character is a single code unit of `charT`. A fill character
-that a UTF-8 literal encodes in more than one code unit, such as `{:*>8}` with
-a box-drawing character in place of the `*`, is rejected with
-`std::format_error`, where the standard integer formatters accept it. Use a
-single-code-unit fill character, or a wide format string, where a non-ASCII
-fill is wanted.
+The fill is a character, not a code unit: a UTF-8 format string may spell it in
+up to four bytes, and a UTF-16 one may spell it as a surrogate pair. Each
+padding position takes one whole fill character, and a byte sequence that does
+not spell a character, such as a truncated or overlong UTF-8 sequence, is
+rejected with `std::format_error`. As with the standard formatters, the fill is
+one character and not one grapheme cluster, so a letter followed by a combining
+mark is not a valid fill.
 
 [#format_spec_sign]
 === Sign
@@ -161,9 +162,8 @@ comma. `L` is accepted with the `c` type, where it has no effect.
 |===
 
 The `c` type requires the value to lie in
-`[std::numeric_limits<charT>::min(), std::numeric_limits<charT>::max()]`; any
-other value, including every value too large for a single limb, is an error.
-Following the resolution of LWG 3644, `c` is not an integer presentation type,
+`[std::numeric_limits<charT>::min(), std::numeric_limits<charT>::max()]`, so a
+value that needs more than one limb is always out of range. Following the resolution of LWG 3644, `c` is not an integer presentation type,
 so combining it with the sign option, `#`, or `0` is ill-formed even though
 some standard libraries still accept those combinations on the built-in types.
 
@@ -217,7 +217,8 @@ Writes `value`, formatted according to the parsed specification, to
 The formatter reports these conditions. Apart from the `c` combinations that
 LWG 3644 made ill-formed, which some standard libraries still accept on the
 built-in types, each is reported exactly where a standard integer formatter
-reports it:
+reports it. The messages are listed without the `big_int format: ` prefix that
+each of them carries:
 
 [cols="2,1,2", options="header"]
 |===
@@ -280,7 +281,7 @@ std::format("{:X}", big_int{255});     // "FF"
 std::format("{:c}", big_int{65});      // "A"
 std::format("{:5c}", big_int{65});     // "A    ", the c type aligns left by default
 
-std::format("{:{}}", big_int{42}, 6);  // "    42", width from an argument
+std::format("{:{}}", big_int{42}, 6);     // "    42", width from an argument
 std::format("{:0{}x}", big_int{255}, 6);  // "0000ff"
 ----
 
