@@ -54,6 +54,14 @@ struct format_spec {
 
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
 
+[[noreturn]] inline void throw_format_error([[maybe_unused]] const char* why) {
+    #ifdef BEMAN_BIG_INT_ALLOW_EXCEPTIONS
+    throw std::format_error(why);
+    #else
+    std::abort();
+    #endif
+}
+
 template <class charT>
 [[nodiscard]] constexpr bool is_align(const charT c) noexcept {
     return c == charT('<') || c == charT('>') || c == charT('^');
@@ -82,7 +90,7 @@ constexpr std::size_t parse_uint(It& it, const It end) {
         }
         const std::size_t dig = static_cast<std::size_t>(c - charT('0'));
         if (v > cap || (v == cap && dig > maxv % 10u)) {
-            throw std::format_error("big_int format: width or argument index is too large");
+            throw_format_error("big_int format: width or argument index is too large");
         }
         v = v * 10u + dig;
         ++it;
@@ -245,11 +253,11 @@ template <class FormatContext>
     const auto visitor = [](auto value) -> std::size_t {
         using V = std::remove_cvref_t<decltype(value)>;
         if constexpr (std::is_same_v<V, bool> || !std::is_integral_v<V>) {
-            throw std::format_error("big_int format: width argument is not a non-bool integer");
+            throw_format_error("big_int format: width argument is not a non-bool integer");
         } else {
             if constexpr (std::is_signed_v<V>) {
                 if (value < V{0}) {
-                    throw std::format_error("big_int format: width argument is negative");
+                    throw_format_error("big_int format: width argument is negative");
                 }
             }
             return static_cast<std::size_t>(value);
@@ -334,7 +342,7 @@ struct formatter<beman::big_int::basic_big_int<B, L, A>, charT> {
                 spec_.width = id;
             }
             if (it == end || *it != charT('}')) {
-                throw std::format_error("big_int format: invalid dynamic width");
+                d::throw_format_error("big_int format: invalid dynamic width");
             }
             ++it;
         } else if (it != end && *it >= charT('1') && *it <= charT('9')) {
@@ -344,7 +352,7 @@ struct formatter<beman::big_int::basic_big_int<B, L, A>, charT> {
 
         // Precision is never valid for an integer or the 'c' type.
         if (it != end && *it == charT('.')) {
-            throw std::format_error("big_int format: precision is not allowed");
+            d::throw_format_error("big_int format: precision is not allowed");
         }
 
         if (it != end && *it == charT('L')) {
@@ -378,7 +386,7 @@ struct formatter<beman::big_int::basic_big_int<B, L, A>, charT> {
                 spec_.as_char = true;
                 break;
             default:
-                throw std::format_error("big_int format: invalid type");
+                d::throw_format_error("big_int format: invalid type");
             }
             ++it;
         }
@@ -387,18 +395,18 @@ struct formatter<beman::big_int::basic_big_int<B, L, A>, charT> {
         // ill-formed with it. ('L' is accepted and is a no-op on a single character.)
         if (spec_.as_char) {
             if (sign_set) {
-                throw std::format_error("big_int format: the sign option is invalid with the 'c' type");
+                d::throw_format_error("big_int format: the sign option is invalid with the 'c' type");
             }
             if (spec_.alt) {
-                throw std::format_error("big_int format: the '#' option is invalid with the 'c' type");
+                d::throw_format_error("big_int format: the '#' option is invalid with the 'c' type");
             }
             if (spec_.zero_pad) {
-                throw std::format_error("big_int format: the '0' option is invalid with the 'c' type");
+                d::throw_format_error("big_int format: the '0' option is invalid with the 'c' type");
             }
         }
 
         if (it != end && *it != charT('}')) {
-            throw std::format_error("big_int format: unmatched characters in format spec");
+            d::throw_format_error("big_int format: unmatched characters in format spec");
         }
         return it;
     }
@@ -418,7 +426,7 @@ struct formatter<beman::big_int::basic_big_int<B, L, A>, charT> {
             const long long lo = static_cast<long long>((std::numeric_limits<charT>::min)());
             const long long hi = static_cast<long long>((std::numeric_limits<charT>::max)());
             if (value < big_type{lo} || value > big_type{hi}) {
-                throw std::format_error("big_int format: value is out of range for the target character type");
+                d::throw_format_error("big_int format: value is out of range for the target character type");
             }
             const charT ch = static_cast<charT>(static_cast<long long>(value));
             return d::emit_char_field<charT>(fc.out(), ch, spec_, width);
