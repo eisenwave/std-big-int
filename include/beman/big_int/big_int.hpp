@@ -3429,36 +3429,30 @@ namespace beman::big_int::detail {
 // `std::hash` is disabled for it, so that rung is skipped.
 struct absent_hash_rung {};
 
-#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 64
-using hash_rung_64 = bit_int<64>;
+// One rung per object size rather than per width: a `_BitInt` past a word occupies
+inline constexpr std::size_t hash_rung_step = BEMAN_BIG_INT_WORD_BITS;
+
+// The rung `i` object sizes up from the narrowest.
+#if BEMAN_BIG_INT_BITINT_MAXWIDTH > 0
+template <std::size_t i>
+using hash_rung_t = bit_int<static_cast<int>((i + 1) * hash_rung_step)>;
 #else
-using hash_rung_64 = absent_hash_rung;
+template <std::size_t i>
+using hash_rung_t = absent_hash_rung;
 #endif
 
-#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 128
-using hash_rung_128 = bit_int<128>;
-#else
-using hash_rung_128 = absent_hash_rung;
-#endif
+// How many rungs there are to try: as many object sizes as both the target's `_BitInt` and
+// the reach of the standard library's own hash allow.
+inline constexpr std::size_t hash_rung_count =
+    std::min<std::size_t>(BEMAN_BIG_INT_HASH_MAX_OBJECT_WORDS, BEMAN_BIG_INT_BITINT_MAXWIDTH / hash_rung_step);
 
-// One rung per object size rather than per width: an implementation that hashes a scalar
-// by its object representation gives every `_BitInt` of the same size one digest, and a
-// `_BitInt` past 64 bits occupies `ceil(N / 64)` words.
-#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 192
-using hash_rung_192 = bit_int<192>;
-#else
-using hash_rung_192 = absent_hash_rung;
-#endif
+using hash_rung_indices = std::make_index_sequence<hash_rung_count>;
 
-// The known cap right now (19 Aug 26) is _BitInt(256)
-#if BEMAN_BIG_INT_BITINT_MAXWIDTH >= 256
-using hash_rung_256 = bit_int<256>;
-#else
-using hash_rung_256 = absent_hash_rung;
-#endif
-
+// Whether the standard library gives `T` a digest. The size test is not an optimization:
+// past the size its hash covers libc++ fails to compile rather than failing this
+// requirement, so the size has to be asked first.
 template <class T>
-concept std_hashable = sizeof(T) <= 4 * sizeof(std::size_t) && requires(const T& v) {
+concept std_hashable = sizeof(T) <= BEMAN_BIG_INT_HASH_MAX_OBJECT_WORDS * sizeof(std::size_t) && requires(const T& v) {
     { std::hash<T>{}(v) } -> std::convertible_to<std::size_t>;
 };
 
@@ -3472,11 +3466,16 @@ template <class T>
     }
 }
 
+// The widest rung the standard library will hash, or zero where it hashes none.
+template <std::size_t... i>
+[[nodiscard]] consteval std::size_t widest_hash_rung(std::index_sequence<i...>) {
+    std::size_t widest = 0;
+    ((widest = std::max(widest, hash_rung_bits<hash_rung_t<i>>())), ...);
+    return widest;
+}
+
 // Past this width no rung can hold the value, so the ladder is skipped outright.
-inline constexpr std::size_t widest_hash_rung_bits = std::max({hash_rung_bits<hash_rung_64>(),
-                                                               hash_rung_bits<hash_rung_128>(),
-                                                               hash_rung_bits<hash_rung_192>(),
-                                                               hash_rung_bits<hash_rung_256>()});
+inline constexpr std::size_t widest_hash_rung_bits = widest_hash_rung(hash_rung_indices{});
 
 // Hashes `x` as `T` where `T` can represent it, reporting whether it did.
 // A magnitude narrower than `T` is in range whatever its sign, and one of exactly `T`'s
@@ -3494,6 +3493,17 @@ hash_as_bit_int(const BigInt& x, const std::size_t width, const bool negative, s
     return false;
 }
 
+// Hashes `x` on the narrowest rung that can represent it, reporting whether one could. The
+// fold short-circuits, so the rungs are tried narrowest first and stop at the one that wins.
+template <class BigInt, std::size_t... i>
+[[nodiscard]] bool hash_on_rung_ladder(const BigInt&     x,
+                                       const std::size_t width,
+                                       const bool        negative,
+                                       std::size_t&      digest,
+                                       std::index_sequence<i...>) noexcept {
+    return (hash_as_bit_int<hash_rung_t<i>>(x, width, negative, digest) || ...);
+}
+
 } // namespace beman::big_int::detail
 
 // [big.int.hash], hash support
@@ -3503,16 +3513,16 @@ struct std::hash<beman::big_int::basic_big_int<b, L, A>> {
     std::size_t operator()(const beman::big_int::basic_big_int<b, L, A>& x) const noexcept {
         namespace detail = beman::big_int::detail;
 
-        // A value a builtin signed integer type can represent is hashed as the narrowest such type
-        const auto width    = x.width_mag();
         const bool negative = x.is_negative();
-        if (width <= detail::widest_hash_rung_bits) {
-            std::size_t digest{};
-            if (detail::hash_as_bit_int<detail::hash_rung_64>(x, width, negative, digest) ||
-                detail::hash_as_bit_int<detail::hash_rung_128>(x, width, negative, digest) ||
-                detail::hash_as_bit_int<detail::hash_rung_192>(x, width, negative, digest) ||
-                detail::hash_as_bit_int<detail::hash_rung_256>(x, width, negative, digest)) {
-                return digest;
+
+        // A value a signed bit-precise integer type can represent is hashed as the narrowest such type
+        if constexpr (detail::widest_hash_rung_bits != 0) {
+            const auto width = x.width_mag();
+            if (width <= detail::widest_hash_rung_bits) {
+                std::size_t digest{};
+                if (detail::hash_on_rung_ladder(x, width, negative, digest, detail::hash_rung_indices{})) {
+                    return digest;
+                }
             }
         }
 
