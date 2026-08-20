@@ -725,12 +725,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
         // Slow path: current buffer is too small. Each branch releases our buffer
         // with our current allocator, before any propagation, and publishes the
-        // control words only once the storage they describe is in place. We may
-        // also be able to adopt src's buffer if the allocators are compatible.
+        // control words only once the storage they describe is in place.
         if (src.is_representation_inplace() && needed <= inplace_capacity) {
-            // Both src and the requested headroom fit inline. Reaching here needs a
-            // heap buffer smaller than the inline one, which nothing produces, so
-            // there is nothing to release; just propagate (if applicable) and copy.
+            // Both src and the requested headroom fit inline. No buffer to
+            // adopt or allocate; just propagate (if applicable) and copy limbs.
             if constexpr (propagate_alloc) {
                 m_alloc = std::forward<Src>(src).m_alloc;
             }
@@ -772,10 +770,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         }
 
         // Fall back to a fresh allocation of `needed` limbs. Secure it before
-        // releasing our own buffer, so a throwing allocation leaves `*this`
-        // unchanged. When the allocator propagates, the new block has to come
-        // from `src`'s allocator while the old block still has to be released
-        // with ours, so allocate through a copy of `src`'s.
+        // releasing ours, so a throwing allocation leaves `*this` unchanged. A
+        // propagating allocator has to serve the new block while ours still has to
+        // release the old, so allocate through a copy of `src`'s.
         const alloc_result allocation = [&] {
             if constexpr (propagate_alloc) {
                 allocator_type src_alloc(src.m_alloc);
