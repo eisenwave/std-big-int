@@ -623,6 +623,15 @@ template <unsigned_integer T>
 
 } // namespace beman::big_int::detail
 
+// Exceptions ==================================================================
+
+#if (defined(_MSC_VER) && defined(_CPPUNWIND)) || defined(__EXCEPTIONS)
+#  include <stdexcept>
+#  define BEMAN_BIG_INT_ALLOW_EXCEPTIONS
+#else
+#  define BEMAN_BIG_INT_NO_EXCEPTIONS
+#endif
+
 // =============================================================================
 
 #endif // BEMAN_BIG_INT_CONFIG_HPP
