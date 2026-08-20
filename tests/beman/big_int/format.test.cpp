@@ -88,6 +88,16 @@ template <class T>
     return out;
 }
 
+// Concatenates `n` copies of `s`, for building an expected run of fill characters.
+template <class S>
+[[nodiscard]] S repeat(const S& s, const std::size_t n) {
+    S out;
+    for (std::size_t i = 0; i < n; ++i) {
+        out += s;
+    }
+    return out;
+}
+
 [[nodiscard]] std::string to_upper(std::string s) {
     for (char& c : s) {
         if (c >= 'a' && c <= 'z') {
@@ -249,6 +259,70 @@ TEST(Format, IllFormedSpecs) {
     // '#' on decimal is NOT an error.
     big_int b{42};
     EXPECT_NO_THROW(vformat_call("{:#d}", std::make_format_args(b)));
+}
+
+// ------------------------------------------------------------------------------------------
+// The fill is a character, not a code unit, so a UTF-8 format string may spell it in up to
+// four bytes. Asserted directly rather than differentially: what a standard library makes of a
+// fill wider than one code unit has varied across releases, so a differential check would test
+// the platform library rather than us.
+// ------------------------------------------------------------------------------------------
+TEST(Format, MultiCodeUnitFill) {
+    const std::string acute = "\xC3\xA9";         // U+00E9, two code units
+    const std::string block = "\xE2\x96\x88";     // U+2588, three code units
+    const std::string emoji = "\xF0\x9F\x98\x80"; // U+1F600, four code units
+
+    big_int b{42};
+    EXPECT_EQ(vformat_call("{:" + block + ">8}", std::make_format_args(b)), repeat(block, 6) + "42");
+    EXPECT_EQ(vformat_call("{:" + block + "<8}", std::make_format_args(b)), "42" + repeat(block, 6));
+    EXPECT_EQ(vformat_call("{:" + block + "^9}", std::make_format_args(b)),
+              repeat(block, 3) + "42" + repeat(block, 4));
+    EXPECT_EQ(vformat_call("{:" + acute + ">6}", std::make_format_args(b)), repeat(acute, 4) + "42");
+    EXPECT_EQ(vformat_call("{:" + emoji + ">5}", std::make_format_args(b)), repeat(emoji, 3) + "42");
+
+    // The sign and the base prefix sit between the fill and the digits, as with an ASCII fill.
+    big_int neg{-42};
+    EXPECT_EQ(vformat_call("{:" + block + ">6x}", std::make_format_args(neg)), repeat(block, 3) + "-2a");
+    EXPECT_EQ(vformat_call("{:" + block + ">#8x}", std::make_format_args(b)), repeat(block, 4) + "0x2a");
+}
+
+TEST(Format, MultiCodeUnitFillOtherFields) {
+    const std::string block = "\xE2\x96\x88";
+
+    // A dynamic width, the 'c' type, and the localized path all pad with the same character.
+    big_int   b{42};
+    const int w = 6;
+    EXPECT_EQ(vformat_call("{:" + block + ">{}}", std::make_format_args(b, w)), repeat(block, 4) + "42");
+
+    big_int c{65};
+    EXPECT_EQ(vformat_call("{:" + block + ">4c}", std::make_format_args(c)), repeat(block, 3) + "A");
+    EXPECT_EQ(vformat_call("{:" + block + "^5c}", std::make_format_args(c)),
+              repeat(block, 2) + "A" + repeat(block, 2));
+
+    // Zero padding is not the fill: it stays a run of '0' characters.
+    EXPECT_EQ(std::format("{:08d}", big_int{42}), "00000042");
+    EXPECT_EQ(std::format("{:#08x}", big_int{255}), "0x0000ff");
+}
+
+TEST(Format, MalformedFillCharacter) {
+    // Byte sequences that do not spell a character are rejected rather than taken a unit at a
+    // time. Implementations disagree on a format string that is not valid UTF-8 (libc++ throws,
+    // libstdc++ formats with replacement characters), so this is asserted directly.
+    const char* bad[] = {
+        "\x80",             // a lone continuation unit
+        "\xE2\x96",         // a truncated three-unit sequence
+        "\xC0\xAF",         // an overlong encoding of '/'
+        "\xED\xA0\x80",     // a surrogate
+        "\xF5\x80\x80\x80", // above U+10FFFF
+    };
+    big_int b{42};
+    for (const char* fill : bad) {
+        const std::string spec = std::string("{:") + fill + ">6}";
+        EXPECT_THROW(vformat_call(spec, std::make_format_args(b)), std::format_error) << fill;
+    }
+
+    // A well-formed character that no alignment follows is not a fill, and is not a type.
+    EXPECT_THROW(vformat_call("{:\xE2\x96\x88}", std::make_format_args(b)), std::format_error);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -445,6 +519,17 @@ TEST(Format, WideChar) {
     EXPECT_EQ(std::format(L"{:c}", big_int{0x41}), L"A");
     EXPECT_EQ(std::format(L"{:>5c}", big_int{0x41}), L"    A");
     EXPECT_EQ(std::format(L"{:{}}", big_int{42}, 6), L"    42");
+
+    // A non-ASCII fill: one code unit where wchar_t is 32 bits, a surrogate pair where it is
+    // 16, and in either case one character.
+    {
+        const std::wstring block = L"\u2588";
+        const std::wstring emoji = L"\U0001F600";
+        big_int            b{42};
+        EXPECT_EQ(std::vformat(L"{:" + block + L">8}", std::make_wformat_args(b)), repeat(block, 6) + L"42");
+        EXPECT_EQ(std::vformat(L"{:" + emoji + L"^7}", std::make_wformat_args(b)),
+                  repeat(emoji, 2) + L"42" + repeat(emoji, 3));
+    }
 
     // Huge value in wide form equals the widened narrow body.
     big_int      huge   = 1_n << 400;

@@ -629,6 +629,7 @@ template <unsigned_integer T>
     #include <stdexcept>
     #define BEMAN_BIG_INT_ALLOW_EXCEPTIONS
 #else
+    #include <cstdlib>
     #define BEMAN_BIG_INT_NO_EXCEPTIONS
 #endif
 

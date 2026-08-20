@@ -1,0 +1,326 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#format]
+= `<format>` Support
+:idprefix: format_
+
+`beman::big_int` specializes `std::formatter` for every `basic_big_int`
+specialization, for both `char` and `wchar_t`, so a big integer formats
+wherever a built-in integer does: `std::format`, `std::format_to`,
+`std::format_to_n`, `std::formatted_size`, `std::vformat`, and anything else
+built on `std::formatter`. The format specification is the standard integer
+one, with the same fields, the same defaults, and the same errors, so a spec
+that formats an `int` formats a `basic_big_int` the same way, only without a
+fixed-width ceiling on the value.
+
+Include the formatter with `<beman/big_int/format.hpp>`, or transitively
+through the umbrella `<beman/big_int.hpp>`. The header is self-guarding: its
+entire contents are conditioned on
+
+[source,c++]
+----
+#if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
+----
+
+so on a standard library that does not provide `<format>` the header is empty
+and including it is harmless. `basic_big_int` has no stream inserter of its
+own; to write a value to a `std::ostream`, format it or convert it with
+xref:string.adoc#string_to_string[`to_string`].
+
+[#format_synopsis]
+== Synopsis
+
+[source,c++]
+----
+namespace std {
+
+template <std::size_t b, class L, class A, class charT>
+struct formatter<beman::big_int::basic_big_int<b, L, A>, charT> {
+    template <class ParseContext>
+    constexpr typename ParseContext::iterator parse(ParseContext& ctx);
+
+    template <class FormatContext>
+    typename FormatContext::iterator format(const beman::big_int::basic_big_int<b, L, A>& value,
+                                            FormatContext& ctx) const;
+};
+
+} // namespace std
+----
+
+The specialization is written in terms of `basic_big_int`, so it covers
+`big_int`, `pmr::big_int`, and every other specialization, whatever the
+in-place bit count, limb type, and allocator. `charT` may be `char` or
+`wchar_t`.
+
+[#format_spec]
+== Format specification
+
+The grammar is the standard integer one:
+
+[source,text]
+----
+format-spec ::= [[fill]align][sign]["#"]["0"][width]["L"][type]
+
+fill        ::= any single character other than '{' or '}'
+align       ::= '<' | '>' | '^'
+sign        ::= '+' | '-' | ' '
+width       ::= positive-integer | '{' [arg-id] '}'
+type        ::= 'b' | 'B' | 'd' | 'o' | 'x' | 'X' | 'c'
+----
+
+Every field is optional, and an empty specification (`{}` or `{:}`) formats the
+value in decimal with no padding.
+
+[#format_spec_fill]
+=== Fill and alignment
+
+`align` is `<` for left, `>` for right, and `^` for centered, and is preceded
+by an optional `fill` character that defaults to a space. A field wider than
+the formatted value is padded with `fill` on the side or sides the alignment
+selects; a value at least as wide as the field is written in full and is never
+truncated.
+
+Without an explicit alignment the default is right for every numeric
+presentation type and left for the `c` type, matching the standard formatters.
+
+The fill is a character, not a code unit: a UTF-8 format string may spell it in
+up to four bytes, and a UTF-16 one may spell it as a surrogate pair. Each
+padding position takes one whole fill character, and a byte sequence that does
+not spell a character, such as a truncated or overlong UTF-8 sequence, is
+rejected with `std::format_error`. As with the standard formatters, the fill is
+one character and not one grapheme cluster, so a letter followed by a combining
+mark is not a valid fill.
+
+[#format_spec_sign]
+=== Sign
+
+`-` (the default) writes a sign only for a negative value, `+` writes a sign
+for every value, and a space writes a space in place of the `+`. Zero is
+non-negative, so `{:+}` renders it as `+0`. The sign option is ill-formed with
+the `c` type.
+
+[#format_spec_alt]
+=== Alternate form
+
+`#` prepends the base prefix: `0b` for `b`, `0B` for `B`, `0x` for `x`, `0X`
+for `X`, and a single `0` for `o`, except that a value of zero takes no octal
+prefix. It has no effect on `d` or on the default type, and is ill-formed with
+the `c` type.
+
+[#format_spec_zero]
+=== Zero padding
+
+`0` selects sign-aware zero padding: the field is filled with `0` characters
+placed after the sign and after any base prefix, so `{:#06x}` renders 255 as
+`0x00ff`. An explicit alignment overrides it, in which case the fill character
+and alignment are used as written. `0` is ill-formed with the `c` type.
+
+[#format_spec_width]
+=== Width
+
+The minimum field width is either a positive decimal integer written in the
+spec, or a nested replacement field. A leading `0` is always consumed as the
+zero-padding flag, so a static width never begins with `0`. A nested `{}` takes
+the next argument in sequence, and a nested `+{n}+` takes argument `n`; the
+width argument must be of a non-bool integral type and hold a non-negative
+value.
+
+A width, or an argument index, too large to represent in a `std::size_t` is
+ill-formed.
+
+[#format_spec_locale]
+=== Locale
+
+`L` inserts the locale's digit group separators into the digits, using
+`std::numpunct<charT>::grouping()` and `std::numpunct<charT>::thousands_sep()`
+of the locale passed to the formatting function, or of the global locale where
+the call passes none. The classic locale has empty grouping, so `L` is a no-op
+there.
+
+Grouping applies to the digits alone, not to the sign or the base prefix, and,
+as with the standard integer formatters, applies in every base rather than in
+decimal only. Where `L` is combined with `0`, the separators count toward the
+field width and the padding zeros themselves are not grouped, so a width of 12
+renders 1234 as `00000001,234` under a locale that groups in threes with a
+comma. `L` is accepted with the `c` type, where it has no effect.
+
+[#format_spec_type]
+=== Presentation type
+
+[cols="1,3", options="header"]
+|===
+| Type | Meaning
+
+| none, `d` | Decimal.
+| `b` | Binary. With `#`, the prefix is `0b`.
+| `B` | Binary. With `#`, the prefix is `0B`.
+| `o` | Octal. With `#`, a leading `0` is written unless the value is zero.
+| `x` | Hexadecimal with the lowercase digits `a`-`f`. With `#`, the prefix is `0x`.
+| `X` | Hexadecimal with the uppercase digits `A`-`F`. With `#`, the prefix is `0X`.
+| `c` | The value as a single character of type `charT`.
+|===
+
+The `c` type requires the value to lie in
+`[std::numeric_limits<charT>::min(), std::numeric_limits<charT>::max()]`, so a
+value that needs more than one limb is always out of range. Following the resolution of LWG 3644, `c` is not an integer presentation type,
+so combining it with the sign option, `#`, or `0` is ill-formed even though
+some standard libraries still accept those combinations on the built-in types.
+
+[#format_spec_precision]
+=== Precision
+
+A precision is never valid for an integer or for the `c` type, so a spec
+containing a `.` is ill-formed.
+
+[#format_members]
+== `parse` and `format`
+
+[#format_parse]
+=== `parse`
+
+[source,c++]
+----
+template <class ParseContext>
+constexpr typename ParseContext::iterator parse(ParseContext& ctx);
+----
+
+Parses the format specification from `[ctx.begin(), ctx.end())` and stores it
+in the formatter.
+
+* *Preconditions:* None.
+* *Returns:* An iterator past the end of the parsed specification, that is, one pointing at the terminating `}` or at `ctx.end()`.
+* *Throws:* `std::format_error` if the specification is not valid; see xref:format.adoc#format_errors[Errors].
+* *Remarks:* The function is usable in a constant expression, so an invalid specification in a call with a compile-time-checked format string is a compile-time error rather than a runtime one. Only a specification that is not known until runtime, such as one passed to `std::vformat`, reaches the throwing path.
+
+[#format_format]
+=== `format`
+
+[source,c++]
+----
+template <class FormatContext>
+typename FormatContext::iterator format(const beman::big_int::basic_big_int<b, L, A>& value,
+                                        FormatContext& ctx) const;
+----
+
+Writes `value`, formatted according to the parsed specification, to
+`ctx.out()`.
+
+* *Preconditions:* None.
+* *Returns:* An iterator past the end of the output.
+* *Throws:* `std::format_error` if a dynamic width argument is invalid, or if the `c` type is used with a value that is out of range for `charT`; otherwise, any exception thrown while allocating the intermediate digit string (for example, `std::bad_alloc`) or thrown by the output iterator.
+* *Remarks:* The digits come from xref:string.adoc#string_to_string[`to_string`], so a multi-limb value is converted with the same sub-quadratic base conversion the rest of the library uses, and the conversion cost, rather than the padding, dominates a large format.
+
+[#format_errors]
+== Errors
+
+The formatter reports these conditions. Apart from the `c` combinations that
+LWG 3644 made ill-formed, which some standard libraries still accept on the
+built-in types, each is reported exactly where a standard integer formatter
+reports it. The messages are listed without the `big_int format: ` prefix that
+each of them carries:
+
+[cols="2,1,2", options="header"]
+|===
+| Condition | Reported by | Message
+
+| An unknown presentation type | `parse` | `invalid type`
+| A precision (a `.` in the specification) | `parse` | `precision is not allowed`
+| Characters left over before the closing `}` | `parse` | `unmatched characters in format spec`
+| A nested width field with no closing `}` | `parse` | `invalid dynamic width`
+| A width or argument index too large for `std::size_t` | `parse` | `width or argument index is too large`
+| The sign option combined with `c` | `parse` | `the sign option is invalid with the 'c' type`
+| `#` combined with `c` | `parse` | `the '#' option is invalid with the 'c' type`
+| `0` combined with `c` | `parse` | `the '0' option is invalid with the 'c' type`
+| A width argument that is not of a non-bool integral type | `format` | `width argument is not a non-bool integer`
+| A negative width argument | `format` | `width argument is negative`
+| A `c` value outside the range of `charT` | `format` | `value is out of range for the target character type`
+|===
+
+Where the format string is checked at compile time, the `parse` conditions are
+compile-time errors and never produce an exception. The remaining conditions
+depend on the argument values, so they are reported when the value is
+formatted.
+
+[#format_errors_no_exceptions]
+=== Exception-free builds
+
+Where the library is built with exceptions disabled, there is nothing to throw:
+each of the conditions above calls `std::abort()` instead. The mode is deduced
+in `<beman/big_int/detail/config.hpp>` from `__EXCEPTIONS` and, on MSVC,
+`_CPPUNWIND`, and is recorded as `BEMAN_BIG_INT_ALLOW_EXCEPTIONS` or
+`BEMAN_BIG_INT_NO_EXCEPTIONS`. This matches how the rest of the library
+reports a length limit; see
+xref:big_int_type.adoc#big_int_type_length_limit[the length limit].
+
+[#format_examples]
+== Examples
+
+[source,c++]
+----
+using beman::big_int::big_int;
+
+std::format("{}", big_int{-7});        // "-7"
+std::format("{:5}", big_int{42});      // "   42", numbers align right by default
+std::format("{:<5}", big_int{42});     // "42   "
+std::format("{:^7}", big_int{42});     // "  42   "
+std::format("{:*>6}", big_int{42});    // "****42"
+
+std::format("{:+}", big_int{42});      // "+42"
+std::format("{: }", big_int{42});      // " 42"
+std::format("{:06d}", big_int{-42});   // "-00042", zeros follow the sign
+std::format("{:#06x}", big_int{255});  // "0x00ff", zeros follow the prefix
+std::format("{:<06d}", big_int{42});   // "42    ", an explicit align disables zero padding
+
+std::format("{:#b}", big_int{5});      // "0b101"
+std::format("{:#B}", big_int{5});      // "0B101"
+std::format("{:#o}", big_int{64});     // "0100"
+std::format("{:#o}", big_int{0});      // "0", zero takes no octal prefix
+std::format("{:X}", big_int{255});     // "FF"
+
+std::format("{:c}", big_int{65});      // "A"
+std::format("{:5c}", big_int{65});     // "A    ", the c type aligns left by default
+
+std::format("{:{}}", big_int{42}, 6);     // "    42", width from an argument
+std::format("{:0{}x}", big_int{255}, 6);  // "0000ff"
+----
+
+The value is arbitrary-precision throughout, so the same specifications hold
+for magnitudes no built-in type can express:
+
+[source,c++]
+----
+using namespace beman::big_int::literals;
+
+const big_int value = 1_n << 128;
+
+std::format("{}", value);              // "340282366920938463463374607431768211456"
+std::format("{:#x}", value);           // "0x100000000000000000000000000000000"
+----
+
+With a locale whose `numpunct` groups digits in threes with a comma:
+
+[source,c++]
+----
+std::format(loc, "{:L}", big_int{1234567});   // "1,234,567"
+std::format(loc, "{:012L}", big_int{1234});   // "00000001,234"
+----
+
+For a complete program, see xref:examples.adoc#examples_io[the formatting and
+output example].
+
+[#format_wide]
+== Wide characters
+
+Everything above holds for `wchar_t` with a wide format string. The digits and
+the base prefixes belong to the basic execution character set, so each
+character has the same value in the wide result as in the narrow one; `L` reads
+the `std::numpunct<wchar_t>` facet; and the `c` type accepts the range of
+`wchar_t` rather than that of `char`.
+
+[source,c++]
+----
+std::format(L"{:#06X}", big_int{255});  // L"0X00FF"
+std::format(L"{:*^8}", big_int{42});    // L"***42***"
+std::format(L"{:c}", big_int{0x41});    // L"A"
+----
