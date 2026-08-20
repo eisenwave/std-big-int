@@ -143,7 +143,6 @@ class basic_big_int {
         std::allocator_traits<allocator_type>::is_always_equal::value);
 
     // [big.int.ops], observers
-    constexpr size_type                              width_mag() const noexcept;
     constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
     constexpr size_type                              representation_size() const noexcept;
     constexpr allocator_type                         get_allocator() const noexcept;
@@ -517,19 +516,6 @@ This is the size of the span returned by `representation()`.
 * *Preconditions:* None.
 * *Postconditions:* None.
 
-=== `width_mag`
-
-[source,c++]
-----
-constexpr size_type width_mag() const noexcept;
-----
-
-Returns the number of significant bits in the magnitude of the value (ignoring
-the sign), or `0` if the magnitude is zero.
-
-* *Preconditions:* None.
-* *Postconditions:* None.
-
 === `get_allocator`
 
 [source,c++]
@@ -885,7 +871,7 @@ an implementation, where a machine word is 64 bits, a value in the range of
 Beyond the widest available width the digest is not itself part of the interface and may change
 between releases. It is currently SipHash-2-4 over the little-endian byte string of
 the magnitude, trimmed of its most significant zero bytes. That string is
-`width_mag()` bits rounded up to a whole number of bytes. A negative value is
+`size()` bits rounded up to a whole number of bytes. A negative value is
 distinguished from its magnitude before the string is absorbed. Where `std::size_t`
 is narrower than 64 bits, the digest is folded down to its width.
 

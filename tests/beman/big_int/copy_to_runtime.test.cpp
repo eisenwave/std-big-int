@@ -13,21 +13,21 @@ using namespace beman::big_int::literals;
 consteval bool test_small_value() {
     constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{42}; })>();
     static_assert(is_inplace(v));
-    return v.width_mag() == 6 && v.representation()[0] == 42U;
+    return v.size() == 6 && v.representation()[0] == 42U;
 }
 static_assert(test_small_value());
 
 consteval bool test_zero_value() {
     constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{0}; })>();
     static_assert(is_inplace(v));
-    return v.width_mag() == 0 && v.representation().size() == 1;
+    return v.size() == 0 && v.representation().size() == 1;
 }
 static_assert(test_zero_value());
 
 consteval bool test_negative_value() {
     constexpr auto v = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{-42}; })>();
     static_assert(is_inplace(v));
-    return v.width_mag() == 6 && v.representation()[0] == 42U;
+    return v.size() == 6 && v.representation()[0] == 42U;
 }
 static_assert(test_negative_value());
 
@@ -69,7 +69,7 @@ TEST(CopyToRuntime, BridgesHeapValueToRuntime) {
     })>();
 
     auto runtime_copy = kVal;
-    EXPECT_EQ(runtime_copy.width_mag(), kVal.width_mag());
+    EXPECT_EQ(runtime_copy.size(), kVal.size());
 
     beman::big_int::big_int as_default{kVal};
     EXPECT_EQ(as_default, 1'000'000'000'000'000'000'000'000'000'000'000'000'000_n);
@@ -85,7 +85,7 @@ TEST(CopyToRuntime, NegativeRoundTrip) {
 
 TEST(CopyToRuntime, ZeroIsCanonical) {
     constexpr auto kZero = beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{0}; })>();
-    EXPECT_EQ(kZero.width_mag(), 0U);
+    EXPECT_EQ(kZero.size(), 0U);
     beman::big_int::big_int as_default{kZero};
     EXPECT_EQ(as_default, beman::big_int::big_int{0});
 }

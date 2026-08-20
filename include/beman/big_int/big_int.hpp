@@ -494,7 +494,6 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                                     std::allocator_traits<Allocator>::is_always_equal::value);
 
     // [big.int.ops]
-    [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
     [[nodiscard]] constexpr size_type                              representation_size() const noexcept;
     [[nodiscard]] constexpr allocator_type                         get_allocator() const noexcept;
@@ -1353,16 +1352,6 @@ constexpr void basic_big_int<b, L, A>::shift_right(const shift_type s) {
 // [big.int.ops]
 
 template <std::size_t b, class L, class A>
-constexpr std::size_t basic_big_int<b, L, A>::width_mag() const noexcept {
-    const auto count = limb_count();
-    const auto top   = limb_ptr()[count - 1];
-    if (top == 0) {
-        return 0;
-    }
-    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)));
-}
-
-template <std::size_t b, class L, class A>
 constexpr std::span<const uint_multiprecision_t> basic_big_int<b, L, A>::representation() const noexcept {
     return {limb_ptr(), limb_count()};
 }
@@ -1370,8 +1359,8 @@ constexpr std::span<const uint_multiprecision_t> basic_big_int<b, L, A>::represe
 template <std::size_t b, class L, class A>
 constexpr std::size_t basic_big_int<b, L, A>::representation_size() const noexcept {
     // Number of limbs spanned by the magnitude: a single limb for a zero value,
-    // otherwise ceil(width_mag() / bits_per_limb). Equals representation().size().
-    return is_zero() ? size_type{1} : detail::div_to_pos_inf(width_mag(), bits_per_limb);
+    // otherwise ceil(size() / bits_per_limb). Equals representation().size().
+    return is_zero() ? size_type{1} : detail::div_to_pos_inf(size(), bits_per_limb);
 }
 
 template <std::size_t b, class L, class A>
@@ -1381,15 +1370,14 @@ constexpr typename basic_big_int<b, L, A>::allocator_type basic_big_int<b, L, A>
 
 template <std::size_t b, class L, class A>
 constexpr std::size_t basic_big_int<b, L, A>::size() const noexcept {
-    if (is_negative()) {
-        basic_big_int<b, L, A> negated(*this);
-        negated.negate();
-        return negated.size();
-    } else if (is_zero()) {
-        return std::size_t{0};
-    } else {
-        return width_mag();
+    // Significant bits in the magnitude, ignoring the sign; zero has no significant bits.
+    const auto count = limb_count();
+    BEMAN_BIG_INT_DEBUG_ASSERT(count != 0); // Would be a class invariant violation, but good to check
+    const auto top = limb_ptr()[count - 1];
+    if (top == 0) {
+        return 0;
     }
+    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)));
 }
 
 template <std::size_t b, class L, class A>
@@ -2084,10 +2072,10 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
 
         const shift_type shifted_limbs = shift / Result::bits_per_limb;
         const shift_type shifted_bits  = shift % Result::bits_per_limb;
-        const shift_type x_width_mag   = static_cast<shift_type>(x.width_mag());
+        const shift_type x_bits        = static_cast<shift_type>(x.size());
 
         // Case 1: Everything is discarded except the sign
-        if (shift >= x_width_mag) {
+        if (shift >= x_bits) {
             if (x.is_negative()) {
                 return Result{-1};
             }
@@ -2100,8 +2088,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         // Number of limbs the shifted result actually occupies. Smaller than
         // `src_count` exactly when at least one source limb (or the top
         // limb's surviving bits) shrinks away.
-        const auto new_count =
-            detail::div_to_pos_inf(x_width_mag - shift, static_cast<shift_type>(Result::bits_per_limb));
+        const auto new_count = detail::div_to_pos_inf(x_bits - shift, static_cast<shift_type>(Result::bits_per_limb));
 
         // Case 2: Result is strictly smaller than the source
         if (new_count < src_count) {
@@ -3399,7 +3386,7 @@ template <typename Generator>
 
     constexpr std::size_t target_bits = []() consteval {
         const auto v = Generator{}();
-        const auto w = v.width_mag();
+        const auto w = v.size();
         return w == 0 ? bits_per_limb : ((w + bits_per_limb - 1) / bits_per_limb) * bits_per_limb;
     }();
 
@@ -3517,7 +3504,7 @@ struct std::hash<beman::big_int::basic_big_int<b, L, A>> {
 
         // A value a signed bit-precise integer type can represent is hashed as the narrowest such type
         if constexpr (detail::widest_hash_rung_bits != 0) {
-            const auto width = x.width_mag();
+            const auto width = x.size();
             if (width <= detail::widest_hash_rung_bits) {
                 std::size_t digest{};
                 if (detail::hash_on_rung_ladder(x, width, negative, digest, detail::hash_rung_indices{})) {

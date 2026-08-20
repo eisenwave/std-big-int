@@ -513,7 +513,7 @@ TEST(Pmr, ShiftLeftAllocatesOnConfiguredResource) {
     x <<= 200;
     EXPECT_GE(cr.alloc_count(), 1U);
     EXPECT_EQ(x.get_allocator().resource(), &cr);
-    EXPECT_EQ(x.width_mag(), 201U);
+    EXPECT_EQ(x.size(), 201U);
 }
 
 TEST(Pmr, ShiftRightPreservesAllocator) {
@@ -521,7 +521,7 @@ TEST(Pmr, ShiftRightPreservesAllocator) {
     pmr_big_int       x{1, &cr};
     x <<= 200;
     x >>= 100;
-    EXPECT_EQ(x.width_mag(), 101U);
+    EXPECT_EQ(x.size(), 101U);
     EXPECT_EQ(x.get_allocator().resource(), &cr);
 }
 

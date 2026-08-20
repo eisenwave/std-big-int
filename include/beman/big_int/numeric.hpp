@@ -183,8 +183,8 @@ template <class M, class N>
         if (detail::trimmed_size_span(a.representation()) == 1 || detail::trimmed_size_span(b.representation()) == 1) {
             break;
         }
-        const std::size_t a_bits = a.width_mag();
-        const std::size_t b_bits = b.width_mag();
+        const std::size_t a_bits = a.size();
+        const std::size_t b_bits = b.size();
         if (a_bits > b_bits + gap) {
             Result r = a % b;
             a        = std::move(b);

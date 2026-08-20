@@ -797,27 +797,27 @@ TEST(FromChars, EveryBaseDigitTooLargeAfterNegation) {
 }
 
 TEST(ToChars, WidthMag) {
-    EXPECT_EQ(big_int{-0x1p1000}.width_mag(), 1001);
-    EXPECT_EQ(big_int{-0x1p100}.width_mag(), 101);
-    EXPECT_EQ(big_int{-8}.width_mag(), 4);
-    EXPECT_EQ(big_int{-7}.width_mag(), 3);
-    EXPECT_EQ(big_int{-6}.width_mag(), 3);
-    EXPECT_EQ(big_int{-5}.width_mag(), 3);
-    EXPECT_EQ(big_int{-4}.width_mag(), 3);
-    EXPECT_EQ(big_int{-3}.width_mag(), 2);
-    EXPECT_EQ(big_int{-2}.width_mag(), 2);
-    EXPECT_EQ(big_int{-1}.width_mag(), 1);
-    EXPECT_EQ(big_int{0}.width_mag(), 0);
-    EXPECT_EQ(big_int{1}.width_mag(), 1);
-    EXPECT_EQ(big_int{2}.width_mag(), 2);
-    EXPECT_EQ(big_int{3}.width_mag(), 2);
-    EXPECT_EQ(big_int{4}.width_mag(), 3);
-    EXPECT_EQ(big_int{5}.width_mag(), 3);
-    EXPECT_EQ(big_int{6}.width_mag(), 3);
-    EXPECT_EQ(big_int{7}.width_mag(), 3);
-    EXPECT_EQ(big_int{8}.width_mag(), 4);
-    EXPECT_EQ(big_int{0x1p100}.width_mag(), 101);
-    EXPECT_EQ(big_int{0x1p1000}.width_mag(), 1001);
+    EXPECT_EQ(big_int{-0x1p1000}.size(), 1001);
+    EXPECT_EQ(big_int{-0x1p100}.size(), 101);
+    EXPECT_EQ(big_int{-8}.size(), 4);
+    EXPECT_EQ(big_int{-7}.size(), 3);
+    EXPECT_EQ(big_int{-6}.size(), 3);
+    EXPECT_EQ(big_int{-5}.size(), 3);
+    EXPECT_EQ(big_int{-4}.size(), 3);
+    EXPECT_EQ(big_int{-3}.size(), 2);
+    EXPECT_EQ(big_int{-2}.size(), 2);
+    EXPECT_EQ(big_int{-1}.size(), 1);
+    EXPECT_EQ(big_int{0}.size(), 0);
+    EXPECT_EQ(big_int{1}.size(), 1);
+    EXPECT_EQ(big_int{2}.size(), 2);
+    EXPECT_EQ(big_int{3}.size(), 2);
+    EXPECT_EQ(big_int{4}.size(), 3);
+    EXPECT_EQ(big_int{5}.size(), 3);
+    EXPECT_EQ(big_int{6}.size(), 3);
+    EXPECT_EQ(big_int{7}.size(), 3);
+    EXPECT_EQ(big_int{8}.size(), 4);
+    EXPECT_EQ(big_int{0x1p100}.size(), 101);
+    EXPECT_EQ(big_int{0x1p1000}.size(), 1001);
 }
 
 // clang-format on
