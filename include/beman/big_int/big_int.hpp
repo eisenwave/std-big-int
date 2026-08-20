@@ -728,9 +728,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         // control words only once the storage they describe is in place. We may
         // also be able to adopt src's buffer if the allocators are compatible.
         if (src.is_representation_inplace() && needed <= inplace_capacity) {
-            free_storage();
-            // Both src and the requested headroom fit inline. No buffer to
-            // adopt or allocate; just propagate (if applicable) and copy limbs.
+            // Both src and the requested headroom fit inline. Reaching here needs a
+            // heap buffer smaller than the inline one, which nothing produces, so
+            // there is nothing to release; just propagate (if applicable) and copy.
             if constexpr (propagate_alloc) {
                 m_alloc = std::forward<Src>(src).m_alloc;
             }
