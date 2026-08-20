@@ -75,12 +75,10 @@ class, so that a future revision can change it without changing the signature of
 For a practical implementation the `big_int` does have a maximum size available as `max_size()`.
 Any operation that would need more storage than that, or the growth required by
 an arithmetic, shift, bitwise, assignment, or parsing operation, etc., throws
-`std::length_error`. The check happens before the allocator is consulted, so no
-allocation is attempted for a request that cannot be represented.
-A request that is within the limit but cannot be served reports the allocator's own
-failure (typically `std::bad_alloc`) instead.
-During constant evaluation the same condition is a
-compile-time error rather than an exception, since a thrown exception is not a
+`std::length_error`, on in an exception free environment `std::abort()`.
+The check happens before the allocator is consulted, so no allocation is attempted for a request that cannot be represented.
+A request that is within the limit but cannot be served reports the allocator's own failure (typically `std::bad_alloc`) instead.
+During constant evaluation the same condition is a compile-time error rather than an exception, since a thrown exception is not a
 constant expression.
 
 [#big_int_type_synopsis]
