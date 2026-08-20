@@ -586,8 +586,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::cv_unqualified_floating_point F>
     constexpr void assign_from_float(F value) noexcept;
 
-    // Throws `std::length_error` if `limbs_needed` limbs cannot be represented,
-    // that is, if the corresponding bit count would exceed `max_size()`.
+    // Throws `std::length_error` if `limbs_needed` limbs cannot be represented
     static constexpr void                       check_length(size_type limbs_needed);
     [[nodiscard]] static constexpr alloc_result alloc_limbs_from(allocator_type& a, size_type n);
     [[nodiscard]] constexpr alloc_result        alloc_limbs(size_type n);
@@ -3358,10 +3357,15 @@ constexpr void basic_big_int<b, L, A>::grow(const size_type limbs_needed) {
         return;
     }
 
+    constexpr size_type cap_limit = max_representation_size();
+    if (limbs_needed > cap_limit) {
+        detail::throw_length_error();
+    }
+
     // libstdc++ and libc++ normally double storage each allocation
     // MSVC does 1.5x instead of 2x
-    // The growth factor is clamped so the capacity itself stays representable.
-    const size_type    new_cap    = std::min(std::max(limbs_needed, 2 * current_cap), max_representation_size());
+    // Only the doubling is clamped, so the capacity itself stays representable.
+    const size_type    new_cap    = std::min(std::max(limbs_needed, 2 * current_cap), cap_limit);
     const alloc_result allocation = alloc_limbs(new_cap);
     copy_n_to_allocation(limb_ptr(), limb_count(), allocation);
 
