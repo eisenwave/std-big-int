@@ -626,10 +626,10 @@ template <unsigned_integer T>
 // Exceptions ==================================================================
 
 #if (defined(_MSC_VER) && defined(_CPPUNWIND)) || defined(__EXCEPTIONS)
-#  include <stdexcept>
-#  define BEMAN_BIG_INT_ALLOW_EXCEPTIONS
+    #include <stdexcept>
+    #define BEMAN_BIG_INT_ALLOW_EXCEPTIONS
 #else
-#  define BEMAN_BIG_INT_NO_EXCEPTIONS
+    #define BEMAN_BIG_INT_NO_EXCEPTIONS
 #endif
 
 // =============================================================================

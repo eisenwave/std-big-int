@@ -128,11 +128,11 @@ struct allocation_result {
 #endif // __cpp_lib_allocate_at_least
 
 [[noreturn]] inline void throw_length_error() {
-    #ifdef BEMAN_BIG_INT_ALLOW_EXCEPTIONS
+#ifdef BEMAN_BIG_INT_ALLOW_EXCEPTIONS
     throw std::length_error("beman::big_int: requested size exceeds max_size()");
-    #else
+#else
     std::abort();
-    #endif
+#endif
 }
 
 // Returns the mathematically correct `abs(x)` for a given signed integer `x`,
