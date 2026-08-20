@@ -116,7 +116,7 @@ class basic_big_int {
     constexpr basic_big_int(I begin, S end, const allocator_type& a = allocator_type());
     template <std::ranges::input_range R>
         requires _signed-or-unsigned_<std::ranges::range_value_t<R>>
-    constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
+    constexpr basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
     constexpr ~basic_big_int();
 
     // [big.int.modifiers], assignment
@@ -338,7 +338,7 @@ integer. Initializes the allocator to `a`.
 ----
 template <std::ranges::input_range R>
     requires _signed-or-unsigned_<std::ranges::range_value_t<R>>
-constexpr explicit basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
+constexpr basic_big_int(std::from_range_t, R&& r, const allocator_type& a = allocator_type());
 ----
 
 Initializes the integer value by concatenating the base-2 representation of each
