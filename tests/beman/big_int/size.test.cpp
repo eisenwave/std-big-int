@@ -74,13 +74,13 @@ TEST(Size, ZeroReportsNoSignificantBits) {
     EXPECT_EQ(fresh.representation_size(), 1U);
 
     std::allocator<uint_multiprecision_t> alloc;
-    const big_int                        with_allocator{0, alloc};
+    const big_int                         with_allocator{0, alloc};
     EXPECT_EQ(with_allocator.size(), 0U);
 
     const big_int copied{fresh};
     EXPECT_EQ(copied.size(), 0U);
 
-    big_int moved_from;
+    big_int       moved_from;
     const big_int moved_to{std::move(moved_from)};
     EXPECT_EQ(moved_to.size(), 0U);
 }
