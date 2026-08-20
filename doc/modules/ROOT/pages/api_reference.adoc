@@ -25,6 +25,7 @@
 | xref:big_int_type.adoc#big_int_type_unit_multi_t[`uint_multiprecision_t`] | The limb type of a `big_int`
 | xref:big_int_type.adoc#big_int_type_basic_big_int[`basic_big_int`] | The template of a big integer type. Analogous to `std::basic_string`
 | xref:big_int_type.adoc#big_int_type_using_big_int[`big_int`] | A big integer type using default small value optimizations and allocator
+| xref:format.adoc#format_synopsis[`std::formatter<basic_big_int>`] | Formatter specialization that plugs a `basic_big_int` into `std::format`
 |===
 
 [#api_functions]
