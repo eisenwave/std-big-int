@@ -792,6 +792,41 @@ TEST(Pmr, UnsynchronizedPoolResource) {
     EXPECT_EQ(to_string(x), to_string(big_int{1} << 16));
 }
 
+TEST(Pmr, ThrowingAllocationDuringAssignmentLeavesValueUnchanged) {
+    // A throwing allocation inside assignment leaves the destination untouched.
+    pmr_big_int wide{};
+    wide = 1;
+    wide <<= 4000;
+
+    {
+        alignas(uint_multiprecision_t) unsigned char buffer[64];
+        std::pmr::monotonic_buffer_resource          res{buffer, sizeof buffer, std::pmr::null_memory_resource()};
+        pmr_big_int                                  x{&res};
+        x = 1;
+        x <<= 100;
+        ASSERT_FALSE(is_inplace(x));
+        const std::string before = to_string(x);
+
+        EXPECT_THROW(x = wide, std::bad_alloc);
+
+        EXPECT_EQ(to_string(x), before);
+        x = 42;
+        EXPECT_EQ(x, 42);
+    }
+    {
+        std::pmr::monotonic_buffer_resource res{std::pmr::null_memory_resource()};
+        pmr_big_int                         x{&res};
+        x = 7;
+        ASSERT_TRUE(is_inplace(x));
+
+        EXPECT_THROW(x = wide, std::bad_alloc);
+
+        EXPECT_EQ(x, 7);
+        x = 42;
+        EXPECT_EQ(x, 42);
+    }
+}
+
 TEST(Pmr, NullMemoryResourceForcesInlineOnly) {
     // null_memory_resource throws bad_alloc on any allocation, so as long as
     // we keep the value within the single inline limb, no heap is touched.

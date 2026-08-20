@@ -577,12 +577,13 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <detail::cv_unqualified_floating_point F>
     constexpr void assign_from_float(F value) noexcept;
 
-    [[nodiscard]] constexpr alloc_result alloc_limbs(size_type n);
-    constexpr void                       free_limbs(pointer p, size_type n);
-    constexpr void                       free_storage();
-    constexpr void                       grow(size_type limbs_needed);
-    constexpr void                       copy_n_to_allocation(const limb_type* p, size_type n, alloc_result out);
-    constexpr void                       push_back_limb(limb_type limb);
+    [[nodiscard]] static constexpr alloc_result alloc_limbs_from(allocator_type& a, size_type n);
+    [[nodiscard]] constexpr alloc_result        alloc_limbs(size_type n);
+    constexpr void                              free_limbs(pointer p, size_type n);
+    constexpr void                              free_storage();
+    constexpr void                              grow(size_type limbs_needed);
+    constexpr void copy_n_to_allocation(const limb_type* p, size_type n, alloc_result out);
+    constexpr void push_back_limb(limb_type limb);
 
     // We are limited in our shifting to what we can encode into our control block, which is 30 (or 27) bits of limbs
     // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 (or 31)
@@ -723,20 +724,17 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             return;
         }
 
-        // Slow path: current buffer is too small.
-        // Release it (with our current allocator, before any propagation) and
-        // get a new allocation. We may also be able to adopt src's buffer if
-        // the allocators are compatible (stateless, propagating, or just equal).
-        free_storage();
-        m_size_and_sign = src.m_size_and_sign;
-
+        // Slow path: current buffer is too small. Each branch releases our buffer
+        // with our current allocator, before any propagation, and publishes the
+        // control words only once the storage they describe is in place.
         if (src.is_representation_inplace() && needed <= inplace_capacity) {
             // Both src and the requested headroom fit inline. No buffer to
             // adopt or allocate; just propagate (if applicable) and copy limbs.
             if constexpr (propagate_alloc) {
                 m_alloc = std::forward<Src>(src).m_alloc;
             }
-            m_capacity = 0;
+            m_capacity      = 0;
+            m_size_and_sign = src.m_size_and_sign;
             for (std::size_t i = 0; i < inplace_capacity; ++i) {
                 m_storage.limbs[i] = src.m_storage.limbs[i];
             }
@@ -750,11 +748,13 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // allocators compare equal at runtime.
             if (!src.is_representation_inplace()) {
                 if constexpr (propagate_alloc || alloc_traits::is_always_equal::value) {
+                    free_storage();
                     if constexpr (propagate_alloc) {
                         m_alloc = std::forward<Src>(src).m_alloc;
                     }
                     m_capacity             = src.m_capacity;
                     m_storage.data         = src.m_storage.data;
+                    m_size_and_sign        = src.m_size_and_sign;
                     src.m_capacity         = 0;
                     src.m_size_and_sign    = 1;
                     src.m_storage.limbs[0] = limb_type{0};
@@ -770,15 +770,27 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             // allocate-and-copy path below.
         }
 
+        // Fall back to a fresh allocation of `needed` limbs. Secure it before
+        // releasing ours, so a throwing allocation leaves `*this` unchanged. A
+        // propagating allocator has to serve the new block while ours still has to
+        // release the old, so allocate through a copy of `src`'s.
+        const alloc_result allocation = [&] {
+            if constexpr (propagate_alloc) {
+                allocator_type src_alloc(src.m_alloc);
+                return alloc_limbs_from(src_alloc, needed);
+            } else {
+                return alloc_limbs(needed);
+            }
+        }();
+        copy_n_to_allocation(src.limb_ptr(), src_count, allocation);
+
+        free_storage();
         if constexpr (propagate_alloc) {
             m_alloc = std::forward<Src>(src).m_alloc;
         }
-
-        // Fall back to a fresh allocation of `needed` limbs.
-        const alloc_result allocation = alloc_limbs(needed);
-        copy_n_to_allocation(src.limb_ptr(), src_count, allocation);
-        m_capacity     = static_cast<std::uint32_t>(allocation.count);
-        m_storage.data = allocation.ptr;
+        m_capacity      = static_cast<std::uint32_t>(allocation.count);
+        m_storage.data  = allocation.ptr;
+        m_size_and_sign = src.m_size_and_sign;
     }
 
     // Efficiently performs `*this |= bits << offset`, as if `bits` was wrapped in `basic_big_int`.
@@ -3282,17 +3294,22 @@ constexpr void basic_big_int<b, L, A>::assign_from_float(const F value) noexcept
 }
 
 template <std::size_t b, class L, class A>
-constexpr auto basic_big_int<b, L, A>::alloc_limbs(const size_type n) -> alloc_result {
+constexpr auto basic_big_int<b, L, A>::alloc_limbs_from(allocator_type& a, const size_type n) -> alloc_result {
     BEMAN_BIG_INT_ASSERT(n != 0);
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
     if constexpr (detail::traits_has_allocate_at_least<alloc_traits, A>) {
-        return alloc_traits::allocate_at_least(m_alloc, n);
+        return alloc_traits::allocate_at_least(a, n);
     } else {
-        return {.ptr = alloc_traits::allocate(m_alloc, n), .count = n};
+        return {.ptr = alloc_traits::allocate(a, n), .count = n};
     }
 #else
-    return {.ptr = alloc_traits::allocate(m_alloc, n), .count = n};
+    return {.ptr = alloc_traits::allocate(a, n), .count = n};
 #endif
+}
+
+template <std::size_t b, class L, class A>
+constexpr auto basic_big_int<b, L, A>::alloc_limbs(const size_type n) -> alloc_result {
+    return alloc_limbs_from(m_alloc, n);
 }
 
 template <std::size_t b, class L, class A>
