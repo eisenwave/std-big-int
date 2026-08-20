@@ -494,7 +494,6 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
                                     std::allocator_traits<Allocator>::is_always_equal::value);
 
     // [big.int.ops]
-    [[nodiscard]] constexpr size_type                              width_mag() const noexcept;
     [[nodiscard]] constexpr std::span<const uint_multiprecision_t> representation() const noexcept;
     [[nodiscard]] constexpr size_type                              representation_size() const noexcept;
     [[nodiscard]] constexpr allocator_type                         get_allocator() const noexcept;
@@ -1353,16 +1352,6 @@ constexpr void basic_big_int<b, L, A>::shift_right(const shift_type s) {
 // [big.int.ops]
 
 template <std::size_t b, class L, class A>
-constexpr std::size_t basic_big_int<b, L, A>::width_mag() const noexcept {
-    const auto count = limb_count();
-    const auto top   = limb_ptr()[count - 1];
-    if (top == 0) {
-        return 0;
-    }
-    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)));
-}
-
-template <std::size_t b, class L, class A>
 constexpr std::span<const uint_multiprecision_t> basic_big_int<b, L, A>::representation() const noexcept {
     return {limb_ptr(), limb_count()};
 }
@@ -1381,15 +1370,14 @@ constexpr typename basic_big_int<b, L, A>::allocator_type basic_big_int<b, L, A>
 
 template <std::size_t b, class L, class A>
 constexpr std::size_t basic_big_int<b, L, A>::size() const noexcept {
-    if (is_negative()) {
-        basic_big_int<b, L, A> negated(*this);
-        negated.negate();
-        return negated.size();
-    } else if (is_zero()) {
-        return std::size_t{0};
-    } else {
-        return width_mag();
+    // Significant bits in the magnitude, ignoring the sign; zero has no significant bits.
+    const auto count = limb_count();
+    BEMAN_BIG_INT_DEBUG_ASSERT(count != 0); // Would be a class invariant violation, but good to check
+    const auto top = limb_ptr()[count - 1];
+    if (top == 0) {
+        return 0;
     }
+    return (count - 1) * bits_per_limb + (bits_per_limb - static_cast<size_type>(std::countl_zero(top)));
 }
 
 template <std::size_t b, class L, class A>
