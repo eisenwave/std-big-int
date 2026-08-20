@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <algorithm>
 #include <bit>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -117,8 +119,89 @@ using namespace beman::big_int::literals;
     }
 }
 
+// ----- The ladder of signed `_BitInt` types std::hash defers to -----
+
+namespace detail = beman::big_int::detail;
+
+// The rungs as the implementation generates them, narrowest first.
+template <std::size_t i>
+using rung = detail::hash_rung_t<i>;
+
+using rung_indices = detail::hash_rung_indices;
+
+// A signed `_BitInt` of an arbitrary width, for the widths swept between the rungs.
+// `bit_int` is only declared where the target has `_BitInt` at all, so the alias stands in
+// for the widths of a target that has none.
+#if BEMAN_BIG_INT_BITINT_MAXWIDTH > 0
+template <std::size_t bits>
+using bit_int_of = ::bit_int<static_cast<int>(bits)>;
+#else
+template <std::size_t bits>
+using bit_int_of = detail::absent_hash_rung;
+#endif
+
+// The width of a rung, or zero where the target lacks the type or the implementation does
+// not hash it. `detail::absent_hash_rung` stands in for a type the target lacks.
+template <class T>
+[[nodiscard]] constexpr std::size_t rung_bits() {
+    if constexpr (detail::std_hashable<T>) {
+        return detail::width_v<T>;
+    } else {
+        return 0;
+    }
+}
+
+constexpr std::size_t widest_rung_bits = detail::widest_hash_rung_bits;
+
+// Whether `T` can represent `x`, from value-level bounds rather than the round trip
+// through `T` that the implementation uses.
+template <class T>
+[[nodiscard]] bool representable(const big_int& x) {
+    if constexpr (!detail::std_hashable<T>) {
+        return false;
+    } else {
+        const big_int bound = big_int{1} << (detail::width_v<T> - 1);
+        return std::is_gteq(x <=> -bound) && std::is_lt(x <=> bound);
+    }
+}
+
+template <class T>
+[[nodiscard]] bool rung_digest(const big_int& x, std::size_t& digest) {
+    if constexpr (detail::std_hashable<T>) {
+        if (representable<T>(x)) {
+            digest = std::hash<T>{}(static_cast<T>(x));
+            return true;
+        }
+    }
+    return false;
+}
+
+// The rungs are nested ranges, so the narrowest one that can represent `x` gives its digest.
+template <std::size_t... i>
+[[nodiscard]] bool expected_builtin_digest(const big_int& x, std::size_t& digest, std::index_sequence<i...>) {
+    return (rung_digest<rung<i>>(x, digest) || ...);
+}
+
+// The widest rung decides which path a value takes. Where the implementation hashes no
+// `_BitInt` at all, every value takes SipHash.
+[[nodiscard]] bool takes_builtin_path(const big_int& x) {
+    if constexpr (widest_rung_bits == 0) {
+        return false;
+    } else {
+        const big_int bound = big_int{1} << (widest_rung_bits - 1);
+        return std::is_gteq(x <=> -bound) && std::is_lt(x <=> bound);
+    }
+}
+
+// A value takes the digest of the narrowest signed `_BitInt` that can represent it, where
+// the implementation hashes that type; everything else takes SipHash-2-4 over the trimmed
+// bytes of the magnitude.
 [[nodiscard]] std::size_t expected_hash(const big_int& x) {
-    return fold_to_size_t(reference_siphash24(magnitude_bytes(x), x < 0));
+    std::size_t digest{};
+    if (expected_builtin_digest(x, digest, rung_indices{})) {
+        return digest;
+    }
+    return fold_to_size_t(reference_siphash24(magnitude_bytes(x), std::is_lt(x <=> 0)));
 }
 
 // ----- Type-level checks for the std::hash specialization -----
@@ -343,14 +426,16 @@ TEST(Hash, CrossInplaceBitsForZero) {
 TEST(Hash, MatchesSipHash24OverTrimmedValueBytes) {
     // [big.int.hash] requires the hash to depend only on the integer value, which
     // includes not depending on the limb width. A single build cannot instantiate two
-    // limb widths, but it can check the property that makes them agree: the digest is
+    // limb widths, but it can check the properties that make them agree: a value in the
+    // range of `std::int64_t` is hashed as that `std::int64_t`, and everything else by
     // SipHash-2-4 over the trimmed little-endian bytes of the magnitude. The reference
-    // is given those bytes, so it cannot observe the limb width either.
+    // is given the value and those bytes, so it cannot observe the limb width either.
     const std::hash<big_int> h{};
 
-    // Every magnitude width up to 264 bits, so every limb and block boundary of both
-    // limb widths is crossed, together with its neighbours and its negation.
-    for (unsigned width = 0; width <= 264; ++width) {
+    // Every magnitude width up to 520 bits, so every limb and block boundary of both
+    // limb widths is crossed, along with every rung of the builtin ladder and the widths
+    // past its end, together with each width's neighbours and its negation.
+    for (unsigned width = 0; width <= 520; ++width) {
         const big_int power = width == 0 ? big_int{0} : (big_int{1} << (width - 1));
         for (const big_int& x : {power, power + big_int{1}, power - big_int{1}, -power}) {
             EXPECT_EQ(h(x), expected_hash(x)) << "width " << width;
@@ -376,13 +461,37 @@ TEST(Hash, MatchesPublishedSipHash24Vectors) {
     // The integer whose trimmed little-endian byte string is {0x00, 0x01, ..., k-1}
     // is exactly the k-byte input of the published SipHash-2-4 test vectors, under the
     // key detail::siphash uses. These digests are fixed by a reference outside this
-    // library, and so cannot follow the limb width. Zero takes the length-0 vector;
-    // there is no length-1 case, because {0x00} is not a trimmed byte string.
+    // library, and so cannot follow the limb width. Lengths 33 through 40 are the
+    // shortest that exceed the widest rung of the builtin ladder, 256 bits, so they take
+    // the SipHash path on every target, and between them they cover every block and tail
+    // length.
     const std::hash<big_int> h{};
 
-    EXPECT_EQ(h(big_int{0}), fold_to_size_t(0x726fdb47dd0e0e31ULL));
-
     static constexpr std::uint64_t digests[] = {
+        0xa7f32346f95978e3ULL, // {0x00, 0x01, ..., 0x20}
+        0x12e0b01abb051238ULL, // {0x00, 0x01, ..., 0x21}
+        0x15e034d40fa197aeULL, // and so on up to
+        0x314dffbe0815a3b4ULL,
+        0x027990f029623981ULL,
+        0xcadcd4e59ef40c4dULL,
+        0x9abfd8766a33735cULL,
+        0x0e3ea96b5304a7d0ULL, // {0x00, 0x01, ..., 0x27}
+    };
+
+    for (std::size_t k = 33; k <= 40; ++k) {
+        big_int x{0};
+        for (std::size_t i = k; i-- > 0;) {
+            x = (x << 8) + big_int{i};
+        }
+        ASSERT_FALSE(takes_builtin_path(x)) << "length " << k;
+        EXPECT_EQ(h(x), fold_to_size_t(digests[k - 33])) << "length " << k;
+    }
+
+    // The digest of the magnitude alone is still the published vector for the shorter
+    // inputs, even where std::hash now answers from the builtin instead. Zero takes the
+    // length-0 vector; there is no length-1 case, because {0x00} is not trimmed.
+    static constexpr std::uint64_t short_digests[] = {
+        0x726fdb47dd0e0e31ULL, // {}
         0x0d6c8009d9a94f5aULL, // {0x00, 0x01}
         0x85676696d7fb7e2dULL, // {0x00, 0x01, 0x02}
         0xcf2794e0277187b7ULL, // and so on up to
@@ -392,12 +501,308 @@ TEST(Hash, MatchesPublishedSipHash24Vectors) {
         0x93f5f5799a932462ULL, // {0x00, 0x01, ..., 0x07}
     };
 
+    EXPECT_EQ(beman::big_int::detail::siphash(big_int{0}.representation(), false), fold_to_size_t(short_digests[0]));
+
     for (std::size_t k = 2; k <= 8; ++k) {
         big_int x{0};
         for (std::size_t i = k; i-- > 0;) {
             x = (x << 8) + big_int{i};
         }
-        EXPECT_EQ(h(x), fold_to_size_t(digests[k - 2])) << "length " << k;
+        EXPECT_EQ(beman::big_int::detail::siphash(x.representation(), false), fold_to_size_t(short_digests[k - 1]))
+            << "length " << k;
+    }
+}
+
+// ----- Values in the range of std::int64_t hash as the builtin does -----
+
+// The values used to sweep the narrowest rung. A typed array rather than a braced list:
+// `std::int64_t` is `long` on some targets and `long long` on others, so a list of
+// literals has no one deduced type.
+constexpr std::int64_t int64_min = std::numeric_limits<std::int64_t>::min();
+constexpr std::int64_t int64_max = std::numeric_limits<std::int64_t>::max();
+
+static constexpr std::int64_t sweep_values[]{int64_min,
+                                             int64_min + 1,
+                                             int64_min / 2,
+                                             -4294967296,
+                                             -1,
+                                             0,
+                                             1,
+                                             4294967295,
+                                             4294967296,
+                                             int64_max / 2,
+                                             int64_max - 1,
+                                             int64_max};
+
+// The bodies below are templates so that `if constexpr` really does discard the rung half
+// where the implementation hashes no `_BitInt`. In a non-template function both halves are
+// still checked, and naming `std::hash<narrowest>` there is an error rather than dead code.
+template <class narrowest>
+void check_narrowest_rung() {
+    if constexpr (!detail::std_hashable<narrowest>) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt";
+    } else {
+        // A `big_int` and a `_BitInt` of the narrowest rung's width, holding the same value,
+        // must agree, so that a program can hash the two interchangeably.
+        const std::hash<big_int>   h{};
+        const std::hash<narrowest> builtin{};
+
+        // A value the rung cannot represent is hashed further up the ladder, so it says
+        // nothing about this rung.
+        for (const std::int64_t v : sweep_values) {
+            if (!representable<narrowest>(big_int{v})) {
+                continue;
+            }
+            EXPECT_EQ(h(big_int{v}), builtin(static_cast<narrowest>(v))) << "value " << v;
+        }
+
+        for (std::int64_t v = -300; v <= 300; ++v) {
+            EXPECT_EQ(h(big_int{v}), builtin(static_cast<narrowest>(v))) << "value " << v;
+        }
+
+        // Every power of two in range, and its neighbours, so both sides of each limb and
+        // byte boundary of the rung are covered.
+        const int top = static_cast<int>(std::min<std::size_t>(detail::width_v<narrowest>, 64U)) - 1;
+        for (int bit = 0; bit < top; ++bit) {
+            const std::int64_t power = std::int64_t{1} << bit;
+            for (const std::int64_t v : {power, power - 1, -power, -power + 1}) {
+                EXPECT_EQ(h(big_int{v}), builtin(static_cast<narrowest>(v))) << "value " << v;
+            }
+        }
+    }
+}
+
+TEST(Hash, MatchesBitPreciseHashInTheNarrowestRung) { check_narrowest_rung<rung<0>>(); }
+
+// Where the narrowest rung is as wide as `std::int64_t` the two hold the same values, so
+// wherever the implementation gives them the same digest, which libc++ does since it hashes
+// a scalar by its object representation, a `big_int` agrees with `std::int64_t` as well.
+// Nothing to check where the implementation makes them differ, or hashes no `_BitInt`.
+template <class narrowest>
+void check_int64_agreement() {
+    if constexpr (!detail::std_hashable<narrowest>) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt";
+    } else if constexpr (detail::width_v<narrowest> < detail::width_v<std::int64_t>) {
+        GTEST_SKIP() << "the narrowest rung is narrower than std::int64_t";
+    } else {
+        if (std::hash<narrowest>{}(narrowest{42}) != std::hash<std::int64_t>{}(42)) {
+            GTEST_SKIP() << "this implementation hashes the narrowest rung and std::int64_t differently";
+        }
+
+        const std::hash<big_int> h{};
+        for (const std::int64_t v : sweep_values) {
+            EXPECT_EQ(h(big_int{v}), std::hash<std::int64_t>{}(v)) << "value " << v;
+        }
+    }
+}
+
+TEST(Hash, AgreesWithInt64WhereTheTwoBuiltinDigestsAgree) { check_int64_agreement<rung<0>>(); }
+
+// The rung is chosen on the value, not on where the value is stored, so a value that is in
+// place for one parameterization and heap-allocated for another still lands on the same
+// digest.
+template <class narrowest>
+void check_rung_across_inplace_bits() {
+    if constexpr (!detail::std_hashable<narrowest>) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt";
+    } else if constexpr (detail::width_v<narrowest> < detail::width_v<std::int64_t>) {
+        GTEST_SKIP() << "the narrowest rung is narrower than std::int64_t";
+    } else {
+        static constexpr std::int64_t values[]{int64_min, -1, 0, 42, int64_max};
+
+        for (const std::int64_t v : values) {
+            const std::size_t expected = std::hash<narrowest>{}(static_cast<narrowest>(v));
+            EXPECT_EQ(std::hash<basic_big_int<32>>{}(basic_big_int<32>{v}), expected) << "value " << v;
+            EXPECT_EQ(std::hash<basic_big_int<64>>{}(basic_big_int<64>{v}), expected) << "value " << v;
+            EXPECT_EQ(std::hash<basic_big_int<256>>{}(basic_big_int<256>{v}), expected) << "value " << v;
+            EXPECT_EQ(std::hash<basic_big_int<1024>>{}(basic_big_int<1024>{v}), expected) << "value " << v;
+        }
+    }
+}
+
+TEST(Hash, MatchesBitPreciseHashAcrossInplaceBits) { check_rung_across_inplace_bits<rung<0>>(); }
+
+TEST(Hash, BitPrecisePathEndsAtTheWidestRung) {
+    // The value just past each end of the widest rung is hashed the other way, and must
+    // not collide with the boundary value it neighbours.
+    if constexpr (widest_rung_bits == 0) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt, so every value takes SipHash";
+    } else {
+        const std::hash<big_int> h{};
+
+        const big_int bound    = big_int{1} << (widest_rung_bits - 1);
+        const big_int max      = bound - big_int{1};
+        const big_int min      = -bound;
+        const big_int past_max = max + big_int{1};
+        const big_int past_min = min - big_int{1};
+
+        ASSERT_TRUE(takes_builtin_path(max));
+        ASSERT_TRUE(takes_builtin_path(min));
+        ASSERT_FALSE(takes_builtin_path(past_max));
+        ASSERT_FALSE(takes_builtin_path(past_min));
+
+        EXPECT_EQ(h(max), expected_hash(max));
+        EXPECT_EQ(h(min), expected_hash(min));
+        EXPECT_EQ(h(past_max), expected_hash(past_max));
+        EXPECT_EQ(h(past_min), expected_hash(past_min));
+
+        EXPECT_NE(h(max), h(past_max));
+        EXPECT_NE(h(min), h(past_min));
+        EXPECT_NE(h(past_max), h(past_min));
+    }
+}
+
+// Checks the values that only rung `T` can represent, `T` sitting above a rung of
+// `narrower_bits` bits, or above nothing where that is zero. Does nothing where the
+// implementation does not hash `T`.
+template <class T>
+[[nodiscard]] std::size_t check_rung(const std::size_t narrower_bits) {
+    std::size_t checked = 0;
+    if constexpr (detail::std_hashable<T>) {
+        constexpr std::size_t bits = detail::width_v<T>;
+        if (bits <= narrower_bits) {
+            return checked;
+        }
+
+        const std::hash<big_int> h{};
+
+        // The narrower rung stops at a magnitude of 2^(narrower_bits - 1), so these are
+        // the first values past it, and the last this rung reaches. With no narrower rung
+        // the sweep starts at one.
+        const big_int first_beyond = narrower_bits == 0 ? big_int{1} : big_int{1} << (narrower_bits - 1);
+        const big_int largest      = (big_int{1} << (bits - 1)) - big_int{1};
+
+        for (const big_int& x :
+             {first_beyond, first_beyond + big_int{1}, largest, -largest - big_int{1}, -first_beyond - big_int{1}}) {
+            EXPECT_TRUE(takes_builtin_path(x)) << "bits " << bits;
+            EXPECT_EQ(h(x), std::hash<T>{}(static_cast<T>(x))) << "bits " << bits;
+            ++checked;
+        }
+    }
+    return checked;
+}
+
+// Walks the ladder narrowest first, carrying the width of the widest rung below the one
+// being checked, and reports how many rungs contributed a check.
+template <std::size_t... i>
+[[nodiscard]] std::size_t check_every_rung(std::index_sequence<i...>) {
+    std::size_t narrower = 0;
+    std::size_t checked  = 0;
+    ((checked += check_rung<rung<i>>(narrower) != 0 ? 1U : 0U, narrower = std::max(narrower, rung_bits<rung<i>>())),
+     ...);
+    return checked;
+}
+
+// An object size the implementation hashes is one every narrower size is hashed too, so the
+// widest rung tells how many rungs there are to check.
+constexpr std::size_t hashable_rungs = widest_rung_bits / detail::hash_rung_step;
+
+TEST(Hash, MatchesBitPreciseHashOnEveryRung) {
+    if constexpr (widest_rung_bits == 0) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt, so every value takes SipHash";
+    } else {
+        // Every rung must have been checked, not merely some of them.
+        EXPECT_EQ(check_every_rung(rung_indices{}), hashable_rungs) << "widest rung " << widest_rung_bits << " bits";
+    }
+}
+
+// ----- Parity with `_BitInt(N)` at every width, not only at the rungs -----
+
+// A signed `_BitInt` is at least two bits wide, so a sweep of widths starts there.
+constexpr std::size_t narrowest_bit_int_bits = 2;
+
+// The rung a `_BitInt(bits)` shares an object size with: the ladder steps one object size at
+// a time, so it is `bits` rounded up to a whole number of steps.
+[[nodiscard]] constexpr std::size_t rung_covering(const std::size_t bits) {
+    return detail::div_to_pos_inf(bits, detail::hash_rung_step) * detail::hash_rung_step;
+}
+
+// The width of the rung below the one covering `bits`, or zero where there is none.
+[[nodiscard]] constexpr std::size_t rung_below(const std::size_t bits) {
+    return rung_covering(bits) - detail::hash_rung_step;
+}
+
+// `std::hash<big_int>` gives a value the digest of the narrowest rung that can represent it,
+// and an implementation that hashes a scalar by its object representation gives every
+// `_BitInt` of one object size a single digest. A `_BitInt(N)` key therefore hashes as a
+// `big_int` key of the same value exactly where that value needs `N`'s object size: one small
+// enough for a narrower rung takes the narrower rung's digest, which past the first step is a
+// digest over fewer bytes. Below the first step there is no narrower rung, so the whole range
+// of `_BitInt(N)` qualifies. Where the standard library hashes no `_BitInt` the sweep below
+// has no width to check, so this helper goes unused there.
+[[nodiscard, maybe_unused]] bool needs_own_object_size(const big_int& x, const std::size_t bits) {
+    const std::size_t narrower = rung_below(bits);
+    if (narrower == 0) {
+        return true;
+    }
+    const big_int bound = big_int{1} << (narrower - 1);
+    return std::is_lt(x <=> -bound) || std::is_gt(x <=> bound - big_int{1});
+}
+
+// Checks a `big_int` against a `_BitInt(bits)` holding the same value, over both ends of that
+// type's range, both ends of the band of values it is the narrowest of its object size for,
+// and a spread in between. Reports how many values were checked, which is none where the
+// implementation does not hash the type. `T` is a template parameter rather than a local
+// alias so that `std::hash<T>` stays dependent: on a target without `_BitInt` every width
+// names the same placeholder, and a compiler is free to reject a non-dependent use of it
+// even in the branch discarded below.
+template <std::size_t bits, class T = bit_int_of<bits>>
+[[nodiscard]] std::size_t check_width() {
+    if constexpr (!detail::std_hashable<T>) {
+        return 0;
+    } else {
+        const std::hash<big_int> h{};
+
+        const big_int max    = (big_int{1} << (bits - 1)) - big_int{1};
+        const big_int min    = -max - big_int{1};
+        const big_int first  = rung_below(bits) == 0 ? big_int{0} : big_int{1} << (rung_below(bits) - 1);
+        const big_int middle = first + ((max - first) >> 1);
+        const big_int third  = max / big_int{3};
+
+        std::size_t checked = 0;
+        for (const big_int& x : {min,
+                                 min + big_int{1},
+                                 max,
+                                 max - big_int{1},
+                                 first,
+                                 first + big_int{1},
+                                 -first - big_int{1},
+                                 middle,
+                                 -middle - big_int{1},
+                                 third,
+                                 -third - big_int{1}}) {
+            // A candidate outside this width's range, or one a narrower rung already covers,
+            // says nothing about this width.
+            if (std::is_lt(x <=> min) || std::is_gt(x <=> max) || !needs_own_object_size(x, bits)) {
+                continue;
+            }
+            EXPECT_EQ(h(x), std::hash<T>{}(static_cast<T>(x))) << "width " << bits << " value " << x;
+            ++checked;
+        }
+        return checked;
+    }
+}
+
+// Every width from the narrowest signed `_BitInt` up to the widest rung, so that parity is
+// pinned across the board rather than only at the widths the ladder names.
+constexpr std::size_t swept_widths =
+    widest_rung_bits >= narrowest_bit_int_bits ? widest_rung_bits - narrowest_bit_int_bits + 1 : 0;
+
+// Reports how many of the swept widths contributed a check.
+template <std::size_t... i>
+[[nodiscard]] std::size_t check_every_width(std::index_sequence<i...>) {
+    std::size_t checked = 0;
+    ((checked += check_width<i + narrowest_bit_int_bits>() != 0 ? 1U : 0U), ...);
+    return checked;
+}
+
+TEST(Hash, MatchesBitPreciseHashAtEveryWidth) {
+    if constexpr (swept_widths == 0) {
+        GTEST_SKIP() << "this implementation hashes no _BitInt, so every value takes SipHash";
+    } else {
+        // Every width up to the widest rung must have been checked, not merely the rungs.
+        EXPECT_EQ(check_every_width(std::make_index_sequence<swept_widths>{}), swept_widths)
+            << "widest rung " << widest_rung_bits << " bits";
     }
 }
 

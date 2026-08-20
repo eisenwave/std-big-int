@@ -850,13 +850,44 @@ xref:big_int_type.adoc#big_int_type_unit_multi_t[`uint_multiprecision_t`] on the
 target: a value hashes the same where limbs are 32 bits wide as it does where
 they are 64 bits wide.
 
-The digest is not itself part of the interface and may change between releases.
-It is currently SipHash-2-4 over the little-endian byte string of the magnitude,
-trimmed of its most significant zero bytes. That string is `width_mag()` bits
-rounded up to a whole number of bytes, so zero is hashed as the empty input. A
-negative value is distinguished from its magnitude before the string is absorbed.
-Where `std::size_t` is narrower than 64 bits, the digest is folded down to its
-width.
+Where a signed bit-precise integer type can represent `x` and the implementation gives
+that type a digest, the digest is
+`std::hash<pass:[_BitInt(N)]>()(static_cast<pass:[_BitInt(N)]>(x))` for the narrowest
+such `N`, so a `basic_big_int` key and a `pass:[_BitInt(N)]` key of the same value hash
+alike and can be hashed interchangeably.
+
+The widths tried are one per object size: a `pass:[_BitInt(N)]` past one machine word
+occupies `ceil(N / word_bits)` words, and on an implementation that hashes a scalar by
+its object representation every `pass:[_BitInt]` of a given size has one digest, so a
+rung at each size covers every width that shares that size. A value hashed on the
+192-bit rung therefore also matches a `pass:[_BitInt(160)]` key of the same value, and
+one hashed on the narrowest rung matches every `pass:[_BitInt]` no wider than a word.
+The ladder runs from one word up to the widest object the implementation's own
+`std::hash` covers, which on a 64-bit target with libc++ is four words, so 64, 128,
+192, and 256 bits; a rung the target cannot form, or whose `std::hash` the
+implementation does not provide, is passed over. The reach is the
+`BEMAN_BIG_INT_HASH_MAX_OBJECT_WORDS` macro, counted in `std::size_t` words and
+defaulting to four, because libc++ hashes a scalar past that size with a helper it only
+declares, which is a hard error rather than something a concept can reject. Defining
+that macro to a larger value is the whole change needed to hash on wider rungs once a
+standard library covers them.
+
+Where no rung is available every value takes the fallback below; that is the case on an
+implementation that hashes no `pass:[_BitInt]`, and on one whose compiler has no
+`pass:[_BitInt]` at all.
+
+An implementation that hashes a scalar by its object representation gives
+`pass:[_BitInt(64)]` and `std::int64_t` the same digest, since they share one. On such
+an implementation, where a machine word is 64 bits, a value in the range of
+`std::int64_t` therefore also hashes as
+`std::hash<std::int64_t>()(static_cast<std::int64_t>(x))`.
+
+Beyond the widest available width the digest is not itself part of the interface and may change
+between releases. It is currently SipHash-2-4 over the little-endian byte string of
+the magnitude, trimmed of its most significant zero bytes. That string is
+`width_mag()` bits rounded up to a whole number of bytes. A negative value is
+distinguished from its magnitude before the string is absorbed. Where `std::size_t`
+is narrower than 64 bits, the digest is folded down to its width.
 
 * *Preconditions:* None.
 * *Postconditions:* None.

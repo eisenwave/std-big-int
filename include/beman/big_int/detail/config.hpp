@@ -143,6 +143,15 @@ using bit_uint = unsigned _BitInt(N);
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH 128
 #endif
 
+// std::hash reach over bit-precise integers ===================================
+//
+// libc++ currently supports 4 words (20 Aug 2026)
+// If this value increases or needs tested a user can change it on the command line,
+// or simply PR this one spot to increase the availability
+#ifndef BEMAN_BIG_INT_HASH_MAX_OBJECT_WORDS
+    #define BEMAN_BIG_INT_HASH_MAX_OBJECT_WORDS 4
+#endif
+
 // 32-bit/64-bit ===============================================================
 
 #include <cstdint>

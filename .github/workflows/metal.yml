@@ -19,7 +19,6 @@ jobs:
           fetch-depth: '0'
       - name: update-tools
         run: |
-          sudo apt update
           sudo apt install libncurses5-dev
           mkdir -p emu_env && cd emu_env
           wget --no-check-certificate https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/15.3.rel1/arm-gnu-toolchain-15.3.rel1-x86_64-arm-none-eabi.tar.xz
