@@ -157,8 +157,8 @@ class basic_big_int {
     constexpr size_type                              representation_size() const noexcept;
     constexpr allocator_type                         get_allocator() const noexcept;
     constexpr size_type                              size() const noexcept;
-    static constexpr size_type                       max_size() noexcept;
-    static constexpr size_type                       max_representation_size() noexcept;
+    constexpr size_type                              max_size() const noexcept;
+    constexpr size_type                              max_representation_size() const noexcept;
     constexpr void                                   reserve(size_type n);
     constexpr void                                   reserve_representation(size_type n);
     constexpr size_type                              capacity() const noexcept;
@@ -558,7 +558,7 @@ Returns the number of bits required to represent the magnitude of the value:
 
 [source,c++]
 ----
-static constexpr size_type max_size() noexcept;
+constexpr size_type max_size() const noexcept;
 ----
 
 Returns the maximum number of bits that the magnitude may occupy, that is,
@@ -574,7 +574,7 @@ An operation that would grow the magnitude beyond this many bits throws
 
 [source,c++]
 ----
-static constexpr size_type max_representation_size() noexcept;
+constexpr size_type max_representation_size() const noexcept;
 ----
 
 Returns the maximum number of limbs that can be part of the representation, that

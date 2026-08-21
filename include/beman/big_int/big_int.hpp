@@ -324,6 +324,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
 
     static constexpr size_type bits_per_limb = detail::width_v<limb_type>;
 
+    // Representation limits, reported publicly by max_representation_size() and max_size().
+    static constexpr size_type max_limbs =
+        std::min((size_type{1} << 31U) - 1U, std::numeric_limits<size_type>::max() / bits_per_limb);
+    static constexpr size_type max_bits = max_limbs * bits_per_limb;
+
   public:
     // Never fewer limbs than would fit in the pointer footprint  of the union,
     // so the union doesn't waste space.
@@ -506,8 +511,8 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr size_type                              representation_size() const noexcept;
     [[nodiscard]] constexpr allocator_type                         get_allocator() const noexcept;
     [[nodiscard]] constexpr size_type                              size() const noexcept;
-    [[nodiscard]] static constexpr size_type                       max_size() noexcept;
-    [[nodiscard]] static constexpr size_type                       max_representation_size() noexcept;
+    [[nodiscard]] constexpr size_type                              max_size() const noexcept;
+    [[nodiscard]] constexpr size_type                              max_representation_size() const noexcept;
     constexpr void                                                 reserve(size_type n);
     constexpr void                                                 reserve_representation(size_type n);
     [[nodiscard]] constexpr size_type                              capacity() const noexcept;
@@ -599,7 +604,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // Our max shift is then the number of bits represented in these blocks plus the theoretical 63 (or 31)
     // that are in the same limb.
     using shift_type                      = uint_multiprecision_t;
-    static constexpr shift_type shift_max = static_cast<shift_type>(max_representation_size()) * bits_per_limb;
+    static constexpr shift_type shift_max = static_cast<shift_type>(max_limbs) * bits_per_limb;
 
     // Increases the magnitude by one, without affecting the sign bit.
     // Returns `true` on carry in the uppermost limb.
@@ -1403,18 +1408,15 @@ constexpr std::size_t basic_big_int<b, L, A>::size() const noexcept {
 }
 
 template <std::size_t b, class L, class A>
-constexpr std::size_t basic_big_int<b, L, A>::max_size() noexcept {
+constexpr std::size_t basic_big_int<b, L, A>::max_size() const noexcept {
     // Maximum number of bits the magnitude may occupy.
-    return max_representation_size() * bits_per_limb;
+    return max_bits;
 }
 
 template <std::size_t b, class L, class A>
-constexpr std::size_t basic_big_int<b, L, A>::max_representation_size() noexcept {
-    // A limb count occupies 31 bits of the control word; in addition, the bit count reported
-    // by max_size() must be representable in size_type. The smaller of the two limits wins.
-    constexpr size_type storage_cap  = (size_type{1} << 31U) - 1U;
-    constexpr size_type overflow_cap = std::numeric_limits<size_type>::max() / bits_per_limb;
-    return std::min(storage_cap, overflow_cap);
+constexpr std::size_t basic_big_int<b, L, A>::max_representation_size() const noexcept {
+    // Maximum number of limbs the representation may occupy.
+    return max_limbs;
 }
 
 template <std::size_t b, class L, class A>
@@ -3305,7 +3307,7 @@ constexpr void basic_big_int<b, L, A>::assign_from_float(const F value) noexcept
 
 template <std::size_t b, class L, class A>
 constexpr void basic_big_int<b, L, A>::check_length(const size_type limbs_needed) {
-    if (limbs_needed > max_representation_size()) {
+    if (limbs_needed > max_limbs) {
         detail::throw_length_error();
     }
 }
@@ -3364,15 +3366,14 @@ constexpr void basic_big_int<b, L, A>::grow(const size_type limbs_needed) {
         return;
     }
 
-    constexpr size_type cap_limit = max_representation_size();
-    if (limbs_needed > cap_limit) {
+    if (limbs_needed > max_limbs) {
         detail::throw_length_error();
     }
 
     // libstdc++ and libc++ normally double storage each allocation
     // MSVC does 1.5x instead of 2x
     // Only the doubling is clamped, so the capacity itself stays representable.
-    const size_type    new_cap    = std::min(std::max(limbs_needed, 2 * current_cap), cap_limit);
+    const size_type    new_cap    = std::min(std::max(limbs_needed, 2 * current_cap), max_limbs);
     const alloc_result allocation = alloc_limbs(new_cap);
     copy_n_to_allocation(limb_ptr(), limb_count(), allocation);
 
