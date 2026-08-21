@@ -62,7 +62,7 @@
 * xref:literals.adoc[User-Defined Literals]
 ** xref:literals.adoc#literals_synopsis[Synopsis]
 ** xref:literals.adoc#literals_scope[Bringing the literals into scope]
-** xref:literals.adoc#literals_suffix[The n and _n suffixes]
+** xref:literals.adoc#literals_suffix[The n, N, _n, and _N suffixes]
 ** xref:literals.adoc#literals_bases[Bases, separators, and sign]
 ** xref:literals.adoc#literals_constexpr[Compile-time evaluation]
 * xref:numeric.adoc[Numeric Functions]
