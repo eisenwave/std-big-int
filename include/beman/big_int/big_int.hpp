@@ -3572,4 +3572,6 @@ struct std::hash<beman::big_int::basic_big_int<b, L, A>> {
 #define BEMAN_BIG_INT_COPY_TO_RUNTIME(...) \
     (::beman::big_int::copy_to_runtime<decltype([]() { return (__VA_ARGS__); })>())
 
+BEMAN_BIG_INT_DIAGNOSTIC_POP() // For string and array bounds at the top of this file
+
 #endif // BEMAN_BIG_INT_BIG_INT_HPP
