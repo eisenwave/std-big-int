@@ -23,8 +23,8 @@ namespace {
 using beman::big_int::big_int;
 using uint_t = beman::big_int::uint_multiprecision_t;
 
-constexpr std::size_t max_limbs = big_int::max_representation_size();
-constexpr std::size_t max_bits  = big_int::max_size();
+constexpr std::size_t max_limbs = big_int{}.max_representation_size();
+constexpr std::size_t max_bits  = big_int{}.max_size();
 
 // An allocator that never hands out storage. A request that reaches it fails
 // with `bad_alloc`, so a `length_error` proves the limit was checked first and a

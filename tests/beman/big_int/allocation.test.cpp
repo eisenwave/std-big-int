@@ -50,10 +50,10 @@ static_assert(test_size_from_value_big_neg());
 
 consteval bool test_max_size() {
     // max_size() is a bit count: max_representation_size() limbs times digits-per-limb.
-    using T = beman::big_int::big_int;
-    constexpr std::size_t digits =
+    beman::big_int::big_int x;
+    constexpr std::size_t   digits =
         static_cast<std::size_t>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits);
-    return T::max_size() == T::max_representation_size() * digits;
+    return x.max_size() == x.max_representation_size() * digits;
 }
 static_assert(test_max_size());
 
@@ -171,8 +171,8 @@ static_assert(test_representation_size_matches_formula());
 
 consteval bool test_max_representation_size() {
     // Limb-count limit, bounded by the 31-bit control word that stores the limb count.
-    using T = beman::big_int::big_int;
-    return T::max_representation_size() >= 1U && T::max_representation_size() <= ((std::size_t{1} << 31U) - 1U);
+    beman::big_int::big_int x;
+    return x.max_representation_size() >= 1U && x.max_representation_size() <= ((std::size_t{1} << 31U) - 1U);
 }
 static_assert(test_max_representation_size());
 
@@ -309,9 +309,10 @@ TEST(Allocation, SizeFromValueBigNeg) {
 }
 
 TEST(Allocation, MaxSize) {
-    constexpr std::size_t digits =
+    const beman::big_int::big_int x;
+    constexpr std::size_t         digits =
         static_cast<std::size_t>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits);
-    EXPECT_EQ(beman::big_int::big_int::max_size(), beman::big_int::big_int::max_representation_size() * digits);
+    EXPECT_EQ(x.max_size(), x.max_representation_size() * digits);
 }
 
 TEST(Allocation, CapacityDefault) {
@@ -411,10 +412,11 @@ TEST(Allocation, RepresentationSizeBig) {
 }
 
 TEST(Allocation, MaxRepresentationSize) {
-    constexpr std::size_t digits =
+    const beman::big_int::big_int x;
+    constexpr std::size_t         digits =
         static_cast<std::size_t>(std::numeric_limits<beman::big_int::uint_multiprecision_t>::digits);
-    EXPECT_EQ(beman::big_int::big_int::max_size(), beman::big_int::big_int::max_representation_size() * digits);
-    EXPECT_GE(beman::big_int::big_int::max_representation_size(), 1U);
+    EXPECT_EQ(x.max_size(), x.max_representation_size() * digits);
+    EXPECT_GE(x.max_representation_size(), 1U);
 }
 
 TEST(Allocation, RepresentationCapacityInline) {
