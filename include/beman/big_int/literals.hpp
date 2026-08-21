@@ -170,6 +170,11 @@ template <char... digits>
     }
 }
 
+template <char... digits>
+[[nodiscard]] constexpr big_int operator""N() noexcept(noexcept(operator""n<digits...>())) {
+    return operator""n<digits...>();
+}
+
 // UDLs without underscore don't work on Clang:
 // https://github.com/llvm/llvm-project/issues/76394
 // clang-format off
@@ -177,6 +182,12 @@ template <char... digits>
 [[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator""n<digits...>())) {
     return operator""n<digits...>();
 }
+
+template <char... digits>
+[[nodiscard]] constexpr big_int operator""_N() noexcept(noexcept(operator""n<digits...>())) {
+    return operator""n<digits...>();
+}
+
 // clang-format on
 
 BEMAN_BIG_INT_DIAGNOSTIC_POP()
