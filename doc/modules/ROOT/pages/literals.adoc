@@ -24,15 +24,21 @@ template <char... digits>
 constexpr big_int operator""n() noexcept(/* fits without allocating */);
 
 template <char... digits>
+constexpr big_int operator""N() noexcept(/* fits without allocating */);
+
+template <char... digits>
 constexpr big_int operator""_n() noexcept(/* fits without allocating */);
+
+template <char... digits>
+constexpr big_int operator""_N() noexcept(/* fits without allocating */);
 
 } // namespace big_int_literals
 } // namespace literals
 } // namespace beman::big_int
 ----
 
-Both operators are templated on the literal's digit sequence, so the value is
-known to the compiler and is validated and parsed during translation.
+All four operators are templated on the literal's digit sequence, so the value
+is known to the compiler and is validated and parsed during translation.
 
 [#literals_scope]
 == Bringing the literals into scope
@@ -53,23 +59,43 @@ Because the namespace is inline, the qualified names
 same set of operators.
 
 [#literals_suffix]
-== The `n` and `_n` suffixes
+== The `n`, `N`, `_n`, and `_N` suffixes
 
-The two suffixes are equivalent `n` and `_n` produce the same `big_int`. They exist so that portable
-code has a suffix it can always rely on:
+The four suffixes are equivalent: `N`, `_n`, and `_N` delegate to `operator""n`,
+so every spelling of a literal yields the same value, the same type, and the same
+exception specification. They exist so that portable code has a suffix it can
+always rely on, in whichever case the surrounding literals are written:
 
-* `n` is the suffix intended by the pass:[C++29] proposal. A bare suffix that begins
-  with a letter is reserved to the implementation, which is exactly what a
-  standard-library literal is, so it is the natural spelling.
-* `_n` is provided because some compilers do not yet accept a template literal
-  operator whose suffix does not begin with an underscore. Prefer `_n` when you
-  need code that compiles everywhere today.
+[cols="1,3", options="header"]
+|===
+| Suffix | Description
+| `n` | The suffix intended by the pass:[C++29] proposal. A bare suffix that begins with a letter is reserved to the implementation, which is exactly what a standard-library literal is, so it is the natural spelling
+| `N` | Upper-case spelling of `n`, for code which writes `0xFFN` rather than `0xffn`
+| `_n` | Portable spelling of `n`, accepted by every supported compiler
+| `_N` | Portable spelling of `N`, accepted by every supported compiler
+|===
+
+The underscored suffixes are provided because some compilers do not yet accept a
+literal suffix which does not begin with an underscore at the point of use; Clang
+rejects `123n` and `123N` outright
+(https://github.com/llvm/llvm-project/issues/76394[llvm/llvm-project#76394]),
+even though the operators themselves compile there. Prefer `_n` or `_N` when you
+need code that compiles everywhere today.
+
+[source,c++]
+----
+using namespace beman::big_int::literals;
+
+auto lower = 0xdead'beef_n;
+auto upper = 0xDEAD'BEEF_N; // same value, same type
+----
 
 [#literals_bases]
 == Bases, separators, and sign
 
 The text between the suffix and any leading sign follows the same grammar as a
-built-in integer literal:
+built-in integer literal. The examples below use `_n`, but every suffix accepts
+exactly the same literals:
 
 * *Base.* Digits are decimal (base 10) by default. A `0x` (or `0X`) prefix selects
   hexadecimal, `0b` (or `0B`) selects binary, and a leading `0` selects octal.
@@ -104,3 +130,5 @@ Such a literal also constructs without allocating, so `operator""n` is `noexcept
 A literal too large for the inline storage will allocate, and when declared as `constexpr big_int ...`,
 the value must be destroyed before run-time, as allocations are non-transient.
 That construction allocates, so the operator is potentially-throwing for such literals.
+The delegating suffixes carry the same exception specification, so `noexcept(123_N)`
+and `noexcept(123n)` agree with `noexcept(123_n)` for every literal.

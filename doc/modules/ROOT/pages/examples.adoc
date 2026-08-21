@@ -82,7 +82,7 @@ result_is_ok: true
 [#examples_literals]
 === User-defined literals
 
-.This https://github.com/eisenwave/std-big-int/blob/main/examples/literals.cpp[example] demonstrates writing `beman::big_int` constants directly in source code with the `_n` literal suffix, including non-decimal bases, digit separators, and negative values
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/literals.cpp[example] demonstrates writing `beman::big_int` constants directly in source code with the `_n` and `_N` literal suffixes, including non-decimal bases, digit separators, and negative values
 ====
 [source, c++]
 ----

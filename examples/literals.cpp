@@ -26,10 +26,16 @@ auto main() -> int {
     //    value.
     const auto negative = -1'000'000'000'000'000'000'000_n;
 
+    // 4. The suffix may be capitalized: _N delegates to _n (as N does to n), so
+    //    it yields the same value and the same type. Prefer the underscored
+    //    spellings, which every supported compiler accepts.
+    const auto upper_case = 0xDEAD'BEEF_N;
+
     const bool big_is_ok    = big == (1_n << 128) + 1_n;
     const bool bases_agree  = from_hex == 255_n && from_bin == 255_n && from_oct == 255_n;
     const bool sign_is_ok   = negative < 0_n;
-    const bool result_is_ok = big_is_ok && bases_agree && sign_is_ok;
+    const bool cases_agree  = upper_case == 0xdead'beef_n;
+    const bool result_is_ok = big_is_ok && bases_agree && sign_is_ok && cases_agree;
 
     std::cout << "big:      " << to_string(big) << "\n"
               << "from_hex: " << to_string(from_hex) << "\n"
