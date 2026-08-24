@@ -1146,6 +1146,17 @@ basic_big_int<b, L, A>::swap(basic_big_int& x) noexcept(std::allocator_traits<A>
     }
 }
 
+// [big.int.special], specialized algorithms
+
+// Exchanges the values of `x` and `y` as if by `x.swap(y)`. Found by
+// argument-dependent lookup, so both an unqualified `swap(a, b)` and the
+// `using std::swap; swap(a, b)` idiom that generic code relies on select this
+// overload in preference to the move-based `std::swap`.
+template <std::size_t b, class L, class A>
+constexpr void swap(basic_big_int<b, L, A>& x, basic_big_int<b, L, A>& y) noexcept(noexcept(x.swap(y))) {
+    x.swap(y);
+}
+
 template <std::size_t b, class L, class A>
 template <detail::arbitrary_arithmetic T>
 constexpr basic_big_int<b, L, A>::basic_big_int(const T& value, const allocator_type& a) noexcept(

@@ -39,6 +39,7 @@
 ** xref:big_int_type.adoc#big_int_type_assign[Assignment]
 ** xref:big_int_type.adoc#big_int_type_compound[Compound assignment operators]
 ** xref:big_int_type.adoc#big_int_type_swap[Swap]
+*** xref:big_int_type.adoc#big_int_type_swap_non_member[Non-member swap]
 ** xref:big_int_type.adoc#big_int_type_observers[Observers]
 ** xref:big_int_type.adoc#big_int_type_unary[Unary operators]
 ** xref:big_int_type.adoc#big_int_type_conv[Conversion operator]

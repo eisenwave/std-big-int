@@ -182,6 +182,11 @@ class basic_big_int {
     constexpr explicit operator T() const noexcept;
 };
 
+// [big.int.special], specialized algorithms
+template <std::size_t b, class L, class A>
+constexpr void swap(basic_big_int<b, L, A>& x, basic_big_int<b, L, A>& y)
+    noexcept(noexcept(x.swap(y)));
+
 // [big.int.cmp], comparison operators
 template <class L, _common-big-int-type-with_<L> R>
 constexpr bool operator==(const L& lhs, const R& rhs) noexcept;
@@ -475,6 +480,8 @@ by `2^s`, rounded toward negative infinity). Each returns `*this`.
 [#big_int_type_swap]
 == Swap
 
+=== Member `swap`
+
 [source,c++]
 ----
 constexpr void swap(basic_big_int& x) noexcept(
@@ -491,6 +498,33 @@ otherwise they are left unchanged.
 
 * *Preconditions:* `std::allocator_traits<allocator_type>::propagate_on_container_swap::value` is `true`, or `get_allocator() == x.get_allocator()`.
 * *Postconditions:* `*this` holds the integer value that `x` held before the call, and `x` holds the integer value that `*this` held before the call. The allocators are exchanged if and only if `std::allocator_traits<allocator_type>::propagate_on_container_swap::value` is `true`.
+* *Throws:* Nothing.
+
+[#big_int_type_swap_non_member]
+=== Non-member `swap`
+
+[source,c++]
+----
+template <std::size_t b, class L, class A>
+constexpr void swap(basic_big_int<b, L, A>& x, basic_big_int<b, L, A>& y)
+    noexcept(noexcept(x.swap(y)));
+----
+
+Equivalent to `x.swap(y)`, and so subject to the same preconditions. It lives in
+the `beman::big_int` namespace and is found by argument-dependent lookup, which
+makes it the overload selected both by an unqualified `swap(x, y)` and by the
+`using std::swap; swap(x, y)` idiom that generic code and the standard
+algorithms use. Selecting it in preference to `std::swap` matters: `std::swap`
+would exchange the two values with three moves, and would not honour
+`std::allocator_traits<A>::propagate_on_container_swap`.
+
+Both arguments must name the same `basic_big_int` specialization; there is no
+overload that exchanges values across differing `min_inplace_bits`, limb types,
+or allocators.
+
+* *Effects:* As if by `x.swap(y)`.
+* *Preconditions:* `std::allocator_traits<A>::propagate_on_container_swap::value` is `true`, or `x.get_allocator() == y.get_allocator()`.
+* *Postconditions:* `x` holds the integer value that `y` held before the call, and `y` holds the integer value that `x` held before the call.
 * *Throws:* Nothing.
 
 [#big_int_type_observers]
