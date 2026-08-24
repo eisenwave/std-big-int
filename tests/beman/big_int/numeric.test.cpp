@@ -25,6 +25,7 @@ using beman::big_int::big_int;
 using beman::big_int::gcd;
 using beman::big_int::lcm;
 using beman::big_int::saturating_cast;
+using beman::big_int::in_range;
 using beman::big_int::to_string;
 using beman::big_int::uint_multiprecision_t;
 
@@ -249,6 +250,14 @@ TEST(SaturatingCast, LargeHeapValueInRange) {
     // ...but the same value overflows a signed long long and clamps.
     EXPECT_EQ(saturating_cast<long long>(big_unsigned), std::numeric_limits<long long>::max());
 }
+
+// ============================================================================
+// in_range
+// ============================================================================
+static_assert(!in_range<std::size_t>(local::big_int(-1)), "Error: not in_range");
+static_assert(in_range<std::size_t>(local::big_int(42)), "Error: not in_range");
+static_assert(in_range<int>(local::big_int(-1)), "Error: not in_range");
+static_assert(in_range<int>(local::big_int(42)), "Error: not in_range");
 
 // ============================================================================
 // gcd

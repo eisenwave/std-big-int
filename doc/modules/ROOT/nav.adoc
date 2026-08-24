@@ -69,6 +69,7 @@
 ** xref:numeric.adoc#numeric_synopsis[Synopsis]
 ** xref:numeric.adoc#numeric_abs[abs]
 ** xref:numeric.adoc#numeric_saturating_cast[saturating_cast]
+** xref:numeric.adoc#numeric_in_range[in_range]
 ** xref:numeric.adoc#numeric_gcd[gcd]
 ** xref:numeric.adoc#numeric_lcm[lcm]
 * xref:benchmarks.adoc[Benchmarks]
