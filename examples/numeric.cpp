@@ -13,6 +13,7 @@ auto main() -> int {
     using beman::big_int::gcd;
     using beman::big_int::lcm;
     using beman::big_int::saturating_cast;
+    using beman::big_int::in_range;
 
     // The free numeric helpers live in <beman/big_int/numeric.hpp>.
 
@@ -32,7 +33,10 @@ auto main() -> int {
     // 3. A value that already fits the destination type is returned exactly.
     const int exact = saturating_cast<int>(12345_n);
 
-    // 4. gcd works on any mix of big_int and built-in integer arguments, and
+    // 4. Verify in_range.
+    const bool range = (!in_range<std::size_t>(big_int(-1))) && in_range<std::size_t>(big_int(42));
+
+    // 5. gcd works on any mix of big_int and built-in integer arguments, and
     //    always returns a non-negative result.
     const big_int lhs = 1071_n * (1_n << 128);
     const big_int rhs = 462_n * (1_n << 120);
@@ -42,7 +46,7 @@ auto main() -> int {
     // Dividing both operands by their gcd leaves them coprime.
     const big_int coprime = gcd(lhs / divisor, rhs / divisor);
 
-    // 5. lcm is the companion of gcd: the smallest value that both operands
+    // 6. lcm is the companion of gcd: the smallest value that both operands
     //    divide. The two split the product of the operands between them, which is
     //    the identity checked below.
     const big_int multiple  = lcm(lhs, rhs); // 23562 * 2^127
@@ -50,7 +54,7 @@ auto main() -> int {
     const bool    split     = divisor * multiple == lhs * rhs;
 
     const bool result_is_ok = magnitude == (1_n << 127) && clamped_hi == std::numeric_limits<int>::max() &&
-                              clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345 &&
+                              clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345 && range &&
                               divisor == 21_n * (1_n << 121) && mixed == 42 && coprime == 1 &&
                               multiple == 23562_n * (1_n << 127) && mixed_lcm == 2310_n * (1_n << 120) && split;
 
@@ -59,6 +63,7 @@ auto main() -> int {
               << "clamped_lo:  " << clamped_lo << "\n"
               << "clamped_neg: " << clamped_neg << "\n"
               << "exact:       " << exact << "\n"
+              << "range:       " << std::boolalpha << range << "\n"
               << "divisor:     " << to_string(divisor) << "\n"
               << "mixed:       " << to_string(mixed) << "\n"
               << "coprime:     " << to_string(coprime) << "\n"

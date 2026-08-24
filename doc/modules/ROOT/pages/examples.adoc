@@ -144,7 +144,7 @@ result_is_ok: true
 [#examples_numeric]
 === Numeric functions
 
-.This https://github.com/eisenwave/std-big-int/blob/main/examples/numeric.cpp[example] demonstrates the free numeric helpers in `<beman/big_int/numeric.hpp>`: `abs` for the magnitude of a value, `saturating_cast` for range-clamped narrowing to a built-in integer, and `gcd` and `lcm` for the greatest common divisor and least common multiple of any mix of `big_int` and built-in integer arguments
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/numeric.cpp[example] demonstrates the free numeric helpers in `<beman/big_int/numeric.hpp>`: `abs` for the magnitude of a value, `saturating_cast` for range-clamped narrowing to a built-in integer, `in_range` for range cheking, and `gcd` and `lcm` for the greatest common divisor and least common multiple of any mix of `big_int` and built-in integer arguments
 ====
 [source, c++]
 ----
@@ -165,6 +165,7 @@ coprime:     1
 multiple:    4008866564695576038062016250153661299163136
 mixed_lcm:   3070516670263155666407794309247595970560
 split:       true
+range:       true
 
 result_is_ok: true
 ----
