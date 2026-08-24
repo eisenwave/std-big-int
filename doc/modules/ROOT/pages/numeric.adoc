@@ -26,6 +26,10 @@ template <class R, std::size_t b, class L, class A>
     requires /* R is a signed or unsigned integer type */
 constexpr R saturating_cast(const basic_big_int<b, L, A>& x) noexcept;
 
+template <class R, std::size_t b, class L, class A>
+    requires /* R is a signed or unsigned integer type */
+constexpr bool in_range(const basic_big_int<b, L, A>& x) noexcept;
+
 template <std::size_t b, class L, class A, class N>
 constexpr /* common basic_big_int type */ gcd(basic_big_int<b, L, A>&& m, N&& n);
 template <std::size_t b, class L, class A, class N>

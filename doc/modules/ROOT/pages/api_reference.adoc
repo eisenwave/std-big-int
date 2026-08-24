@@ -56,6 +56,7 @@
 | Function | Description
 | xref:numeric.adoc#numeric_abs[`abs`] | Returns the absolute value (magnitude) of a `basic_big_int`
 | xref:numeric.adoc#numeric_saturating_cast[`saturating_cast`] | Converts a `basic_big_int` to a built-in integer type, clamping to its range
+| xref:numeric.adoc#numeric_in_range[`in_range`] | Returns the Boolean result of the range-check if a `basic_big_int` can be represented within the range of another given type
 | xref:numeric.adoc#numeric_gcd[`gcd`] | Returns the greatest common divisor of two integers, at least one of them a `basic_big_int`
 | xref:numeric.adoc#numeric_lcm[`lcm`] | Returns the least common multiple of two integers, at least one of them a `basic_big_int`
 |===
