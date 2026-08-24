@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <limits>
+#include <utility>
 
 auto main() -> int {
     using namespace beman::big_int::literals;
@@ -21,7 +22,13 @@ auto main() -> int {
     // 1. abs returns the magnitude of a value. Because big_int is unbounded it
     //    can never overflow, unlike std::abs on the most negative built-in.
     const big_int negative  = -170141183460469231731687303715884105728_n; // -2^127
-    const big_int magnitude = abs(negative);
+    const big_int magnitude = abs(negative);                              // negative is left untouched
+
+    //    Handing the value over instead selects the noexcept overload, which
+    //    clears the sign bit on the storage it was given: no limb is copied and
+    //    nothing is allocated, however wide the value.
+    big_int owned = -170141183460469231731687303715884105728_n;
+    owned         = abs(std::move(owned));
 
     // 2. saturating_cast narrows a big_int to a built-in integer, clamping to
     //    that type's range instead of wrapping or invoking undefined behavior.
@@ -63,14 +70,15 @@ auto main() -> int {
     // result is the one on the side of the first argument.
     const bool rounds_toward_first = midpoint(lhs, lhs + 1) == lhs && midpoint(lhs + 1, lhs) == lhs + 1;
 
-    const bool result_is_ok = magnitude == (1_n << 127) && clamped_hi == std::numeric_limits<int>::max() &&
-                              clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345 &&
-                              range && divisor == 21_n * (1_n << 121) && mixed == 42 && coprime == 1 &&
-                              multiple == 23562_n * (1_n << 127) && mixed_lcm == 2310_n * (1_n << 120) && split &&
-                              between == 137319_n * (1_n << 120) && halfway_to_zero == 231_n * (1_n << 120) &&
-                              rounds_toward_first;
+    const bool result_is_ok =
+        magnitude == (1_n << 127) && owned == magnitude && negative == -magnitude &&
+        clamped_hi == std::numeric_limits<int>::max() && clamped_lo == std::numeric_limits<int>::min() &&
+        clamped_neg == 0U && exact == 12345 && range && divisor == 21_n * (1_n << 121) && mixed == 42 &&
+        coprime == 1 && multiple == 23562_n * (1_n << 127) && mixed_lcm == 2310_n * (1_n << 120) && split &&
+        between == 137319_n * (1_n << 120) && halfway_to_zero == 231_n * (1_n << 120) && rounds_toward_first;
 
     std::cout << "magnitude:   " << to_string(magnitude) << "\n"
+              << "owned:       " << to_string(owned) << "\n"
               << "clamped_hi:  " << clamped_hi << "\n"
               << "clamped_lo:  " << clamped_lo << "\n"
               << "clamped_neg: " << clamped_neg << "\n"

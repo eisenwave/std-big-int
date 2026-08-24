@@ -18,12 +18,21 @@
 
 namespace beman::big_int {
 
-// Returns the absolute value (magnitude) of `x`.
+// [c.math.abs]
+// Returns the absolute value (magnitude) of `j`.
 // This cannot overflow since `basic_big_int` is unbounded
-template <class T>
-    requires detail::is_basic_big_int_v<T>
-constexpr std::remove_cvref_t<T> abs(T&& x) {
-    std::remove_cvref_t<T> result(std::forward<T>(x));
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(const basic_big_int<b, L, A>& j) {
+    basic_big_int<b, L, A> result(j);
+    result.unchecked_set_sign(false);
+    return result;
+}
+
+// The overload for an argument the caller has handed over: the storage is taken
+// as-is, so clearing the sign is the whole operation and nothing is allocated.
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(basic_big_int<b, L, A>&& j) noexcept {
+    basic_big_int<b, L, A> result(std::move(j));
     result.unchecked_set_sign(false);
     return result;
 }
