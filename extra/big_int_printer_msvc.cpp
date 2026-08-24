@@ -154,8 +154,7 @@ bool read_representation(DEBUGHELPER* const      helper,
     }
 
     limbs.resize(limb_count);
-    return read_debuggee(
-        helper, limbs_address, static_cast<DWORD>(limb_count * sizeof(limb_type)), limbs.data());
+    return read_debuggee(helper, limbs_address, static_cast<DWORD>(limb_count * sizeof(limb_type)), limbs.data());
 }
 
 // Renders the magnitude in `limbs` in the requested base, with a sign and, for
@@ -194,7 +193,7 @@ void emit(const std::string& text, const BOOL unicode, char* const result, const
         count = capacity - 3;
     }
 
-    std::size_t i = 0;
+    std::size_t i   = 0;
     const auto  put = [&](const char c) {
         if (unicode) {
             reinterpret_cast<wchar_t*>(result)[i] = static_cast<wchar_t>(c);
@@ -260,26 +259,28 @@ __declspec(dllexport) HRESULT __stdcall formatter_big_int_hex(
 // `base` and `reserved` are part of the fixed add-in signature: the debugger
 // passes its own decimal/hex display setting in `base`, which the dedicated
 // `,dec` and `,hex` views override, and `reserved` is always zero.
-HRESULT __stdcall formatter_big_int_dec(const DWORD             address,
-                                        DEBUGHELPER* const      helper,
-                                        [[maybe_unused]] int    base,
-                                        const BOOL              unicode,
-                                        char* const             result,
-                                        const std::size_t       maximum,
-                                        [[maybe_unused]] DWORD  reserved) {
+HRESULT __stdcall formatter_big_int_dec(const DWORD            address,
+                                        DEBUGHELPER* const     helper,
+                                        [[maybe_unused]] int   base,
+                                        const BOOL             unicode,
+                                        char* const            result,
+                                        const std::size_t      maximum,
+                                        [[maybe_unused]] DWORD reserved) {
     return format_big_int<10>(address, helper, unicode, result, maximum);
 }
 
-HRESULT __stdcall formatter_big_int_hex(const DWORD             address,
-                                        DEBUGHELPER* const      helper,
-                                        [[maybe_unused]] int    base,
-                                        const BOOL              unicode,
-                                        char* const             result,
-                                        const std::size_t       maximum,
-                                        [[maybe_unused]] DWORD  reserved) {
+HRESULT __stdcall formatter_big_int_hex(const DWORD            address,
+                                        DEBUGHELPER* const     helper,
+                                        [[maybe_unused]] int   base,
+                                        const BOOL             unicode,
+                                        char* const            result,
+                                        const std::size_t      maximum,
+                                        [[maybe_unused]] DWORD reserved) {
     return format_big_int<16>(address, helper, unicode, result, maximum);
 }
 
-BOOL APIENTRY DllMain([[maybe_unused]] HMODULE hmodule, [[maybe_unused]] DWORD reason, [[maybe_unused]] LPVOID reserved) {
+BOOL APIENTRY DllMain([[maybe_unused]] HMODULE hmodule,
+                      [[maybe_unused]] DWORD   reason,
+                      [[maybe_unused]] LPVOID  reserved) {
     return TRUE;
 }
