@@ -23,6 +23,7 @@ using beman::big_int::abs;
 using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
 using beman::big_int::gcd;
+using beman::big_int::in_range;
 using beman::big_int::lcm;
 using beman::big_int::saturating_cast;
 using beman::big_int::to_string;
@@ -248,6 +249,34 @@ TEST(SaturatingCast, LargeHeapValueInRange) {
     EXPECT_EQ(saturating_cast<unsigned long long>(big_unsigned), 1ULL << 63);
     // ...but the same value overflows a signed long long and clamps.
     EXPECT_EQ(saturating_cast<long long>(big_unsigned), std::numeric_limits<long long>::max());
+}
+
+// ============================================================================
+// in_range
+// ============================================================================
+
+static_assert(!in_range<std::size_t>(big_int(-1)), "Error: not in_range");
+static_assert(in_range<std::size_t>(big_int(42)), "Error: not in_range");
+static_assert(in_range<int>(big_int(-1)), "Error: not in_range");
+static_assert(in_range<int>(big_int(42)), "Error: not in_range");
+static_assert(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::min())), "Error: not in_range");
+static_assert(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::max())), "Error: not in_range");
+static_assert(!in_range<std::int16_t>(big_int(INT32_C(37678))), "Error: not in_range");
+static_assert(in_range<std::uint16_t>(big_int(UINT16_C(0))), "Error: not in_range");
+static_assert(in_range<std::uint16_t>(big_int(UINT16_C(65535))), "Error: not in_range");
+static_assert(!in_range<std::uint16_t>(big_int(UINT32_C(65536))), "Error: not in_range");
+
+TEST(InRange, ValuesInRange) {
+    ASSERT_EQ(in_range<std::size_t>(big_int(-1)), false);
+    ASSERT_EQ(in_range<std::size_t>(big_int(42)), true);
+    ASSERT_EQ(in_range<int>(big_int(-1)), true);
+    ASSERT_EQ(in_range<int>(big_int(42)), true);
+    ASSERT_EQ(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::min())), true);
+    ASSERT_EQ(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::max())), true);
+    ASSERT_EQ(in_range<std::int16_t>(big_int(INT32_C(37678))), false);
+    ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(0))), true);
+    ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(65535))), true);
+    ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT32_C(65536))), false);
 }
 
 // ============================================================================

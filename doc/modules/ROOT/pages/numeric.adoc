@@ -102,6 +102,35 @@ the width of `R`.
   integers (`_BitInt`) are supported even where they lack a
   `std::numeric_limits` specialization.
 
+[#numeric_in_range]
+== `in_range`
+
+[source,c++]
+----
+template <class R, std::size_t b, class L, class A>
+    requires /* R is a signed or unsigned integer type */
+constexpr bool in_range(const basic_big_int<b, L, A>& x) noexcept;
+----
+
+Returns the Boolean result of the range-check if the argument can be represented
+in `R`. This is the `basic_big_int` counterpart of `std::in_range`.
+
+[source,c++]
+----
+in_range<std::size_t>(local::big_int(-1)); // false
+in_range<std::size_t>(local::big_int(42)); // true
+
+in_range<int>(local::big_int(-1)); // true
+in_range<int>(local::big_int(42)); // true
+----
+
+* *Constraints:* `R` is a signed or unsigned integer type.
+* *Returns:* `true` if the value of `x` is in the range of values that can be represented in `R`,
+   otherwise `false`.
+* *Throws:* Nothing; the function is `noexcept`.
+* *Remarks:* The function is usable in a constant expression. The bounds of `R`
+  are derived from its width.
+
 [#numeric_gcd]
 == `gcd`
 
