@@ -23,9 +23,9 @@ using beman::big_int::abs;
 using beman::big_int::basic_big_int;
 using beman::big_int::big_int;
 using beman::big_int::gcd;
+using beman::big_int::in_range;
 using beman::big_int::lcm;
 using beman::big_int::saturating_cast;
-using beman::big_int::in_range;
 using beman::big_int::to_string;
 using beman::big_int::uint_multiprecision_t;
 
