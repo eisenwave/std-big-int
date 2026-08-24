@@ -70,6 +70,7 @@ auto main() -> int {
     // result is the one on the side of the first argument.
     const bool rounds_toward_first = midpoint(lhs, lhs + 1) == lhs && midpoint(lhs + 1, lhs) == lhs + 1;
 
+    // clang-format off
     const bool result_is_ok =
         magnitude == (1_n << 127) &&
         owned == magnitude &&
@@ -88,6 +89,7 @@ auto main() -> int {
         between == 137319_n * (1_n << 120) &&
         halfway_to_zero == 231_n * (1_n << 120) &&
         rounds_toward_first;
+    // clang-format on
 
     std::cout << "magnitude:   " << to_string(magnitude) << "\n"
               << "owned:       " << to_string(owned) << "\n"
