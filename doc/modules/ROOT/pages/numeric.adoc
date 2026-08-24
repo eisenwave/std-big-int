@@ -18,9 +18,10 @@ or transitively through the umbrella `<beman/big_int.hpp>`.
 ----
 namespace beman::big_int {
 
-template <class T>
-    requires /* T is a basic_big_int (after removing cv-qualifiers and references) */
-constexpr std::remove_cvref_t<T> abs(T&& x);
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(const basic_big_int<b, L, A>& j);
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(basic_big_int<b, L, A>&& j) noexcept;
 
 template <class R, std::size_t b, class L, class A>
     requires /* R is a signed or unsigned integer type */
@@ -71,23 +72,46 @@ constexpr basic_big_int<b, L, A> midpoint(M&& m, const basic_big_int<b, L, A>& n
 
 [source,c++]
 ----
-template <class T>
-    requires /* T is a basic_big_int (after removing cv-qualifiers and references) */
-constexpr std::remove_cvref_t<T> abs(T&& x);
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(const basic_big_int<b, L, A>& j);
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(basic_big_int<b, L, A>&& j) noexcept;
 ----
 
-Returns the absolute value (the magnitude) of `x`.
+Returns the absolute value (the magnitude) of `j`. An lvalue, and a const
+rvalue, select the first overload; a non-const rvalue selects the second.
 
 Unlike `std::abs`, this function can never overflow: `basic_big_int` is
-unbounded, so the magnitude of every value is representable.
+unbounded, so the magnitude of every value is representable. In particular `abs`
+is total, with no counterpart to the undefined behavior of `std::abs(INT_MIN)`.
 
-* *Constraints:* `std::remove_cvref_t<T>` is a specialization of `basic_big_int`.
-* *Returns:* A `basic_big_int` equal in magnitude to `x` and not less than `0`.
-* *Throws:* The sign manipulation itself does not throw.
-  For an lvalue argument, any exception thrown while allocating the
-  copied result (for example, `std::bad_alloc`); a value held in the in-place
-  buffer, and any rvalue argument, allocates nothing.
-* *Remarks:* The function is usable in a constant expression.
+`basic_big_int` keeps a sign apart from its magnitude, so the result differs
+from `j` in that one bit alone: no limb is read, written, or reinterpreted, and
+the cost of `abs` is the cost of producing the returned object and nothing more.
+The rvalue overload therefore takes over the storage `j` already owns and clears
+the sign in place, which allocates nothing and cannot throw, however wide the
+value. The lvalue overload has to leave `j` intact, so it pays for one copy of
+the magnitude; that copy allocates only when the magnitude does not fit the
+in-place buffer.
+
+Prefer handing the value over when the caller is finished with it:
+
+[source,c++]
+----
+big_int x = -(big_int{1} << 4096);
+
+const big_int magnitude = abs(x);            // Copies; x still holds -2^4096.
+x                       = abs(std::move(x)); // Clears the sign bit in place; allocates nothing.
+----
+
+* *Returns:* A `basic_big_int` equal in magnitude to `j` and not less than `0`.
+* *Postconditions:* For the lvalue overload, `j` is unchanged. For the rvalue
+  overload, `j` is in a valid but unspecified state.
+* *Throws:* For the lvalue overload, any exception thrown while allocating the
+  copied result (for example, `std::bad_alloc`); a magnitude held in the in-place
+  buffer allocates nothing. The rvalue overload is `noexcept`.
+* *Remarks:* The function is usable in a constant expression. The result uses the
+  allocator of `j`.
 
 [#numeric_saturating_cast]
 == `saturating_cast`

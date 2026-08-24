@@ -155,6 +155,7 @@ include::example$numeric.cpp[]
 [listing]
 ----
 magnitude:   170141183460469231731687303715884105728
+owned:       170141183460469231731687303715884105728
 clamped_hi:  2147483647
 clamped_lo:  -2147483648
 clamped_neg: 0

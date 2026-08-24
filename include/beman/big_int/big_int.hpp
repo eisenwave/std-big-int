@@ -269,9 +269,10 @@ constexpr bool eval_bitwise_into_spans(const std::span<const uint_multiprecision
 } // namespace detail
 
 // [big.int.numeric], non-member numeric functions (defined in <beman/big_int/numeric.hpp>).
-template <class T>
-    requires detail::is_basic_big_int_v<T>
-constexpr std::remove_cvref_t<T> abs(T&& x);
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(const basic_big_int<b, L, A>& j);
+template <std::size_t b, class L, class A>
+constexpr basic_big_int<b, L, A> abs(basic_big_int<b, L, A>&& j) noexcept;
 
 // `gcd` and `midpoint` are each a set of overloads in <beman/big_int/numeric.hpp>;
 // they all run through these drivers, which are the ones that need the representation.
@@ -579,9 +580,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     friend constexpr div_result<detail::common_big_int_type<L, R>> div_rem_to_zero(L&&, R&&);
 
     // [big.int.numeric], non-member numeric functions
-    template <class T>
-        requires detail::is_basic_big_int_v<T>
-    friend constexpr std::remove_cvref_t<T> abs(T&& x);
+    template <std::size_t b2, class L2, class A2>
+    friend constexpr basic_big_int<b2, L2, A2> abs(const basic_big_int<b2, L2, A2>& j);
+    template <std::size_t b2, class L2, class A2>
+    friend constexpr basic_big_int<b2, L2, A2> abs(basic_big_int<b2, L2, A2>&& j) noexcept;
 
     template <class M, class N>
     friend constexpr detail::common_big_int_type<M, N> detail::gcd_impl(M&& m, N&& n);
