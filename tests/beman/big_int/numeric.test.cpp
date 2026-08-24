@@ -267,16 +267,16 @@ static_assert(in_range<std::uint16_t>(big_int(UINT16_C(65535))), "Error: not in_
 static_assert(!in_range<std::uint16_t>(big_int(UINT32_C(65536))), "Error: not in_range");
 
 TEST(InRange, ValuesInRange) {
-  ASSERT_EQ(in_range<std::size_t>(big_int(-1)),   false);
-  ASSERT_EQ(in_range<std::size_t>(big_int(42)),   true);
-  ASSERT_EQ(in_range<int>(big_int(-1)),           true);
-  ASSERT_EQ(in_range<int>(big_int(42)),           true);
-  ASSERT_EQ(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::min())), true);
-  ASSERT_EQ(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::max())), true);
-  ASSERT_EQ(in_range<std::int16_t>(big_int(INT32_C(37678))),   false);
-  ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(0))),      true);
-  ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(65535))),  true);
-  ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT32_C(65536))), false);
+    ASSERT_EQ(in_range<std::size_t>(big_int(-1)), false);
+    ASSERT_EQ(in_range<std::size_t>(big_int(42)), true);
+    ASSERT_EQ(in_range<int>(big_int(-1)), true);
+    ASSERT_EQ(in_range<int>(big_int(42)), true);
+    ASSERT_EQ(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::min())), true);
+    ASSERT_EQ(in_range<std::int16_t>(big_int(std::numeric_limits<std::int16_t>::max())), true);
+    ASSERT_EQ(in_range<std::int16_t>(big_int(INT32_C(37678))), false);
+    ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(0))), true);
+    ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(65535))), true);
+    ASSERT_EQ(in_range<std::uint16_t>(big_int(UINT32_C(65536))), false);
 }
 
 // ============================================================================
