@@ -11,9 +11,9 @@ auto main() -> int {
     using beman::big_int::abs;
     using beman::big_int::big_int;
     using beman::big_int::gcd;
+    using beman::big_int::in_range;
     using beman::big_int::lcm;
     using beman::big_int::saturating_cast;
-    using beman::big_int::in_range;
 
     // The free numeric helpers live in <beman/big_int/numeric.hpp>.
 
@@ -54,8 +54,8 @@ auto main() -> int {
     const bool    split     = divisor * multiple == lhs * rhs;
 
     const bool result_is_ok = magnitude == (1_n << 127) && clamped_hi == std::numeric_limits<int>::max() &&
-                              clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345 && range &&
-                              divisor == 21_n * (1_n << 121) && mixed == 42 && coprime == 1 &&
+                              clamped_lo == std::numeric_limits<int>::min() && clamped_neg == 0U && exact == 12345 &&
+                              range && divisor == 21_n * (1_n << 121) && mixed == 42 && coprime == 1 &&
                               multiple == 23562_n * (1_n << 127) && mixed_lcm == 2310_n * (1_n << 120) && split;
 
     std::cout << "magnitude:   " << to_string(magnitude) << "\n"
