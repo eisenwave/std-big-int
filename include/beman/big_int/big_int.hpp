@@ -273,11 +273,13 @@ template <class T>
     requires detail::is_basic_big_int_v<T>
 constexpr std::remove_cvref_t<T> abs(T&& x);
 
-// `gcd` itself is a set of overloads in <beman/big_int/numeric.hpp>; they all run
-// through this driver, which is the one that needs the representation.
+// `gcd` and `midpoint` are each a set of overloads in <beman/big_int/numeric.hpp>;
+// they all run through these drivers, which are the ones that need the representation.
 namespace detail {
 template <class M, class N>
 constexpr common_big_int_type<M, N> gcd_impl(M&& m, N&& n);
+template <class M, class N>
+constexpr common_big_int_type<M, N> midpoint_impl(M&& m, N&& n);
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -584,6 +586,9 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <class M, class N>
     friend constexpr detail::common_big_int_type<M, N> detail::gcd_impl(M&& m, N&& n);
 
+    template <class M, class N>
+    friend constexpr detail::common_big_int_type<M, N> detail::midpoint_impl(M&& m, N&& n);
+
   private:
     template <detail::unsigned_integer T>
     constexpr void assign_magnitude(T value) noexcept;
@@ -869,10 +874,11 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
             }
             // Naive fallback implementation always works.
             // This is needed for big endian and when neither static_cast nor bit_cast work.
+            // The limbs run least-significant first, so they are folded in from the top down.
             Result result = 0;
-            for (const uint_multiprecision_t limb : m_storage.limbs) {
+            for (size_type i = inplace_capacity; i-- > 0;) {
                 result <<= bits_per_limb;
-                result |= limb;
+                result |= m_storage.limbs[i];
             }
             return result;
         }

@@ -73,6 +73,7 @@
 ** xref:numeric.adoc#numeric_in_range[in_range]
 ** xref:numeric.adoc#numeric_gcd[gcd]
 ** xref:numeric.adoc#numeric_lcm[lcm]
+** xref:numeric.adoc#numeric_midpoint[midpoint]
 * xref:benchmarks.adoc[Benchmarks]
 ** xref:benchmarks.adoc#benchmarks_small_value[Small-value optimization]
 ** xref:benchmarks.adoc#benchmarks_libraries[big_int vs Boost.Multiprecision and GMP]

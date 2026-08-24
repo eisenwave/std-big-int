@@ -52,6 +52,17 @@ template <class M, std::size_t b, class L, class A>
     requires /* M is a signed or unsigned integer type */
 constexpr basic_big_int<b, L, A> lcm(M&& m, const basic_big_int<b, L, A>& n);
 
+template <std::size_t b, class L, class A, class N>
+constexpr /* common basic_big_int type */ midpoint(basic_big_int<b, L, A>&& m, N&& n);
+template <std::size_t b, class L, class A, class N>
+constexpr /* common basic_big_int type */ midpoint(const basic_big_int<b, L, A>& m, N&& n);
+template <class M, std::size_t b, class L, class A>
+    requires /* M is a signed or unsigned integer type */
+constexpr basic_big_int<b, L, A> midpoint(M&& m, basic_big_int<b, L, A>&& n);
+template <class M, std::size_t b, class L, class A>
+    requires /* M is a signed or unsigned integer type */
+constexpr basic_big_int<b, L, A> midpoint(M&& m, const basic_big_int<b, L, A>& n);
+
 } // namespace beman::big_int
 ----
 
@@ -303,3 +314,97 @@ own `lcm` the same way. It is built with the tests and runs when
 release build) the two stay within 15% of each other for operands of equal size
 from 64 to 4096 bits, with or without a common factor planted in both, while a
 wide operand against a single-limb one runs about 2.5 times faster.
+
+[#numeric_midpoint]
+== `midpoint`
+
+[source,c++]
+----
+template <std::size_t b, class L, class A, class N>
+constexpr /* common basic_big_int type */ midpoint(basic_big_int<b, L, A>&& m, N&& n);
+template <std::size_t b, class L, class A, class N>
+constexpr /* common basic_big_int type */ midpoint(const basic_big_int<b, L, A>& m, N&& n);
+template <class M, std::size_t b, class L, class A>
+    requires /* M is a signed or unsigned integer type */
+constexpr basic_big_int<b, L, A> midpoint(M&& m, basic_big_int<b, L, A>&& n);
+template <class M, std::size_t b, class L, class A>
+    requires /* M is a signed or unsigned integer type */
+constexpr basic_big_int<b, L, A> midpoint(M&& m, const basic_big_int<b, L, A>& n);
+----
+
+Returns half the sum of `m` and `n`. This is the `basic_big_int` counterpart of
+`std::midpoint`, and like xref:numeric.adoc#numeric_gcd[`gcd`] and
+xref:numeric.adoc#numeric_lcm[`lcm`] it accepts any combination of
+`basic_big_int` and built-in integer arguments as long as one of the two is a
+`basic_big_int`:
+
+[source,c++]
+----
+const big_int a = 1071_n;
+
+midpoint(a, 463_n);    // big_int and big_int
+midpoint(a, 463);      // big_int and int
+midpoint(463U, a);     // unsigned and big_int
+midpoint(a, -463LL);   // signs are kept, unlike in gcd and lcm
+----
+
+When the two operands are an odd distance apart the exact midpoint lies half way
+between two integers, and the result is the one on the side of the *first*
+argument. Swapping the arguments therefore moves the result by exactly one:
+
+[source,c++]
+----
+midpoint(big_int{5}, big_int{8});   //  6
+midpoint(big_int{8}, big_int{5});   //  7
+midpoint(big_int{-5}, big_int{-8}); // -6
+midpoint(big_int{-8}, big_int{-5}); // -7
+
+midpoint(big_int{5}, big_int{9});   //  7, and so is midpoint(9, 5)
+----
+
+* *Constraints:* The same as xref:numeric.adoc#numeric_gcd[`gcd`]'s: one operand
+  is a specialization of `basic_big_int`, and the other is either the same
+  specialization or a signed or unsigned integer type. Anything else drops
+  `midpoint` out of overload resolution rather than producing a hard error, and
+  two built-in integers are the business of `std::midpoint`.
+* *Returns:* Half the sum of `m` and `n`. If the sum is odd, the result is
+  rounded toward `m`. Equivalently, the result is `m + (n - m) / 2` with the
+  division truncated toward zero.
+* *Throws:* Any exception thrown while allocating the result or the value the
+  arithmetic works on (for example, `std::bad_alloc`). Arguments whose magnitudes
+  both fit a single limb are computed without allocating at all, whatever their
+  signs, since the midpoint of two such values fits a limb as well.
+* *Remarks:* The function is usable in a constant expression. The result uses the
+  allocator of the `basic_big_int` argument, as `gcd`'s and `lcm`'s do. Unlike
+  `std::midpoint`, this function is not `noexcept`, because a wide result has to
+  be allocated. The guarantee that no overflow occurs is unconditional for the
+  same reason it is vacuous in `gcd` and `lcm`: `basic_big_int` is unbounded, so
+  neither the sum of the operands nor the difference between them can fail to be
+  representable -- which is the practical reason to reach for this overload set,
+  since `std::midpoint` has to work around exactly that hazard for built-in
+  types. Only the second operand is taken over when it is passed as an rvalue;
+  the first is read again after the halving, so it is left untouched either way.
+  There are four overloads for the same reason `gcd` and `lcm` have four:
+  `std::midpoint` is a candidate of every unqualified call through
+  argument-dependent lookup on the allocator. Its own constraints admit only
+  arithmetic types, so it drops out on its own for a `basic_big_int` argument,
+  but spelling the big_int operand as a specialization is still what lets these
+  overloads take the mixed operand pairs that `std::midpoint`'s single type
+  parameter cannot deduce.
+
+[#numeric_midpoint_performance]
+=== Algorithm
+
+The result is formed as `m + (n - m) / 2` rather than as half the sum, so that no
+intermediate value is wider than one limb past the wider operand and the rounding
+falls out of the halving instead of needing a correction. The halving is a
+one-bit right shift of the magnitude, which truncates toward zero -- the
+`operator>>` on a `basic_big_int` rounds toward negative infinity instead, so it
+is the magnitude, not the value, that is shifted.
+
+Operands whose magnitudes both fit a single limb skip all of that: the midpoint
+of two single-limb values fits a single limb too, so it is computed with scalar
+arithmetic on the two magnitudes and built directly, without allocating. Where
+the operands sit on opposite sides of zero the gap between them is the sum of the
+magnitudes and can carry out of a limb, so that case halves the gap as it forms
+it, with `(|m| & |n|) + ((|m| ^ |n|) >> 1)`.
