@@ -81,7 +81,7 @@ static_assert(test_lvalue_copies());
 // A multi-limb value in constant evaluation: the magnitude survives the sign flip
 // limb for limb.
 consteval bool test_multi_limb() {
-    big_int       x{1};
+    big_int x{1};
     x <<= 200;
     const big_int magnitude = x;
     return abs(-x) == magnitude && abs(std::move(x)) == magnitude;
@@ -179,9 +179,9 @@ TEST(Abs, RvalueReusesHeapStorage) {
     // Sign and magnitude are stored apart, so handing the value over lets `abs`
     // clear the sign bit on the existing limbs: the buffer is neither copied nor
     // reallocated.
-    big_int             x    = -(big_int{1} << 300);
-    const void*         data = x.representation().data();
-    const std::size_t   size = x.representation().size();
+    big_int           x    = -(big_int{1} << 300);
+    const void*       data = x.representation().data();
+    const std::size_t size = x.representation().size();
     ASSERT_FALSE(is_inplace(x));
 
     const big_int a = abs(std::move(x));
