@@ -65,16 +65,7 @@ constexpr R saturating_cast(const basic_big_int<b, L, A>& x) noexcept {
 template <class R, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<R>
 constexpr bool in_range(const basic_big_int<b, L, A>& t) noexcept {
-    if constexpr (detail::unsigned_integer<R>) {
-        if (t < uint_multiprecision_t(0)) {
-            return false;
-        }
-
-        return t <= basic_big_int<b, L, A>(std::numeric_limits<R>::max());
-    }
-
-    return (t >= basic_big_int<b, L, A>(std::numeric_limits<R>::min())) &&
-           (t <= basic_big_int<b, L, A>(std::numeric_limits<R>::max()));
+    return (t >= std::numeric_limits<R>::min()) && (t <= std::numeric_limits<R>::max());
 }
 
 namespace detail {

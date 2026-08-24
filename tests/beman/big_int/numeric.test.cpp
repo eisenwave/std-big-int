@@ -254,10 +254,30 @@ TEST(SaturatingCast, LargeHeapValueInRange) {
 // ============================================================================
 // in_range
 // ============================================================================
-static_assert(!in_range<std::size_t>(local::big_int(-1)), "Error: not in_range");
-static_assert(in_range<std::size_t>(local::big_int(42)), "Error: not in_range");
-static_assert(in_range<int>(local::big_int(-1)), "Error: not in_range");
-static_assert(in_range<int>(local::big_int(42)), "Error: not in_range");
+
+static_assert(!in_range<std::size_t>(big_int(-1)), "Error: not in_range");
+static_assert(in_range<std::size_t>(big_int(42)), "Error: not in_range");
+static_assert(in_range<int>(big_int(-1)), "Error: not in_range");
+static_assert(in_range<int>(big_int(42)), "Error: not in_range");
+static_assert(in_range<std::int16_t>(big_int(INT16_C(-37678))), "Error: not in_range");
+static_assert(in_range<std::int16_t>(big_int(INT16_C(37677))), "Error: not in_range");
+static_assert(!in_range<std::int16_t>(big_int(INT32_C(37678))), "Error: not in_range");
+static_assert(in_range<std::uint16_t>(big_int(UINT16_C(0))), "Error: not in_range");
+static_assert(in_range<std::uint16_t>(big_int(UINT16_C(65535))), "Error: not in_range");
+static_assert(!in_range<std::uint16_t>(big_int(UINT32_C(65536))), "Error: not in_range");
+
+TEST(InRange, ValuesInRange) {
+    EXPECT_EQ(in_range<std::size_t>(big_int(-1)), false);
+    EXPECT_EQ(in_range<std::size_t>(big_int(42)), true);
+    EXPECT_EQ(in_range<int>(big_int(-1)), true);
+    EXPECT_EQ(in_range<int>(big_int(42)), true);
+    EXPECT_EQ(in_range<std::int16_t>(big_int(INT16_C(-37678))), true);
+    EXPECT_EQ(in_range<std::int16_t>(big_int(INT16_C(37677))), true);
+    EXPECT_EQ(in_range<std::int16_t>(big_int(INT32_C(37678))), false);
+    EXPECT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(0))), true);
+    EXPECT_EQ(in_range<std::uint16_t>(big_int(UINT16_C(65535))), true);
+    EXPECT_EQ(in_range<std::uint16_t>(big_int(UINT32_C(65536))), false);
+}
 
 // ============================================================================
 // gcd
