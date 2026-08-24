@@ -49,6 +49,14 @@
 | xref:string.adoc#string_to_wstring[`to_wstring`] | Returns a `std::wstring` holding the textual representation of a `basic_big_int`
 |===
 
+=== Specialized algorithms
+
+[cols="1,2", options="header"]
+|===
+| Function | Description
+| xref:big_int_type.adoc#big_int_type_swap_non_member[`swap`] | Exchanges the values of two `basic_big_int` objects of the same type, without allocating
+|===
+
 === Numeric functions
 
 [cols="1,2", options="header"]

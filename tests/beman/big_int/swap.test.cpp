@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
+#include <algorithm>
+#include <array>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -51,6 +54,32 @@ static_assert(noexcept(std::declval<big_int&>().swap(std::declval<big_int&>())))
 // so its member swap carries a narrow (potentially-throwing) contract.
 using pmr_big_int = beman::big_int::pmr::big_int;
 static_assert(!noexcept(std::declval<pmr_big_int&>().swap(std::declval<pmr_big_int&>())));
+
+// The non-member overload returns void and is found by argument-dependent lookup,
+// without `beman::big_int` being nominated.
+static_assert(std::is_void_v<decltype(swap(std::declval<big_int&>(), std::declval<big_int&>()))>);
+
+// `std` is an associated namespace of every `basic_big_int` whose allocator is a
+// standard one, so `std::swap` is always a candidate; the non-member overload is
+// more specialized and wins. With pmr that choice is observable: the move-based
+// `std::swap` would be nothrow, while the narrow contract the non-member inherits
+// from the member is not.
+static_assert(std::is_swappable_v<big_int>);
+static_assert(std::is_nothrow_swappable_v<big_int>);
+static_assert(std::is_swappable_v<pmr_big_int>);
+static_assert(!std::is_nothrow_swappable_v<pmr_big_int>);
+
+// Both operands must name the same specialization, and neither may be const.
+static_assert(!std::is_swappable_with_v<big_int&, big_int_256&>);
+static_assert(!std::is_swappable_with_v<const big_int&, const big_int&>);
+
+// The `using std::swap` idiom generic code relies on, written as a template so the
+// call is resolved exactly as a library algorithm would resolve it.
+template <class T>
+constexpr void generic_swap(T& a, T& b) {
+    using std::swap;
+    swap(a, b);
+}
 
 // ----- compile-time tests -----
 
@@ -128,6 +157,70 @@ consteval bool test_self_swap() {
     return inline_val == 42 && heap_val == two_pow(90);
 }
 static_assert(test_self_swap());
+
+// ----- compile-time tests, non-member swap -----
+
+// The unqualified call performs the same exchange as the member.
+consteval bool test_free_swap_inplace_inplace() {
+    big_int a{5};
+    big_int b{42};
+    swap(a, b);
+    return a == 42 && b == 5 && is_inplace(a) && is_inplace(b);
+}
+static_assert(test_free_swap_inplace_inplace());
+
+consteval bool test_free_swap_heap_heap() {
+    big_int a = two_pow(100);
+    big_int b = two_pow(200);
+    swap(a, b);
+    return a == two_pow(200) && b == two_pow(100) && !is_inplace(a) && !is_inplace(b);
+}
+static_assert(test_free_swap_heap_heap());
+
+// Mixed storage models, and the signs travel with the values.
+consteval bool test_free_swap_mixed() {
+    big_int small{-7};
+    big_int large = two_pow(150);
+    swap(small, large);
+    return small == two_pow(150) && large == -7 && !is_inplace(small) && is_inplace(large);
+}
+static_assert(test_free_swap_mixed());
+
+// The wide instantiation resolves to its own specialization.
+consteval bool test_free_swap_256() {
+    big_int_256 inline_val = two_pow_256(100);
+    big_int_256 heap_val   = two_pow_256(400);
+    swap(inline_val, heap_val);
+    return inline_val == two_pow_256(400) && heap_val == two_pow_256(100);
+}
+static_assert(test_free_swap_256());
+
+// Both operands naming the same object is a no-op, as for the member.
+consteval bool test_free_swap_self() {
+    big_int inline_val{42};
+    swap(inline_val, inline_val);
+    big_int heap_val = two_pow(90);
+    swap(heap_val, heap_val);
+    return inline_val == 42 && heap_val == two_pow(90);
+}
+static_assert(test_free_swap_self());
+
+// The two ways generic code reaches a customized swap.
+consteval bool test_free_swap_generic_idiom() {
+    big_int a{5};
+    big_int b = two_pow(200);
+    generic_swap(a, b);
+    return a == two_pow(200) && b == 5;
+}
+static_assert(test_free_swap_generic_idiom());
+
+consteval bool test_free_swap_ranges_swap() {
+    big_int a{5};
+    big_int b = two_pow(200);
+    std::ranges::swap(a, b);
+    return a == two_pow(200) && b == 5;
+}
+static_assert(test_free_swap_ranges_swap());
 
 // ----- runtime tests -----
 
@@ -230,6 +323,79 @@ TEST(Swap, SwappedValuesRemainUsable) {
     EXPECT_EQ(b, two_pow(200) + 1);
 }
 
+// ----- runtime tests, non-member swap -----
+
+TEST(Swap, FreeSwapAllStorageModels) {
+    big_int a{5};
+    big_int b{42};
+    swap(a, b);
+    EXPECT_EQ(a, 42);
+    EXPECT_EQ(b, 5);
+    EXPECT_TRUE(is_inplace(a));
+    EXPECT_TRUE(is_inplace(b));
+
+    big_int heap_a = two_pow(100);
+    big_int heap_b = two_pow(200);
+    swap(heap_a, heap_b);
+    EXPECT_EQ(heap_a, two_pow(200));
+    EXPECT_EQ(heap_b, two_pow(100));
+    EXPECT_FALSE(is_inplace(heap_a));
+    EXPECT_FALSE(is_inplace(heap_b));
+
+    big_int small{-7};
+    big_int large = two_pow(150);
+    swap(small, large);
+    EXPECT_EQ(small, two_pow(150));
+    EXPECT_EQ(large, -7);
+    EXPECT_FALSE(is_inplace(small));
+    EXPECT_TRUE(is_inplace(large));
+}
+
+TEST(Swap, FreeSwapSelfIsNoOp) {
+    big_int inline_val{42};
+    swap(inline_val, inline_val);
+    EXPECT_EQ(inline_val, 42);
+
+    big_int heap_val = two_pow(90);
+    swap(heap_val, heap_val);
+    EXPECT_EQ(heap_val, two_pow(90));
+}
+
+TEST(Swap, FreeSwap256) {
+    big_int_256 inline_val = two_pow_256(100);
+    big_int_256 heap_val   = two_pow_256(400);
+    swap(inline_val, heap_val);
+    EXPECT_EQ(inline_val, two_pow_256(400));
+    EXPECT_EQ(heap_val, two_pow_256(100));
+    EXPECT_FALSE(is_inplace(inline_val));
+    EXPECT_TRUE(is_inplace(heap_val));
+}
+
+TEST(Swap, FreeSwapGenericIdiomAndRangesSwap) {
+    big_int a{5};
+    big_int b = two_pow(200);
+    generic_swap(a, b);
+    EXPECT_EQ(a, two_pow(200));
+    EXPECT_EQ(b, 5);
+
+    std::ranges::swap(a, b);
+    EXPECT_EQ(a, 5);
+    EXPECT_EQ(b, two_pow(200));
+}
+
+// Standard algorithms that exchange elements route through the overload.
+TEST(Swap, FreeSwapFromStandardAlgorithm) {
+    std::array<big_int, 3> lhs{big_int{1}, two_pow(200), big_int{3}};
+    std::array<big_int, 3> rhs{two_pow(300), big_int{4}, two_pow(400)};
+    std::swap_ranges(lhs.begin(), lhs.end(), rhs.begin());
+    EXPECT_EQ(lhs[0], two_pow(300));
+    EXPECT_EQ(lhs[1], 4);
+    EXPECT_EQ(lhs[2], two_pow(400));
+    EXPECT_EQ(rhs[0], 1);
+    EXPECT_EQ(rhs[1], two_pow(200));
+    EXPECT_EQ(rhs[2], 3);
+}
+
 // ----- allocator-aware behaviour -----
 
 // A counting pmr resource: every allocation is matched by a deallocation, so a
@@ -330,8 +496,60 @@ TEST(Swap, PropagateOnContainerSwapExchangesAllocators) {
     EXPECT_EQ(b.get_allocator().id, 1U);
 }
 
+// The overload is nothrow for this allocator too, since the member is.
+static_assert(std::is_nothrow_swappable_v<pocs_big_int>);
+
+// A stateful allocator makes the choice of overload visible: the move-based
+// `std::swap` leaves the allocators where they are, so the exchanged ids show
+// that the `using std::swap` idiom selected the non-member overload.
+TEST(Swap, FreeSwapPropagatesAllocators) {
+    pocs_big_int a{5, pocs_alloc<uint_multiprecision_t>{1U}};
+    pocs_big_int b{42, pocs_alloc<uint_multiprecision_t>{2U}};
+    generic_swap(a, b);
+    EXPECT_EQ(a, 42);
+    EXPECT_EQ(b, 5);
+    EXPECT_EQ(a.get_allocator().id, 2U);
+    EXPECT_EQ(b.get_allocator().id, 1U);
+
+    pocs_big_int heap_a{1, pocs_alloc<uint_multiprecision_t>{3U}};
+    pocs_big_int heap_b{1, pocs_alloc<uint_multiprecision_t>{4U}};
+    heap_a <<= 200; // heap, produced by allocator id 3
+    heap_b <<= 300; // heap, produced by allocator id 4
+    swap(heap_a, heap_b);
+    EXPECT_EQ(to_string(heap_a), to_string(two_pow(300)));
+    EXPECT_EQ(to_string(heap_b), to_string(two_pow(200)));
+    EXPECT_EQ(heap_a.get_allocator().id, 4U);
+    EXPECT_EQ(heap_b.get_allocator().id, 3U);
+}
+
 // With propagation on, each heap buffer ends up paired with the allocator that
 // produced it, so destruction deallocates through the matching allocator.
+// The non-member overload neither allocates nor deallocates, and leaves the
+// non-propagating pmr allocators in place.
+TEST(Swap, FreeSwapPmrSharedResourceNoLeak) {
+    counting_resource cr;
+    {
+        pmr_big_int a{1, &cr};
+        pmr_big_int b{1, &cr};
+        a <<= 200;
+        b <<= 300;
+
+        const std::size_t allocs = cr.alloc_count();
+        ASSERT_GE(allocs, 2U);
+
+        swap(a, b);
+
+        EXPECT_EQ(cr.alloc_count(), allocs);
+        EXPECT_EQ(cr.dealloc_count(), 0U);
+        EXPECT_EQ(to_string(a), to_string(two_pow(300)));
+        EXPECT_EQ(to_string(b), to_string(two_pow(200)));
+        EXPECT_EQ(a.get_allocator().resource(), &cr);
+        EXPECT_EQ(b.get_allocator().resource(), &cr);
+    }
+    EXPECT_EQ(cr.alloc_count(), cr.dealloc_count());
+    EXPECT_EQ(cr.live_bytes(), 0U);
+}
+
 TEST(Swap, PropagateOnContainerSwapHeapBuffers) {
     pocs_big_int a{1, pocs_alloc<uint_multiprecision_t>{1U}};
     pocs_big_int b{1, pocs_alloc<uint_multiprecision_t>{2U}};
