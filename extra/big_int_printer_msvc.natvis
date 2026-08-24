@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception -->
+<!-- SPDX-License-Identifier: BSL-1.0 -->
+<!--
+  NATVIS visualizer for beman::big_int::basic_big_int<...> that renders the value
+  in FULL decimal at any width, by delegating the summary to the debugger
+  expression-evaluator add-in built from extra/big_int_printer_msvc.cpp. The
+  add-in reads the limbs out of the debuggee and runs them through `to_chars`,
+  which is arithmetic Natvis itself cannot do.
+
+  This file requires big_int_printer_msvc.dll to be reachable by the debugger.
+  Use it INSTEAD OF extra/big_int.natvis, which needs no DLL but can only print
+  decimal up to 64 bits. Loading both leaves it unspecified which one wins.
+
+  See the "Debugger Visualizers" documentation page for building the DLL,
+  installing it, and where the debugger looks for it.
+
+  Views: the default and `,dec` render decimal, `,hex` renders hexadecimal.
+-->
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="beman::big_int::basic_big_int&lt;*,*,*&gt;">
+
+    <Intrinsic Name="count" Expression="(unsigned int)(m_size_and_sign &amp; 0x7FFFFFFF)"/>
+    <Intrinsic Name="neg" Expression="(m_size_and_sign &amp; 0x80000000) != 0"/>
+    <Intrinsic Name="limb_bits" Expression="(unsigned int)(8 * sizeof(m_storage.limbs[0]))"/>
+    <!-- Little-endian limb array, wherever it currently lives. -->
+    <Intrinsic Name="mag" Expression="m_capacity == 0 ? &amp;m_storage.limbs[0] : m_storage.data"/>
+
+    <DisplayString ExcludeView="dec;hex" LegacyAddin="big_int_printer_msvc.dll" Export="formatter_big_int_dec"/>
+    <DisplayString IncludeView="dec" LegacyAddin="big_int_printer_msvc.dll" Export="formatter_big_int_dec"/>
+    <DisplayString IncludeView="hex" LegacyAddin="big_int_printer_msvc.dll" Export="formatter_big_int_hex"/>
+
+    <Expand>
+      <Item Name="[negative]">neg()</Item>
+      <Item Name="[limb_count]">count()</Item>
+      <Item Name="[limb_bits]">limb_bits()</Item>
+
+      <Synthetic Name="[storage]" Condition="m_capacity == 0">
+        <DisplayString>in-place, capacity {(unsigned int)(sizeof(m_storage.limbs) / sizeof(m_storage.limbs[0]))} limbs</DisplayString>
+      </Synthetic>
+      <Synthetic Name="[storage]" Condition="m_capacity != 0">
+        <DisplayString>heap {m_storage.data}, capacity {m_capacity} limbs</DisplayString>
+      </Synthetic>
+
+      <Synthetic Name="[limbs]">
+        <DisplayString>little-endian, [0] is least significant</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>count()</Size>
+            <ValuePointer>mag()</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+
+      <Item Name="[allocator]" Optional="true">m_alloc</Item>
+    </Expand>
+
+  </Type>
+
+</AutoVisualizer>
