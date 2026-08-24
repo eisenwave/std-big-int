@@ -333,6 +333,99 @@ template <class M, class N>
     return reduce_and_multiply(owned(m, std::bool_constant<steal_m>{}), n);
 }
 
+template <class T>
+[[nodiscard]] constexpr bool operand_is_negative(const T& x) noexcept {
+    if constexpr (is_basic_big_int_v<T>) {
+        return x < 0;
+    } else if constexpr (signed_integer<T>) {
+        return x < T{0};
+    } else {
+        return false;
+    }
+}
+
+// The driver behind `midpoint`. The midpoint of `m` and `n` is `m + (n - m) / 2`
+// with the halving truncated toward zero, which is what rounds the result toward
+// `m` when the two operands are an odd distance apart.
+template <class M, class N>
+[[nodiscard]] constexpr common_big_int_type<M, N> midpoint_impl(M&& m, N&& n) {
+    using Result     = common_big_int_type<M, N>;
+    using const_span = std::span<const uint_multiprecision_t>;
+
+    constexpr auto form = classify_form_v<M, N>;
+    constexpr bool steal_n =
+        form == binary_op_form::move_move || form == binary_op_form::copy_move || form == binary_op_form::int_move;
+
+    const auto alloc = detail::operand_allocator(m, n);
+
+    const auto       m_store = detail::operand_limbs(m);
+    const auto       n_store = detail::operand_limbs(n);
+    const const_span m_mag   = detail::operand_magnitude(m, m_store);
+    const const_span n_mag   = detail::operand_magnitude(n, n_store);
+    const const_span m_trim  = m_mag.first(detail::trimmed_size_span(m_mag));
+    const const_span n_trim  = n_mag.first(detail::trimmed_size_span(n_mag));
+
+    const bool m_negative = detail::operand_is_negative(m);
+    const bool n_negative = detail::operand_is_negative(n);
+
+    // Magnitudes that both fit a limb keep the whole computation scalar and
+    // allocation-free: the midpoint is never farther from zero than the operand
+    // that is, so a result built out of two single-limb magnitudes fits a limb
+    // as well.
+    if (m_trim.size() == 1 && n_trim.size() == 1) {
+        const uint_multiprecision_t am = m_trim[0];
+        const uint_multiprecision_t an = n_trim[0];
+
+        uint_multiprecision_t magnitude = 0;
+        bool                  negative  = false;
+        if (m_negative == n_negative) {
+            // Both operands on the same side of zero: the midpoint lies between
+            // the two magnitudes, so half the gap between them is added onto |m|
+            // or taken off it, and the sign is the one the operands share.
+            magnitude = an >= am ? am + (an - am) / 2 : am - (am - an) / 2;
+            negative  = m_negative;
+        } else {
+            // Operands on opposite sides of zero: the gap is |m| + |n|, which can
+            // carry past a limb, so it is halved as it is formed. The midpoint
+            // sits that far from `m` toward zero, which puts it on `n`'s side once
+            // the half gap runs past |m|.
+            const uint_multiprecision_t half_gap = (am & an) + ((am ^ an) >> 1);
+            magnitude                            = am >= half_gap ? am - half_gap : half_gap - am;
+            negative                             = am >= half_gap ? m_negative : n_negative;
+        }
+
+        Result r{magnitude, alloc};
+        if (negative && magnitude != 0) {
+            r.unchecked_set_sign(true);
+        }
+        return r;
+    }
+
+    // `n` as a value the arithmetic below consumes: a big_int the caller handed
+    // over gives up its storage, and anything else -- a borrowed big_int, or a
+    // fundamental integer -- is built with the allocator the result carries.
+    Result r = [&]() -> Result {
+        if constexpr (steal_n) {
+            return Result{std::move(n)};
+        } else {
+            return Result{n, alloc};
+        }
+    }();
+
+    r -= m; // n - m
+
+    // (n - m) / 2, truncated toward zero rather than toward negative infinity:
+    // the sign is set aside so that the shift only ever sees the magnitude, and
+    // truncating the magnitude is what rounds the result toward `m`.
+    const bool difference_negative = r.is_negative();
+    r.unchecked_set_sign(false);
+    r.shift_right(1);
+    r.unchecked_set_sign(difference_negative && !r.unchecked_is_magnitude_zero());
+
+    r += m; // m + (n - m) / 2
+    return r;
+}
+
 } // namespace detail
 
 // [numeric.gcd]
@@ -417,6 +510,48 @@ template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> lcm(M&& m, const basic_big_int<b, L, A>& n) {
     return detail::lcm_impl(std::forward<M>(m), n);
+}
+
+// [numeric.midpoint]
+// Computes half the sum of integers m and n, rounded toward m when the sum is
+// odd. If either `M` or `N` is not an integer type, or if either is
+// (possibly cv-qualified) `bool` the program is ill-formed
+// No overflow occurs: in this case the common type is always a `basic_big_int`,
+// which is unbounded, so every value the computation forms is representable
+//
+// The operands are taken by forwarding reference, so a `basic_big_int` passed as
+// the second argument has its storage consumed by the arithmetic that produces
+// the result; the first is read after the halving, so it is left alone. The
+// overload set is spelled out the way `gcd`'s is so that an unqualified call
+// resolves the same way: `std::midpoint` is a candidate of every such call
+// through argument-dependent lookup on the allocator, and although its own
+// constraints already drop it for a `basic_big_int` argument, spelling the
+// big_int operand as a specialization is what lets these overloads accept the
+// mixed pairs that `std::midpoint`'s single type parameter cannot deduce.
+template <std::size_t b, class L, class A, class N>
+[[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> midpoint(basic_big_int<b, L, A>&& m,
+                                                                                        N&&                      n) {
+    return detail::midpoint_impl(std::move(m), std::forward<N>(n));
+}
+
+template <std::size_t b, class L, class A, class N>
+[[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N>
+midpoint(const basic_big_int<b, L, A>& m, N&& n) {
+    return detail::midpoint_impl(m, std::forward<N>(n));
+}
+
+// The mirrored pair. `M` is held to an integer type so that a pair of big_ints
+// does not match both it and the overloads above.
+template <class M, std::size_t b, class L, class A>
+    requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
+[[nodiscard]] constexpr basic_big_int<b, L, A> midpoint(M&& m, basic_big_int<b, L, A>&& n) {
+    return detail::midpoint_impl(std::forward<M>(m), std::move(n));
+}
+
+template <class M, std::size_t b, class L, class A>
+    requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
+[[nodiscard]] constexpr basic_big_int<b, L, A> midpoint(M&& m, const basic_big_int<b, L, A>& n) {
+    return detail::midpoint_impl(std::forward<M>(m), n);
 }
 
 } // namespace beman::big_int

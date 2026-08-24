@@ -59,4 +59,5 @@
 | xref:numeric.adoc#numeric_in_range[`in_range`] | Returns the Boolean result of the range-check if a `basic_big_int` can be represented within the range of another given type
 | xref:numeric.adoc#numeric_gcd[`gcd`] | Returns the greatest common divisor of two integers, at least one of them a `basic_big_int`
 | xref:numeric.adoc#numeric_lcm[`lcm`] | Returns the least common multiple of two integers, at least one of them a `basic_big_int`
+| xref:numeric.adoc#numeric_midpoint[`midpoint`] | Returns half the sum of two integers, at least one of them a `basic_big_int`, rounded toward the first
 |===
