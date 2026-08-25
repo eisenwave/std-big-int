@@ -70,12 +70,26 @@ auto main() -> int {
     // result is the one on the side of the first argument.
     const bool rounds_toward_first = midpoint(lhs, lhs + 1) == lhs && midpoint(lhs + 1, lhs) == lhs + 1;
 
+    // clang-format off
     const bool result_is_ok =
-        magnitude == (1_n << 127) && owned == magnitude && negative == -magnitude &&
-        clamped_hi == std::numeric_limits<int>::max() && clamped_lo == std::numeric_limits<int>::min() &&
-        clamped_neg == 0U && exact == 12345 && range && divisor == 21_n * (1_n << 121) && mixed == 42 &&
-        coprime == 1 && multiple == 23562_n * (1_n << 127) && mixed_lcm == 2310_n * (1_n << 120) && split &&
-        between == 137319_n * (1_n << 120) && halfway_to_zero == 231_n * (1_n << 120) && rounds_toward_first;
+        magnitude == (1_n << 127) &&
+        owned == magnitude &&
+        negative == -magnitude &&
+        clamped_hi == std::numeric_limits<int>::max() &&
+        clamped_lo == std::numeric_limits<int>::min() &&
+        clamped_neg == 0U &&
+        exact == 12345 &&
+        range &&
+        divisor == 21_n * (1_n << 121) &&
+        mixed == 42 &&
+        coprime == 1 &&
+        multiple == 23562_n * (1_n << 127) &&
+        mixed_lcm == 2310_n * (1_n << 120) &&
+        split &&
+        between == 137319_n * (1_n << 120) &&
+        halfway_to_zero == 231_n * (1_n << 120) &&
+        rounds_toward_first;
+    // clang-format on
 
     std::cout << "magnitude:   " << to_string(magnitude) << "\n"
               << "owned:       " << to_string(owned) << "\n"
