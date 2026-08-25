@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+        <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<style>html.fonts-loading{visibility:hidden;opacity:0}</style>
+<script>document.documentElement.classList.add('fonts-loading');</script>
+
+<link rel="preload" href="./_/font/NotoSansDisplay.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+<link rel="preload" href="./_/font/NotoSansDisplay-Italic.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+<link rel="preload" href="./_/font/MonaspaceNeon-Var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+<link rel="preload" href="./_/font/MonaspaceXenon-Var.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+
+<script>
+(function() {
+  'use strict';
+  
+  var revealed = false;
+  
+  var reveal = function() {
+    if (revealed) return;
+    revealed = true;
+    document.documentElement.classList.remove('fonts-loading');
+  };
+  
+  setTimeout(reveal, 3000);
+  
+  if (!('FontFace' in window) || !('fonts' in document)) {
+    setTimeout(reveal, 100);
+    return;
+  }
+  
+  var uiRoot = './_';
+  var fonts = [
+    { 
+      family: 'Noto Sans', 
+      url: uiRoot + '/font/NotoSansDisplay.woff2',
+      descriptors: { style: 'normal', weight: '100 900', stretch: '62.5% 100%' }
+    },
+    { 
+      family: 'Noto Sans', 
+      url: uiRoot + '/font/NotoSansDisplay-Italic.woff2',
+      descriptors: { style: 'italic', weight: '100 900', stretch: '62.5% 100%' }
+    },
+    { 
+      family: 'Monaspace Neon', 
+      url: uiRoot + '/font/MonaspaceNeon-Var.woff2',
+      descriptors: { style: 'normal', weight: '400' }
+    },
+    { 
+      family: 'Monaspace Xenon', 
+      url: uiRoot + '/font/MonaspaceXenon-Var.woff2',
+      descriptors: { style: 'italic', weight: '400' }
+    }
+  ];
+  
+  var loadPromises = fonts.map(function(f) {
+    try {
+      var face = new FontFace(f.family, 'url("' + f.url + '")', f.descriptors);
+      return face.load().then(function(loaded) {
+        document.fonts.add(loaded);
+        return loaded;
+      }).catch(function() {
+        return null;
+      });
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+  });
+  
+  Promise.all(loadPromises)
+    .then(function() {
+      return document.fonts.ready;
+    })
+    .then(reveal)
+    .catch(reveal);
+})();
+</script>    <title>Benchmarks :: std::big_int</title>
+    <link rel="prev" href="numeric.html">
+    <link rel="next" href="references.html">
+  <meta name="generator" content="Antora 3.1.15">
+    <link rel="stylesheet" href="./_/css/boostlook.css">
+    <link rel="stylesheet" href="./_/css/site.css">
+    <link rel="stylesheet" href="./_/css/vendor/tabs.css">
+    <script>
+    (function() {
+      if (window.self !== window.top) return;
+      var theme = localStorage.getItem('antora-theme');
+      if (!theme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        theme = 'dark';
+      }
+      if (theme === 'dark') document.documentElement.classList.add('dark');
+    })();
+    </script>
+    <script>var uiRootPath = './_'</script>
+<link rel="icon" href="./_/img/favicons/favicon.ico" type="image/x-icon">
+    <!-- Favicon configuration -->
+    <link rel="apple-touch-icon" sizes="180x180" href="./_/img/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./_/img/favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./_/img/favicons/favicon-16x16.png">
+    <link rel="manifest" href="./_/img/favicons/site.webmanifest">
+    <link rel="shortcut icon" href="./_/img/favicons/favicon.ico">
+  </head>
+  <body class="article toc2 toc-left">
+    <div class="boostlook">
+   <div id="header">
+      <div id="toc" class="nav-container toc2" data-component="ROOT" data-version="">
+  <aside class="nav">
+    <button class="nav-close"></button>
+    <div class="panels">
+      <div class="nav-panel-menu is-active" data-panel="menu">
+  <nav class="nav-menu">
+      <div class="title-row">
+        <h3 class="title"><a href="overview.html">std::big_int</a></h3>
+        <button class="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme" style="display:none">
+  <i class="fas fa-sun theme-icon-light"></i>
+  <i class="fas fa-moon theme-icon-dark"></i>
+</button>      </div>
+      <ul class="nav-list">
+        <ul class="nav-list">
+        <li class="" data-depth="1">
+            <a class="nav-link" href="overview.html">Overview</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="overview.html#overview_introduction">Introduction</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="overview.html#overview_motivation">Motivation</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="overview.html#overview_supported_compilers">Supported Compilers</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="build_and_usage.html">Build and Usage</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="build_and_usage.html#build_and_usage_dependencies">Dependencies</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="build_and_usage.html#build_and_usage_build">Building</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="build_and_usage.html#build_and_usage_install">Installation</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="build_and_usage.html#build_and_usage_cmake">CMake configuration</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="build_and_usage.html#build_and_usage_using">Using <code>beman.big_int</code></a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="examples.html">Examples</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="examples.html#examples_foundational">Foundational Examples</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_construction">Construction</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_operators">Fundamental operators</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_factorial">Factorial</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_literals">User-defined literals</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_charconv">Numeric conversions</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_string">String conversions</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_numeric">Numeric functions</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_division">Integer division</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_io">Formatting and output</a>
+        </li>
+        </ul>
+        <li class="" data-depth="2">
+            <a class="nav-link" href="examples.html#examples_advanced">Advanced Examples</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_fibonacci">Fibonacci</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_roots">Roots</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_primes">Primes</a>
+        </li>
+              <li class="" data-depth="3">
+            <a class="nav-link" href="examples.html#examples_rsa">RSA</a>
+        </li>
+        </ul>
+  </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="api_reference.html">API Reference</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="api_reference.html#api_namespaces">Namespaces</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="api_reference.html#api_types">Types</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="api_reference.html#api_functions">Functions</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="big_int_type.html">The big_int Type</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_design">Design</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_synopsis">Synopsis</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_members">Member types and constants</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_construct">Constructors and destructor</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_assign">Assignment</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_compound">Compound assignment operators</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_swap">Swap</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="3">
+            <a class="nav-link" href="big_int_type.html#big_int_type_swap_non_member">Non-member swap</a>
+        </li>
+        </ul>
+        <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_observers">Observers</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_unary">Unary operators</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_conv">Conversion operator</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_cmp">Comparison operators</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="big_int_type.html#big_int_type_binary">Binary operators</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="charconv.html"><code>&lt;charconv&gt;</code> Conversions</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="charconv.html#charconv_synopsis">Synopsis</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="charconv.html#charconv_to_chars">to_chars</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="charconv.html#charconv_from_chars">from_chars</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="string.html">String Conversions</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="string.html#string_synopsis">Synopsis</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="string.html#string_to_string">to_string</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="string.html#string_to_wstring">to_wstring</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="format.html"><code>&lt;format&gt;</code> Support</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="format.html#format_synopsis">Synopsis</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="format.html#format_spec">Format specification</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="format.html#format_members">parse and format</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="format.html#format_errors">Errors</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="format.html#format_examples">Examples</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="format.html#format_wide">Wide characters</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="literals.html">User-Defined Literals</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="literals.html#literals_synopsis">Synopsis</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="literals.html#literals_scope">Bringing the literals into scope</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="literals.html#literals_suffix">The n, N, _n, and _N suffixes</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="literals.html#literals_bases">Bases, separators, and sign</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="literals.html#literals_constexpr">Compile-time evaluation</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="numeric.html">Numeric Functions</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="numeric.html#numeric_synopsis">Synopsis</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="numeric.html#numeric_abs">abs</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="numeric.html#numeric_saturating_cast">saturating_cast</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="numeric.html#numeric_in_range">in_range</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="numeric.html#numeric_gcd">gcd</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="numeric.html#numeric_lcm">lcm</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="numeric.html#numeric_midpoint">midpoint</a>
+        </li>
+        </ul>
+        <li class=" is-current-page" data-depth="1">
+            <a class="nav-link" href="benchmarks.html">Benchmarks</a>
+        </li>
+        <ul class="nav-list">
+        <li class="" data-depth="2">
+            <a class="nav-link" href="#benchmarks_small_value">Small-value optimization</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="#benchmarks_libraries">big_int vs Boost.Multiprecision and GMP</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="#benchmarks_base_conversion">Base conversion and string representations</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="#benchmarks_order_n">Order-N operations</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="#benchmarks_arch_opts">Architecture-specific optimizations</a>
+        </li>
+              <li class="" data-depth="2">
+            <a class="nav-link" href="#benchmarks_sources">Source programs</a>
+        </li>
+        </ul>
+        <li class="" data-depth="1">
+            <a class="nav-link" href="references.html">References</a>
+        </li>
+        </ul>
+  </ul>
+  </nav>
+</div>
+    </div>
+  </aside>
+</div>
+  </div>  <div id="content">
+    <article class="doc max-width-reset">
+  <div class="toolbar" role="navigation">
+<button class="nav-toggle"></button>
+<nav class="breadcrumbs" aria-label="breadcrumbs">
+  <ul>
+    <li>
+      <a href="overview.html" aria-label="Home: std::big_int">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 -960 960 960" fill="#000000" aria-hidden="true"><path d="M160-120v-480l320-240 320 240v480H560v-280H400v280H160Z"/></svg>
+      </a>
+    </li>
+    <li><a href="benchmarks.html">Benchmarks</a></li>
+  </ul>
+</nav>
+  <div class="search-container">
+    <div id="search-field" class="field has-filter">
+      <input id="search-input" type="text" placeholder="Search the docs" >
+    </div>
+  </div>
+<div class="spirit-nav">
+    <a accesskey="p" href="numeric.html">
+      <span class="material-symbols-outlined" title="Previous: Numeric Functions">arrow_back</span>
+    </a>
+    <a class="disabled" accesskey="u" aria-disabled="true" tabindex="-1">
+      <span class="material-symbols-outlined" title="Up:">arrow_upward</span>
+    </a>
+    <a accesskey="n" href="references.html">
+      <span class="material-symbols-outlined" title="Next: References">arrow_forward</span>
+    </a>
+</div></div>
+    <h1 class="page">Benchmarks</h1>
+  <div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>This page collects the performance measurements for <code>beman::big_int</code>, together
+with the methodology behind them. There are two complementary stories:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="#benchmarks_small_value">Small-value optimization</a> compares
+<code>big_int</code> against the native builtin integer types on the four basic operations,
+showing that small values are handled without heap allocation.</p>
+</li>
+<li>
+<p><a href="#benchmarks_libraries">Large integers</a> compares <code>big_int</code>
+against the two established arbitrary-precision libraries, Boost.Multiprecision&#8217;s
+<code>cpp_int</code> and GMP (<code>gmp_int</code>), at operand sizes from thousands to millions of
+digits, and explains the algorithm tiers that get it there.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The two suites were measured on different machines and build configurations, so
+do not compare a number from one against a number from the other; each table is
+internally consistent and notes its own environment.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="benchmarks_small_value"><a class="anchor" href="#benchmarks_small_value"></a>Small-value optimization: <code>big_int</code> vs the builtin integer types</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A <code>basic_big_int&lt;N&gt;</code> keeps an inplace buffer of <code>ceil(N / 64)</code> limbs, and as long
+as a value&#8217;s magnitude fits there it is stored directly inside the object with
+<strong>no heap allocation</strong> (see <a href="big_int_type.html#big_int_type_design" class="xref page">the type
+design</a>). The default <code>big_int</code> is <code>basic_big_int&lt;64&gt;</code>, so a single 64-bit limb
+lives inplace; <code>basic_big_int&lt;128&gt;</code> keeps two. This suite quantifies that
+optimization by timing <code>+</code>, <code>-</code>, <code>*</code>, and <code>/</code> for <code>big_int</code> next to the native
+builtin integer types, using <a href="https://github.com/google/benchmark">Google
+Benchmark</a> for the measurement loop. It is built from
+<a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/small_value_optimization.gbench.cpp">small_value_optimization.gbench.cpp</a>.</p>
+</div>
+<div class="paragraph">
+<p>Three tiers are measured for every operation:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>64-bit tier</strong>&#8201;&#8212;&#8201;<code>std::int64_t</code> against the default <code>big_int</code>
+(<code>basic_big_int&lt;64&gt;</code>, one inplace limb). Operands are sized so the result stays
+within 64 bits, so <code>big_int</code> never leaves inplace storage.</p>
+</li>
+<li>
+<p><strong>128-bit tier</strong>&#8201;&#8212;&#8201;compares <code><em>int128</code> with <code>basic_big_int&lt;128&gt;</code> (two inplace limbs),
+the natural same-width counterpart. Built only where <code></em>int128</code> exists.</p>
+</li>
+<li>
+<p><strong>Large (heap) contrast</strong>&#8201;&#8212;&#8201;the same <code>big_int</code> operations on multi-limb,
+heap-allocated operands (roughly 2^320 and 2^256), to show the cost
+once a value outgrows the inplace buffer and the optimization no longer applies.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="benchmarks_small_value_build"><a class="anchor" href="#benchmarks_small_value_build"></a>Building and running</h3>
+<div class="paragraph">
+<p>Google Benchmark is pulled in with CMake <code>FetchContent</code> (just like GoogleTest),
+gated behind the <code>BEMAN_BIG_INT_BUILD_BENCHMARKS</code> option. It is off by default and
+only meaningful in a release build, so dedicated release presets enable it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash hljs" data-lang="bash"># Pick the preset for your platform: gcc-release-benchmarks,
+# llvm-release-benchmarks, appleclang-release-benchmarks, msvc-release-benchmarks.
+cmake --preset appleclang-release-benchmarks
+cmake --build --preset appleclang-release-benchmarks \
+    --target beman.big_int.benchmarks.small_value_optimization
+
+./build/appleclang-release-benchmarks/tests/beman/big_int/perf/beman.big_int.benchmarks.small_value_optimization</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Equivalently, add <code>-DBEMAN_BIG_INT_BUILD_BENCHMARKS=ON</code> to any release preset. The
+executable accepts the usual Google Benchmark flags, for example
+<code>--benchmark_repetitions=7</code>, <code>--benchmark_filter=multiply</code>, or
+<code>--benchmark_min_time=0.2s</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="benchmarks_small_value_results"><a class="anchor" href="#benchmarks_small_value_results"></a>Results</h3>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Representative medians in nanoseconds per operation, measured on Apple
+silicon with AppleClang and a <code>RelWithDebInfo</code> build. Absolute numbers are
+machine-dependent.
+</td>
+</tr>
+</table>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Operation</th>
+<th class="tableblock halign-left valign-top"><code>std::int64_t</code></th>
+<th class="tableblock halign-left valign-top"><code>big_int</code> (1 limb)</th>
+<th class="tableblock halign-left valign-top"><code>__int128</code></th>
+<th class="tableblock halign-left valign-top"><code>basic_big_int&lt;128&gt;</code> (2 limbs)</th>
+<th class="tableblock halign-left valign-top"><code>big_int</code> (multi-limb, heap)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>+</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.23</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3.8</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.25</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3.4</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">15.7</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>-</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.23</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4.2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.24</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3.9</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">16.1</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.23</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.7</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.37</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5.0</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">30.1</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">0.46</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">6.2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3.2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">11.6</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">49.8</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>How to read this:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>The small-value optimization is the gap between the small-<code>big_int</code> columns
+and the heap column.</strong> A one- or two-limb <code>big_int</code> operation costs a few
+nanoseconds and allocates nothing, while the same operation on a multi-limb
+operand is roughly 4x&#8212;&#8203;10x slower because every result is heap-allocated. Keeping
+small values inplace is what closes that gap.</p>
+</li>
+<li>
+<p>The builtin columns land at a few tenths of a nanosecond because the operation
+itself is nearly free and the timing is dominated by a fixed <code>DoNotOptimize</code>
+fence that stops the compiler from hoisting or deleting the work. That fence is
+identical in every cell, so read the table across a row (relative cost) rather
+than as the absolute cost of a single instruction.</p>
+</li>
+<li>
+<p>Even against the builtins the small-value path stays within a small constant
+factor, and for division the two-limb path of <code>big_int</code> (11.6 ns) is in the same
+ballpark as the native <code>__int128</code> divide (3.2 ns), which is itself a library call
+rather than a single instruction.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="benchmarks_libraries"><a class="anchor" href="#benchmarks_libraries"></a>Large integers: <code>big_int</code> vs Boost.Multiprecision and GMP</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>At large operand sizes the relevant comparison is against the established
+arbitrary-precision libraries: Boost.Multiprecision&#8217;s <code>cpp_int</code> and
+<a href="https://gmplib.org/">GMP</a> (wrapped by Boost as <code>gmp_int</code>). GMP is hand-coded
+assembly in its hot paths and is the industry standard for performance, so it is
+the natural baseline.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The multiplication and division comparison tables below were measured on an
+x86-64 machine with the SIMD multiplication path enabled (configured with
+<code>-DBEMAN_BIG_INT_SIMD_MUL=ON</code>, so the FFT tier uses the AVX2 kernel); see
+<a href="build_and_usage.html#build_and_usage_simd" class="xref page">Optional: SIMD-accelerated
+multiplication</a>. In those two tables, bracketed values are time relative to the
+fastest (GMP), where <code>[1.0]</code> is best.
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="benchmarks_ecdsa"><a class="anchor" href="#benchmarks_ecdsa"></a>Real-world gauge: ECDSA over secp256k1</h3>
+<div class="paragraph">
+<p>This test gives an intuitive, end-to-end view of big-integer arithmetic in
+elliptic-curve algebra: round-trip 256-bit ECDSA (secp256k1) key generation,
+signing, and verification, run once with pre-defined seeds and again over 32
+trials with random seeds. It is not a tuned ECDSA implementation but an overall
+performance gauge at modest integer widths, exercising a wide range of binary and
+unary operations and allocations, and it is timed end to end. Runs with
+<code>beman::big_int</code>, <code>boost::cpp_int</code>, and <code>boost::gmp_int</code> are compared. Source:
+<a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/elliptic_ecc.perf.cpp">elliptic_ecc.perf.cpp</a>.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Integer type</th>
+<th class="tableblock halign-left valign-top">Time [s]</th>
+<th class="tableblock halign-left valign-top">Relative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>beman::big_int</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2.0</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.3</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>boost::cpp_int</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.7</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.1</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>boost::gmp_int</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.6</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.0</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="benchmarks_multiplication"><a class="anchor" href="#benchmarks_multiplication"></a>Multiplication</h3>
+<div class="paragraph">
+<p>Multiplication graduates to successively higher-order algorithms as the operand
+limb count grows. Below 48 limbs it uses schoolbook multiplication; above 48
+limbs it crosses over to Karatsuba. Successive Toom-Cook orders of 3, 4, 6.5, and
+8.5 cross over at 400, 1,600, 2,400, and 15,000 limbs respectively on the
+non-SIMD path. The FFT tier (a small-prime number-theoretic transform) crosses
+over at 24,000 limbs on the non-SIMD path and at 4,500 limbs on the SIMD path&#8201;&#8212;&#8201;so the SIMD path does not use Toom-Cook 8.5 at all.</p>
+</div>
+<div class="paragraph">
+<p>To isolate a single tier, only the <code>big_int</code> multiplication itself is timed: a
+stopwatch is read immediately before and after the multiplication, and the times
+are summed and averaged over many trials. Runs use limb counts chosen both to
+straddle crossover points (for example the Karatsuba-to-Toom-Cook boundary) and
+to land squarely inside one algorithm&#8217;s range, so its complexity can be observed
+in as isolated a way as possible. By temporarily overriding the compiled-in
+cutoffs, individual tiers can be excluded and then added back&#8201;&#8212;&#8201;schoolbook only,
+then Karatsuba only, then Karatsuba plus Toom-Cook 3, and so on.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>All runs were numerically correct.</p>
+</li>
+<li>
+<p>Around 300&#8212;&#8203;400 limbs, Toom-Cook 3 and 4 already become clearly beneficial.</p>
+</li>
+<li>
+<p>Higher Toom-Cook orders show similar trends; rather than tabulating each, they
+are summarized by the empirical timings below.</p>
+</li>
+</ul>
+</div>
+<div class="sect3">
+<h4 id="benchmarks_multiplication_progression"><a class="anchor" href="#benchmarks_multiplication_progression"></a>Algorithm-tier progression</h4>
+<div class="paragraph">
+<p>The table below shows the time per multiplication as successive tiers are enabled
+at increasing operand widths. Times are microseconds per multiplication;
+<code>n/a</code> marks a tier not measured at that width.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2858%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">64-bit limbs</th>
+<th class="tableblock halign-left valign-top">Binary digit width</th>
+<th class="tableblock halign-left valign-top">Schoolbook</th>
+<th class="tableblock halign-left valign-top">With Karatsuba</th>
+<th class="tableblock halign-left valign-top">Up to Toom-Cook 3</th>
+<th class="tableblock halign-left valign-top">Up to Toom-Cook 4</th>
+<th class="tableblock halign-left valign-top">Up to Toom-Cook 6.5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">700&#8212;&#8203;1,400</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">44,800&#8212;&#8203;89,600</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1,270</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">380</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">370</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">6,000&#8212;&#8203;8,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">384,000&#8212;&#8203;512,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8,220</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">6,240</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10,000&#8212;&#8203;12,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">640,000&#8212;&#8203;768,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">15,700</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">11,800</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">21,000&#8212;&#8203;23,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1,344,000&#8212;&#8203;1,472,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">33,100</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">27,800</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">43,000&#8212;&#8203;45,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,752,000&#8212;&#8203;2,880,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">n/a</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">72,300</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">59,700</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect3">
+<h4 id="benchmarks_multiplication_complexity"><a class="anchor" href="#benchmarks_multiplication_complexity"></a>Empirical complexity of the Toom-Cook tiers</h4>
+<div class="paragraph">
+<p>The empirical order of complexity <code>x</code> follows from the ratio of the last two rows
+for each tier, treated as a doubling of the operand width (<code>2^x = t_2 / t_1</code>):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Toom-Cook 3</strong>: <code>2^x = 33,100 / 11,800</code>, giving <code>x</code> approximately <code>1.49</code>, against
+a theoretical <code>log_3(5)</code> approximately <code>1.465</code>&#8201;&#8212;&#8201;in good agreement.</p>
+</li>
+<li>
+<p><strong>Toom-Cook 4</strong>: <code>2^x = 72,300 / 27,800</code>, giving <code>x</code> approximately <code>1.39</code>, against
+a theoretical <code>log_4(7)</code> approximately <code>1.404</code>&#8201;&#8212;&#8201;again in good agreement.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The plot below shows multiplication time against operand limb count across many
+orders of magnitude. The crossover points between successive schemes were chosen
+to optimize multiplication speed across the whole range of limb counts.</p>
+</div>
+<div class="imageblock text-center">
+<div class="content">
+<img src="_images/crossover_main.png" alt="Multiplication algorithm crossover plot">
+</div>
+<div class="title">Figure 1. Multiplication time vs operand limb count, with the algorithm-tier crossovers</div>
+</div>
+</div>
+<div class="sect3">
+<h4 id="benchmarks_multiplication_vs"><a class="anchor" href="#benchmarks_multiplication_vs"></a><code>big_int</code> vs <code>cpp_int</code> vs <code>gmp_int</code></h4>
+<div class="paragraph">
+<p>The result of a multiplication adds the widths of its operands, so each row
+multiplies two operands of the stated width and the product is twice as wide.
+Source:
+<a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/mul_big_int_vs_gmp_cpp.perf.cpp">mul_big_int_vs_gmp_cpp.perf.cpp</a>;
+pass an operand width in limbs (and optionally a trial count) on the command line
+to reproduce a row.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">64-bit limbs</th>
+<th class="tableblock halign-left valign-top">Bit width</th>
+<th class="tableblock halign-left valign-top">Approx base-10 digits</th>
+<th class="tableblock halign-left valign-top">us per mul <code>big_int</code></th>
+<th class="tableblock halign-left valign-top">us per mul <code>cpp_int</code></th>
+<th class="tableblock halign-left valign-top">us per mul <code>gmp_int</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">128</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8,192</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,500</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">9.8 [2.2]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8.2 [1.9]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4.4 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">512</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">32,768</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">9,900</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">67 [2.5]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">64 [2.4]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">27 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1,024</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">65,536</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">20,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">199 [2.7]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">190 [2.6]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">73 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,048</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">131,072</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">39,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">564 [3.0]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">580 [3.0]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">190 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8,192</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">524,288</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">160,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4,100 [3.2]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5,200 [4.1] (see 2)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1,300 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">32,768</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,097,152</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">631,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">17,000 [3.2]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">47,000 [8.8]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">5,300 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">131,072</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8,388,608</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,525,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">72,000 [2.7] (see 1)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">420,000 [15.7]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">27,000 [1.0]</p></td>
+</tr>
+</tbody>
+</table>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>With its FFT tier, <code>big_int</code> tracks GMP&#8217;s asymptotic complexity and stays within
+roughly 3x of GMP across the entire range, including the largest sizes where it
+previously fell behind (about 5.3x at 131,072 limbs before the FFT existed).</p>
+</li>
+<li>
+<p><code>cpp_int</code> only reaches as high as Karatsuba multiplication, so both <code>big_int</code>
+and <code>gmp_int</code> pull ahead at medium-high digit counts; the lead <code>big_int</code> has over
+<code>cpp_int</code> grows to roughly 6x by 131,072 limbs.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>A finer-grained sweep over mixed limb counts (4 to 30,000 limbs) shows the same
+trend, with <code>big_int</code> within roughly 2x&#8212;&#8203;3x of GMP across the whole range; many
+millions of trials were run with both performance and numerical-correctness
+checks. See
+<a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/mul_big_int_vs_gmp_cpp.limbs.cpp">mul_big_int_vs_gmp_cpp.limbs.cpp</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="benchmarks_division"><a class="anchor" href="#benchmarks_division"></a>Division</h3>
+<div class="paragraph">
+<p>Division uses Knuth long division for small limb counts and crosses over to the
+Burnikel-Ziegler algorithm between roughly 40 and 100 limbs; above that its
+performance is driven by the underlying multiplication. As with multiplication,
+only the <code>big_int</code> division itself is timed, with a stopwatch read immediately
+before and after the operation and the times summed and averaged over many
+trials. Each row divides an N-digit numerator by an N/2-digit
+denominator, producing an N/2-digit quotient. Source:
+<a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/div_big_int_vs_gmp_cpp.perf.cpp">div_big_int_vs_gmp_cpp.perf.cpp</a>.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">64-bit limbs</th>
+<th class="tableblock halign-left valign-top">Bit width</th>
+<th class="tableblock halign-left valign-top">Approx base-10 digits</th>
+<th class="tableblock halign-left valign-top">us per div <code>big_int</code></th>
+<th class="tableblock halign-left valign-top">us per div <code>cpp_int</code></th>
+<th class="tableblock halign-left valign-top">us per div <code>gmp_int</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">128</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8,192</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,500</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">4.2 [2.5]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">10.4 [6.1]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1.7 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">512</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">32,768</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">9,900</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">32 [1.7]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">120 [6.7]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">18 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1,024</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">65,536</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">20,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">120 [2.3]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">420 [7.9]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">53 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,048</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">131,072</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">39,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">360 [3.0]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1,500 [13] (see 1)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">120 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">8,192</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">524,288</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">160,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,800 [2.9]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">23,000 [24]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">950 [1.0]</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">32,768</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2,097,152</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">631,000</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">23,000 [3.8]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">370,000 [62]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">6,000 [1.0]</p></td>
+</tr>
+</tbody>
+</table>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><code>cpp_int</code> uses a variant of Knuth long division at all limb counts, which is
+quadratic, so <code>big_int</code> and <code>gmp_int</code> pull ahead rapidly at medium-high digit
+counts; the lead <code>big_int</code> has over <code>cpp_int</code> grows to roughly 8x by 8,192 limbs.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>A finer-grained sweep over mixed limb counts (4 to 30,000 limbs) shows the same
+trend, with <code>big_int</code> within roughly 2x&#8212;&#8203;4x of GMP across the whole range; again
+many millions of trials were run with both performance and numerical-correctness
+checks. See
+<a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/div_big_int_vs_gmp_cpp.limbs.cpp">div_big_int_vs_gmp_cpp.limbs.cpp</a>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="benchmarks_base_conversion"><a class="anchor" href="#benchmarks_base_conversion"></a>Base conversion and string representations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Sub-quadratic base conversion is the basis for the library&#8217;s <code>&lt;charconv&gt;</code> support.
+This includes the <code>to_chars</code> and <code>from_chars</code> functions and the primitives beneath them.
+These functions provide the interface for converting big integers to and from their string
+representations. The performance of these operations is governed primarily by the
+efficiency of the underlying multiplication and division algorithms described
+above. This holds for converting to and from string representations in any
+base other than 16. For base 16, the string conversions have linear complexity.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="benchmarks_order_n"><a class="anchor" href="#benchmarks_order_n"></a>Order-N operations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Addition, subtraction, bit-shift, comparison, and hashing are linear in the limb
+count and are not tabulated separately here. Their behavior at builtin widths,
+where the small-value optimization keeps them allocation-free, is covered in
+<a href="#benchmarks_small_value">the small-value section</a> above.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="benchmarks_arch_opts"><a class="anchor" href="#benchmarks_arch_opts"></a>Architecture-specific optimizations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Dedicated architecture-specific optimizations using hand-written
+assembly can be very advantageous regarding runtime performance for this library.
+This is often the case for both the reference application as well as for potential
+future adaptions of the library to other architectures.</p>
+</div>
+<div class="paragraph">
+<p>A particularly effective and straightforward assembly-based optimization
+is hand-coding the schoolbook long multiplication algorithm in the
+processor&#8217;s assembly dialect. The simple optimization of schoolbook long multiplication
+percolates through many algorithms in the library. Not only is schoolbook
+long multiplication itself accelerated, but also all the classical multiplication
+splitting-algorithms Karatsuba and all orders of Toom-Cook are optimized as well.
+This is because after the splitting of long limb spans is performed,
+the real work of these algorithms still falls through to basecase
+schoolbook long multiplication. Simultaneously sub-quadratic
+large-limb-count long division and base conversion
+directly benefit since they are built atop the multiplication algorithms
+and directly benefit from their optimizations.</p>
+</div>
+<div class="paragraph">
+<p>Experience shows that with one single assembly file performing basecase
+schoolbook long multiplication stark improvements in the performance
+of nearly the entire library can be achieved.</p>
+</div>
+<div class="paragraph">
+<p>A proof of concept is included for the popular <code>x86_64</code> architecture
+in its generic form. We have implemented basecase schoolbook long multiplication
+in hand-coded assembly for <code>x86_64</code> on compiler systems GCC, clang and MSVC,
+the detections of which happen at compile time.</p>
+</div>
+<div class="paragraph">
+<p>An overview of multiplication performance is shown in the table below.
+Multiplication operations performed over a wide range of limb counts
+with and without assembly optimization have been compared with
+the same calculations for GMP (<code>gmp_int</code>). The heats ran 131,072 trials
+for multiplication with limb counts ranging from 16-2,048
+and for division with limb counts ranging from 16-3,072.</p>
+</div>
+<div class="paragraph">
+<p>Results for multiplication are explicitly shown in the table below.
+Similar performance improvements can be observed for division.
+For this measurement, an Intel&#174; Core&#8482; i9-11900K at 3.50GHz has been used.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">system</th>
+<th class="tableblock halign-left valign-top">time C++ [us/mul]</th>
+<th class="tableblock halign-left valign-top">time ASM [us/mul]</th>
+<th class="tableblock halign-left valign-top">improvement [percent]</th>
+<th class="tableblock halign-left valign-top">ratio ASM/<code>gmp_int</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>big_int</code> (GCC/GAS)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">305</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">210</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2.2</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>big_int</code> (MSVC/MASM)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">380</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">230</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">60</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2.4</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gmp_int</code> (GCC/GAS)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">---</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">95</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">---</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+</tr>
+</tbody>
+</table>
+<div class="paragraph">
+<p>The relative performance improvement is significant;
+simply via creation of and inclusion of a single hand-coded assembly
+routine for schoolbook long multiplication.</p>
+</div>
+<div class="paragraph">
+<p>An adaption of the program
+<a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/mul_big_int_vs_gmp_cpp.limbs.cpp">mul_big_int_vs_gmp_cpp.limbs.cpp</a>
+has been used for this runtime result. The implementations of the assembly subroutines
+<code>beman_big_int_multiply_long_runtime()</code> for <code>x86_64</code> using GCC(clang)/GAS and using MSVC/MASM
+can be found in
+<a href="https://github.com/eisenwave/std-big-int/blob/main/src/multiply_long_runtime_x86_64_generic.s">multiply_long_runtime_x86_64_generic.s</a>
+and
+<a href="https://github.com/eisenwave/std-big-int/blob/main/src/multiply_long_runtime_x86_64_generic.asm">multiply_long_runtime_x86_64_generic.asm</a>,
+respectively.</p>
+</div>
+<div class="paragraph">
+<p>At the moment, the assembly optimized routines can not be used within
+a <code>constexpr</code> context (nor with <code>consteval</code>). The use of
+<code>beman_big_int_multiply_long_runtime()</code> has been isolated exclusively
+to the runtime path. The <code>constexpr</code> path, however, remains available
+when compile-time evaluation is possible with no additional limitations
+imposed by the use of hand-coded assembly.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="benchmarks_sources"><a class="anchor" href="#benchmarks_sources"></a>Source programs</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The programs behind these measurements live in
+<a href="https://github.com/eisenwave/std-big-int/tree/main/tests/beman/big_int/perf">tests/beman/big_int/perf</a>.</p>
+</div>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 40%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Source file</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/small_value_optimization.gbench.cpp">small_value_optimization.gbench.cpp</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Google Benchmark comparison of <code>big_int</code> add/sub/mul/div against the builtin integer types, showcasing the small-value (inplace, no-allocation) optimization.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/elliptic_ecc.perf.cpp">elliptic_ecc.perf.cpp</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Elliptic-curve cryptography (ECDSA) overall performance gauge at modest limb counts.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/mul_big_int_vs_gmp_cpp.perf.cpp">mul_big_int_vs_gmp_cpp.perf.cpp</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Multiplication performance with mixed limb counts, with timing and numerical-correctness checks.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/mul_big_int_vs_gmp_cpp.limbs.cpp">mul_big_int_vs_gmp_cpp.limbs.cpp</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Multiplication performance with fixed limb counts and timing.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/div_big_int_vs_gmp_cpp.perf.cpp">div_big_int_vs_gmp_cpp.perf.cpp</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Division performance with mixed limb counts, with timing and numerical-correctness checks.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="https://github.com/eisenwave/std-big-int/blob/main/tests/beman/big_int/perf/div_big_int_vs_gmp_cpp.limbs.cpp">div_big_int_vs_gmp_cpp.limbs.cpp</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Division performance with fixed limb counts and timing.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+  <div class="edit-this-page">
+      <a href="https://github.com/eisenwave/std-big-int/edit/develop/doc/modules/ROOT/pages/benchmarks.adoc">Edit this Page</a>
+      </div>
+      <nav class="pagination">
+        <span class="prev"><a href="numeric.html">Numeric Functions</a></span>
+        <span class="next"><a href="references.html">References</a></span>
+    </nav>
+</article>
+</div>
+  <div id="footer">
+  <script id="site-script" src="./_/js/site.js" data-ui-root-path="./_"></script>
+<script async src="./_/js/vendor/highlight.js"></script>
+<script async src="./_/js/vendor/tabs.js" data-sync-storage-key="preferred-tab"></script>
+<script async src="./_/js/vendor/lunr.js"></script>
+<script async src="./_/js/search-ui.js" id="search-ui-script" data-site-root-path="."
+  data-ui-root-path="./_"></script>
+<script async src="./search-index.js"></script>
+</div>
+</div>
+  </body>
+</html>
