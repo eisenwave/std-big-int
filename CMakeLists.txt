@@ -43,6 +43,19 @@ option(
     OFF
 )
 
+# [CMAKE.SKIP_MSVC_DEBUGGER_ADDIN]
+# The Visual Studio debugger cannot evaluate arbitrary-precision arithmetic, so a
+# plain .natvis can only render a big_int in decimal up to 64 bits. This builds
+# extra/big_int_printer_msvc.cpp into an expression-evaluator add-in DLL that reads
+# the limbs out of the debuggee and runs to_chars over them, giving exact decimal at
+# any width. Off by default: it is a developer tool, and it only means anything on
+# MSVC.
+option(
+    BEMAN_BIG_INT_BUILD_MSVC_DEBUGGER_ADDIN
+    "Build and install the Visual Studio debugger expression-evaluator add-in DLL (extra/big_int_printer_msvc.cpp). MSVC only. Default: OFF. Values: { ON, OFF }."
+    OFF
+)
+
 # for find of beman-install-library
 include(infra/cmake/beman-install-library.cmake)
 
@@ -166,6 +179,85 @@ set_target_properties(
 )
 
 add_subdirectory(include/beman/big_int)
+
+# MSVC debugger visualizers. See the "Debugger Visualizers" documentation page.
+#
+# extra/big_int.natvis needs no DLL but, being limited to the debugger's own
+# arithmetic, only renders decimal up to 64 bits. `/NATVIS:` embeds it into the PDB
+# of whatever binary links this library, so it applies with no per-user setup. Only
+# the link of the final executable or DLL can embed a visualizer, and only
+# configurations that emit a PDB accept the switch, hence INTERFACE and the config
+# guard. Consumers of an installed package pass the switch themselves or copy the
+# file into their Visualizers directory.
+if(MSVC)
+    target_link_options(
+        beman.big_int
+        INTERFACE
+            "$<BUILD_INTERFACE:$<$<CONFIG:Debug,RelWithDebInfo>:/NATVIS:${CMAKE_CURRENT_SOURCE_DIR}/extra/big_int.natvis>>"
+    )
+    install(
+        FILES extra/big_int.natvis
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/beman.big_int"
+        COMPONENT big_int_Development
+    )
+endif()
+
+# The add-in DLL and its companion .natvis, which together render full decimal at
+# any width. The DLL is loaded by the debugger but reads the debuggee's memory and
+# links this library's kernels, so it must be built for the same architecture and
+# the same options as the program being debugged.
+if(MSVC AND BEMAN_BIG_INT_BUILD_MSVC_DEBUGGER_ADDIN)
+    add_library(
+        beman.big_int.msvc_debugger_addin
+        MODULE
+        extra/big_int_printer_msvc.cpp
+    )
+    # The Export names in the .natvis name this DLL, so it must not be decorated.
+    set_target_properties(
+        beman.big_int.msvc_debugger_addin
+        PROPERTIES OUTPUT_NAME big_int_printer_msvc PREFIX ""
+    )
+    target_link_libraries(
+        beman.big_int.msvc_debugger_addin
+        PRIVATE beman.big_int
+    )
+
+    install(
+        TARGETS beman.big_int.msvc_debugger_addin
+        LIBRARY
+            DESTINATION "${CMAKE_INSTALL_DATADIR}/beman.big_int"
+            COMPONENT big_int_Development
+    )
+    install(
+        FILES extra/big_int_printer_msvc.natvis
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/beman.big_int"
+        COMPONENT big_int_Development
+    )
+
+    # Convenience: drop both files where the debugger looks for them. The default
+    # is the per-user Visualizers directory of Visual Studio 2022; override it for
+    # another version or for the machine-wide directory.
+    set(BEMAN_BIG_INT_VISUALIZERS_DIR
+        "$ENV{USERPROFILE}/Documents/Visual Studio 2022/Visualizers"
+        CACHE PATH
+        "Directory the `big_int_install_visualizers` target copies big_int_printer_msvc.{dll,natvis} into."
+    )
+    add_custom_target(
+        big_int_install_visualizers
+        COMMAND
+            ${CMAKE_COMMAND} -E make_directory
+            "${BEMAN_BIG_INT_VISUALIZERS_DIR}"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:beman.big_int.msvc_debugger_addin>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/extra/big_int_printer_msvc.natvis"
+            "${BEMAN_BIG_INT_VISUALIZERS_DIR}"
+        DEPENDS beman.big_int.msvc_debugger_addin
+        COMMENT
+            "Copying the big_int debugger add-in into ${BEMAN_BIG_INT_VISUALIZERS_DIR}"
+        VERBATIM
+    )
+endif()
 
 beman_install_library(beman.big_int TARGETS beman.big_int)
 
