@@ -25,14 +25,17 @@
 //   provided it stays below the Barrett gates (the lowest of which needs a
 //   512-limb divisor).
 
-import beman.big_int;
-
 #include <cstddef>
 #include <limits>
 #include <utility>
 
 #include <gtest/gtest.h>
 
+// The standard headers come before the import deliberately. GCC cannot merge the
+// global-module declarations the module's purview makes reachable with the same
+// declarations re-included textually afterwards; including first and importing
+// second is the ordering both libstdc++ and libc++ support.
+import beman.big_int;
 namespace {
 
 using beman::big_int::big_int;

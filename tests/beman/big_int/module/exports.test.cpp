@@ -16,8 +16,6 @@
 // annotation -- in charconv.hpp/numeric.hpp; that forward declaration is what a
 // using-declaration below is really probing.
 
-import beman.big_int;
-
 #include <compare>
 #include <concepts>
 #include <cstddef>
@@ -30,6 +28,8 @@ import beman.big_int;
 #include <utility>
 
 #include <gtest/gtest.h>
+
+import beman.big_int;
 
 // A using-declaration naming a non-exported (and not otherwise reachable) name is a
 // hard compile error, so this block alone is a regression test for every free

@@ -4,8 +4,6 @@
 // Consumer-side tests of <beman/big_int/numeric.hpp>'s free functions (abs,
 // saturating_cast, in_range, gcd, lcm, midpoint) through `import beman.big_int;`.
 
-import beman.big_int;
-
 #include <limits>
 #include <numeric> // std::gcd/std::lcm: the unqualified call below must still resolve to ours.
 #include <type_traits>
@@ -13,6 +11,11 @@ import beman.big_int;
 
 #include <gtest/gtest.h>
 
+// The standard headers come before the import deliberately. GCC cannot merge the
+// global-module declarations the module's purview makes reachable with the same
+// declarations re-included textually afterwards; including first and importing
+// second is the ordering both libstdc++ and libc++ support.
+import beman.big_int;
 namespace {
 
 using beman::big_int::abs;
@@ -49,7 +52,11 @@ TEST(Numeric, AbsLvalueAndRvalue) {
 // (detail::signed_or_unsigned in numeric.hpp): bool and character types are
 // rejected without a hard error.
 template <class R>
-concept has_saturating_cast = requires(const big_int& x) { saturating_cast<R>(x); };
+// Qualified deliberately. `big_int`'s allocator template argument drags namespace std
+// into argument-dependent lookup, so an unqualified probe can pick up a std overload
+// instead of ours -- and whether that overload SFINAEs out or static_asserts in its
+// body differs between libc++ and libstdc++. Qualifying tests our constraint only.
+concept has_saturating_cast = requires(const big_int& x) { beman::big_int::saturating_cast<R>(x); };
 
 static_assert(has_saturating_cast<int>);
 static_assert(has_saturating_cast<unsigned>);
@@ -80,7 +87,10 @@ TEST(Numeric, SaturatingCastBoundaries) {
 // ----- in_range: the same boundaries -----
 
 template <class R>
-concept has_in_range = requires(const big_int& x) { in_range<R>(x); };
+// Qualified for the same reason as has_saturating_cast above: `std::in_range` from
+// <utility> is an ADL candidate here, and libstdc++ rejects it with a static_assert in
+// the body rather than a constraint, which would make an unqualified probe succeed.
+concept has_in_range = requires(const big_int& x) { beman::big_int::in_range<R>(x); };
 
 static_assert(has_in_range<int>);
 static_assert(has_in_range<unsigned>);

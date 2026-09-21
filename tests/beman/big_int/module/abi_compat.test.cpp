@@ -32,13 +32,16 @@
 // packed size/sign word, and allocator must all survive -- cross the boundary
 // intact and compare/hash consistently on both sides.
 
-import beman.big_int;
-
 #include <cstddef>
 #include <functional>
 #include <gtest/gtest.h>
 #include <string>
 
+// The standard headers come before the import deliberately. GCC cannot merge the
+// global-module declarations the module's purview makes reachable with the same
+// declarations re-included textually afterwards; including first and importing
+// second is the ordering both libstdc++ and libc++ support.
+import beman.big_int;
 // Declared by hand, not shared via a header with abi_compat_header_tu.cpp.
 // Defined over there.
 namespace beman_big_int_abi {

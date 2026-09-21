@@ -15,8 +15,6 @@
 // is false for a type with no formatter. That makes the check itself the test: it
 // passes only because the library's partial specialization was found.
 
-import beman.big_int;
-
 #include <algorithm>
 #include <concepts>
 #include <cstddef>
@@ -35,7 +33,19 @@ import beman.big_int;
 #include <vector>
 #include <version>
 
+// Hoisted out of the std::formatter section below so that every standard header
+// this translation unit uses is included before the import.
+#if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
+    #include <format>
+#endif
+
 #include <gtest/gtest.h>
+
+// The standard headers come before the import deliberately. GCC cannot merge the
+// global-module declarations the module's purview makes reachable with the same
+// declarations re-included textually afterwards; including first and importing
+// second is the ordering both libstdc++ and libc++ support.
+import beman.big_int;
 
 namespace {
 
@@ -154,8 +164,6 @@ TEST(StdIntegration, NumericLimitsIsNotSpecialized) {
 // ============================================================================
 
 #if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
-    #include <format>
-
 namespace {
 
 // std::vformat is [[nodiscard]] and this target builds with -Werror; these

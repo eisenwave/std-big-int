@@ -31,8 +31,6 @@
 // detail::common_big_int_type_impl). Cross-type comparisons below go through
 // to_string() instead.
 
-import beman.big_int;
-
 #include <array>
 #include <cstddef>
 #include <functional>
@@ -42,6 +40,11 @@ import beman.big_int;
 #include <utility>
 #include <vector>
 
+// The standard headers come before the import deliberately. GCC cannot merge the
+// global-module declarations the module's purview makes reachable with the same
+// declarations re-included textually afterwards; including first and importing
+// second is the ordering both libstdc++ and libc++ support.
+import beman.big_int;
 namespace {
 
 using beman::big_int::big_int;

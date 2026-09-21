@@ -11,12 +11,15 @@
 // Diagnostic suppression below uses raw compiler pragmas rather than the
 // library's BEMAN_BIG_INT_DIAGNOSTIC_* macros, for the same reason.
 
-import beman.big_int;
-
 #include <type_traits>
 
 #include <gtest/gtest.h>
 
+// The standard headers come before the import deliberately. GCC cannot merge the
+// global-module declarations the module's purview makes reachable with the same
+// declarations re-included textually afterwards; including first and importing
+// second is the ordering both libstdc++ and libc++ support.
+import beman.big_int;
 namespace {
 
 using namespace beman::big_int::literals;

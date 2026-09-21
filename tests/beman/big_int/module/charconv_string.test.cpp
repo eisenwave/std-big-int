@@ -10,8 +10,6 @@
 // basic_big_int argument, which the module attaches to the global module and
 // makes reachable to this translation unit.
 
-import beman.big_int;
-
 #include <array>
 #include <cstddef>
 #include <gtest/gtest.h>
@@ -19,6 +17,11 @@ import beman.big_int;
 #include <string_view>
 #include <system_error>
 
+// The standard headers come before the import deliberately. GCC cannot merge the
+// global-module declarations the module's purview makes reachable with the same
+// declarations re-included textually afterwards; including first and importing
+// second is the ordering both libstdc++ and libc++ support.
+import beman.big_int;
 namespace {
 
 using beman::big_int::big_int;
