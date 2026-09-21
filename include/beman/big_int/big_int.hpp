@@ -717,7 +717,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // `extra_space` lets callers that know they are about to grow by a fixed
     // amount (e.g., a carry-out of one limb in addition) reserve that space
     // up front so that a subsequent grow is not needed.
-    template <class Src>
+    // `PropagateAllocator` is `false` for the callers that materialize an
+    // expression result: the allocator was already chosen by
+    // `detail::result_allocator`, so the assignment must not override it.
+    template <bool PropagateAllocator = true, class Src>
         requires std::same_as<std::remove_cvref_t<Src>, basic_big_int>
     constexpr void assign_value(Src&& src, const std::size_t extra_space = 0) {
         if (std::addressof(*this) == std::addressof(src)) {
@@ -737,9 +740,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         // based on `Src`'s value category, and `std::forward<Src>` then
         // produces an rvalue or lvalue allocator to match -- so move- vs
         // copy-assign of `m_alloc` does not need to be spelled out separately.
-        constexpr bool propagate_alloc = std::is_lvalue_reference_v<Src>
-                                             ? alloc_traits::propagate_on_container_copy_assignment::value
-                                             : alloc_traits::propagate_on_container_move_assignment::value;
+        constexpr bool propagate_alloc =
+            PropagateAllocator &&
+            (std::is_lvalue_reference_v<Src> ? alloc_traits::propagate_on_container_copy_assignment::value
+                                             : alloc_traits::propagate_on_container_move_assignment::value);
 
         if (needed <= eff_cap) {
             // Fast path: current buffer is already big enough
@@ -944,17 +948,20 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     constexpr basic_big_int& bitwise_assign_impl(T&& rhs)
         requires detail::common_big_int_type_with<T, basic_big_int>;
 
+    // `alloc` is the result's allocator, from `detail::result_allocator`.
     template <detail::bitwise_op op, bool neg_left, bool neg_right, std::size_t extent_a, std::size_t extent_b>
     [[nodiscard]] static constexpr basic_big_int
     make_bitwise_of_limbs(std::span<const uint_multiprecision_t, extent_a> lhs,
-                          std::span<const uint_multiprecision_t, extent_b> rhs);
+                          std::span<const uint_multiprecision_t, extent_b> rhs,
+                          const allocator_type&                            alloc);
 
     template <detail::bitwise_op op, std::size_t extent_a, std::size_t extent_b>
     [[nodiscard]] static constexpr basic_big_int
     dispatch_bitwise(const std::span<const uint_multiprecision_t, extent_a> lhs,
                      const bool                                             lhs_neg,
                      const std::span<const uint_multiprecision_t, extent_b> rhs,
-                     const bool                                             rhs_neg);
+                     const bool                                             rhs_neg,
+                     const allocator_type&                                  alloc);
 
     template <detail::bitwise_op op, class L, class R>
     [[nodiscard]] static constexpr detail::common_big_int_type<L, R> bitwise_impl(L&& x, R&& y);
@@ -1804,6 +1811,19 @@ inline constexpr binary_op_form classify_form_v = [] {
     }
 }();
 
+// The allocator a binary operator's result is built with: the `basic_big_int`
+// operand's allocator run through `select_on_container_copy_construction`, taking
+// the left operand when both sides are `basic_big_int`.
+template <class Result, class L, class R>
+[[nodiscard]] constexpr typename Result::allocator_type result_allocator(const L& x, const R& y) noexcept {
+    using traits = std::allocator_traits<typename Result::allocator_type>;
+    if constexpr (is_basic_big_int_v<std::remove_cvref_t<L>>) {
+        return traits::select_on_container_copy_construction(x.get_allocator());
+    } else {
+        return traits::select_on_container_copy_construction(y.get_allocator());
+    }
+}
+
 } // namespace detail
 
 template <std::size_t b, class L, class A>
@@ -1877,7 +1897,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         // Use add_into which combines copy and addition allocations.
         // Pre-order operands so the larger goes first — this lets the hot loop
         // drop the `i < a.size()` bounds check on every iteration.
-        Result r;
+        Result r{detail::result_allocator<Result>(x, y)};
         if (x.limb_count() >= y.limb_count()) {
             r.add_into(x.representation(), x.is_negative(), y.representation(), y.is_negative());
         } else {
@@ -1895,14 +1915,14 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
-        Result r;
-        r.assign_value(x, !x.is_representation_inplace());
+        Result r{detail::result_allocator<Result>(x, y)};
+        r.template assign_value<false>(x, !x.is_representation_inplace());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
     } else if constexpr (form == detail::binary_op_form::int_copy) {
-        Result r;
-        r.assign_value(y, !y.is_representation_inplace());
+        Result r{detail::result_allocator<Result>(x, y)};
+        r.template assign_value<false>(y, !y.is_representation_inplace());
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
@@ -1945,7 +1965,7 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         // single pass via `add_into`, fusing the allocation with the subtract.
         // Pre-order operands so the larger goes first — `add_into` relies on
         // this to keep the hot loop free of a per-iteration bounds check.
-        Result r;
+        Result r{detail::result_allocator<Result>(x, y)};
         if (x.limb_count() >= y.limb_count()) {
             r.add_into(x.representation(), x.is_negative(), y.representation(), !y.is_negative());
         } else {
@@ -1964,14 +1984,14 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
-        Result r;
-        r.assign_value(x, !x.is_representation_inplace());
+        Result r{detail::result_allocator<Result>(x, y)};
+        r.template assign_value<false>(x, !x.is_representation_inplace());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
         return r;
     } else if constexpr (form == detail::binary_op_form::int_copy) {
-        Result r;
-        r.assign_value(y, !y.is_representation_inplace());
+        Result r{detail::result_allocator<Result>(x, y)};
+        r.template assign_value<false>(y, !y.is_representation_inplace());
         r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
@@ -1987,18 +2007,22 @@ constexpr detail::common_big_int_type<Lhs, Rhs> basic_big_int<b, L, A>::bitwise_
     using Result        = detail::common_big_int_type<Lhs, Rhs>;
     constexpr auto form = detail::classify_form_v<Lhs, Rhs>;
 
+    // Every form builds a fresh result, so the allocator is selected rather than
+    // taken from an operand.
+    const auto alloc = detail::result_allocator<Result>(x, y);
+
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
         return Result::template dispatch_bitwise<op>(
-            x.representation(), x.is_negative(), y.representation(), y.is_negative());
+            x.representation(), x.is_negative(), y.representation(), y.is_negative(), alloc);
     } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         return Result::template dispatch_bitwise<op>(
-            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
+            x.representation(), x.is_negative(), detail::to_fixed_span(y_limbs), detail::integer_signbit(y), alloc);
     } else {
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         return Result::template dispatch_bitwise<op>(
-            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative());
+            detail::to_fixed_span(x_limbs), detail::integer_signbit(x), y.representation(), y.is_negative(), alloc);
     }
 }
 
@@ -2090,8 +2114,8 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
             static_cast<shift_type>(std::countl_zero(x.limb_ptr()[x.limb_count() - 1])) < shifted_bits;
         const std::size_t headroom = shifted_limbs + static_cast<std::size_t>(needs_extra);
 
-        Result r;
-        r.assign_value(x, headroom);
+        Result r{detail::result_allocator<Result>(x, s)};
+        r.template assign_value<false>(x, headroom);
         r.shift_left(shift);
         return r;
     }
@@ -2136,12 +2160,14 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         const shift_type shifted_bits  = shift % Result::bits_per_limb;
         const shift_type x_bits        = static_cast<shift_type>(x.size());
 
+        const auto alloc = detail::result_allocator<Result>(x, s);
+
         // Case 1: Everything is discarded except the sign
         if (shift >= x_bits) {
             if (x.is_negative()) {
-                return Result{-1};
+                return Result{-1, alloc};
             }
-            return Result{};
+            return Result{alloc};
         }
 
         const limb_type* const src_limbs = x.limb_ptr();
@@ -2156,7 +2182,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         if (new_count < src_count) {
             const shift_type src_offset = shifted_limbs;
 
-            Result r;
+            Result r{alloc};
             r.reserve_representation(new_count);
             limb_type* const dst = r.limb_ptr();
 
@@ -2202,8 +2228,8 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
         }
 
         // Case 3: Make a full copy and shift
-        Result r;
-        r.assign_value(x);
+        Result r{alloc};
+        r.template assign_value<false>(x);
         r.shift_right(shift);
         return r;
     }
@@ -2679,7 +2705,8 @@ template <std::size_t b, class L, class A>
 template <detail::bitwise_op op, bool neg_left, bool neg_right, std::size_t extent_a, std::size_t extent_b>
 constexpr basic_big_int<b, L, A>
 basic_big_int<b, L, A>::make_bitwise_of_limbs(const std::span<const uint_multiprecision_t, extent_a> lhs,
-                                              const std::span<const uint_multiprecision_t, extent_b> rhs) {
+                                              const std::span<const uint_multiprecision_t, extent_b> rhs,
+                                              const allocator_type&                                  alloc) {
     constexpr bool res_neg = detail::eval_bitwise<op>(neg_left, neg_right);
 
     const std::size_t n = [&]() -> std::size_t {
@@ -2697,7 +2724,7 @@ basic_big_int<b, L, A>::make_bitwise_of_limbs(const std::span<const uint_multipr
         }
     }();
 
-    basic_big_int result;
+    basic_big_int result{alloc};
     result.grow(n + static_cast<std::size_t>(res_neg));
 
     const bool extra = detail::eval_bitwise_into_spans<op, neg_left, neg_right>(
@@ -2715,17 +2742,18 @@ constexpr basic_big_int<b, L, A>
 basic_big_int<b, L, A>::dispatch_bitwise(const std::span<const uint_multiprecision_t, extent_a> lhs,
                                          const bool                                             lhs_neg,
                                          const std::span<const uint_multiprecision_t, extent_b> rhs,
-                                         const bool                                             rhs_neg) {
+                                         const bool                                             rhs_neg,
+                                         const allocator_type&                                  alloc) {
     if (!lhs_neg && !rhs_neg) {
-        return make_bitwise_of_limbs<op, false, false>(lhs, rhs);
+        return make_bitwise_of_limbs<op, false, false>(lhs, rhs, alloc);
     }
     if (lhs_neg && !rhs_neg) {
-        return make_bitwise_of_limbs<op, true, false>(lhs, rhs);
+        return make_bitwise_of_limbs<op, true, false>(lhs, rhs, alloc);
     }
     if (!lhs_neg && rhs_neg) {
-        return make_bitwise_of_limbs<op, false, true>(lhs, rhs);
+        return make_bitwise_of_limbs<op, false, true>(lhs, rhs, alloc);
     }
-    return make_bitwise_of_limbs<op, true, true>(lhs, rhs);
+    return make_bitwise_of_limbs<op, true, true>(lhs, rhs, alloc);
 }
 
 // Since multiplication needs a fresh output buffer (the result has up to
@@ -2741,7 +2769,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
 
     if constexpr (form == detail::binary_op_form::move_move || form == detail::binary_op_form::move_copy ||
                   form == detail::binary_op_form::copy_move || form == detail::binary_op_form::copy_copy) {
-        Result r;
+        Result r{detail::result_allocator<Result>(x, y)};
         if constexpr (Result::has_inplace_to_wide_bit_uint) {
             if (x.is_representation_inplace() && y.is_representation_inplace()) {
                 const auto product = x.inplace_to_wide_bit_uint() * y.inplace_to_wide_bit_uint();
@@ -2755,7 +2783,7 @@ constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
         r.multiply_into(x.representation(), x.is_negative(), y.representation(), y.is_negative());
         return r;
     } else if constexpr (form == detail::binary_op_form::move_int || form == detail::binary_op_form::copy_int) {
-        Result r;
+        Result r{detail::result_allocator<Result>(x, y)};
         if constexpr (Result::has_inplace_to_wide_bit_uint) {
             if constexpr (detail::width_v<std::remove_cvref_t<R>> <= Result::inplace_bits) {
                 if (x.is_representation_inplace()) {
