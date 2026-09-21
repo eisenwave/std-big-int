@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <limits>
 #include <string>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -316,5 +317,30 @@ TEST(IncrementDecrement, DecrementToSingleLimbCanShrinkBackToInplace) {
     EXPECT_TRUE(is_inplace(x));
     EXPECT_EQ(x, big_int{std::numeric_limits<uint_multiprecision_t>::max()});
 }
+
+// Increment and decrement are not ref-qualified, so they apply to an rvalue
+// just as the built-in integer operators do on a class-type operand.
+static_assert(requires(big_int x) { ++std::move(x); });
+static_assert(requires(big_int x) { std::move(x)++; });
+static_assert(requires(big_int x) { --std::move(x); });
+static_assert(requires(big_int x) { std::move(x)--; });
+
+TEST(IncrementDecrement, AppliesToRvalue) {
+    const big_int post_incremented = (big_int{41})++;
+    const big_int post_decremented = (big_int{41})--;
+
+    EXPECT_EQ(++big_int{41}, 42);
+    EXPECT_EQ(--big_int{41}, 40);
+    EXPECT_EQ(post_incremented, 41); // The copy is of the value before the increment.
+    EXPECT_EQ(post_decremented, 41);
+}
+
+consteval bool test_rvalue_increment_carries() {
+    // The temporary is heap-allocated, so the rvalue path also exercises the
+    // carry chain and the allocation it needs.
+    const big_int limb_max{std::numeric_limits<uint_multiprecision_t>::max()};
+    return ++big_int{limb_max} == big_int{1} << 64 && --big_int{big_int{1} << 64} == limb_max;
+}
+static_assert(test_rvalue_increment_carries());
 
 } // namespace

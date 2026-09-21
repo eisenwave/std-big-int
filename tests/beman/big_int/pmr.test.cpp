@@ -274,6 +274,38 @@ TEST(Pmr, AllocatorExtendedCopyConstructionKeepsResource) {
     EXPECT_GT(cr.alloc_count(), alloc_count_before_copy);
 }
 
+TEST(Pmr, UnaryOperatorsSelectDefaultResource) {
+    // The `const&` overloads copy, so the result's allocator comes from
+    // `select_on_container_copy_construction`, just as the copy constructor's
+    // does.
+    counting_resource cr;
+    pmr_big_int       x{1, &cr};
+    x <<= 200;
+    auto* const default_resource = std::pmr::get_default_resource();
+
+    EXPECT_EQ((+x).get_allocator().resource(), default_resource);
+    EXPECT_EQ((-x).get_allocator().resource(), default_resource);
+    EXPECT_EQ((~x).get_allocator().resource(), default_resource);
+    EXPECT_EQ((x++).get_allocator().resource(), default_resource);
+    EXPECT_EQ((x--).get_allocator().resource(), default_resource);
+    // The operand itself is untouched by the selection.
+    EXPECT_EQ(x.get_allocator().resource(), &cr);
+}
+
+TEST(Pmr, UnaryOperatorsOnRvalueKeepResource) {
+    // The `&&` overloads take over the operand's storage, so the resource comes
+    // along with it.
+    counting_resource cr;
+    pmr_big_int       x{1, &cr};
+    x <<= 200;
+    const pmr_big_int expected = -x;
+
+    const pmr_big_int negated = -std::move(x);
+
+    EXPECT_EQ(negated, expected);
+    EXPECT_EQ(negated.get_allocator().resource(), &cr);
+}
+
 TEST(Pmr, MoveConstructionPropagatesResource) {
     counting_resource cr;
     pmr_big_int       src{1, &cr};

@@ -338,6 +338,57 @@ TEST(Allocation, CopyConstructionKeepsAllocatorWhenTraitCopies) {
     EXPECT_EQ(dst.get_allocator().id, 2U);
 }
 
+// `soccc_alloc` separates the three allocators a result could plausibly get --
+// the operand's (id 1), the trait's choice (id 2) and a value-initialized one
+// (id 0) -- which `std::pmr::polymorphic_allocator` cannot, because there the
+// trait's choice and a value-initialized allocator are the same thing.
+using soccc_alloc_type = soccc_alloc<beman::big_int::uint_multiprecision_t>;
+
+TEST(Allocation, AbsSelectsAllocator) {
+    soccc_big_int x{-1, soccc_alloc_type{1U}};
+    x <<= 4000;
+
+    const soccc_big_int from_lvalue = abs(x);
+    EXPECT_EQ(from_lvalue, -x);
+    EXPECT_EQ(from_lvalue.get_allocator().id, 2U);
+
+    // Handed over rather than copied: the storage comes along, so the operand's
+    // own allocator does too.
+    const soccc_big_int from_rvalue = abs(std::move(x));
+    EXPECT_EQ(from_rvalue, from_lvalue);
+    EXPECT_EQ(from_rvalue.get_allocator().id, 1U);
+}
+
+TEST(Allocation, UnaryOperatorsSelectAllocator) {
+    soccc_big_int x{1, soccc_alloc_type{1U}};
+    x <<= 4000;
+
+    EXPECT_EQ((+x).get_allocator().id, 2U);
+    EXPECT_EQ((-x).get_allocator().id, 2U);
+    EXPECT_EQ((~x).get_allocator().id, 2U);
+    EXPECT_EQ((x++).get_allocator().id, 2U);
+    EXPECT_EQ((x--).get_allocator().id, 2U);
+    EXPECT_EQ(x.get_allocator().id, 1U); // the operand is untouched by the selection
+
+    // The `&&` overloads take over the storage, so they keep the operand's own
+    // allocator rather than selecting a new one.
+    soccc_big_int y{1, soccc_alloc_type{1U}};
+    y <<= 4000;
+    EXPECT_EQ((-std::move(y)).get_allocator().id, 1U);
+}
+
+TEST(Allocation, GcdAndLcmSelectAllocator) {
+    soccc_big_int a{12, soccc_alloc_type{1U}};
+    soccc_big_int b{18, soccc_alloc_type{1U}};
+    a <<= 4000;
+    b <<= 4000;
+
+    EXPECT_EQ(gcd(a, b).get_allocator().id, 2U);
+    EXPECT_EQ(lcm(a, b).get_allocator().id, 2U);
+    EXPECT_EQ(gcd(a, 42).get_allocator().id, 2U);
+    EXPECT_EQ(midpoint(a, b).get_allocator().id, 2U);
+}
+
 TEST(Allocation, SizeDefault) {
     beman::big_int::big_int x;
     EXPECT_EQ(x.size(), 0);
