@@ -600,6 +600,11 @@ Returns the maximum number of bits that the magnitude may occupy, that is,
 An operation that would grow the magnitude beyond this many bits throws
 `std::length_error`; see xref:big_int_type.adoc#big_int_type_length_limit[the length limit].
 
+This is a ceiling on the representation, not a largest value of the type, and it
+lies far beyond any allocation a program can make. `std::numeric_limits`
+accordingly reports `basic_big_int` as unbounded; see
+xref:limits.adoc#limits_bounded[Why `is_bounded` is `false`].
+
 * *Preconditions:* None.
 * *Postconditions:* None.
 * *Throws:* Nothing.

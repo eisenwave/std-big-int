@@ -49,7 +49,8 @@ provides. Importing it brings the following into scope, from the
   `beman::big_int::literals::big_int_literals` and described in
   xref:literals.adoc[User-Defined Literals].
 * The `std::hash` specialization
-  (xref:big_int_type.adoc#big_int_type_hash[Hash support]) and the
+  (xref:big_int_type.adoc#big_int_type_hash[Hash support]), the
+  xref:limits.adoc[`std::numeric_limits` specialization], and the
   xref:format.adoc[`std::formatter` specialization].
 
 Everything in `beman::big_int::detail` is compiled into the module but is
@@ -299,14 +300,6 @@ with the same layout and the same mangled names, and values can be passed
 between the two freely. This is what lets an existing header-based program
 adopt the module one translation unit at a time, rather than needing an
 all-or-nothing conversion.
-
-=== `std::numeric_limits` is not specialized
-
-`basic_big_int` has no `std::numeric_limits` specialization, through the
-module or otherwise. `basic_big_int` is unbounded, so there is no minimum or
-maximum value for such a specialization to report. Code that relies on
-`std::numeric_limits<basic_big_int<...>>` for a bound is relying on something
-the library does not provide, whether or not the module is in use.
 
 === Tested toolchains
 

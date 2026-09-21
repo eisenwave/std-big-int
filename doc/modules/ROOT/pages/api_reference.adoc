@@ -26,6 +26,7 @@
 | xref:big_int_type.adoc#big_int_type_basic_big_int[`basic_big_int`] | The template of a big integer type. Analogous to `std::basic_string`
 | xref:big_int_type.adoc#big_int_type_using_big_int[`big_int`] | A big integer type using default small value optimizations and allocator
 | xref:format.adoc#format_synopsis[`std::formatter<basic_big_int>`] | Formatter specialization that plugs a `basic_big_int` into `std::format`
+| xref:limits.adoc#limits_synopsis[`std::numeric_limits<basic_big_int>`] | Limits specialization reporting `basic_big_int` as an unbounded, exact, signed integer type
 |===
 
 [#api_functions]
