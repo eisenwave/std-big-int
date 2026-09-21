@@ -826,6 +826,10 @@ integer type.
 [#big_int_type_binary]
 == Binary operators
 
+Every operator in this section returns a new value, so its allocator is the
+`basic_big_int` operand's allocator run through
+`allocator_traits<Allocator>::select_on_container_copy_construction`
+
 === Arithmetic and bitwise operators
 
 [source,c++]
@@ -877,8 +881,8 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
 
 `operator<<` returns a `basic_big_int` whose integer value is `v * 2^s`, and
 `operator>>` returns one whose integer value is `v / 2^s` rounded toward
-negative infinity, where `v` is the integer value of `x`. The result uses the
-allocator of `x`.
+negative infinity, where `v` is the integer value of `x`. The result's allocator
+is selected as described for the binary operators above.
 
 * *Constraints:* `std::remove_cvref_t<T>` is a `basic_big_int` specialization.
 * *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift for the result type (`max_size()`).

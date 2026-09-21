@@ -389,6 +389,73 @@ TEST(Allocation, GcdAndLcmSelectAllocator) {
     EXPECT_EQ(midpoint(a, b).get_allocator().id, 2U);
 }
 
+TEST(Allocation, BinaryOperatorsSelectAllocator) {
+    // Every binary operator builds a fresh result, so it selects the allocator
+    // through the trait rather than taking the operand's (id 1) or leaving a
+    // value-initialized one (id 0).
+    soccc_big_int a{12, soccc_alloc_type{1U}};
+    soccc_big_int b{18, soccc_alloc_type{1U}};
+    a <<= 4000;
+    b <<= 4000;
+
+    EXPECT_EQ((a + b).get_allocator().id, 2U);
+    EXPECT_EQ((a - b).get_allocator().id, 2U);
+    EXPECT_EQ((a * b).get_allocator().id, 2U);
+    EXPECT_EQ((a / b).get_allocator().id, 2U);
+    EXPECT_EQ((a % b).get_allocator().id, 2U);
+    EXPECT_EQ((a & b).get_allocator().id, 2U);
+    EXPECT_EQ((a | b).get_allocator().id, 2U);
+    EXPECT_EQ((a ^ b).get_allocator().id, 2U);
+    EXPECT_EQ((a << 100).get_allocator().id, 2U);
+    EXPECT_EQ((a >> 100).get_allocator().id, 2U);
+    EXPECT_EQ((a >> 100000).get_allocator().id, 2U); // the whole value is discarded
+    EXPECT_EQ((-a >> 100000).get_allocator().id, 2U);
+
+    const auto [quo, rem] = div_rem_to_zero(a, b);
+    EXPECT_EQ(quo.get_allocator().id, 2U);
+    EXPECT_EQ(rem.get_allocator().id, 2U);
+
+    EXPECT_EQ(a.get_allocator().id, 1U); // the operands are untouched
+    EXPECT_EQ(b.get_allocator().id, 1U);
+}
+
+TEST(Allocation, BinaryOperatorsWithIntegerSelectAllocator) {
+    // The same holds when only one side is a basic_big_int, whichever side it is.
+    soccc_big_int a{12, soccc_alloc_type{1U}};
+    a <<= 4000;
+
+    EXPECT_EQ((a + 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 + a).get_allocator().id, 2U);
+    EXPECT_EQ((a - 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 - a).get_allocator().id, 2U);
+    EXPECT_EQ((a * 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 * a).get_allocator().id, 2U);
+    EXPECT_EQ((a / 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 % a).get_allocator().id, 2U);
+    EXPECT_EQ((a & 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 | a).get_allocator().id, 2U);
+    EXPECT_EQ((a ^ 7).get_allocator().id, 2U);
+}
+
+TEST(Allocation, BinaryOperatorsOnRvalueKeepAllocatorWhenStorageIsReused) {
+    // `+` and `-` fold into the operand's own buffer, so a handed-over operand
+    // takes its allocator along -- the same rule the move constructor follows.
+    // Multiplication and the bitwise operators always need a fresh buffer, so
+    // they select even for an rvalue.
+    const auto reused = [] {
+        soccc_big_int x{12, soccc_alloc_type{1U}};
+        x <<= 4000;
+        return x;
+    };
+
+    EXPECT_EQ((reused() + 7).get_allocator().id, 1U);
+    EXPECT_EQ((reused() - 7).get_allocator().id, 1U);
+    EXPECT_EQ((reused() << 100).get_allocator().id, 1U);
+    EXPECT_EQ((reused() >> 100).get_allocator().id, 1U);
+    EXPECT_EQ((reused() * 7).get_allocator().id, 2U);
+    EXPECT_EQ((reused() & 7).get_allocator().id, 2U);
+}
+
 TEST(Allocation, SizeDefault) {
     beman::big_int::big_int x;
     EXPECT_EQ(x.size(), 0);
