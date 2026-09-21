@@ -93,30 +93,7 @@ export module beman.big_int;
 import std;
 #endif
 
-// extern "C++" attaches every declaration reached below to the global module
-// (classic mangling) instead of leaving it module-owned. This is a HARD LINK
-// REQUIREMENT here, not merely an ABI courtesy: unlike the header-only Boost
-// siblings, this library compiles roughly 30 externally linked kernel functions
-// (detail::multiply_karatsuba, detail::divide_burnikel_ziegler, the Toom-Cook
-// entry points, the NTT entry points, ...) into libbeman.big_int from ordinary,
-// non-module src/*.cpp translation units. If the declarations reached through
-// this purview were module-attached instead, they would mangle differently from
-// the definitions the library was built with, and linking would fail. The same
-// extern "C++" also attaches the std::hash and std::formatter partial
-// specializations below to the global module.
 extern "C++" {
-
-// Deliberately no `export namespace std { ... }` block forward-declaring the
-// std::hash / std::formatter partial specializations ahead of the #include
-// below (contrast int256.cppm, which forward-declares its numeric_limits
-// specialization there). Per [module.reach], what makes a specialization
-// visible to an importer is reachability, not name lookup, and every
-// declaration in this purview is reachable. int256's block exists for a FULL
-// specialization of a one-parameter template (std::numeric_limits<uint256>);
-// std::hash and std::formatter here are 3- and 4-parameter PARTIAL
-// specializations of a template family, so replicating that pattern would only
-// add two hand-maintained signatures plus a duplicated __cpp_lib_format guard,
-// for no semantic gain.
 
 #ifdef _MSC_VER
     #pragma warning(push)
