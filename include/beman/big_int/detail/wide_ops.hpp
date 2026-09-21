@@ -4,12 +4,16 @@
 #ifndef BEMAN_BIG_INT_WIDE_OPS_HPP
 #define BEMAN_BIG_INT_WIDE_OPS_HPP
 
-#include <bit>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <bit>
+#endif
 
 #include <beman/big_int/detail/config.hpp>
 
 #ifdef BEMAN_BIG_INT_MSVC
-    #include <intrin.h>
+    #ifndef BEMAN_BIG_INT_BUILD_MODULE
+        #include <intrin.h>
+    #endif
 #endif
 
 namespace beman::big_int::detail {

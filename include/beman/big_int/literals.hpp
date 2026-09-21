@@ -4,12 +4,14 @@
 #ifndef BEMAN_BIG_INT_LITERALS_HPP
 #define BEMAN_BIG_INT_LITERALS_HPP
 
-#include <algorithm>
-#include <array>
-#include <charconv>
-#include <cstddef>
-#include <type_traits>
-#include <utility>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <algorithm>
+    #include <array>
+    #include <charconv>
+    #include <cstddef>
+    #include <type_traits>
+    #include <utility>
+#endif
 
 #include <beman/big_int/big_int.hpp>
 #include <beman/big_int/charconv.hpp>
@@ -76,8 +78,10 @@ BEMAN_BIG_INT_DIAGNOSTIC_POP()
 // Returns the result of parsing a `big_int` using `from_chars_auto_base`.
 // However, if the result is too large to fit into inplace storage,
 // `{limb_count(), std::errc::result_out_of_range}` is returned.
-[[nodiscard]] static constexpr parse_non_allocating_result parse_non_allocating_impl(const char* const begin,
-                                                                                     const char* const end) {
+// Reachable from the exported `operator""n`, so internal linkage (`static`) would make this
+// a TU-local exposure in module mode; BEMAN_BIG_INT_INLINE_CONSTEXPR avoids that.
+[[nodiscard]] BEMAN_BIG_INT_INLINE_CONSTEXPR parse_non_allocating_result
+parse_non_allocating_impl(const char* const begin, const char* const end) {
     // This function is not consteval because of compiler bugs,
     // but should only be called during constant evaluation.
     // https://developercommunity.microsoft.com/t/Nonsensical-error-C2440-when-initializin/11077170
@@ -143,7 +147,7 @@ BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_MSVC(4455)
 
 // Formatting suppressions are needed to prevent insertion of space between `""` and `n`.
 // clang-format off
-template <char... digits>
+BEMAN_BIG_INT_EXPORT template <char... digits>
 [[nodiscard]] constexpr big_int operator""n()
   noexcept(detail::parse_non_allocating<detail::literal_buffer<digits...>::value>::ec == std::errc{})
   {
@@ -175,17 +179,17 @@ template <char... digits>
 // https://github.com/llvm/llvm-project/issues/76394
 // clang-format off
 
-template <char... digits>
+BEMAN_BIG_INT_EXPORT template <char... digits>
 [[nodiscard]] constexpr big_int operator""N() noexcept(noexcept(operator""n<digits...>())) {
     return operator""n<digits...>();
 }
 
-template <char... digits>
+BEMAN_BIG_INT_EXPORT template <char... digits>
 [[nodiscard]] constexpr big_int operator""_n() noexcept(noexcept(operator""n<digits...>())) {
     return operator""n<digits...>();
 }
 
-template <char... digits>
+BEMAN_BIG_INT_EXPORT template <char... digits>
 [[nodiscard]] constexpr big_int operator""_N() noexcept(noexcept(operator""n<digits...>())) {
     return operator""n<digits...>();
 }

@@ -10,12 +10,14 @@
 #include <beman/big_int/detail/scratch_allocator.hpp>
 #include <beman/big_int/detail/mul_impl.hpp>
 
-#include <algorithm>
-#include <bit>
-#include <compare>
-#include <cstddef>
-#include <limits>
-#include <span>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <algorithm>
+    #include <bit>
+    #include <compare>
+    #include <cstddef>
+    #include <limits>
+    #include <span>
+#endif
 
 namespace beman::big_int::detail {
 

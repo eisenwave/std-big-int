@@ -6,10 +6,12 @@
 
 #include <beman/big_int/detail/config.hpp>
 
-#include <cstdint>
-#include <memory>
-#include <span>
-#include <type_traits>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <cstdint>
+    #include <memory>
+    #include <span>
+    #include <type_traits>
+#endif
 
 namespace beman::big_int::detail {
 

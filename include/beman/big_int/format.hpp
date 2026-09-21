@@ -5,21 +5,28 @@
 #define BEMAN_BIG_INT_FORMAT_HPP
 
 #include <beman/big_int/big_int.hpp>
-#include <version>
+
+// Guarding this include is safe only because the .cppm supplies <version> in its
+// global module fragment before the purview #if below tests __cpp_lib_format.
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <version>
+#endif
 
 #if __has_include(<format>) && defined(__cpp_lib_format) && __cpp_lib_format >= 201907L
 
-    #include <algorithm>
-    #include <array>
-    #include <climits>
-    #include <cstddef>
-    #include <cstdint>
-    #include <format>
-    #include <limits>
-    #include <locale>
-    #include <string>
-    #include <string_view>
-    #include <type_traits>
+    #ifndef BEMAN_BIG_INT_BUILD_MODULE
+        #include <algorithm>
+        #include <array>
+        #include <climits>
+        #include <cstddef>
+        #include <cstdint>
+        #include <format>
+        #include <limits>
+        #include <locale>
+        #include <string>
+        #include <string_view>
+        #include <type_traits>
+    #endif
 
     #include <beman/big_int/string.hpp> // for beman::big_int::to_string
 

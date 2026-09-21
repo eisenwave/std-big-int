@@ -4,14 +4,16 @@
 #ifndef BEMAN_BIG_INT_NUMERIC_HPP
 #define BEMAN_BIG_INT_NUMERIC_HPP
 
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <limits>
-#include <memory>
-#include <span>
-#include <type_traits>
-#include <utility>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <array>
+    #include <cstddef>
+    #include <cstdint>
+    #include <limits>
+    #include <memory>
+    #include <span>
+    #include <type_traits>
+    #include <utility>
+#endif
 
 #include <beman/big_int/big_int.hpp>
 #include <beman/big_int/detail/gcd_impl.hpp>
@@ -41,7 +43,7 @@ constexpr basic_big_int<b, L, A> abs(basic_big_int<b, L, A>&& j) noexcept {
 // Casts `x` to `R`, clamping to the range of `R`. If the integer value of `x`
 // is representable as `R`, that value is returned; otherwise the largest or
 // smallest representable value of `R`, whichever is closer to `x`.
-template <class R, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class R, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<R>
 constexpr R saturating_cast(const basic_big_int<b, L, A>& x) noexcept {
     using U = detail::make_unsigned_t<R>;
@@ -71,7 +73,7 @@ constexpr R saturating_cast(const basic_big_int<b, L, A>& x) noexcept {
     return static_cast<R>(x);
 }
 
-template <class R, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class R, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<R>
 constexpr bool in_range(const basic_big_int<b, L, A>& t) noexcept {
     return (t >= std::numeric_limits<R>::min()) && (t <= std::numeric_limits<R>::max());
@@ -455,12 +457,12 @@ template <class M, class N>
 // Whether the other operand is admissible is left to the return type, which is
 // ill-formed for anything but the same specialization or a signed or unsigned
 // integer type.
-template <std::size_t b, class L, class A, class N>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A, class N>
 [[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> gcd(basic_big_int<b, L, A>&& m, N&& n) {
     return detail::gcd_impl(std::move(m), std::forward<N>(n));
 }
 
-template <std::size_t b, class L, class A, class N>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A, class N>
 [[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> gcd(const basic_big_int<b, L, A>& m,
                                                                                    N&&                           n) {
     return detail::gcd_impl(m, std::forward<N>(n));
@@ -468,13 +470,13 @@ template <std::size_t b, class L, class A, class N>
 
 // The mirrored pair. `M` is held to an integer type so that a pair of big_ints
 // does not match both it and the overloads above.
-template <class M, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> gcd(M&& m, basic_big_int<b, L, A>&& n) {
     return detail::gcd_impl(std::forward<M>(m), std::move(n));
 }
 
-template <class M, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> gcd(M&& m, const basic_big_int<b, L, A>& n) {
     return detail::gcd_impl(std::forward<M>(m), n);
@@ -496,12 +498,12 @@ template <class M, std::size_t b, class L, class A>
 // unqualified call through argument-dependent lookup on the allocator, and only
 // a parameter that its plain type parameter cannot deduce makes these overloads
 // the more specialized ones.
-template <std::size_t b, class L, class A, class N>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A, class N>
 [[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> lcm(basic_big_int<b, L, A>&& m, N&& n) {
     return detail::lcm_impl(std::move(m), std::forward<N>(n));
 }
 
-template <std::size_t b, class L, class A, class N>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A, class N>
 [[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> lcm(const basic_big_int<b, L, A>& m,
                                                                                    N&&                           n) {
     return detail::lcm_impl(m, std::forward<N>(n));
@@ -509,13 +511,13 @@ template <std::size_t b, class L, class A, class N>
 
 // The mirrored pair. `M` is held to an integer type so that a pair of big_ints
 // does not match both it and the overloads above.
-template <class M, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> lcm(M&& m, basic_big_int<b, L, A>&& n) {
     return detail::lcm_impl(std::forward<M>(m), std::move(n));
 }
 
-template <class M, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> lcm(M&& m, const basic_big_int<b, L, A>& n) {
     return detail::lcm_impl(std::forward<M>(m), n);
@@ -537,13 +539,13 @@ template <class M, std::size_t b, class L, class A>
 // constraints already drop it for a `basic_big_int` argument, spelling the
 // big_int operand as a specialization is what lets these overloads accept the
 // mixed pairs that `std::midpoint`'s single type parameter cannot deduce.
-template <std::size_t b, class L, class A, class N>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A, class N>
 [[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N> midpoint(basic_big_int<b, L, A>&& m,
                                                                                         N&&                      n) {
     return detail::midpoint_impl(std::move(m), std::forward<N>(n));
 }
 
-template <std::size_t b, class L, class A, class N>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A, class N>
 [[nodiscard]] constexpr detail::common_big_int_type<basic_big_int<b, L, A>, N>
 midpoint(const basic_big_int<b, L, A>& m, N&& n) {
     return detail::midpoint_impl(m, std::forward<N>(n));
@@ -551,13 +553,13 @@ midpoint(const basic_big_int<b, L, A>& m, N&& n) {
 
 // The mirrored pair. `M` is held to an integer type so that a pair of big_ints
 // does not match both it and the overloads above.
-template <class M, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> midpoint(M&& m, basic_big_int<b, L, A>&& n) {
     return detail::midpoint_impl(std::forward<M>(m), std::move(n));
 }
 
-template <class M, std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <class M, std::size_t b, class L, class A>
     requires detail::signed_or_unsigned<std::remove_cvref_t<M>>
 [[nodiscard]] constexpr basic_big_int<b, L, A> midpoint(M&& m, const basic_big_int<b, L, A>& n) {
     return detail::midpoint_impl(std::forward<M>(m), n);

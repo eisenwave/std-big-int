@@ -29,3 +29,9 @@ This repository requires a minimum of pass:[C++23], and is tested on the followi
 * GCC 13 and later
 * Clang 17 and later
 * MSVC 19.43 and later
+
+The optional pass:[C++] named module needs newer toolchains than the headers
+do -- GCC 15 or later, Clang 20 or later, or a current MSVC -- plus CMake 3.30
+or later and a generator that can scan module dependencies. AppleClang is not
+supported for the module build. It is off by default, so this applies only if
+you turn it on; see xref:modules.adoc[pass:[C++] Named Modules].

@@ -4,27 +4,29 @@
 #ifndef BEMAN_BIG_INT_BIG_INT_HPP
 #define BEMAN_BIG_INT_BIG_INT_HPP
 
-#include <algorithm>
-#include <array>
-#include <bit>
-#include <climits>
-#include <charconv> // for the std::from_chars_result / std::to_chars_result in the friend declarations below
-#include <cmath>
-#include <concepts>
-#include <cstddef>
-#include <cstdint>
-#include <functional>
-#include <limits>
-#include <memory>
-#include <memory_resource>
-#include <ranges>
-#include <span>
-#include <utility>
-#include <type_traits>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <algorithm>
+    #include <array>
+    #include <bit>
+    #include <climits>
+    #include <charconv> // for the std::from_chars_result / std::to_chars_result in the friend declarations below
+    #include <cmath>
+    #include <concepts>
+    #include <cstddef>
+    #include <cstdint>
+    #include <functional>
+    #include <limits>
+    #include <memory>
+    #include <memory_resource>
+    #include <ranges>
+    #include <span>
+    #include <utility>
+    #include <type_traits>
 
-#if __has_include(<stdfloat>)
-    #include <stdfloat>
-#endif
+    #if __has_include(<stdfloat>)
+        #include <stdfloat>
+    #endif
+#endif // BEMAN_BIG_INT_BUILD_MODULE
 
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/div_impl.hpp>
@@ -44,13 +46,15 @@ namespace beman::big_int {
 using beman::big_int::uint_multiprecision_t;
 
 // Forward decl so that we can define our concepts
-template <std::size_t min_inplace_bits, class Limb = uint_multiprecision_t, class Allocator = std::allocator<Limb>>
+BEMAN_BIG_INT_EXPORT template <std::size_t min_inplace_bits,
+                               class Limb      = uint_multiprecision_t,
+                               class Allocator = std::allocator<Limb>>
 class basic_big_int;
 
-template <std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, L, A>&, int = 10);
 
-template <std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, L, A>&, int = 10);
 
 namespace detail {
@@ -269,9 +273,9 @@ constexpr bool eval_bitwise_into_spans(const std::span<const uint_multiprecision
 } // namespace detail
 
 // [big.int.numeric], non-member numeric functions (defined in <beman/big_int/numeric.hpp>).
-template <std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 constexpr basic_big_int<b, L, A> abs(const basic_big_int<b, L, A>& j);
-template <std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 constexpr basic_big_int<b, L, A> abs(basic_big_int<b, L, A>&& j) noexcept;
 
 // `gcd` and `midpoint` are each a set of overloads in <beman/big_int/numeric.hpp>;
@@ -1160,7 +1164,7 @@ basic_big_int<b, L, A>::swap(basic_big_int& x) noexcept(std::allocator_traits<A>
 // argument-dependent lookup, so both an unqualified `swap(a, b)` and the
 // `using std::swap; swap(a, b)` idiom that generic code relies on select this
 // overload in preference to the move-based `std::swap`.
-template <std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 constexpr void swap(basic_big_int<b, L, A>& x, basic_big_int<b, L, A>& y) noexcept(noexcept(x.swap(y))) {
     x.swap(y);
 }
@@ -1581,7 +1585,7 @@ constexpr auto basic_big_int<b, L, A>::operator--(int) & -> basic_big_int {
 }
 
 // [big.int.cmp]
-template <class L, detail::common_big_int_type_with<L> R>
+BEMAN_BIG_INT_EXPORT template <class L, detail::common_big_int_type_with<L> R>
 constexpr bool operator==(const L& lhs, const R& rhs) noexcept {
     if constexpr (detail::is_basic_big_int_v<L>) {
         if constexpr (detail::is_basic_big_int_v<R>) {
@@ -1595,7 +1599,7 @@ constexpr bool operator==(const L& lhs, const R& rhs) noexcept {
     }
 }
 
-template <class L, detail::common_big_int_type_with<L> R>
+BEMAN_BIG_INT_EXPORT template <class L, detail::common_big_int_type_with<L> R>
 constexpr std::strong_ordering operator<=>(const L& lhs, const R& rhs) noexcept {
     if constexpr (detail::is_basic_big_int_v<L>) {
         if constexpr (detail::is_basic_big_int_v<R>) {
@@ -1826,7 +1830,7 @@ constexpr auto basic_big_int<b, L, A>::bitwise_assign_impl(T&& rhs) -> basic_big
 // `common_big_int_type` only yields a type when both `basic_big_int` operands are the
 // exact same `basic_big_int<b, L, A>` instantiation, so the operand type already matches
 // `Result` and no explicit type-equality guard is needed.
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
@@ -1896,7 +1900,7 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
 //   * lhs-destination paths pass the other side's span with sign `!rhs_neg`
 //   * rhs-destination paths `r.negate()` first (cheap XOR on the sign word),
 //     then add the lhs side with its own sign, yielding `(-y) + x = x - y`
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
@@ -2024,25 +2028,25 @@ constexpr void basic_big_int<b, L, A>::bitwise_in_place(const std::span<const ui
         run.template operator()<true, true>();
 }
 
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator&(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     return Result::template bitwise_impl<detail::bitwise_op::and_>(std::forward<L>(x), std::forward<R>(y));
 }
 
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator|(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     return Result::template bitwise_impl<detail::bitwise_op::or_>(std::forward<L>(x), std::forward<R>(y));
 }
 
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator^(L&& x, R&& y) {
     using Result = detail::common_big_int_type<L, R>;
     return Result::template bitwise_impl<detail::bitwise_op::xor_>(std::forward<L>(x), std::forward<R>(y));
 }
 
-template <class T, detail::signed_or_unsigned S>
+BEMAN_BIG_INT_EXPORT template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
     using Result        = std::remove_cvref_t<T>;
@@ -2078,7 +2082,7 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
     }
 }
 
-template <class T, detail::signed_or_unsigned S>
+BEMAN_BIG_INT_EXPORT template <class T, detail::signed_or_unsigned S>
     requires detail::is_basic_big_int_v<std::remove_cvref_t<T>>
 constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
     using Result        = std::remove_cvref_t<T>;
@@ -2715,7 +2719,7 @@ basic_big_int<b, L, A>::dispatch_bitwise(const std::span<const uint_multiprecisi
 //
 // TODO : This is a member function instead of a free function like add_in_place,
 // because maybe this is a pessimistic view on our allocation requirements?
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator*(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
@@ -3029,7 +3033,7 @@ constexpr auto basic_big_int<b, L, A>::divmod_into(const std::span<const uint_mu
 
 // Simultaneously computes the quotient and remainder of a division,
 // rounded towards zero.
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 [[nodiscard]] constexpr div_result<detail::common_big_int_type<L, R>> div_rem_to_zero(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
@@ -3062,7 +3066,7 @@ template <class L, class R>
     return {std::move(quo), std::move(rem)};
 }
 
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
@@ -3100,7 +3104,7 @@ constexpr detail::common_big_int_type<L, R> operator/(L&& x, R&& y) {
     return r;
 }
 
-template <class L, class R>
+BEMAN_BIG_INT_EXPORT template <class L, class R>
 constexpr detail::common_big_int_type<L, R> operator%(L&& x, R&& y) {
     using Result        = detail::common_big_int_type<L, R>;
     constexpr auto form = detail::classify_form_v<L, R>;
@@ -3448,7 +3452,7 @@ constexpr void basic_big_int<b, L, A>::push_back_limb(limb_type limb) {
 // without any heap allocation.
 // Bridges consteval-computed values to runtime.
 // The result preserves the source's allocator and limb types, and the allocator instance.
-template <typename Generator>
+BEMAN_BIG_INT_EXPORT template <typename Generator>
 [[nodiscard]] consteval auto copy_to_runtime() {
     using source_type = std::remove_cvref_t<decltype(Generator{}())>;
     using limb_type   = detail::limb_type_of_t<source_type>;
@@ -3468,14 +3472,14 @@ template <typename Generator>
 }
 
 // Standard public alias for defaulted type
-using big_int = basic_big_int<64, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>;
+BEMAN_BIG_INT_EXPORT using big_int = basic_big_int<64, uint_multiprecision_t, std::allocator<uint_multiprecision_t>>;
 
-namespace pmr {
+BEMAN_BIG_INT_EXPORT namespace pmr {
 
-template <std::size_t b, class L = uint_multiprecision_t>
-using basic_big_int = beman::big_int::basic_big_int<b, L, std::pmr::polymorphic_allocator<L>>;
+    template <std::size_t b, class L = uint_multiprecision_t>
+    using basic_big_int = beman::big_int::basic_big_int<b, L, std::pmr::polymorphic_allocator<L>>;
 
-using big_int = basic_big_int<beman::big_int::big_int::inplace_bits>;
+    using big_int = basic_big_int<beman::big_int::big_int::inplace_bits>;
 
 } // namespace pmr
 
@@ -3588,9 +3592,7 @@ struct std::hash<beman::big_int::basic_big_int<b, L, A>> {
     }
 };
 
-// A convenience macro rather than calling a stateless lambda
-#define BEMAN_BIG_INT_COPY_TO_RUNTIME(...) \
-    (::beman::big_int::copy_to_runtime<decltype([]() { return (__VA_ARGS__); })>())
+#include <beman/big_int/copy_to_runtime.hpp>
 
 BEMAN_BIG_INT_DIAGNOSTIC_POP() // For string and array bounds at the top of this file
 

@@ -8,12 +8,14 @@
 #include <beman/big_int/detail/wide_ops.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
 
-#include <algorithm>
-#include <bit>
-#include <compare>
-#include <cstddef>
-#include <span>
-#include <utility>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <algorithm>
+    #include <bit>
+    #include <compare>
+    #include <cstddef>
+    #include <span>
+    #include <utility>
+#endif
 
 namespace beman::big_int::detail {
 

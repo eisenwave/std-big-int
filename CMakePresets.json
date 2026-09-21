@@ -27,6 +27,24 @@
       }
     },
     {
+      "name": "_module-base",
+      "hidden": true,
+      "cacheVariables": {
+        "BEMAN_BIG_INT_BUILD_MODULE": "ON"
+      }
+    },
+    {
+      "name": "_module-std-base",
+      "hidden": true,
+      "inherits": [
+        "_module-base"
+      ],
+      "cacheVariables": {
+        "BEMAN_BIG_INT_USE_STD_MODULE": "ON",
+        "CMAKE_EXPERIMENTAL_CXX_IMPORT_STD": "f35a9ac6-8463-4d38-8eec-5d6008153e7d"
+      }
+    },
+    {
       "name": "gcc-debug",
       "displayName": "GCC Debug Build",
       "inherits": [
@@ -196,6 +214,73 @@
       "cacheVariables": {
         "BEMAN_BIG_INT_BUILD_BENCHMARKS": "ON"
       }
+    },
+    {
+      "name": "gcc-debug-module",
+      "displayName": "GCC Debug Build (C++ module)",
+      "inherits": [
+        "gcc-debug",
+        "_module-base"
+      ]
+    },
+    {
+      "name": "gcc-release-module",
+      "displayName": "GCC Release Build (C++ module)",
+      "inherits": [
+        "gcc-release",
+        "_module-base"
+      ]
+    },
+    {
+      "name": "llvm-debug-module",
+      "displayName": "Clang Debug Build (C++ module)",
+      "inherits": [
+        "llvm-debug",
+        "_module-base"
+      ]
+    },
+    {
+      "name": "llvm-release-module",
+      "displayName": "Clang Release Build (C++ module)",
+      "inherits": [
+        "llvm-release",
+        "_module-base"
+      ]
+    },
+    {
+      "name": "msvc-debug-module",
+      "displayName": "MSVC Debug Build (C++ module)",
+      "inherits": [
+        "msvc-debug",
+        "_module-base"
+      ]
+    },
+    {
+      "name": "msvc-release-module",
+      "displayName": "MSVC Release Build (C++ module)",
+      "inherits": [
+        "msvc-release",
+        "_module-base"
+      ]
+    },
+    {
+      "name": "llvm-release-module-std",
+      "displayName": "Clang Release Build (C++ module, import std)",
+      "inherits": [
+        "llvm-release",
+        "_module-std-base"
+      ],
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "infra/cmake/llvm-libc++-toolchain.cmake"
+      }
+    },
+    {
+      "name": "msvc-release-module-std",
+      "displayName": "MSVC Release Build (C++ module, import std)",
+      "inherits": [
+        "msvc-release",
+        "_module-std-base"
+      ]
     }
   ],
   "buildPresets": [
@@ -315,6 +400,62 @@
       "inherits": [
         "_root-build"
       ]
+    },
+    {
+      "name": "gcc-debug-module",
+      "configurePreset": "gcc-debug-module",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "gcc-release-module",
+      "configurePreset": "gcc-release-module",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "llvm-debug-module",
+      "configurePreset": "llvm-debug-module",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "llvm-release-module",
+      "configurePreset": "llvm-release-module",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "msvc-debug-module",
+      "configurePreset": "msvc-debug-module",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "msvc-release-module",
+      "configurePreset": "msvc-release-module",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "llvm-release-module-std",
+      "configurePreset": "llvm-release-module-std",
+      "inherits": [
+        "_root-build"
+      ]
+    },
+    {
+      "name": "msvc-release-module-std",
+      "configurePreset": "msvc-release-module-std",
+      "inherits": [
+        "_root-build"
+      ]
     }
   ],
   "testPresets": [
@@ -388,6 +529,46 @@
       "name": "msvc-release-simd",
       "inherits": "_test_base",
       "configurePreset": "msvc-release-simd"
+    },
+    {
+      "name": "gcc-debug-module",
+      "inherits": "_test_base",
+      "configurePreset": "gcc-debug-module"
+    },
+    {
+      "name": "gcc-release-module",
+      "inherits": "_test_base",
+      "configurePreset": "gcc-release-module"
+    },
+    {
+      "name": "llvm-debug-module",
+      "inherits": "_test_base",
+      "configurePreset": "llvm-debug-module"
+    },
+    {
+      "name": "llvm-release-module",
+      "inherits": "_test_base",
+      "configurePreset": "llvm-release-module"
+    },
+    {
+      "name": "msvc-debug-module",
+      "inherits": "_test_base",
+      "configurePreset": "msvc-debug-module"
+    },
+    {
+      "name": "msvc-release-module",
+      "inherits": "_test_base",
+      "configurePreset": "msvc-release-module"
+    },
+    {
+      "name": "llvm-release-module-std",
+      "inherits": "_test_base",
+      "configurePreset": "llvm-release-module-std"
+    },
+    {
+      "name": "msvc-release-module-std",
+      "inherits": "_test_base",
+      "configurePreset": "msvc-release-module-std"
     }
   ],
   "workflowPresets": [
@@ -592,6 +773,142 @@
         {
           "type": "test",
           "name": "msvc-release-simd"
+        }
+      ]
+    },
+    {
+      "name": "gcc-debug-module",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gcc-debug-module"
+        },
+        {
+          "type": "build",
+          "name": "gcc-debug-module"
+        },
+        {
+          "type": "test",
+          "name": "gcc-debug-module"
+        }
+      ]
+    },
+    {
+      "name": "gcc-release-module",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "gcc-release-module"
+        },
+        {
+          "type": "build",
+          "name": "gcc-release-module"
+        },
+        {
+          "type": "test",
+          "name": "gcc-release-module"
+        }
+      ]
+    },
+    {
+      "name": "llvm-debug-module",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-debug-module"
+        },
+        {
+          "type": "build",
+          "name": "llvm-debug-module"
+        },
+        {
+          "type": "test",
+          "name": "llvm-debug-module"
+        }
+      ]
+    },
+    {
+      "name": "llvm-release-module",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-release-module"
+        },
+        {
+          "type": "build",
+          "name": "llvm-release-module"
+        },
+        {
+          "type": "test",
+          "name": "llvm-release-module"
+        }
+      ]
+    },
+    {
+      "name": "msvc-debug-module",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msvc-debug-module"
+        },
+        {
+          "type": "build",
+          "name": "msvc-debug-module"
+        },
+        {
+          "type": "test",
+          "name": "msvc-debug-module"
+        }
+      ]
+    },
+    {
+      "name": "msvc-release-module",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msvc-release-module"
+        },
+        {
+          "type": "build",
+          "name": "msvc-release-module"
+        },
+        {
+          "type": "test",
+          "name": "msvc-release-module"
+        }
+      ]
+    },
+    {
+      "name": "llvm-release-module-std",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "llvm-release-module-std"
+        },
+        {
+          "type": "build",
+          "name": "llvm-release-module-std"
+        },
+        {
+          "type": "test",
+          "name": "llvm-release-module-std"
+        }
+      ]
+    },
+    {
+      "name": "msvc-release-module-std",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "msvc-release-module-std"
+        },
+        {
+          "type": "build",
+          "name": "msvc-release-module-std"
+        },
+        {
+          "type": "test",
+          "name": "msvc-release-module-std"
         }
       ]
     }
