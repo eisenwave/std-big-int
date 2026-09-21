@@ -109,17 +109,15 @@ operand_magnitude(const T& x, const std::array<uint_multiprecision_t, n>& limbs)
 }
 
 // The allocator that every value a mixed-operand function creates -- including
-// the one it returns -- is built with: the big_int argument's allocator run
-// through `select_on_container_copy_construction`, which is what copy
-// construction (and so `abs`) does.
+// the one it returns -- is built with. Selected exactly as a binary operator's
+// result allocator is, so `gcd` and friends follow the same rule as `abs` and
+// `operator*`.
 template <class M, class N>
 [[nodiscard]] constexpr auto operand_allocator(const M& m, const N& n) noexcept {
     if constexpr (is_basic_big_int_v<M>) {
-        using traits = std::allocator_traits<typename M::allocator_type>;
-        return traits::select_on_container_copy_construction(m.get_allocator());
+        return result_allocator<M>(m, n);
     } else {
-        using traits = std::allocator_traits<typename N::allocator_type>;
-        return traits::select_on_container_copy_construction(n.get_allocator());
+        return result_allocator<N>(m, n);
     }
 }
 
