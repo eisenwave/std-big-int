@@ -182,6 +182,9 @@ static_assert(invert(std::strong_ordering::less) == std::strong_ordering::greate
 
 enum struct bitwise_op : unsigned char { and_, or_, xor_ };
 
+// Whether an assignment that copies a value also adopts the source's allocator.
+enum struct allocator_propagation : unsigned char { propagate, no_propagate };
+
 template <bitwise_op op, cv_unqualified_integral T>
 [[nodiscard]] constexpr T eval_bitwise(const T x, const T y) noexcept {
     if constexpr (op == bitwise_op::and_) {
@@ -717,10 +720,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     // `extra_space` lets callers that know they are about to grow by a fixed
     // amount (e.g., a carry-out of one limb in addition) reserve that space
     // up front so that a subsequent grow is not needed.
-    // `PropagateAllocator` is `false` for the callers that materialize an
-    // expression result: the allocator was already chosen by
-    // `detail::result_allocator`, so the assignment must not override it.
-    template <bool PropagateAllocator = true, class Src>
+    template <detail::allocator_propagation propagation = detail::allocator_propagation::propagate, class Src>
         requires std::same_as<std::remove_cvref_t<Src>, basic_big_int>
     constexpr void assign_value(Src&& src, const std::size_t extra_space = 0) {
         if (std::addressof(*this) == std::addressof(src)) {
@@ -741,7 +741,7 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
         // produces an rvalue or lvalue allocator to match -- so move- vs
         // copy-assign of `m_alloc` does not need to be spelled out separately.
         constexpr bool propagate_alloc =
-            PropagateAllocator &&
+            propagation == detail::allocator_propagation::propagate &&
             (std::is_lvalue_reference_v<Src> ? alloc_traits::propagate_on_container_copy_assignment::value
                                              : alloc_traits::propagate_on_container_move_assignment::value);
 
@@ -1916,13 +1916,13 @@ constexpr detail::common_big_int_type<L, R> operator+(L&& x, R&& y) {
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
         Result r{detail::result_allocator<Result>(x, y)};
-        r.template assign_value<false>(x, !x.is_representation_inplace());
+        r.template assign_value<detail::allocator_propagation::no_propagate>(x, !x.is_representation_inplace());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), detail::integer_signbit(y));
         return r;
     } else if constexpr (form == detail::binary_op_form::int_copy) {
         Result r{detail::result_allocator<Result>(x, y)};
-        r.template assign_value<false>(y, !y.is_representation_inplace());
+        r.template assign_value<detail::allocator_propagation::no_propagate>(y, !y.is_representation_inplace());
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
         return r;
@@ -1985,13 +1985,13 @@ constexpr detail::common_big_int_type<L, R> operator-(L&& x, R&& y) {
         return r;
     } else if constexpr (form == detail::binary_op_form::copy_int) {
         Result r{detail::result_allocator<Result>(x, y)};
-        r.template assign_value<false>(x, !x.is_representation_inplace());
+        r.template assign_value<detail::allocator_propagation::no_propagate>(x, !x.is_representation_inplace());
         const auto y_limbs = detail::to_limbs(detail::uabs(y));
         r.add_in_place(detail::to_fixed_span(y_limbs), !detail::integer_signbit(y));
         return r;
     } else if constexpr (form == detail::binary_op_form::int_copy) {
         Result r{detail::result_allocator<Result>(x, y)};
-        r.template assign_value<false>(y, !y.is_representation_inplace());
+        r.template assign_value<detail::allocator_propagation::no_propagate>(y, !y.is_representation_inplace());
         r.negate();
         const auto x_limbs = detail::to_limbs(detail::uabs(x));
         r.add_in_place(detail::to_fixed_span(x_limbs), detail::integer_signbit(x));
@@ -2115,7 +2115,7 @@ constexpr std::remove_cvref_t<T> operator<<(T&& x, const S s) {
         const std::size_t headroom = shifted_limbs + static_cast<std::size_t>(needs_extra);
 
         Result r{detail::result_allocator<Result>(x, s)};
-        r.template assign_value<false>(x, headroom);
+        r.template assign_value<detail::allocator_propagation::no_propagate>(x, headroom);
         r.shift_left(shift);
         return r;
     }
@@ -2229,7 +2229,7 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, const S s) {
 
         // Case 3: Make a full copy and shift
         Result r{alloc};
-        r.template assign_value<false>(x);
+        r.template assign_value<detail::allocator_propagation::no_propagate>(x);
         r.shift_right(shift);
         return r;
     }
