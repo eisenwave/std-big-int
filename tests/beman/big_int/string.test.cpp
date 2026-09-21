@@ -3,10 +3,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <random>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -773,6 +776,153 @@ TEST(ToWString, Po2RoundTrip) {
             EXPECT_EQ(to_wstring(parse(ns, base), base), widen(ns)) << "negative base=" << base << " len=" << len;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// The rvalue to_string / to_wstring overloads. Both render through the to_chars
+// overload that consumes its operand, so a value the caller hands over is
+// divided down in place rather than copied first. The text must be identical
+// either way, which is what these checks pin down.
+// ---------------------------------------------------------------------------
+
+// Pointers whose target types can only be one overload each. If an rvalue
+// overload went missing, the const-reference one could not initialize the
+// corresponding pointer, so these four initializations alone are a compile-time
+// regression net. Selection then follows from overload resolution: a non-const
+// rvalue argument always prefers the rvalue-reference parameter.
+using to_string_rvalue_t                        = std::string (*)(big_int&&, int);
+using to_string_lvalue_t                        = std::string (*)(const big_int&, int);
+using to_wstring_rvalue_t                       = std::wstring (*)(big_int&&, int);
+using to_wstring_lvalue_t                       = std::wstring (*)(const big_int&, int);
+constexpr to_string_rvalue_t  to_string_rvalue  = &to_string;
+constexpr to_string_lvalue_t  to_string_lvalue  = &to_string;
+constexpr to_wstring_rvalue_t to_wstring_rvalue = &to_wstring;
+constexpr to_wstring_lvalue_t to_wstring_lvalue = &to_wstring;
+
+// Spans every to_chars dispatch reachable from to_string: zero, the single-limb
+// delegation, the two-limb boundary, magnitudes deep enough for the repeated
+// division ladder, and both signs of each.
+[[nodiscard]] std::vector<big_int> rvalue_sample_values() {
+    std::vector<big_int> values{
+        0,
+        1,
+        -1,
+        255,
+        -255,
+        big_int{std::numeric_limits<std::uint64_t>::max()},
+        1_n << 64,
+        (1_n << 128) - 1,
+        1_n << 128,
+        -(1_n << 128),
+        1_n << 200,
+        -((1_n << 200) + 12345),
+        1_n << 1000,
+        -(1_n << 1000),
+    };
+    values.push_back(parse("1234567890123456789012345678901234567890112233445566778899", 10));
+    values.push_back(-values.back());
+    return values;
+}
+
+TEST(ToStringRvalue, BothOverloadsAreCallable) {
+    const big_int value = 1_n << 200;
+    EXPECT_EQ(to_string_rvalue(big_int{value}, 10), to_string_lvalue(value, 10));
+    EXPECT_EQ(to_wstring_rvalue(big_int{value}, 10), to_wstring_lvalue(value, 10));
+    EXPECT_EQ(to_string_rvalue(big_int{value}, 10), "1606938044258990275541962092341162602522202993782792835301376");
+}
+
+TEST(ToStringRvalue, MatchesLvalueInEveryBase) {
+    for (const big_int& value : rvalue_sample_values()) {
+        for (int base = 2; base <= 36; ++base) {
+            const std::string expected = to_string(value, base);
+            EXPECT_EQ(to_string(big_int{value}, base), expected) << "base=" << base;
+            EXPECT_EQ(to_wstring(big_int{value}, base), widen(expected)) << "base=" << base;
+        }
+    }
+}
+
+TEST(ToStringRvalue, LvalueOverloadLeavesArgumentUnchanged) {
+    for (const big_int& original : rvalue_sample_values()) {
+        big_int value = original;
+        for (int base = 2; base <= 36; ++base) {
+            const std::string narrow = to_string(value, base);
+            EXPECT_EQ(value, original) << "base=" << base;
+            const std::wstring wide = to_wstring(value, base);
+            EXPECT_EQ(value, original) << "base=" << base;
+            EXPECT_EQ(wide, widen(narrow)) << "base=" << base;
+        }
+    }
+}
+
+TEST(ToStringRvalue, DefaultBaseIsTen) {
+    EXPECT_EQ(to_string(big_int{255}), "255");
+    EXPECT_EQ(to_string(big_int{-255}), "-255");
+    EXPECT_EQ(to_string(1_n << 64), "18446744073709551616");
+    EXPECT_EQ(to_wstring(big_int{255}), L"255");
+    EXPECT_EQ(to_wstring(big_int{-255}), L"-255");
+    EXPECT_EQ(to_wstring(1_n << 64), L"18446744073709551616");
+}
+
+TEST(ToStringRvalue, Zero) {
+    for (int base = 2; base <= 36; ++base) {
+        EXPECT_EQ(to_string(big_int{0}, base), "0") << "base=" << base;
+        EXPECT_EQ(to_wstring(big_int{0}, base), L"0") << "base=" << base;
+    }
+}
+
+// Whatever state the call leaves behind, assignment restores a usable value.
+TEST(ToStringRvalue, HandedOverValueRemainsUsable) {
+    for (const int base : {10, 16}) {
+        big_int handed_over = 1_n << 128;
+        EXPECT_EQ(to_string(std::move(handed_over), base), to_string(1_n << 128, base)) << "base=" << base;
+
+        handed_over = 42;
+        EXPECT_EQ(handed_over, big_int{42});
+        EXPECT_EQ(to_string(handed_over), "42");
+    }
+}
+
+// The same large-input coverage as the lvalue round-trips above, driven through
+// the consuming overloads: past both the sub-quadratic kernel's gate and, for
+// the power-of-two bases, the direct bit-packing path.
+TEST(ToStringRvalue, FastPathRoundTrip) {
+    for (const int base : {3, 7, 10, 26, 36}) {
+        for (const std::size_t len : {std::size_t{2000}, std::size_t{25000}}) {
+            const std::uint64_t seed = static_cast<std::uint64_t>(base) * 1000003u + static_cast<std::uint64_t>(len);
+            const std::string   s    = random_digit_string(len, base, seed);
+
+            EXPECT_EQ(to_string(parse(s, base), base), s) << "base=" << base << " len=" << len;
+            EXPECT_EQ(to_wstring(parse(s, base), base), widen(s)) << "base=" << base << " len=" << len;
+
+            const std::string ns = "-" + s;
+            EXPECT_EQ(to_string(parse(ns, base), base), ns) << "negative base=" << base << " len=" << len;
+            EXPECT_EQ(to_wstring(parse(ns, base), base), widen(ns)) << "negative base=" << base << " len=" << len;
+        }
+    }
+}
+
+TEST(ToStringRvalue, Po2RoundTrip) {
+    for (const int base : {2, 8, 16, 32}) {
+        for (const std::size_t len : {std::size_t{200}, std::size_t{5000}}) {
+            const std::uint64_t seed = static_cast<std::uint64_t>(base) * 7919u + static_cast<std::uint64_t>(len);
+            const std::string   s    = random_digit_string(len, base, seed);
+
+            EXPECT_EQ(to_string(parse(s, base), base), s) << "base=" << base << " len=" << len;
+            EXPECT_EQ(to_wstring(parse(s, base), base), widen(s)) << "base=" << base << " len=" << len;
+        }
+    }
+}
+
+// The consuming path mutates its operand, which is exactly the kind of thing a
+// constant evaluator rejects when it is done to something it should not be.
+TEST(ToStringRvalue, ConstantEvaluation) {
+    static_assert(to_string(big_int{255}, 16) == "ff");
+    static_assert(to_string(big_int{-255}, 16) == "-ff");
+    static_assert(to_string(big_int{0}) == "0");
+    static_assert(to_string(1_n << 200) == "1606938044258990275541962092341162602522202993782792835301376");
+    static_assert(to_wstring(big_int{255}, 16) == L"ff");
+    static_assert(to_wstring(big_int{-255}, 16) == L"-ff");
+    static_assert(to_wstring(1_n << 200) == L"1606938044258990275541962092341162602522202993782792835301376");
 }
 
 } // namespace

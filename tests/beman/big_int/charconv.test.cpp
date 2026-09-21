@@ -3,8 +3,13 @@
 
 #include <string_view>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <random>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -908,6 +913,195 @@ TEST(ToChars, FastPathValueTooLarge) {
     const auto [p, ec] = to_chars(buf.data(), buf.data() + buf.size(), v, base);
     EXPECT_EQ(ec, std::errc::value_too_large);
     EXPECT_EQ(p, buf.data() + buf.size());
+}
+
+// ---------------------------------------------------------------------------
+// The rvalue `to_chars` overload. A value the caller hands over is rendered by
+// dividing it down in place instead of copying its magnitude first, so every
+// check below pairs a consuming call against the same render through the
+// lvalue overload: the two must agree character for character, and the lvalue
+// overload must leave its argument untouched.
+// ---------------------------------------------------------------------------
+
+// Pointers whose target types can only be one overload each. If the rvalue
+// overload went missing, the const-reference one could not initialize
+// `to_chars_rvalue` (a `const big_int&` parameter cannot bind to `big_int&&`),
+// so this alone is a compile-time regression net for its existence. Selection
+// then follows from overload resolution: a non-const rvalue argument always
+// prefers the rvalue-reference parameter over the const lvalue reference.
+using to_chars_rvalue_t                     = std::to_chars_result (*)(char*, char*, big_int&&, int);
+using to_chars_lvalue_t                     = std::to_chars_result (*)(char*, char*, const big_int&, int);
+constexpr to_chars_rvalue_t to_chars_rvalue = &to_chars;
+constexpr to_chars_lvalue_t to_chars_lvalue = &to_chars;
+
+// The widest rendering of a value is base 2, which needs one character per bit
+// plus one for the sign; zero needs one character and reports a width of zero.
+[[nodiscard]] constexpr std::size_t render_capacity(const big_int& value) { return value.size() + 2; }
+
+// Renders through the lvalue overload. `value` is left unchanged.
+[[nodiscard]] constexpr std::string render(const big_int& value, const int base) {
+    std::string buffer(render_capacity(value), '\0');
+    const auto [p, ec] = to_chars(buffer.data(), buffer.data() + buffer.size(), value, base);
+    if (ec != std::errc{}) {
+        throw std::runtime_error("to_chars did not succeed.");
+    }
+    buffer.resize(static_cast<std::size_t>(p - buffer.data()));
+    return buffer;
+}
+
+// Renders through the rvalue overload, handing the by-value parameter over.
+[[nodiscard]] constexpr std::string render_moved(big_int value, const int base) {
+    std::string buffer(render_capacity(value), '\0');
+    const auto [p, ec] = to_chars(buffer.data(), buffer.data() + buffer.size(), std::move(value), base);
+    if (ec != std::errc{}) {
+        throw std::runtime_error("to_chars did not succeed.");
+    }
+    buffer.resize(static_cast<std::size_t>(p - buffer.data()));
+    return buffer;
+}
+
+// Spans every to_chars dispatch: zero, the single-limb delegation to
+// std::to_chars, the two-limb boundary, magnitudes deep enough for the
+// repeated-division ladder, and both signs of each.
+[[nodiscard]] std::vector<big_int> rvalue_sample_values() {
+    std::vector<big_int> values{
+        0,
+        1,
+        -1,
+        255,
+        -255,
+        big_int{std::numeric_limits<std::uint64_t>::max()},
+        1_n << 64,
+        (1_n << 128) - 1,
+        1_n << 128,
+        -(1_n << 128),
+        1_n << 200,
+        -((1_n << 200) + 12345),
+        1_n << 1000,
+        -(1_n << 1000),
+    };
+    values.push_back(parse("1234567890123456789012345678901234567890112233445566778899", 10));
+    values.push_back(-values.back());
+    return values;
+}
+
+// Calling through the two pointers renders the same value the same way, which
+// keeps them live rather than leaving them as unused compile-time probes.
+TEST(ToCharsRvalue, BothOverloadsAreCallable) {
+    const big_int value = 1_n << 200;
+
+    std::string through_rvalue(render_capacity(value), '\0');
+    const auto [p_rvalue, ec_rvalue] =
+        to_chars_rvalue(through_rvalue.data(), through_rvalue.data() + through_rvalue.size(), big_int{value}, 10);
+    ASSERT_EQ(ec_rvalue, std::errc{});
+    through_rvalue.resize(static_cast<std::size_t>(p_rvalue - through_rvalue.data()));
+
+    std::string through_lvalue(render_capacity(value), '\0');
+    const auto [p_lvalue, ec_lvalue] =
+        to_chars_lvalue(through_lvalue.data(), through_lvalue.data() + through_lvalue.size(), value, 10);
+    ASSERT_EQ(ec_lvalue, std::errc{});
+    through_lvalue.resize(static_cast<std::size_t>(p_lvalue - through_lvalue.data()));
+
+    EXPECT_EQ(through_rvalue, through_lvalue);
+    EXPECT_EQ(through_rvalue, "1606938044258990275541962092341162602522202993782792835301376");
+}
+
+TEST(ToCharsRvalue, MatchesLvalueInEveryBase) {
+    for (const big_int& value : rvalue_sample_values()) {
+        for (int base = 2; base <= 36; ++base) {
+            EXPECT_EQ(render_moved(value, base), render(value, base)) << "base=" << base;
+        }
+    }
+}
+
+TEST(ToCharsRvalue, LvalueOverloadLeavesArgumentUnchanged) {
+    for (const big_int& original : rvalue_sample_values()) {
+        big_int value = original;
+        for (int base = 2; base <= 36; ++base) {
+            const std::string text = render(value, base);
+            EXPECT_EQ(value, original) << "base=" << base;
+            EXPECT_EQ(text, render(original, base)) << "base=" << base;
+        }
+    }
+}
+
+// The rvalue overload reports the same failure as the lvalue one when the range
+// is too small, including partway through the consuming division loop.
+TEST(ToCharsRvalue, ValueTooLarge) {
+    const big_int values[]{
+        255,
+        -255,
+        1_n << 128,
+        -(1_n << 128),
+        1_n << 1000,
+    };
+    for (const big_int& value : values) {
+        for (int base = 2; base <= 36; ++base) {
+            const std::size_t full = render(value, base).size();
+
+            char empty_range;
+            const auto [p0, ec0] = to_chars(&empty_range, &empty_range, big_int{value}, base);
+            EXPECT_EQ(ec0, std::errc::value_too_large) << "base=" << base;
+            EXPECT_EQ(p0, &empty_range);
+
+            std::string buffer(full - 1, '\0'); // one character short of the full rendering
+            const auto [p1, ec1] = to_chars(buffer.data(), buffer.data() + buffer.size(), big_int{value}, base);
+            EXPECT_EQ(ec1, std::errc::value_too_large) << "base=" << base;
+            EXPECT_EQ(p1, buffer.data() + buffer.size()) << "base=" << base;
+        }
+    }
+}
+
+TEST(ToCharsRvalue, FastPathMatchesLvalue) {
+    for (const int base : {3, 10, 16, 36}) {
+        const std::string digits = random_digit_string(25000, base, static_cast<std::uint64_t>(base) * 31u);
+        const big_int     value  = parse(digits, base);
+
+        EXPECT_EQ(render_moved(value, base), digits) << "base=" << base;
+
+        const big_int negative = -value;
+        EXPECT_EQ(render_moved(negative, base), "-" + digits) << "base=" << base;
+    }
+}
+
+// The repeated-division ladder is the only path that consumes its operand, and
+// it is reached by a multi-limb magnitude in a non-power-of-two base below the
+// sub-quadratic kernel's gate. A power-of-two base reads the limbs directly and
+// a large enough magnitude goes through the kernel, so neither touches the
+// operand -- but all three leave it in a state the caller may still use, which
+// is the whole of what the rvalue overload promises about it.
+TEST(ToCharsRvalue, HandedOverValueRemainsUsable) {
+    struct {
+        big_int value;
+        int     base;
+    } const cases[]{
+        {1_n << 128, 10},  // repeated division: consumes the operand
+        {1_n << 128, 16},  // power of two: reads the limbs in place
+        {1_n << 25000, 10} // past the gate: the sub-quadratic kernel renders it
+    };
+
+    for (const auto& [value, base] : cases) {
+        big_int           handed_over = value;
+        const std::string expected    = render(value, base);
+        EXPECT_EQ(render_moved(std::move(handed_over), base), expected) << "base=" << base;
+
+        // Whatever state the call left behind, assignment restores a usable value.
+        handed_over = 42;
+        EXPECT_EQ(handed_over, big_int{42});
+        EXPECT_EQ(render(handed_over, 10), "42");
+    }
+}
+
+// The consuming path mutates its operand, which is exactly the kind of thing a
+// constant evaluator rejects when it is done to something it should not be.
+TEST(ToCharsRvalue, ConstantEvaluation) {
+    static_assert(render_moved(big_int{255}, 16) == "ff");
+    static_assert(render_moved(big_int{-255}, 16) == "-ff");
+    static_assert(render_moved(big_int{0}, 10) == "0");
+    static_assert(render_moved(1_n << 200, 10) == "1606938044258990275541962092341162602522202993782792835301376");
+    static_assert(render_moved(-(1_n << 200), 7) ==
+                  "-141246066533632643213232344050606053061443446006544361632102630555343054");
+    static_assert(render_moved(1_n << 200, 32) == "10000000000000000000000000000000000000000");
 }
 
 } // namespace
