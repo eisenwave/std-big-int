@@ -175,6 +175,30 @@ result_is_ok: true
 ----
 ====
 
+[#examples_limits]
+=== Numeric limits
+
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/limits.cpp[example] demonstrates the `std::numeric_limits` specialization in `<beman/big_int/limits.hpp>`: what it reports for an unbounded type, why `is_bounded` rather than `max()` is the member to test, and how a single template can serve `big_int` and a built-in integer alike
+====
+[source, c++]
+----
+include::example$limits.cpp[]
+----
+
+.Expected Output
+[listing]
+----
+int32_t range: -2147483648 .. 2147483647
+big_int range: unbounded
+
+digits:        2147483647
+digits10:      646456992
+max_digits10:  646456994
+
+result_is_ok: true
+----
+====
+
 [#examples_division]
 === Integer division
 
