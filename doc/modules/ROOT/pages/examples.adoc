@@ -103,7 +103,7 @@ result_is_ok: true
 [#examples_charconv]
 === Numeric conversions
 
-.This https://github.com/eisenwave/std-big-int/blob/main/examples/charconv.cpp[example] demonstrates parsing a `beman::big_int` from text with `from_chars` and rendering it back with `to_chars`
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/charconv.cpp[example] demonstrates parsing a `beman::big_int` from text with `from_chars` and rendering it back with `to_chars`, including the `to_chars` overload that takes the value over
 ====
 [source, c++]
 ----
@@ -123,7 +123,7 @@ result_is_ok: true
 [#examples_string]
 === String conversions
 
-.This https://github.com/eisenwave/std-big-int/blob/main/examples/string.cpp[example] demonstrates rendering a `beman::big_int` to a `std::string` with `to_string` and to a `std::wstring` with `to_wstring`
+.This https://github.com/eisenwave/std-big-int/blob/main/examples/string.cpp[example] demonstrates rendering a `beman::big_int` to a `std::string` with `to_string` and to a `std::wstring` with `to_wstring`, including the overloads that take the value over
 ====
 [source, c++]
 ----

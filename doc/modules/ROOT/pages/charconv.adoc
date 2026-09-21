@@ -21,6 +21,9 @@ namespace beman::big_int {
 template <std::size_t b, class L, class A>
 constexpr std::to_chars_result
 to_chars(char* first, char* last, const basic_big_int<b, L, A>& value, int base = 10);
+template <std::size_t b, class L, class A>
+constexpr std::to_chars_result
+to_chars(char* first, char* last, basic_big_int<b, L, A>&& value, int base = 10);
 
 template <std::size_t b, class L, class A>
 constexpr std::from_chars_result
@@ -42,19 +45,47 @@ consumed, and no leading whitespace is skipped.
 template <std::size_t b, class L, class A>
 constexpr std::to_chars_result
 to_chars(char* first, char* last, const basic_big_int<b, L, A>& value, int base = 10);
+template <std::size_t b, class L, class A>
+constexpr std::to_chars_result
+to_chars(char* first, char* last, basic_big_int<b, L, A>&& value, int base = 10);
 ----
 
 Writes the integer value of `value` into the character range `[first, last)`,
 in the given `base`, as if by repeated division. The magnitude is written with
 no leading zeros, except that a value of zero is written as the single
 character `0`. A negative value is prefixed with a `-`; non-negative values are
-written with no sign. No null terminator is written.
+written with no sign. No null terminator is written. An lvalue, and a const
+rvalue, select the first overload; a non-const rvalue selects the second.
+
+Both overloads write exactly the same characters. They differ only in what they
+may do to `value` along the way. The repeated-division path divides the
+magnitude down one limb-sized block of digits at a time, which destroys it, so
+the lvalue overload renders a copy; the rvalue overload, having been handed the
+value, divides down the storage `value` already owns and allocates nothing.
+
+That path is the only one that consumes anything, and it is reached only by a
+magnitude spanning more than one limb, in a base that is not a power of two,
+and below the size at which the sub-quadratic conversion kernel takes over. A
+power-of-two base reads the limbs directly, a single-limb magnitude is handed
+to `std::to_chars`, and a magnitude past the kernel's gate is rendered from a
+read-only view of the limbs. In those three cases the rvalue overload does no
+less work than the lvalue one -- but no more either, so handing the value over
+is never the worse choice when the caller is finished with it:
+
+[source,c++]
+----
+big_int     x = (1_n << 512) + 1; // 155 decimal digits: the repeated-division path
+std::string text(160, '\0');
+
+to_chars(text.data(), text.data() + text.size(), x, 10);            // Copies; x still holds 2^512 + 1.
+to_chars(text.data(), text.data() + text.size(), std::move(x), 10); // Divides x down where it already lives.
+----
 
 * *Preconditions:* `[first, last)` is a valid range, and `2 \<= base \<= 36`.
-* *Postconditions:* None.
+* *Postconditions:* For the lvalue overload, `value` is unchanged. For the rvalue overload, `value` is in a valid but unspecified state, whether or not the call succeeded.
 * *Returns:* A `std::to_chars_result`. On success, `ec == std::errc{}` and `ptr` is the one-past-the-end pointer of the characters written. If the range is too small to hold the full representation, `ec == std::errc::value_too_large`, `ptr == last`, and the contents of `[first, last)` are unspecified.
 * *Throws:* Nothing.
-* *Remarks:* The function is usable in a constant expression. When the magnitude fits in a single limb (or, where wider, in a `std::uintmax_t`) the conversion is delegated to `std::to_chars`; larger magnitudes use the library's own multiprecision conversion.
+* *Remarks:* Both overloads are usable in a constant expression. When the magnitude fits in a single limb (or, where wider, in a `std::uintmax_t`) the conversion is delegated to `std::to_chars`; larger magnitudes use the library's own multiprecision conversion.
 
 [#charconv_from_chars]
 == `from_chars`
