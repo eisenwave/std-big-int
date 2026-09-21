@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception -->
+<!-- SPDX-License-Identifier: BSL-1.0 -->
+<!--
+  NATVIS visualizer for beman::big_int::basic_big_int<min_inplace_bits, Limb, Allocator>,
+  and therefore also for the beman::big_int::big_int and beman::big_int::pmr::big_int
+  aliases (Natvis matches the class template, not the alias).
+
+  Layout (see include/beman/big_int/big_int.hpp):
+      class basic_big_int {
+          std::uint32_t m_capacity;      // 0 = in-place storage, >0 = heap capacity
+          std::uint32_t m_size_and_sign; // bit 31 = sign, bits 0-30 = limb count
+          union {
+              pointer   data;                     // live when m_capacity >  0
+              limb_type limbs[inplace_capacity];  // live when m_capacity == 0
+          } m_storage;
+          [[no_unique_address]] Allocator m_alloc;
+      };
+
+  The magnitude is little-endian across the limb array (limb 0 is least
+  significant). The sign bit is never set when the magnitude is zero.
+
+  Natvis has no arbitrary-precision arithmetic, so the summary is decimal only
+  when the magnitude fits in 64 bits, and zero-padded hexadecimal otherwise.
+  Values wider than four limbs are abbreviated; expand [limbs] for the rest.
+-->
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="beman::big_int::basic_big_int&lt;*,*,*&gt;">
+
+    <Intrinsic Name="count" Expression="(unsigned int)(m_size_and_sign &amp; 0x7FFFFFFF)"/>
+    <Intrinsic Name="neg" Expression="(m_size_and_sign &amp; 0x80000000) != 0"/>
+    <Intrinsic Name="limb_bits" Expression="(unsigned int)(8 * sizeof(m_storage.limbs[0]))"/>
+    <!-- Little-endian limb array, wherever it currently lives. -->
+    <Intrinsic Name="mag" Expression="m_capacity == 0 ? &amp;m_storage.limbs[0] : m_storage.data"/>
+    <!-- One 64-bit limb, or two 32-bit ones: the only magnitudes Natvis can print in decimal. -->
+    <Intrinsic Name="fits64" Expression="count() == 1 || (count() == 2 &amp;&amp; limb_bits() == 32)"/>
+    <Intrinsic Name="value64"
+               Expression="count() == 1
+                               ? (unsigned __int64)mag()[0]
+                               : ((unsigned __int64)mag()[0] | ((unsigned __int64)mag()[1] &lt;&lt; 32))"/>
+
+    <DisplayString Condition="count() == 1 &amp;&amp; mag()[0] == 0">0</DisplayString>
+
+    <DisplayString Condition="fits64() &amp;&amp; !neg()">{value64()}</DisplayString>
+    <DisplayString Condition="fits64() &amp;&amp; neg()">-{value64()}</DisplayString>
+
+    <DisplayString Condition="count() == 2 &amp;&amp; !neg()">0x{mag()[1],Xb}{mag()[0],Xb}</DisplayString>
+    <DisplayString Condition="count() == 2 &amp;&amp; neg()">-0x{mag()[1],Xb}{mag()[0],Xb}</DisplayString>
+
+    <DisplayString Condition="count() == 3 &amp;&amp; !neg()">0x{mag()[2],Xb}{mag()[1],Xb}{mag()[0],Xb}</DisplayString>
+    <DisplayString Condition="count() == 3 &amp;&amp; neg()">-0x{mag()[2],Xb}{mag()[1],Xb}{mag()[0],Xb}</DisplayString>
+
+    <DisplayString Condition="count() == 4 &amp;&amp; !neg()">0x{mag()[3],Xb}{mag()[2],Xb}{mag()[1],Xb}{mag()[0],Xb}</DisplayString>
+    <DisplayString Condition="count() == 4 &amp;&amp; neg()">-0x{mag()[3],Xb}{mag()[2],Xb}{mag()[1],Xb}{mag()[0],Xb}</DisplayString>
+
+    <!-- Too wide to spell out: show the most and least significant limbs only. -->
+    <DisplayString Condition="!neg()">0x{mag()[count() - 1],Xb}...{mag()[0],Xb} ({count()} limbs)</DisplayString>
+    <DisplayString>-0x{mag()[count() - 1],Xb}...{mag()[0],Xb} ({count()} limbs)</DisplayString>
+
+    <Expand>
+      <Item Name="[negative]">neg()</Item>
+      <Item Name="[limb_count]">count()</Item>
+      <Item Name="[limb_bits]">limb_bits()</Item>
+
+      <Synthetic Name="[storage]" Condition="m_capacity == 0">
+        <DisplayString>in-place, capacity {(unsigned int)(sizeof(m_storage.limbs) / sizeof(m_storage.limbs[0]))} limbs</DisplayString>
+      </Synthetic>
+      <Synthetic Name="[storage]" Condition="m_capacity != 0">
+        <DisplayString>heap {m_storage.data}, capacity {m_capacity} limbs</DisplayString>
+      </Synthetic>
+
+      <Synthetic Name="[limbs]">
+        <DisplayString>little-endian, [0] is least significant</DisplayString>
+        <Expand>
+          <ArrayItems>
+            <Size>count()</Size>
+            <ValuePointer>mag()</ValuePointer>
+          </ArrayItems>
+        </Expand>
+      </Synthetic>
+
+      <Item Name="[allocator]" Optional="true">m_alloc</Item>
+    </Expand>
+
+  </Type>
+
+</AutoVisualizer>

@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# SPDX-License-Identifier: BSL-1.0
+#
+# Artifacts of extra/big_int_printer_msvc.bat.
+/big_int_printer_msvc.dll
+/big_int_printer_msvc.exp
+/big_int_printer_msvc.lib
+/big_int_printer_msvc.pdb
+/*.obj

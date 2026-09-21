@@ -1,0 +1,301 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#debugging]
+= Debugger Visualizers
+:idprefix: debugging_
+
+Raw, a `big_int` is four packed fields: a capacity, a size-and-sign word, a union
+that is either an in-place limb array or a heap pointer, and a possibly-empty
+allocator. None of that tells you the number you are looking at. This page covers
+the visualizers shipped in the `extra/` directory that render a `big_int` as its
+value instead.
+
+[cols="1,2,2", options="header"]
+|===
+| Debugger | Files | Summary format
+
+| Visual Studio, VS Code (`cppvsdbg`)
+| `extra/big_int.natvis`
+| decimal to 64 bits, hexadecimal beyond
+
+| Visual Studio, VS Code (`cppvsdbg`)
+| `extra/big_int_printer_msvc.natvis` + `big_int_printer_msvc.dll`
+| full decimal or hexadecimal, any width
+
+| LLDB
+| `extra/big_int_printer_lldb.py`
+| full decimal, any width
+
+| GDB
+| `extra/big_int_printer_gdb.py`
+| full decimal, any width
+|===
+
+All of them visualize the class template `basic_big_int`, so they cover
+`beman::big_int::big_int`, `beman::big_int::pmr::big_int`, and any other
+instantiation, whatever its limb type or in-place width.
+
+[#debugging_natvis]
+== MSVC and Visual Studio: Natvis
+
+https://learn.microsoft.com/visualstudio/debugger/create-custom-views-of-native-objects[Natvis]
+is the mechanism the Visual Studio native debugger uses to render types in the
+*Locals*, *Autos*, and *Watch* windows and in DataTips; it also drives the
+`cppvsdbg` debugger in the VS Code pass:[C++] extension.
+
+Natvis matches class templates and not alias declarations, so both visualizers
+register `beman::big_int::basic_big_int<*,*,*>`, which is what makes the
+`big_int` and `pmr::big_int` aliases display correctly as well.
+
+There are two of them because Natvis alone cannot render a big integer in
+decimal. Natvis expressions are evaluated by the debugger using the target's own
+integer types, they cannot call functions, and there is no arbitrary-precision
+arithmetic available to them. Converting a magnitude of arbitrary width to base
+ten requires running real code.
+
+Choose between them:
+
+`extra/big_int.natvis`::
+Self-contained. No DLL, nothing to build, works the moment the file is loaded.
+Renders exact decimal while the magnitude fits in 64 bits, and zero-padded
+hexadecimal above that. Embedded automatically by this project's CMake, so for
+most debugging sessions it is already there.
+
+`extra/big_int_printer_msvc.natvis`::
+Delegates the summary to `big_int_printer_msvc.dll`, an expression-evaluator
+add-in built from `extra/big_int_printer_msvc.cpp`. The add-in reads the limbs
+out of the process being debugged, rebuilds the value, and runs it through
+`to_chars`. The result is exact decimal at any width. Needs the DLL to be built
+and reachable by the debugger.
+
+[WARNING]
+====
+Load one or the other, not both. Both register the same type, and when two
+visualizer entries match equally it is unspecified which one the debugger uses.
+====
+
+[#debugging_natvis_plain]
+=== The self-contained visualizer
+
+Pick whichever of these fits your build; any one is sufficient.
+
+Built from this project's CMake (automatic)::
+When `beman.big_int` is consumed from its build tree -- `add_subdirectory`,
+`FetchContent`, or a build directory used directly -- and the compiler is MSVC,
+the CMake target adds `/NATVIS:<path>/extra/big_int.natvis` as an `INTERFACE`
+link option for the `Debug` and `RelWithDebInfo` configurations. The linker then
+embeds the visualizer in the PDB of your executable or DLL, and the debugger
+picks it up with no further setup. Only the link of a final binary can embed a
+`.natvis`, which is why the option is `INTERFACE` rather than applied to the
+static library itself. Configurations that emit no PDB are excluded because
+`/NATVIS:` needs one.
+
+Your own project or solution::
+Add `big_int.natvis` to a pass:[C++] project (*Add* > *Existing Item*, or an
+`<Natvis Include="big_int.natvis" />` item in the `.vcxproj`). Visual Studio
+loads `.natvis` files from loaded projects automatically and, by default, also
+embeds them in the built PDB.
+
+Your own link command::
+Pass `/NATVIS:path\to\big_int.natvis` to `link.exe` when linking an executable or
+DLL with `/DEBUG`. This is what the CMake integration above does.
+
+Per user, for every solution::
+Copy `big_int.natvis` into `%USERPROFILE%\Documents\Visual Studio 2022\Visualizers\`
+(substituting your Visual Studio version). Files there apply to every project you
+debug.
+
+Machine-wide::
+Copy it into `<Visual Studio install folder>\Common7\Packages\Debugger\Visualizers\`.
+This needs administrator rights.
+
+After `cmake --install`, the file is also at
+`<prefix>/share/beman.big_int/big_int.natvis`.
+
+Its summary is the value of the integer, signed:
+
+[cols="2,1,2", options="header"]
+|===
+| Value | Storage | Summary
+
+| `big_int b{12345}` | in-place | `12345`
+| `big_int c{-12345}` | in-place | `-12345`
+| `big_int z{}` | in-place | `0`
+| `big_int f{7}` after `f.reserve(4096)` | heap | `7`
+| a four-limb value | heap | `0x93A1...0F2C4B71` (all four limbs, zero-padded)
+| a forty-limb value | heap | `0x00C1...4E20 (40 limbs)`
+|===
+
+Exact decimal covers one limb in the default configuration and two in a
+32-bit-limb build. Wider values are shown as hexadecimal: fully, limb by limb, up
+to four limbs, and abbreviated to the most and least significant limb beyond
+that. Each limb is zero-padded to its full width, so the most significant limb of
+a large value carries leading zeros that a single hexadecimal numeral would not
+have.
+
+[#debugging_natvis_addin]
+=== The add-in DLL, for full decimal
+
+`extra/big_int_printer_msvc.cpp` builds into `big_int_printer_msvc.dll`, which
+the debugger loads and calls to produce the summary. It exports
+`formatter_big_int_dec` and `formatter_big_int_hex`; each one reads the
+representation header at the object's address, follows the heap pointer when the
+value is not stored in place, copies the limbs out of the debugged process,
+reconstructs the value locally, and formats it with `to_chars`.
+
+==== Building it
+
+With CMake, turn on the option and build the target:
+
+[source,bash]
+----
+cmake --preset msvc-release -DBEMAN_BIG_INT_BUILD_MSVC_DEBUGGER_ADDIN=ON
+cmake --build build/msvc-release --target beman.big_int.msvc_debugger_addin
+----
+
+The option is ignored on non-MSVC compilers. Without CMake, build the library
+first and hand the resulting `.lib` to the batch script:
+
+[source,bat]
+----
+extra\big_int_printer_msvc.bat path\to\beman.big_int.lib amd64
+----
+
+[IMPORTANT]
+====
+The add-in links this library's compiled kernels and reads the debuggee's memory
+layout directly, so it must be built for the *same architecture* and the *same
+options* -- limb width, `BEMAN_BIG_INT_SIMD_MUL` -- as the program you debug.
+====
+
+==== Installing it
+
+The debugger looks for the DLL named in the `.natvis` file's `LegacyAddin`
+attribute; put the DLL and the `.natvis` together in a Visualizers directory:
+
+[source,bash]
+----
+cmake --build build/msvc-release --target big_int_install_visualizers
+----
+
+That copies `big_int_printer_msvc.dll` and `big_int_printer_msvc.natvis` into
+`%USERPROFILE%\Documents\Visual Studio 2022\Visualizers\`. Point it somewhere
+else -- another Visual Studio version, or the machine-wide directory -- with
+`-DBEMAN_BIG_INT_VISUALIZERS_DIR=<path>`.
+
+`cmake --install` also places both files under
+`<prefix>/share/beman.big_int/`, for packaging them yourself.
+
+If the debugger reports that it cannot load the add-in, either put the DLL in the
+directory containing `devenv.exe` or on `PATH`, or edit the `LegacyAddin`
+attribute in `big_int_printer_msvc.natvis` to name the DLL by absolute path.
+
+Stop any running debug session before replacing the DLL: the debugger holds it
+open while it is loaded.
+
+==== What it displays
+
+The summary is the full value, however wide:
+
+[cols="2,2", options="header"]
+|===
+| Value | Summary
+
+| `big_int b{12345}` | `12345`
+| `big_int c{-12345}` | `-12345`
+| a 300-limb factorial | its complete decimal expansion, thousands of digits
+| the same value with `,hex` | `0x` followed by its complete hexadecimal expansion
+|===
+
+Add `,hex` to a *Watch* expression for hexadecimal, or `,dec` to force decimal;
+the default view is decimal. Values are truncated with a trailing `...` when they
+do not fit the buffer the debugger provides, keeping the most significant digits.
+
+[#debugging_natvis_expand]
+=== Expanding a value
+
+Both visualizers expand the same way, showing the decoded representation rather
+than the packed fields:
+
+----
+b   12345
+    [negative]   false
+    [limb_count] 1
+    [limb_bits]  64
+    [storage]    in-place, capacity 1 limbs
+    [limbs]      little-endian, [0] is least significant
+        [0]      12345
+    [allocator]  {...}
+    [Raw View]   {...}
+----
+
+`[limbs]` reads from whichever union member is live, so it is correct for both
+in-place and heap values, and `[Raw View]` is always there when you want the
+packed fields as they are stored.
+
+[#debugging_natvis_troubleshoot]
+=== When nothing changes
+
+If values still display as `{m_capacity=0 m_size_and_sign=1 ...}`, turn on Natvis
+diagnostics: *Tools* > *Options* > *Debugging* > *Output Window* > *Natvis
+diagnostic messages (C++ only)*, set to *Warning* or *Verbose*. Parse and
+evaluation errors are then reported in the *Output* window.
+
+Visual Studio reloads `.natvis` files from projects and from the Visualizers
+directories while you are debugging: edit the file, save it, and the debugger
+windows update. Run `.natvisreload` in the *Immediate* window if you edited it
+outside Visual Studio. A `.natvis` embedded in a PDB cannot be reloaded without
+relinking.
+
+[#debugging_natvis_limits]
+=== Limitations
+
+* Only allocators whose `std::allocator_traits<Allocator>::pointer` is a raw
+  pointer are supported. With a fancy-pointer allocator the visualizer fails to
+  evaluate and the debugger falls back to the raw field view.
+* Natvis rules embedded in a PDB apply only to the modules that PDB describes.
+* The add-in runs inside the debugger process. It returns a failure code rather
+  than throwing on anything that does not look like a live `big_int`, in which
+  case the debugger shows the raw field view.
+* The add-in summarizes rather than converts values wider than 65536 limbs, since
+  the conversion is synchronous and would otherwise stall the debugger's UI on a
+  runaway or uninitialized object.
+
+[#debugging_printers]
+== LLDB and GDB: Python pretty printers
+
+`extra/big_int_printer_lldb.py` and `extra/big_int_printer_gdb.py` are Python
+pretty printers. They read the limbs out of the target and reconstruct the value
+in Python, so like the add-in DLL, and unlike a plain `.natvis`, they print full
+decimal at any width -- with thousands separators.
+
+[source,text]
+----
+(lldb) command script import extra/big_int_printer_lldb.py
+----
+
+[source,text]
+----
+(gdb) source extra/big_int_printer_gdb.py
+----
+
+Add the same line, with an absolute path, to `~/.lldbinit` or `~/.gdbinit` to load
+it in every session. Neither script is loaded by the build automatically.
+
+A large value then prints as its full decimal expansion, with the packed fields
+still expandable underneath:
+
+----
+(beman::big_int::big_int) g = 30,877,890,463,284,318,779,200,455,886,624,330,043,260,257,791,495,576,751,883,077,282,378,867,085,585 {
+  m_capacity = 4
+  m_size_and_sign = 4
+  m_storage = {
+    data = 0x00000001005bdb70
+  }
+  m_alloc = {}
+}
+----
+
+These printers share the restriction to allocators with raw pointers: a
+fancy-pointer allocator yields an error string instead of a value.
