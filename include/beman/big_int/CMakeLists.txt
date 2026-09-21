@@ -15,6 +15,7 @@ target_sources(
                 copy_to_runtime.hpp
                 charconv.hpp
                 string.hpp
+                limits.hpp
                 literals.hpp
                 format.hpp
                 numeric.hpp
