@@ -205,10 +205,19 @@ static_assert(requires(const div_result<big_int>& d, const div_result<big_int>& 
     { d <=> e } -> std::same_as<std::strong_ordering>;
 });
 
-// ----- numeric_limits is deliberately NOT specialized: basic_big_int is unbounded -----
+// ----- numeric_limits -----
+//
+// The specialization is a partial specialization of a std template, reachable through
+// the module's purview exactly as std::hash and std::formatter are. basic_big_int is
+// unbounded, so it reports no bound; see <beman/big_int/limits.hpp>.
 
-static_assert(!std::numeric_limits<big_int>::is_specialized);
-static_assert(!std::numeric_limits<wide_int>::is_specialized);
+static_assert(std::numeric_limits<big_int>::is_specialized);
+static_assert(std::numeric_limits<wide_int>::is_specialized);
+static_assert(!std::numeric_limits<big_int>::is_bounded);
+static_assert(std::numeric_limits<big_int>::is_signed && std::numeric_limits<big_int>::is_integer &&
+              std::numeric_limits<big_int>::is_exact);
+static_assert(std::numeric_limits<big_int>::digits == (std::numeric_limits<int>::max)());
+static_assert((std::numeric_limits<big_int>::max)() == 0 && (std::numeric_limits<big_int>::min)() == 0);
 
 // ----- copy_to_runtime -----
 //

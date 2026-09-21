@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // SPDX-License-Identifier: BSL-1.0
 
-// The standard-library boundary: std::hash and std::formatter are partial
-// specializations of templates owned by <functional>/<format>, declared inside the
-// module purview and attached to the global module by the `extern "C++"` block in
-// big_int.cppm. What makes a specialization visible to an importer is reachability
+// The standard-library boundary: std::hash, std::numeric_limits and std::formatter
+// are partial specializations of templates owned by <functional>/<limits>/<format>,
+// declared inside the module purview and attached to the global module by the
+// `extern "C++"` block in big_int.cppm. What makes a specialization visible to an importer is reachability
 // rather than name lookup ([module.reach]), so this file is the regression test that
 // the compiler actually finds them from outside the module, plus the standard
 // concepts and algorithms that lean on the operators the other module tests already
@@ -143,18 +143,24 @@ TEST(StdIntegration, VectorElementAndRangesSort) {
 }
 
 // ============================================================================
-// std::numeric_limits is deliberately NOT specialized
+// std::numeric_limits
 // ============================================================================
+//
+// A third partial specialization of a std template declared in the module purview,
+// found from outside the module by reachability rather than by name lookup. The
+// values it reports are the subject of limits.test.cpp; what matters here is that an
+// importer sees the specialization at all, rather than the unspecialized primary.
 
-static_assert(!std::numeric_limits<big_int>::is_specialized);
-static_assert(!std::numeric_limits<basic_big_int<512>>::is_specialized);
+static_assert(std::numeric_limits<big_int>::is_specialized);
+static_assert(std::numeric_limits<basic_big_int<512>>::is_specialized);
 
-TEST(StdIntegration, NumericLimitsIsNotSpecialized) {
-    // basic_big_int is unbounded: there is no min()/max() to report, so the library
-    // deliberately provides no std::numeric_limits specialization. Asserted here (in
-    // addition to the static_asserts above) so a stray specialization added later does
-    // not slip by unnoticed.
-    EXPECT_FALSE(std::numeric_limits<big_int>::is_specialized);
+TEST(StdIntegration, NumericLimitsIsVisibleThroughTheModule) {
+    // The primary template reports is_specialized == false and digits == 0, so both
+    // checks fail if the importer falls back to it.
+    EXPECT_TRUE(std::numeric_limits<big_int>::is_specialized);
+    EXPECT_EQ(std::numeric_limits<big_int>::digits, (std::numeric_limits<int>::max)());
+    EXPECT_FALSE(std::numeric_limits<big_int>::is_bounded);
+    EXPECT_EQ((std::numeric_limits<big_int>::max)(), big_int{0});
 }
 
 } // namespace
