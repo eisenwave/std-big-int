@@ -125,7 +125,4 @@ target_link_libraries(
     PRIVATE GTest::gtest_main
 )
 beman_big_int_module_test_warnings(beman.big_int.tests.module.abi_compat)
-gtest_discover_tests(
-    beman.big_int.tests.module.abi_compat
-    DISCOVERY_TIMEOUT 60
-)
+gtest_discover_tests(beman.big_int.tests.module.abi_compat DISCOVERY_TIMEOUT 60)
