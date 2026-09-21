@@ -1,0 +1,325 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// SPDX-License-Identifier: BSL-1.0
+
+[#modules]
+= pass:[C++] Named Modules
+:idprefix: modules_
+
+`beman.big_int` can optionally be consumed as the named module `beman.big_int`,
+instead of by including headers:
+
+[source,c++]
+----
+import beman.big_int;
+----
+
+Module support is inert unless you build it and import it: nothing changes for
+the header-only consumer, and a header-based program can adopt the module one
+translation unit at a time -- see
+xref:modules.adoc#modules_limitations[Limitations].
+
+[#modules_exports]
+== What the module exports
+
+The module covers the entire public interface that `<beman/big_int.hpp>`
+provides. Importing it brings the following into scope, from the
+`beman::big_int` namespace unless noted otherwise:
+
+* The class template xref:big_int_type.adoc[`basic_big_int`] and its aliases
+  `big_int`, `pmr::basic_big_int`, and `pmr::big_int`, together with
+  xref:big_int_type.adoc#big_int_type_unit_multi_t[`uint_multiprecision_t`] and
+  `div_result`.
+* Every namespace-scope operator: the
+  xref:big_int_type.adoc#big_int_type_unary[unary operators],
+  xref:big_int_type.adoc#big_int_type_cmp[`==` and `<=>`], the
+  xref:big_int_type.adoc#big_int_type_binary[arithmetic, bitwise, and shift
+  operators], and the
+  xref:big_int_type.adoc#big_int_type_compound[compound assignment operators]
+  -- including the mixed overloads that take a built-in integer on either
+  side.
+* xref:charconv.adoc[`to_chars` and `from_chars`].
+* xref:string.adoc[`to_string` and `to_wstring`].
+* The xref:numeric.adoc[numeric functions] `abs`, `saturating_cast`,
+  `in_range`, `gcd`, `lcm`, and `midpoint`.
+* xref:big_int_type.adoc#big_int_type_swap[`swap`], both the member and the
+  non-member form.
+* `div_rem_to_zero` (see xref:examples.adoc#examples_division[the division
+  example]) and `copy_to_runtime`.
+* The four user-defined literal suffixes `n`, `N`, `_n`, and `_N`, declared in
+  `beman::big_int::literals::big_int_literals` and described in
+  xref:literals.adoc[User-Defined Literals].
+* The `std::hash` specialization
+  (xref:big_int_type.adoc#big_int_type_hash[Hash support]) and the
+  xref:format.adoc[`std::formatter` specialization].
+
+Everything in `beman::big_int::detail` is compiled into the module but is
+*not* exported: it is reachable from the module's own implementation but has
+no name outside it. See xref:modules.adoc#modules_limitations[Limitations].
+
+[#modules_build]
+== Building the module
+
+The module is off by default. Turn on `BEMAN_BIG_INT_BUILD_MODULE` (default
+`OFF`) to build it, alongside the ordinary headers and static library:
+
+[source,bash]
+----
+cmake --preset llvm-release -DBEMAN_BIG_INT_BUILD_MODULE=ON
+cmake --build build/llvm-release
+----
+
+or, in one step, use the dedicated workflow preset, which turns the option on
+and runs the module's tests:
+
+[source,bash]
+----
+cmake --workflow --preset llvm-release-module
+----
+
+Building this target needs more from the toolchain than the header build
+does: CMake 3.30 or later, and a generator that can scan module dependencies
+for you -- Ninja or Visual Studio. Unix Makefiles cannot build it.
+
+[IMPORTANT]
+====
+*AppleClang cannot build the module under CMake.* CMake's AppleClang support
+never defines the scan-dependencies variables the module build needs, and
+cmake-cxxmodules(7) does not list AppleClang among the compilers it supports.
+On macOS, either use the ordinary header build -- which every other part of
+this library supports there -- or install Homebrew LLVM and configure with an
+`llvm-*` preset to get a Clang that CMake's module scanning recognizes.
+====
+
+[NOTE]
+====
+The package installs the interface unit as *source* (`big_int.cppm`), not as
+a prebuilt binary module interface: CMake has no mechanism to consume an
+installed BMI across a package boundary. `find_package(beman.big_int)`
+followed by linking `beman::big_int_module` therefore recompiles the
+interface unit as part of building your own target, every time. This is
+expected, not a packaging omission -- it is what lets the module adapt to
+your own compiler's module format and flags.
+====
+
+See xref:modules.adoc#modules_limitations[Limitations] for the toolchains
+this configuration is tested against.
+
+[#modules_consume]
+== Consuming the module
+
+Bring in the package as usual and link the module target -- `beman.big_int_module`,
+aliased `beman::big_int_module`. Note the underscore: this is *not*
+`beman::big_int.module`.
+
+[source,cmake]
+----
+find_package(beman.big_int REQUIRED)
+
+add_executable(my_program main.cpp)
+target_link_libraries(my_program PRIVATE beman::big_int_module)
+----
+
+[TIP]
+====
+`beman::big_int_module` is a separate target from the header-only
+`beman::big_int`. Linking the latter does not make `import beman.big_int;`
+available, and a translation unit that imports the module must not also
+`#include` the library's headers -- see
+xref:modules.adoc#modules_limitations[Limitations].
+====
+
+A complete program, computing a product too large for any built-in integer
+type and inspecting it a few different ways:
+
+[source,c++]
+----
+import beman.big_int;
+
+#include <array>
+#include <format>
+#include <iostream>
+#include <string_view>
+
+auto main() -> int {
+    using namespace beman::big_int::literals;
+    using beman::big_int::big_int;
+
+    const big_int a = 123456789_n;
+    const big_int b = 987654321_n;
+
+    const big_int product = a * b;
+    const big_int mid      = midpoint(a, b);
+
+    std::array<char, 32> buffer{};
+    const auto            written = to_chars(buffer.data(), buffer.data() + buffer.size(), product);
+
+    std::cout << "product:  " << std::string_view(buffer.data(), written.ptr) << '\n'
+              << "midpoint: " << to_string(mid) << '\n'
+              << std::format("hex:      {:#x}\n", product);
+
+    return 0;
+}
+----
+
+`a`, `b`, and the literal suffix come from
+xref:literals.adoc[User-Defined Literals]; `midpoint` from
+xref:numeric.adoc[Numeric Functions]; `to_chars` from
+xref:charconv.adoc[`<charconv>` Conversions]; `to_string` from
+xref:string.adoc[String Conversions]; and `std::format` works because of the
+xref:format.adoc[`std::formatter` specialization]. Every one of them is found
+the same way whether the program imports the module or includes the headers:
+by argument-dependent lookup on the `basic_big_int` argument, or, for the
+formatter, through `std::format` itself.
+
+[#modules_import_std]
+== The `import std` variant
+
+The module's interface unit can be compiled against `import std;` instead of
+the standard library's headers, behind `BEMAN_BIG_INT_USE_STD_MODULE` (default
+`OFF`). This is a build-time choice about how the *library's own* interface
+unit is compiled, not something an importer selects at the point of use:
+
+[source,bash]
+----
+cmake --preset llvm-release \
+  -DBEMAN_BIG_INT_BUILD_MODULE=ON \
+  -DBEMAN_BIG_INT_USE_STD_MODULE=ON \
+  -DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD=<uuid-for-your-cmake-version> \
+  -DCMAKE_CXX_STDLIB_MODULES_JSON=/path/to/libc++.modules.json
+----
+
+`CMAKE_EXPERIMENTAL_CXX_IMPORT_STD` must be set before the first `project()`
+call, so it belongs on the command line or in a preset, never in a later
+`set()` inside a `CMakeLists.txt`. `CMAKE_CXX_STDLIB_MODULES_JSON` is needed
+only on Clang, and points at the `libc++.modules.json` that ships with the
+libc++ you are building against.
+
+Most consumers do not want this option: it changes nothing about the module's
+exported interface, and exists so this library's own test suite and CI can
+exercise `import std;` end to end. Leave it `OFF` unless you have a specific
+reason to build the interface unit against the standard library module.
+
+[#modules_tests]
+== Tests
+
+With `BEMAN_BIG_INT_BUILD_MODULE=ON` and tests enabled, a suite under
+`tests/beman/big_int/module/` is built and registered with CTest alongside
+the rest of the test suite. Those tests consume the library only through
+`import beman.big_int;`, never through the headers, so they exercise the
+module boundary itself.
+
+Under `BEMAN_BIG_INT_USE_STD_MODULE`, only a small GoogleTest-free smoke test
+is built. GoogleTest's own headers are textual, and mixing a textual include
+of them with `import std;` in the same translation unit does not work on
+libstdc++ or on the MSVC STL, so the fuller GoogleTest-based module suite is
+skipped in that configuration.
+
+[#modules_limitations]
+== Limitations
+
+=== Macros do not cross the module boundary
+
+None of the library's function-like configuration macros are visible to code
+that only imports the module: a macro is a preprocessor-level construct, and
+importing a module does not textually include anything.
+
+The one public convenience macro is `BEMAN_BIG_INT_COPY_TO_RUNTIME`. It is
+still usable alongside the import, in one of two ways:
+
+* Include the small, self-contained companion header. It declares nothing and
+  includes nothing else, so it is safe to `#include` in the same translation
+  unit as `import beman.big_int;`:
++
+[source,c++]
+----
+import beman.big_int;
+#include <beman/big_int/copy_to_runtime.hpp>
+
+constexpr auto packed = BEMAN_BIG_INT_COPY_TO_RUNTIME(beman::big_int::big_int{1} << 128);
+----
+
+* Or spell out what the macro expands to, without including anything:
++
+[source,c++]
+----
+constexpr auto packed =
+    beman::big_int::copy_to_runtime<decltype([]() { return beman::big_int::big_int{1} << 128; })>();
+----
+
+The automatic configuration macros -- `BEMAN_BIG_INT_HAS_INT128`,
+`BEMAN_BIG_INT_HAS_BITINT`, `BEMAN_BIG_INT_WORD_BITS`, and
+`BEMAN_BIG_INT_ALLOW_EXCEPTIONS` (or `BEMAN_BIG_INT_NO_EXCEPTIONS`) -- are
+likewise unavailable to an importer, as are the library's internal
+diagnostic helpers and `BEMAN_BIG_INT_ASSERT`. None of these were ever part of
+the module's exported interface; code that depends on one of them needs the
+headers, not the import.
+
+=== User-configurable macros are inputs to the module build
+
+`BEMAN_BIG_INT_FORCED_LIMB_WIDTH` and `BEMAN_BIG_INT_HASH_MAX_OBJECT_WORDS`
+configure the library where its headers are compiled. For the module, that
+point is when the *interface unit* is built, not when your own translation
+unit imports it: by the time you write `import beman.big_int;`, the headers
+are already baked into the module's binary interface, so defining either
+macro in your own translation unit has no effect. Set them when the module
+itself is configured and built -- for example as compile definitions on the
+`beman.big_int_module` target -- not at the point of use.
+
+`BEMAN_BIG_INT_SIMD_MUL` needs no such care: this project's CMake applies it
+as a `PUBLIC` compile definition on the `beman.big_int` target, and the
+module target links that target, so turning the option on when the library is
+configured reaches every consumer of the module automatically.
+
+=== `detail` is not exported
+
+`beman::big_int::detail` is compiled into the module for the exported names
+to use internally, but none of its own names are exported. Code that reaches
+into `detail` -- unsupported in the first place -- must include the headers;
+there is no way to name it through the import.
+
+=== Do not import and textually include in the same translation unit
+
+A translation unit must consume `beman.big_int` either by
+`import beman.big_int;` or by including its headers, never both. This is not
+merely a style preference: linking the module target defines
+`BEMAN_BIG_INT_BUILD_MODULE` on every translation unit that links it, and
+under that macro the library's public declarations are marked `export`. An
+`export` declaration outside a module's purview is ill-formed, so a
+translation unit that both imports the module and textually includes, say,
+`<beman/big_int.hpp>`, fails to compile -- on every conforming compiler, not
+as a quality-of-implementation difference some toolchains happen to tolerate.
+
+What *is* supported, and is the more useful fact here, is mixing the two
+forms *across* translation units of the same program. The interface unit
+wraps its declarations in `extern "C++"`, which attaches them to the global
+module rather than to `beman.big_int`'s own module purview. A `big_int`
+produced in a translation unit that imported the module and one produced in a
+translation unit that only included the headers are therefore the same type,
+with the same layout and the same mangled names, and values can be passed
+between the two freely. This is what lets an existing header-based program
+adopt the module one translation unit at a time, rather than needing an
+all-or-nothing conversion.
+
+=== `std::numeric_limits` is not specialized
+
+`basic_big_int` has no `std::numeric_limits` specialization, through the
+module or otherwise. `basic_big_int` is unbounded, so there is no minimum or
+maximum value for such a specialization to report. Code that relies on
+`std::numeric_limits<basic_big_int<...>>` for a bound is relying on something
+the library does not provide, whether or not the module is in use.
+
+=== Tested toolchains
+
+The module is tested on newer toolchains than the header-only library needs:
+
+[cols="1,1,1", options="header"]
+|===
+| Compiler | Version | Standard Library
+
+| GCC | 15 or later | pass:[libstdc++]
+| Clang | 20 or later | pass:[libc++]
+| MSVC | current | MSVC STL
+|===
+
+AppleClang is excluded; see
+xref:modules.adoc#modules_build[Building the module].

@@ -108,4 +108,26 @@ Values: `{ ON, OFF }`.
 This is required so that users of `beman.big_int` can use
 `find_package(beman.big_int)` to locate the library.
 
+### `BEMAN_BIG_INT_BUILD_MODULE`
+
+Enable building the C++ named module (the `beman.big_int_module` target,
+aliased `beman::big_int_module`, consumed as `import beman.big_int;`).
+Default: `OFF`. Values: `{ ON, OFF }`.
+
+Requires CMake 3.30 or later and a generator that can scan module
+dependencies (Ninja or Visual Studio); AppleClang cannot build this target.
+See [the module documentation](doc/modules/ROOT/pages/modules.adoc) for
+details.
+
+### `BEMAN_BIG_INT_USE_STD_MODULE`
+
+Build the module's interface unit against `import std;` instead of the
+standard library headers. Default: `OFF`. Values: `{ ON, OFF }`.
+
+Requires `BEMAN_BIG_INT_BUILD_MODULE=ON` plus
+`-DCMAKE_EXPERIMENTAL_CXX_IMPORT_STD=<uuid>` set before `project()`; most
+consumers do not need this option. See
+[the module documentation](doc/modules/ROOT/pages/modules.adoc#modules_import_std)
+for details.
+
 </details>

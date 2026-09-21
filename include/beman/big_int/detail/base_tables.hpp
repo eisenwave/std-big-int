@@ -6,9 +6,12 @@
 
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
-#include <array>
-#include <bit>
-#include <cstddef>
+
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <array>
+    #include <bit>
+    #include <cstddef>
+#endif
 
 namespace beman::big_int::detail {
 

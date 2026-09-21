@@ -8,13 +8,15 @@
 #include <beman/big_int/detail/span_ops.hpp>
 #include <beman/big_int/detail/scratch_allocator.hpp>
 
-#include <algorithm>
-#include <bit>
-#include <compare>
-#include <cstdint>
-#include <memory>
-#include <span>
-#include <vector>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <algorithm>
+    #include <bit>
+    #include <compare>
+    #include <cstdint>
+    #include <memory>
+    #include <span>
+    #include <vector>
+#endif
 
 namespace beman::big_int::detail {
 

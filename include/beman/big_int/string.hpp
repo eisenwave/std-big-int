@@ -4,10 +4,12 @@
 #ifndef BEMAN_BIG_INT_STRING_HPP
 #define BEMAN_BIG_INT_STRING_HPP
 
-#include <cstddef>
-#include <string>
-#include <system_error>
-#include <type_traits>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <cstddef>
+    #include <string>
+    #include <system_error>
+    #include <type_traits>
+#endif
 
 #include <beman/big_int/big_int.hpp>
 #include <beman/big_int/charconv.hpp>
@@ -66,12 +68,12 @@ template <class C, std::size_t b, class L, class A>
 
 } // namespace detail
 
-template <std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 [[nodiscard]] constexpr std::string to_string(const basic_big_int<b, L, A>& x, const int base = 10) {
     return detail::to_basic_string<char>(x, base);
 }
 
-template <std::size_t b, class L, class A>
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 [[nodiscard]] constexpr std::wstring to_wstring(const basic_big_int<b, L, A>& x, const int base = 10) {
     return detail::to_basic_string<wchar_t>(x, base);
 }

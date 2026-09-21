@@ -4,6 +4,39 @@
 #ifndef BEMAN_BIG_INT_CONFIG_HPP
 #define BEMAN_BIG_INT_CONFIG_HPP
 
+// Module support ==============================================================
+
+// `BEMAN_BIG_INT_BUILD_MODULE` is defined by module/big_int.cppm and propagated
+// PUBLIC by its CMake target, so it is never defined in an ordinary header
+// build. `BEMAN_BIG_INT_INTERFACE_UNIT` is defined only by big_int.cppm itself;
+// it guards the few declarations (e.g. the global-scope `bit_int` aliases
+// below) that a module consumer receives from the import rather than
+// redeclare -- redeclaring them in a consumer would give a second, distinct
+// type and break overload resolution.
+
+// A handful of detail-namespace entities are exercised directly by the module
+// test suite. BEMAN_BIG_INT_TEST_EXPORT exports them only when the module is
+// built for testing (BEMAN_BIG_INT_EXPORT_TESTING), so the normal module API
+// stays limited to the public interface. It expands to nothing in ordinary
+// (header) builds.
+#if defined(BEMAN_BIG_INT_BUILD_MODULE) && defined(BEMAN_BIG_INT_EXPORT_TESTING)
+    #define BEMAN_BIG_INT_TEST_EXPORT export
+#else
+    #define BEMAN_BIG_INT_TEST_EXPORT
+#endif
+
+#ifdef BEMAN_BIG_INT_BUILD_MODULE
+    #define BEMAN_BIG_INT_EXPORT export
+    // An internal-linkage namespace-scope entity reachable from an exported
+    // template is a TU-local exposure, which GCC rejects. `inline constexpr`
+    // keeps such an entity out of TU-local territory in module mode; ordinary
+    // header builds keep the existing `static constexpr` spelling.
+    #define BEMAN_BIG_INT_INLINE_CONSTEXPR inline constexpr
+#else
+    #define BEMAN_BIG_INT_EXPORT
+    #define BEMAN_BIG_INT_INLINE_CONSTEXPR static constexpr
+#endif
+
 // Compiler identification =====================================================
 
 #if defined(_MSC_VER)
@@ -113,7 +146,12 @@
 
 // _BitInt detection ===========================================================
 
-#include <climits> // for BITINT_MAXWIDTH
+// Guarding this include is safe only because the .cppm supplies <climits> in
+// its global module fragment before the purview include below tests
+// BITINT_MAXWIDTH.
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <climits> // for BITINT_MAXWIDTH
+#endif
 
 #ifdef BITINT_MAXWIDTH
     // Once _BitInt is a standard feature and available on all compilers,
@@ -125,11 +163,21 @@
     #define BEMAN_BIG_INT_BITINT_MAXWIDTH __BITINT_MAXWIDTH__
     #define BEMAN_BIG_INT_HAS_BITINT 1
 
+    // A module consumer receives these aliases from the import, so they are only
+    // declared in ordinary builds and in the module interface unit itself;
+    // declaring them again in a consumer would give a second, distinct type. They
+    // are not marked BEMAN_BIG_INT_EXPORT: these are global-scope aliases, and
+    // exporting them would inject unqualified `bit_int`/`bit_uint` into every
+    // importer's global namespace. They only need to be reachable here.
+    #if !defined(BEMAN_BIG_INT_BUILD_MODULE) || defined(BEMAN_BIG_INT_INTERFACE_UNIT)
+
 __extension__ template <const int N>
 using bit_int = _BitInt(N);
 
 __extension__ template <const int N>
 using bit_uint = unsigned _BitInt(N);
+
+    #endif
 
 #else
     // Prevent warnings for use of undefined macros.
@@ -154,7 +202,12 @@ using bit_uint = unsigned _BitInt(N);
 
 // 32-bit/64-bit ===============================================================
 
-#include <cstdint>
+// Guarding this include is safe only because the .cppm supplies <cstdint> in
+// its global module fragment before the purview include below tests
+// INTPTR_MAX.
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <cstdint>
+#endif
 
 #if INTPTR_MAX == INT64_MAX || defined(__wasm__) || defined(__EMSCRIPTEN__)
     #define BEMAN_BIG_INT_WORD_BITS 64
@@ -167,7 +220,9 @@ using bit_uint = unsigned _BitInt(N);
 // 128-bit integer support =====================================================
 
 #ifdef BEMAN_BIG_INT_MSVC
-    #include <__msvc_int128.hpp>
+    #ifndef BEMAN_BIG_INT_BUILD_MODULE
+        #include <__msvc_int128.hpp>
+    #endif
 #endif // BEMAN_BIG_INT_MSVC
 
 namespace beman::big_int::detail {
@@ -214,7 +269,7 @@ namespace beman::big_int {
 
 #if BEMAN_BIG_INT_LIMB_WIDTH == 64
 
-using uint_multiprecision_t = unsigned long long;
+BEMAN_BIG_INT_EXPORT using uint_multiprecision_t = unsigned long long;
 static_assert(sizeof(uint_multiprecision_t) == 8);
 namespace detail {
 // Signed counterpart to uint_multiprecision_t.
@@ -231,7 +286,7 @@ using int_wide_t = int128_t;
 
 #elif BEMAN_BIG_INT_LIMB_WIDTH == 32
 
-using uint_multiprecision_t = unsigned int;
+BEMAN_BIG_INT_EXPORT using uint_multiprecision_t = unsigned int;
 static_assert(sizeof(uint_multiprecision_t) == 4);
 namespace detail {
 // Signed counterpart to uint_multiprecision_t.
@@ -254,10 +309,12 @@ using int_wide_t = long long;
 
 // Integer concepts and traits =================================================
 
-#include <cstdint>
-#include <type_traits>
-#include <concepts>
-#include <limits>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <cstdint>
+    #include <type_traits>
+    #include <concepts>
+    #include <limits>
+#endif
 
 namespace beman::big_int::detail {
 
@@ -466,7 +523,9 @@ inline constexpr std::size_t width_v = width<T>::value;
 // Allocator trait detection ===================================================
 
 // `<memory>` defines `__cpp_lib_allocate_at_least`
-#include <memory>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <memory>
+#endif
 
 #if defined(__cpp_lib_allocate_at_least) && __cpp_lib_allocate_at_least >= 202302L
 
@@ -512,9 +571,11 @@ concept traits_has_allocate_at_least = requires(Alloc& a, typename Traits::size_
 
 // assert ======================================================================
 
-#include <cstdlib>
-#include <cassert>
-#include <cstdio>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <cstdlib>
+    #include <cassert>
+    #include <cstdio>
+#endif
 
 // LCOV_EXCL_START
 // GCOVR_EXCL_START
@@ -568,7 +629,9 @@ namespace beman::big_int::detail {
     #define BEMAN_BIG_INT_IS_CONSTEVAL (__builtin_is_constant_evaluated())
     #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!__builtin_is_constant_evaluated())
 #else
-    #include <type_traits>
+    #ifndef BEMAN_BIG_INT_BUILD_MODULE
+        #include <type_traits>
+    #endif
     #define BEMAN_BIG_INT_IS_CONSTEVAL (::std::is_constant_evaluated())
     #define BEMAN_BIG_INT_IS_NOT_CONSTEVAL (!::std::is_constant_evaluated())
 #endif
@@ -599,7 +662,7 @@ namespace beman::big_int::detail {
 
 namespace beman::big_int {
 
-template <class T>
+BEMAN_BIG_INT_EXPORT template <class T>
 struct div_result {
     T quotient;
     T remainder;
@@ -626,10 +689,14 @@ template <unsigned_integer T>
 // Exceptions ==================================================================
 
 #if (defined(_MSC_VER) && defined(_CPPUNWIND)) || defined(__EXCEPTIONS)
-    #include <stdexcept>
+    #ifndef BEMAN_BIG_INT_BUILD_MODULE
+        #include <stdexcept>
+    #endif
     #define BEMAN_BIG_INT_ALLOW_EXCEPTIONS
 #else
-    #include <cstdlib>
+    #ifndef BEMAN_BIG_INT_BUILD_MODULE
+        #include <cstdlib>
+    #endif
     #define BEMAN_BIG_INT_NO_EXCEPTIONS
 #endif
 

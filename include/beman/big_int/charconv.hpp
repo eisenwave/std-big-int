@@ -4,14 +4,16 @@
 #ifndef BEMAN_BIG_INT_CHARCONV_HPP
 #define BEMAN_BIG_INT_CHARCONV_HPP
 
-#include <algorithm>
-#include <array>
-#include <bit>
-#include <charconv>
-#include <climits>
-#include <cstddef>
-#include <cstdint>
-#include <span>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <algorithm>
+    #include <array>
+    #include <bit>
+    #include <charconv>
+    #include <climits>
+    #include <cstddef>
+    #include <cstdint>
+    #include <span>
+#endif
 
 #include <beman/big_int/big_int.hpp>
 #include <beman/big_int/detail/base_conversion.hpp>

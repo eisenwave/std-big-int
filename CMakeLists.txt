@@ -43,6 +43,22 @@ option(
     OFF
 )
 
+# [CMAKE.SKIP_MODULE]
+# Off by default: building the C++ module (module/big_int.cppm) requires a
+# scanning generator (Ninja or Visual Studio) to discover `import`/`export`
+# dependencies, which not every generator/toolchain combination provides.
+# AppleClang in particular is not supported at all: CMake's own
+# Modules/Compiler/AppleClang-CXX.cmake never defines CMAKE_CXX_SCANDEP_SOURCE,
+# CMAKE_CXX_MODULE_MAP_FORMAT, or CMAKE_CXX_COMPILE_BMI, and cmake-cxxmodules(7)
+# omits AppleClang entirely, so turning this on there fails at generate time.
+# Enable it with one of the "-module" presets (see CMakePresets.json) on GCC,
+# Clang, or MSVC.
+option(
+    BEMAN_BIG_INT_BUILD_MODULE
+    "Build the beman.big_int C++ module (module/big_int.cppm) alongside the header/library form. Requires a scanning generator (Ninja or Visual Studio); not supported by AppleClang. Default: OFF. Values: { ON, OFF }."
+    OFF
+)
+
 # [CMAKE.SKIP_MSVC_DEBUGGER_ADDIN]
 # The Visual Studio debugger cannot evaluate arbitrary-precision arithmetic, so a
 # plain .natvis can only render a big_int in decimal up to 64 bits. This builds
@@ -259,11 +275,32 @@ if(MSVC AND BEMAN_BIG_INT_BUILD_MSVC_DEBUGGER_ADDIN)
     )
 endif()
 
-beman_install_library(beman.big_int TARGETS beman.big_int)
+set(BEMAN_BIG_INT_INSTALL_TARGETS beman.big_int)
+
+# The module target must exist before the beman_install_library() call below so
+# it joins the same export set and can resolve its beman::big_int dependency
+# from within it.
+if(BEMAN_BIG_INT_BUILD_MODULE)
+    add_subdirectory(module)
+    list(APPEND BEMAN_BIG_INT_INSTALL_TARGETS beman.big_int_module)
+endif()
+
+beman_install_library(beman.big_int TARGETS ${BEMAN_BIG_INT_INSTALL_TARGETS})
 
 if(BEMAN_BIG_INT_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/beman/big_int)
+
+    # Kept out of tests/beman/big_int/ itself: that directory globs *.test.cpp
+    # and would build module consumers unconditionally. The EXISTS check lets
+    # this land ahead of the wave that adds the directory.
+    if(
+        BEMAN_BIG_INT_BUILD_MODULE
+        AND EXISTS
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/beman/big_int/module/CMakeLists.txt"
+    )
+        add_subdirectory(tests/beman/big_int/module)
+    endif()
 endif()
 
 if(BEMAN_BIG_INT_BUILD_EXAMPLES)

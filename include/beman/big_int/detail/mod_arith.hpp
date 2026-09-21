@@ -4,6 +4,11 @@
 #ifndef BEMAN_BIG_INT_MOD_ARITH_HPP
 #define BEMAN_BIG_INT_MOD_ARITH_HPP
 
+// This header (and its src-only siblings: ntt.hpp, ntt_fp.hpp,
+// multiply_long_runtime.hpp, and simd/vec_*.hpp) is included only by src/*.cpp,
+// which are compiled without BEMAN_BIG_INT_BUILD_MODULE. Its std-library
+// includes are therefore left unguarded on purpose: guarding them here would
+// silently drop these includes from the compiled library.
 #include <cstdint>
 
 #include <beman/big_int/detail/config.hpp>

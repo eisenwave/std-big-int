@@ -5,10 +5,13 @@
 #define BEMAN_BIG_INT_SIPHASH_HPP
 
 #include <beman/big_int/detail/config.hpp>
-#include <cstdint>
-#include <cstddef>
-#include <bit>
-#include <span>
+
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <cstdint>
+    #include <cstddef>
+    #include <bit>
+    #include <span>
+#endif
 
 namespace beman::big_int::detail {
 

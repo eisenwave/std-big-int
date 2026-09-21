@@ -87,6 +87,21 @@ yourself, or results may be silently incorrect. The default integer path has no
 such requirement.
 ====
 
+[#build_and_usage_modules]
+=== Optional: the pass:[C++] named module
+
+`beman.big_int` can also be consumed as the named module `beman.big_int`,
+behind the CMake option `BEMAN_BIG_INT_BUILD_MODULE` (default `OFF`):
+
+[source,bash]
+----
+cmake --workflow --preset llvm-release-module
+----
+
+This needs a newer toolchain than the header build, and is not available with
+AppleClang. See xref:modules.adoc[pass:[C++] Named Modules] for the full
+story.
+
 [#build_and_usage_install]
 == Installation
 
@@ -161,6 +176,13 @@ To use `beman.big_int` in your pass:[C++] project, include an appropriate
 `beman.big_int` headers are to be included with the `beman/big_int/` prefix.
 Altering include search paths to spell the include target another way (e.g.
 `#include <big_int.hpp>`) is unsupported.
+====
+
+[TIP]
+====
+To consume `beman.big_int` as a named module instead, `import beman.big_int;`
+and link `beman::big_int_module` in place of `beman::big_int`. See
+xref:modules.adoc[pass:[C++] Named Modules].
 ====
 
 The straightforward program below shows usage of `beman.big_int`. It computes and

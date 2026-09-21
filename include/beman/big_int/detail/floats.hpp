@@ -4,13 +4,15 @@
 #ifndef BEMAN_BIG_INT_FLOATS_HPP
 #define BEMAN_BIG_INT_FLOATS_HPP
 
-#include <bit>
-#include <type_traits>
-#include <cmath>
-#include <cfloat>
-#include <limits>
-#include <cstdint>
-#include <span>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <bit>
+    #include <type_traits>
+    #include <cmath>
+    #include <cfloat>
+    #include <limits>
+    #include <cstdint>
+    #include <span>
+#endif
 
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
@@ -18,9 +20,11 @@
 BEMAN_BIG_INT_DIAGNOSTIC_PUSH()
 BEMAN_BIG_INT_DIAGNOSTIC_IGNORED_GCC("-Wpadded")
 
-#if __has_include(<stdfloat>)
-    #include <stdfloat>
-#endif
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #if __has_include(<stdfloat>)
+        #include <stdfloat>
+    #endif
+#endif // BEMAN_BIG_INT_BUILD_MODULE
 
 namespace beman::big_int::detail {
 

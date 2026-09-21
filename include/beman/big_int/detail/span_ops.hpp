@@ -7,12 +7,14 @@
 #include <beman/big_int/detail/config.hpp>
 #include <beman/big_int/detail/wide_ops.hpp>
 
-#include <algorithm>
-#include <bit>
-#include <initializer_list>
-#include <ranges>
-#include <utility>
-#include <span>
+#ifndef BEMAN_BIG_INT_BUILD_MODULE
+    #include <algorithm>
+    #include <bit>
+    #include <initializer_list>
+    #include <ranges>
+    #include <utility>
+    #include <span>
+#endif
 
 namespace beman::big_int::detail {
 
