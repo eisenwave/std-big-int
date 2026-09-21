@@ -25,7 +25,10 @@ namespace beman::big_int {
 // This cannot overflow since `basic_big_int` is unbounded
 template <std::size_t b, class L, class A>
 constexpr basic_big_int<b, L, A> abs(const basic_big_int<b, L, A>& j) {
-    basic_big_int<b, L, A> result(j);
+    // The allocator is passed explicitly: plain copy construction would run it
+    // through `select_on_container_copy_construction`, and the result is
+    // specified to use the allocator of `j`.
+    basic_big_int<b, L, A> result(j, j.get_allocator());
     result.unchecked_set_sign(false);
     return result;
 }

@@ -279,6 +279,65 @@ TEST(Allocation, PropagatingAssignmentIsStrongWhenAllocationThrows) {
     EXPECT_EQ(dst, src);
 }
 
+// A stateful allocator whose `select_on_container_copy_construction` hands back a
+// distinct allocator (`id + 1`) instead of a copy. A copy-constructed container
+// must adopt that allocator, so `id` shows whether the constructor consulted the
+// trait or just copied the source's allocator.
+template <class T>
+struct soccc_alloc {
+    using value_type = T;
+
+    std::size_t id = 0;
+
+    soccc_alloc() = default;
+    explicit soccc_alloc(std::size_t allocator_id) noexcept : id{allocator_id} {}
+    template <class U>
+    soccc_alloc(const soccc_alloc<U>& other) noexcept : id{other.id} {}
+
+    [[nodiscard]] soccc_alloc select_on_container_copy_construction() const noexcept { return soccc_alloc{id + 1U}; }
+
+    [[nodiscard]] T* allocate(std::size_t n) { return std::allocator<T>{}.allocate(n); }
+    void             deallocate(T* p, std::size_t n) noexcept { std::allocator<T>{}.deallocate(p, n); }
+
+    template <class U>
+    bool operator==(const soccc_alloc<U>& other) const noexcept {
+        return id == other.id;
+    }
+};
+
+using soccc_big_int = beman::big_int::
+    basic_big_int<64, beman::big_int::uint_multiprecision_t, soccc_alloc<beman::big_int::uint_multiprecision_t>>;
+
+TEST(Allocation, CopyConstructionSelectsAllocator) {
+    const soccc_big_int src{7, soccc_alloc<beman::big_int::uint_multiprecision_t>{1U}};
+    const soccc_big_int dst = src;
+
+    EXPECT_EQ(dst, src);
+    EXPECT_EQ(src.get_allocator().id, 1U);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
+TEST(Allocation, CopyConstructionSelectsAllocatorForHeapValue) {
+    soccc_big_int src{1, soccc_alloc<beman::big_int::uint_multiprecision_t>{1U}};
+    src <<= 4000;
+    const soccc_big_int dst = src;
+
+    EXPECT_EQ(dst, src);
+    EXPECT_GT(dst.representation_size(), soccc_big_int::inplace_capacity);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
+TEST(Allocation, CopyConstructionKeepsAllocatorWhenTraitCopies) {
+    // `pocca_alloc` has no `select_on_container_copy_construction`, so the default
+    // `allocator_traits` behavior copies the source allocator.
+    pocca_big_int src{1, pocca_alloc<beman::big_int::uint_multiprecision_t>{2U}};
+    src <<= 4000;
+    const pocca_big_int dst = src;
+
+    EXPECT_EQ(dst, src);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
 TEST(Allocation, SizeDefault) {
     beman::big_int::big_int x;
     EXPECT_EQ(x.size(), 0);

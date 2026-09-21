@@ -1065,7 +1065,10 @@ constexpr std::span<uint_multiprecision_t> basic_big_int<b, L, A>::limb_span() n
 
 template <std::size_t b, class L, class A>
 constexpr basic_big_int<b, L, A>::basic_big_int(const basic_big_int& x)
-    : m_capacity{0}, m_size_and_sign{x.m_size_and_sign}, m_storage{}, m_alloc{x.m_alloc} {
+    : m_capacity{0},
+      m_size_and_sign{x.m_size_and_sign},
+      m_storage{},
+      m_alloc{alloc_traits::select_on_container_copy_construction(x.get_allocator())} {
     if (x.limb_count() <= inplace_capacity) {
         if (x.is_representation_inplace()) {
             for (size_type i = 0; i < inplace_capacity; ++i) {

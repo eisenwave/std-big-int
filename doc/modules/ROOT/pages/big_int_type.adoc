@@ -275,7 +275,7 @@ constexpr basic_big_int(const basic_big_int& x);
 ----
 
 Initializes the integer value to that of `x` and initializes the allocator to
-`x.get_allocator()`.
+`allocator_traits<Allocator>::select_on_container_copy_construction(x.get_allocator())`.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
