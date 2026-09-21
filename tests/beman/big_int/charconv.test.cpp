@@ -1071,25 +1071,19 @@ TEST(ToCharsRvalue, FastPathMatchesLvalue) {
 // operand -- but all three leave it in a state the caller may still use, which
 // is the whole of what the rvalue overload promises about it.
 TEST(ToCharsRvalue, HandedOverValueRemainsUsable) {
-    struct {
-        big_int value;
-        int     base;
-    } const cases[]{
-        {1_n << 128, 10},  // repeated division: consumes the operand
-        {1_n << 128, 16},  // power of two: reads the limbs in place
-        {1_n << 25000, 10} // past the gate: the sub-quadratic kernel renders it
-    };
-
-    for (const auto& [value, base] : cases) {
-        big_int           handed_over = value;
-        const std::string expected    = render(value, base);
-        EXPECT_EQ(render_moved(std::move(handed_over), base), expected) << "base=" << base;
+    const auto check = [](const big_int& value, const int base) {
+        big_int handed_over = value;
+        EXPECT_EQ(render_moved(std::move(handed_over), base), render(value, base)) << "base=" << base;
 
         // Whatever state the call left behind, assignment restores a usable value.
         handed_over = 42;
         EXPECT_EQ(handed_over, big_int{42});
-        EXPECT_EQ(render(handed_over, 10), "42");
-    }
+        EXPECT_EQ(render(handed_over, 10), "42") << "base=" << base;
+    };
+
+    check(1_n << 128, 10);   // repeated division: consumes the operand
+    check(1_n << 128, 16);   // power of two: reads the limbs in place
+    check(1_n << 25000, 10); // past the gate: the sub-quadratic kernel renders it
 }
 
 // The consuming path mutates its operand, which is exactly the kind of thing a
