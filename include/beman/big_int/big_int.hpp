@@ -545,10 +545,10 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     [[nodiscard]] constexpr basic_big_int operator~() const&;
     [[nodiscard]] constexpr basic_big_int operator~() &&;
 
-    constexpr basic_big_int& operator++() &;
-    constexpr basic_big_int  operator++(int) &;
-    constexpr basic_big_int& operator--() &;
-    constexpr basic_big_int  operator--(int) &;
+    constexpr basic_big_int& operator++();
+    constexpr basic_big_int  operator++(int);
+    constexpr basic_big_int& operator--();
+    constexpr basic_big_int  operator--(int);
 
     // [big.int.cmp]
     template <class L, detail::common_big_int_type_with<L> R>
@@ -1514,6 +1514,7 @@ constexpr void basic_big_int<b, L, A>::shrink_to_fit() {
 }
 
 // [big.int.unary]
+// The const& overloads copy, so the result's allocator comes from `select_on_container_copy_construction`
 
 template <std::size_t b, class L, class A>
 constexpr auto basic_big_int<b, L, A>::operator+() const& -> basic_big_int {
@@ -1560,7 +1561,7 @@ constexpr auto basic_big_int<b, L, A>::operator~() && -> basic_big_int {
 }
 
 template <std::size_t b, class L, class A>
-constexpr auto basic_big_int<b, L, A>::operator++() & -> basic_big_int& {
+constexpr auto basic_big_int<b, L, A>::operator++() -> basic_big_int& {
     if (is_negative()) {
         unchecked_decrement_magnitude();
         if (limb_count() == 1 && limb_ptr()[0] == 0) {
@@ -1573,14 +1574,14 @@ constexpr auto basic_big_int<b, L, A>::operator++() & -> basic_big_int& {
 }
 
 template <std::size_t b, class L, class A>
-constexpr auto basic_big_int<b, L, A>::operator++(int) & -> basic_big_int {
+constexpr auto basic_big_int<b, L, A>::operator++(int) -> basic_big_int {
     auto copy = *this;
     ++(*this);
     return copy;
 }
 
 template <std::size_t b, class L, class A>
-constexpr auto basic_big_int<b, L, A>::operator--() & -> basic_big_int& {
+constexpr auto basic_big_int<b, L, A>::operator--() -> basic_big_int& {
     if (is_negative()) {
         unchecked_increment_magnitude();
     } else {
@@ -1592,7 +1593,7 @@ constexpr auto basic_big_int<b, L, A>::operator--() & -> basic_big_int& {
 }
 
 template <std::size_t b, class L, class A>
-constexpr auto basic_big_int<b, L, A>::operator--(int) & -> basic_big_int {
+constexpr auto basic_big_int<b, L, A>::operator--(int) -> basic_big_int {
     auto copy = *this;
     --(*this);
     return copy;
