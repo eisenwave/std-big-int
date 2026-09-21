@@ -5,10 +5,11 @@
 = String Conversions
 :idprefix: string_
 
-`beman::big_int` provides `to_string` and `to_wstring`, which return a freshly
-allocated `std::string` or `std::wstring` holding the textual representation of
-a `basic_big_int`. They are the arbitrary-precision analogues of the standard
-`std::to_string` and `std::to_wstring`, and are implemented on top of
+`beman::big_int` provides `to_string` and `to_wstring`, each a pair of
+overloads returning a freshly allocated `std::string` or `std::wstring` holding
+the textual representation of a `basic_big_int`. They are the
+arbitrary-precision analogues of the standard `std::to_string` and
+`std::to_wstring`, and are implemented on top of
 xref:charconv.adoc#charconv_to_chars[`to_chars`]: the conversion is
 locale-independent, accepts any base from `2` to `36`, and is usable in a
 constant expression. When you need to write into an existing buffer, or to
@@ -23,9 +24,13 @@ namespace beman::big_int {
 
 template <std::size_t b, class L, class A>
 constexpr std::string to_string(const basic_big_int<b, L, A>& value, int base = 10);
+template <std::size_t b, class L, class A>
+constexpr std::string to_string(basic_big_int<b, L, A>&& value, int base = 10);
 
 template <std::size_t b, class L, class A>
 constexpr std::wstring to_wstring(const basic_big_int<b, L, A>& value, int base = 10);
+template <std::size_t b, class L, class A>
+constexpr std::wstring to_wstring(basic_big_int<b, L, A>&& value, int base = 10);
 
 } // namespace beman::big_int
 ----
@@ -44,14 +49,34 @@ values of ten or more use the lowercase letters `a`-`z`. No prefix (such as
 ----
 template <std::size_t b, class L, class A>
 constexpr std::string to_string(const basic_big_int<b, L, A>& value, int base = 10);
+template <std::size_t b, class L, class A>
+constexpr std::string to_string(basic_big_int<b, L, A>&& value, int base = 10);
 ----
 
-Returns a `std::string` holding `value` rendered in the given `base`.
+Returns a `std::string` holding `value` rendered in the given `base`. An lvalue,
+and a const rvalue, select the first overload; a non-const rvalue selects the
+second.
+
+Both overloads return the same string. They differ only in what they may do to
+`value` while producing it: the second renders through the `to_chars` overload
+that consumes its operand, so where that conversion works by repeated division
+it divides `value` down in place instead of copying the magnitude first. See
+xref:charconv.adoc#charconv_to_chars[`to_chars`] for exactly when that applies.
+The result string is allocated either way.
+
+[source,c++]
+----
+big_int x = (1_n << 512) + 1;
+
+const std::string copied   = to_string(x);            // Copies the magnitude; x is unchanged.
+const std::string consumed = to_string(std::move(x)); // Same digits, no copy of the magnitude.
+----
 
 * *Preconditions:* `2 \<= base \<= 36`.
 * *Returns:* A `std::string` containing the textual representation of `value`, as if written by `to_chars`.
+* *Postconditions:* For the lvalue overload, `value` is unchanged. For the rvalue overload, `value` is in a valid but unspecified state.
 * *Throws:* Any exception thrown while allocating the result string (for example, `std::bad_alloc`); the conversion itself does not throw.
-* *Remarks:* The function is usable in a constant expression. The result is sized from the bit width of `value` up front, so the digits are produced in a single pass with at most one allocation.
+* *Remarks:* Both overloads are usable in a constant expression. The result is sized from the bit width of `value` up front, so the digits are produced in a single pass with at most one allocation.
 
 [#string_to_wstring]
 == `to_wstring`
@@ -60,13 +85,17 @@ Returns a `std::string` holding `value` rendered in the given `base`.
 ----
 template <std::size_t b, class L, class A>
 constexpr std::wstring to_wstring(const basic_big_int<b, L, A>& value, int base = 10);
+template <std::size_t b, class L, class A>
+constexpr std::wstring to_wstring(basic_big_int<b, L, A>&& value, int base = 10);
 ----
 
 Behaves exactly like `to_string`, but returns a `std::wstring`. The digit
 characters and the minus sign all belong to the basic execution character set,
 so each character has the same value in the wide result as in the narrow one.
+The two overloads relate to each other exactly as the `to_string` pair does.
 
 * *Preconditions:* `2 \<= base \<= 36`.
 * *Returns:* A `std::wstring` containing the same characters as `to_string(value, base)`, each widened to `wchar_t`.
+* *Postconditions:* For the lvalue overload, `value` is unchanged. For the rvalue overload, `value` is in a valid but unspecified state.
 * *Throws:* Any exception thrown while allocating the result string (for example, `std::bad_alloc`); the conversion itself does not throw.
-* *Remarks:* The function is usable in a constant expression.
+* *Remarks:* Both overloads are usable in a constant expression.

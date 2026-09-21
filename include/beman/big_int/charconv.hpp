@@ -13,6 +13,8 @@
     #include <cstddef>
     #include <cstdint>
     #include <span>
+    #include <type_traits>
+    #include <utility>
 #endif
 
 #include <beman/big_int/big_int.hpp>
@@ -53,13 +55,17 @@ inline constexpr auto digit_value_table = []() consteval {
     return digit_value_table[static_cast<std::size_t>(c)];
 }
 
-} // namespace detail
-
-template <size_t b, class L, class A>
-constexpr std::to_chars_result
-to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, const int base) {
-    using size_type                   = typename basic_big_int<b, L, A>::size_type;
-    constexpr size_type bits_per_limb = basic_big_int<b, L, A>::bits_per_limb;
+// Shared implementation of the two `to_chars` overloads. `X` deduces to
+// `const basic_big_int&` when the caller passed an lvalue and to `basic_big_int`
+// when the caller handed the value over; in the latter case the repeated-division
+// path below divides that value down in place instead of copying its magnitude.
+template <class X>
+constexpr std::to_chars_result to_chars_impl(char* const begin, char* const end, X&& x, const int base) {
+    using big_int_type                = std::remove_cvref_t<X>;
+    using size_type                   = typename big_int_type::size_type;
+    using allocator_type              = typename big_int_type::allocator_type;
+    constexpr size_type bits_per_limb = big_int_type::bits_per_limb;
+    constexpr bool      consume       = !std::is_reference_v<X>;
 
     BEMAN_BIG_INT_DEBUG_ASSERT(begin);
     BEMAN_BIG_INT_DEBUG_ASSERT(end);
@@ -76,8 +82,10 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, co
         return {begin + 1, std::errc{}};
     }
 
-    char* current_begin = begin;
-    if (x.is_negative()) {
+    // Read once: the consuming path below clears the sign on `x` itself.
+    const bool is_neg        = x.is_negative();
+    char*      current_begin = begin;
+    if (is_neg) {
         *current_begin = '-';
         ++current_begin;
     }
@@ -228,11 +236,11 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, co
             if (detail::fast_limbs_to_digits_profitable(value_span, base)) {
                 // The kernel emits the exact MSD-first digit VALUES; map them to
                 // ASCII in place. No reversal -- already most-significant-first.
-                auto                           alloc = x.get_allocator();
-                const std::size_t              bound = detail::base_conversion_digit_bound(value_span, base);
-                detail::digit_value_buffer<A>  values(alloc, bound);
-                const std::span<unsigned char> vspan = values.span();
-                const std::size_t              n     = detail::limbs_to_digits(vspan, value_span, base, alloc);
+                auto              alloc = x.get_allocator();
+                const std::size_t bound = detail::base_conversion_digit_bound(value_span, base);
+                detail::digit_value_buffer<allocator_type> values(alloc, bound);
+                const std::span<unsigned char>             vspan = values.span();
+                const std::size_t                          n = detail::limbs_to_digits(vspan, value_span, base, alloc);
                 if (static_cast<std::size_t>(end - current_begin) < n) {
                     return {end, std::errc::value_too_large};
                 }
@@ -243,7 +251,9 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, co
             }
         }
 
-        auto remainder = x;
+        // An lvalue argument has to survive the call, so its magnitude is copied;
+        // a value the caller handed over is divided down where it already lives.
+        std::conditional_t<consume, big_int_type&, big_int_type> remainder = x;
         remainder.unchecked_set_sign(false);
         // Zero should have been handled above already.
         BEMAN_BIG_INT_DEBUG_ASSERT(!remainder.is_zero());
@@ -285,7 +295,7 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, co
 
         // We wrote all the digits in reverse order.
         // Everything except the leading minus sign (if any) needs to be reversed.
-        std::reverse(begin + (x.is_negative() ? 1 : 0), current_begin);
+        std::reverse(begin + (is_neg ? 1 : 0), current_begin);
         return {current_begin, std::errc{}};
     }
 
@@ -295,6 +305,24 @@ to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, co
 
     // Invalid base; earlier checks should have caught this already, but let's make sure.
     BEMAN_BIG_INT_ASSERT(false);
+}
+
+} // namespace detail
+
+// Writes `x` in the given base into `[begin, end)`. `x` is left unchanged.
+template <std::size_t b, class L, class A>
+constexpr std::to_chars_result
+to_chars(char* const begin, char* const end, const basic_big_int<b, L, A>& x, const int base) {
+    return detail::to_chars_impl(begin, end, x, base);
+}
+
+// The overload for an argument the caller has handed over: the repeated-division
+// path renders `x` by dividing it down in place, so no copy of the magnitude is
+// made. Every other path reads `x` without touching it.
+template <std::size_t b, class L, class A>
+constexpr std::to_chars_result
+to_chars(char* const begin, char* const end, basic_big_int<b, L, A>&& x, const int base) {
+    return detail::to_chars_impl(begin, end, std::move(x), base);
 }
 
 template <std::size_t b, class L, class A>

@@ -23,6 +23,7 @@
 #include <memory>
 #include <memory_resource>
 #include <span>
+#include <string>
 #include <system_error>
 #include <type_traits>
 #include <utility>
@@ -252,6 +253,18 @@ TEST(Exports, TextConversions) {
     EXPECT_EQ(to_string(x), "255");
     EXPECT_EQ(to_string(x, 16), "ff");
     EXPECT_EQ(to_wstring(x), L"255");
+
+    // The overloads that take the value over are separate declarations, each
+    // carrying its own annotation, so each needs its own probe.
+    EXPECT_EQ(to_string(big_int{255}), "255");
+    EXPECT_EQ(to_string(big_int{255}, 16), "ff");
+    EXPECT_EQ(to_wstring(big_int{255}), L"255");
+    EXPECT_EQ(to_wstring(big_int{255}, 16), L"ff");
+
+    char       rvalue_buf[8]{};
+    const auto rvalue_res = to_chars(rvalue_buf, rvalue_buf + sizeof(rvalue_buf), big_int{255}, 16);
+    EXPECT_EQ(rvalue_res.ec, std::errc{});
+    EXPECT_EQ(std::string(rvalue_buf, rvalue_res.ptr), "ff");
 
     char       buf[8]{};
     const auto to_res = to_chars(buf, buf + sizeof(buf), x, 16);

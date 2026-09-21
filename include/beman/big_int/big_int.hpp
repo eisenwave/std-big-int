@@ -57,6 +57,9 @@ constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_
 BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
 constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, L, A>&, int = 10);
 
+BEMAN_BIG_INT_EXPORT template <std::size_t b, class L, class A>
+constexpr std::to_chars_result to_chars(char*, char*, basic_big_int<b, L, A>&&, int = 10);
+
 namespace detail {
 
 template <class>
@@ -285,6 +288,12 @@ template <class M, class N>
 constexpr common_big_int_type<M, N> gcd_impl(M&& m, N&& n);
 template <class M, class N>
 constexpr common_big_int_type<M, N> midpoint_impl(M&& m, N&& n);
+
+// Likewise, the two `to_chars` overloads in <beman/big_int/charconv.hpp> share this
+// driver. `X` deduces to `const basic_big_int&` for the lvalue overload and to
+// `basic_big_int` for the rvalue one.
+template <class X>
+constexpr std::to_chars_result to_chars_impl(char* begin, char* end, X&& x, int base);
 } // namespace detail
 
 // [big.int.class], class template basic_big_int
@@ -315,13 +324,15 @@ class BEMAN_BIG_INT_TRIVIAL_ABI basic_big_int {
     template <std::size_t, class, class>
     friend class basic_big_int;
 
-    // These two spell the limb parameter `L` rather than `Limb`: a member template may not
+    // This spells the limb parameter `L` rather than `Limb`: a member template may not
     // redeclare a template parameter of the enclosing class ([temp.local]).
     template <std::size_t b, class L, class A>
     friend constexpr std::from_chars_result from_chars(const char*, const char*, basic_big_int<b, L, A>&, int);
 
-    template <std::size_t b, class L, class A>
-    friend constexpr std::to_chars_result to_chars(char*, char*, const basic_big_int<b, L, A>&, int);
+    // Both `to_chars` overloads render through this one driver, so it is the only
+    // part of the output side that needs the representation.
+    template <class X>
+    friend constexpr std::to_chars_result detail::to_chars_impl(char*, char*, X&&, int);
 
     friend struct ::std::hash<basic_big_int>;
 
