@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
 auto main() -> int {
     using beman::big_int::big_int;
@@ -32,7 +33,17 @@ auto main() -> int {
     const auto reparse       = from_chars(hex.data(), hex.data() + hex.size(), recovered, 16);
     const bool round_trip_ok = reparse.ec == std::errc{} && recovered == value;
 
-    const bool result_is_ok = parsed_ok && printed_ok && round_trip_ok;
+    // 4. A second to_chars overload takes the value itself. Handing `recovered`
+    //    over lets the decimal conversion divide it down in place instead of
+    //    copying its magnitude first; the characters written are the same.
+    std::array<char, 64> decimal_buffer{};
+    const auto           reprint =
+        to_chars(decimal_buffer.data(), decimal_buffer.data() + decimal_buffer.size(), std::move(recovered), 10);
+    const std::string_view reprinted{decimal_buffer.data(),
+                                     static_cast<std::size_t>(reprint.ptr - decimal_buffer.data())};
+    const bool             handover_ok = reprint.ec == std::errc{} && reprinted == decimal;
+
+    const bool result_is_ok = parsed_ok && printed_ok && round_trip_ok && handover_ok;
 
     std::cout << "decimal: " << decimal << "\n"
               << "hex:     " << hex << "\n\n"

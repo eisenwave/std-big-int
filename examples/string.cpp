@@ -5,12 +5,14 @@
 
 #include <iostream>
 #include <string>
+#include <utility>
 
 auto main() -> int {
+    using beman::big_int::big_int;
     using namespace beman::big_int::literals;
 
     // A value far larger than any built-in integer type.
-    const auto value = 1_n << 128; // 2^128
+    const big_int value = 1_n << 128; // 2^128
 
     // 1. to_string returns a std::string holding the value in a chosen base.
     //    The default is base 10; digit values of ten or more use the lowercase
@@ -27,9 +29,18 @@ auto main() -> int {
     const std::wstring wide_hex = to_wstring(value, 16);
     const bool         wide_ok  = wide_hex == std::wstring(hex.begin(), hex.end());
 
+    // 4. Both take an overload that accepts the value itself. Handing a value
+    //    over lets the decimal conversion divide it down in place rather than
+    //    copying its magnitude first; the digits are the same either way.
+    big_int            owned       = value;
+    const std::string  from_owned  = to_string(std::move(owned));
+    big_int            wide_owned  = value;
+    const std::wstring wfrom_owned = to_wstring(std::move(wide_owned), 16);
+    const bool         handover_ok = from_owned == decimal && wfrom_owned == wide_hex;
+
     const bool result_is_ok = decimal == "340282366920938463463374607431768211456" && // 2^128
                               hex == "1" + std::string(32, '0') &&                    // 2^128 == 16^32
-                              negative == "-" + hex && wide_ok;
+                              negative == "-" + hex && wide_ok && handover_ok;
 
     std::cout << "decimal:  " << decimal << "\n"
               << "hex:      " << hex << "\n"
