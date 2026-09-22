@@ -100,14 +100,23 @@ TEST(Pmr, ConstructsOverMonotonicBufferResource) {
     EXPECT_EQ(x, 42);
 }
 
-TEST(Pmr, CopyConstructionPreservesResource) {
+// The copy constructor goes through
+// `select_on_container_copy_construction`, which for polymorphic_allocator
+// returns a default-constructed allocator: the copy lands on the default
+// resource, as it does for the pmr containers. Naming the allocator is how a
+// caller keeps a copy on the source's resource.
+TEST(Pmr, CopyConstructionDoesNotPreserveResource) {
     std::array<std::byte, 256>          buffer{};
     std::pmr::monotonic_buffer_resource resource(buffer.data(), buffer.size());
 
     const beman::big_int::pmr::big_int x(7, &resource);
     const beman::big_int::pmr::big_int y(x);
-    EXPECT_EQ(y.get_allocator().resource(), &resource);
+    EXPECT_EQ(y.get_allocator().resource(), std::pmr::get_default_resource());
     EXPECT_EQ(y, x);
+
+    const beman::big_int::pmr::big_int z(x, &resource);
+    EXPECT_EQ(z.get_allocator().resource(), &resource);
+    EXPECT_EQ(z, x);
 }
 
 TEST(Pmr, MoveConstructionPreservesResource) {
@@ -172,10 +181,11 @@ TEST(Pmr, CompoundAssignmentKeepsLeftHandResource) {
     EXPECT_EQ(x, 123);
 }
 
-// The free `operator+`, given two lvalue operands, default-constructs its
-// result rather than adopting either operand's allocator; for
-// polymorphic_allocator that lands the sum on the process default resource,
-// which is neither of the two resources the operands used.
+// The free `operator+`, given two lvalue operands, selects its result's
+// allocator through `select_on_container_copy_construction` rather than
+// adopting either operand's; for polymorphic_allocator that lands the sum on
+// the process default resource, which is neither of the two resources the
+// operands used.
 TEST(Pmr, FreeOperatorPlusLandsOnDefaultResource) {
     std::array<std::byte, 256>          buffer_a{};
     std::array<std::byte, 256>          buffer_b{};

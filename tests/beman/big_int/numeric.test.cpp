@@ -535,8 +535,17 @@ TEST(Gcd, PmrOperands) {
     const pmr_big_int g = gcd(a, b);
 
     EXPECT_EQ(g, pmr_big_int{(big_int{1} << 290) * 6});
-    EXPECT_EQ(g.get_allocator().resource(), &resource);
+    // Borrowed operands are copied, so the result's allocator comes from
+    // `select_on_container_copy_construction`: the default resource here.
+    EXPECT_EQ(g.get_allocator().resource(), std::pmr::get_default_resource());
     EXPECT_EQ(gcd(a, 42), pmr_big_int{6});
+
+    // An operand handed over keeps its resource: the storage is taken over, not
+    // copied, so there is nothing for the trait to guard against.
+    pmr_big_int       consumed{(big_int{1} << 300) * 12, &resource};
+    const pmr_big_int from_rvalue = gcd(std::move(consumed), b);
+    EXPECT_EQ(from_rvalue, g);
+    EXPECT_EQ(from_rvalue.get_allocator().resource(), &resource);
 }
 
 TEST(Gcd, CallableFullyQualified) {
@@ -892,12 +901,12 @@ TEST(Lcm, PmrOperands) {
     const pmr_big_int l = lcm(a, b);
 
     EXPECT_EQ(l, pmr_big_int{(big_int{1} << 300) * 36});
-    EXPECT_EQ(l.get_allocator().resource(), &resource);
+    EXPECT_EQ(l.get_allocator().resource(), std::pmr::get_default_resource());
     EXPECT_EQ(lcm(a, 42), pmr_big_int{(big_int{1} << 300) * 84});
-    // The zero result carries the allocator of the big_int operand too.
+    // The zero result selects its allocator the same way.
     const pmr_big_int zero = lcm(a, 0);
     EXPECT_EQ(zero, 0);
-    EXPECT_EQ(zero.get_allocator().resource(), &resource);
+    EXPECT_EQ(zero.get_allocator().resource(), std::pmr::get_default_resource());
 }
 
 TEST(Lcm, CallableFullyQualified) {

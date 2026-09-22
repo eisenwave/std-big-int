@@ -235,14 +235,17 @@ TEST(Abs, WideInstantiationStaysInline) {
     EXPECT_TRUE(is_inplace(from_rvalue));
 }
 
-TEST(Abs, PreservesAllocator) {
-    // Both overloads build the result from `j`, so it carries `j`'s allocator.
+TEST(Abs, SelectsAllocator) {
+    // The lvalue overload copies, so the result's allocator comes from
+    // `select_on_container_copy_construction`, which for `polymorphic_allocator`
+    // is the default resource. The rvalue overload takes over the storage, so it
+    // keeps the operand's resource.
     std::pmr::monotonic_buffer_resource resource;
     pmr_big_int                         x{-1, &resource};
     x <<= 300;
 
     const pmr_big_int from_lvalue = abs(x);
-    EXPECT_EQ(from_lvalue.get_allocator().resource(), &resource);
+    EXPECT_EQ(from_lvalue.get_allocator().resource(), std::pmr::get_default_resource());
 
     const pmr_big_int from_rvalue = abs(std::move(x));
     EXPECT_EQ(from_rvalue.get_allocator().resource(), &resource);

@@ -172,10 +172,10 @@ class basic_big_int {
     constexpr basic_big_int  operator-() && noexcept;
     constexpr basic_big_int  operator~() const&;
     constexpr basic_big_int  operator~() &&;
-    constexpr basic_big_int& operator++() &;
-    constexpr basic_big_int  operator++(int) &;
-    constexpr basic_big_int& operator--() &;
-    constexpr basic_big_int  operator--(int) &;
+    constexpr basic_big_int& operator++();
+    constexpr basic_big_int  operator++(int);
+    constexpr basic_big_int& operator--();
+    constexpr basic_big_int  operator--(int);
 
     // [big.int.conv], conversion
     template <_cv-unqualified-arithmetic_ T>
@@ -275,7 +275,7 @@ constexpr basic_big_int(const basic_big_int& x);
 ----
 
 Initializes the integer value to that of `x` and initializes the allocator to
-`x.get_allocator()`.
+`allocator_traits<Allocator>::select_on_container_copy_construction(x.get_allocator())`.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -702,6 +702,12 @@ increases `capacity()`, but may reduce it, which can cause a reallocation.
 [#big_int_type_unary]
 == Unary operators
 
+The `const&` overloads build their result by copy construction, so its
+allocator is
+`allocator_traits<Allocator>::select_on_container_copy_construction(get_allocator())`,
+as `abs`'s is. The `&&` overloads take over the operand's storage and so carry
+the operand's own allocator.
+
 === `operator+`
 
 [source,c++]
@@ -710,8 +716,10 @@ constexpr basic_big_int operator+() const&;
 constexpr basic_big_int operator+() && noexcept;
 ----
 
-Returns a copy of `*this` (for the lvalue overload) or `std::move(*this)` (for
-the rvalue overload). The value is unchanged.
+Equivalent to `return *this;` for the lvalue overload and
+`return std::move(*this);` for the rvalue overload, so each selects the
+corresponding constructor and the allocator behavior above follows from it. The
+value is unchanged.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -748,12 +756,13 @@ infinite-width two's-complement representation (equivalent to `-1 - *this`).
 
 [source,c++]
 ----
-constexpr basic_big_int& operator++() &;     // pre-increment
-constexpr basic_big_int  operator++(int) &;  // post-increment
+constexpr basic_big_int& operator++();    // pre-increment
+constexpr basic_big_int  operator++(int); // post-increment
 ----
 
 Pre-increment is equivalent to `*this += 1` and returns `*this`. Post-increment
 increments `*this` and returns a copy of the value prior to the increment.
+Neither is ref-qualified, so both apply to an rvalue.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -762,12 +771,13 @@ increments `*this` and returns a copy of the value prior to the increment.
 
 [source,c++]
 ----
-constexpr basic_big_int& operator--() &;     // pre-decrement
-constexpr basic_big_int  operator--(int) &;  // post-decrement
+constexpr basic_big_int& operator--();    // pre-decrement
+constexpr basic_big_int  operator--(int); // post-decrement
 ----
 
 Pre-decrement is equivalent to `*this -= 1` and returns `*this`. Post-decrement
 decrements `*this` and returns a copy of the value prior to the decrement.
+Neither is ref-qualified, so both apply to an rvalue.
 
 * *Preconditions:* None.
 * *Postconditions:* None.
@@ -815,6 +825,10 @@ integer type.
 
 [#big_int_type_binary]
 == Binary operators
+
+Every operator in this section returns a new value, so its allocator is the
+`basic_big_int` operand's allocator run through
+`allocator_traits<Allocator>::select_on_container_copy_construction`
 
 === Arithmetic and bitwise operators
 
@@ -867,8 +881,8 @@ constexpr std::remove_cvref_t<T> operator>>(T&& x, S s);
 
 `operator<<` returns a `basic_big_int` whose integer value is `v * 2^s`, and
 `operator>>` returns one whose integer value is `v / 2^s` rounded toward
-negative infinity, where `v` is the integer value of `x`. The result uses the
-allocator of `x`.
+negative infinity, where `v` is the integer value of `x`. The result's allocator
+is selected as described for the binary operators above.
 
 * *Constraints:* `std::remove_cvref_t<T>` is a `basic_big_int` specialization.
 * *Preconditions:* `s >= 0`, and `s` does not exceed the maximum shift for the result type (`max_size()`).

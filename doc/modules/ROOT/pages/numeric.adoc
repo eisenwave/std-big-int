@@ -110,8 +110,12 @@ x                       = abs(std::move(x)); // Clears the sign bit in place; al
 * *Throws:* For the lvalue overload, any exception thrown while allocating the
   copied result (for example, `std::bad_alloc`); a magnitude held in the in-place
   buffer allocates nothing. The rvalue overload is `noexcept`.
-* *Remarks:* The function is usable in a constant expression. The result uses the
-  allocator of `j`.
+* *Remarks:* The function is usable in a constant expression. The lvalue
+  overload builds its result by copy construction, so the result's allocator is
+  `allocator_traits<A>::select_on_container_copy_construction(j.get_allocator())`;
+  an allocator that declines to propagate into a copy, such as
+  `std::pmr::polymorphic_allocator`, declines to propagate here too. The rvalue
+  overload takes over `j`'s storage and so carries `j`'s own allocator.
 
 [#numeric_saturating_cast]
 == `saturating_cast`
@@ -217,8 +221,11 @@ gcd(a, -462LL);        // signs are ignored
   limb, are computed without allocating at all -- however wide the other operand
   is, since a borrowed operand is not copied unless the reduction needs a mutable
   value.
-* *Remarks:* The function is usable in a constant expression. The result uses
-  the allocator of the `basic_big_int` argument. Unlike `std::gcd`, no argument
+* *Remarks:* The function is usable in a constant expression. The result's
+  allocator is the `basic_big_int` argument's allocator run through
+  `allocator_traits<A>::select_on_container_copy_construction`, as `abs`'s is; an
+  operand passed as an rvalue has its storage taken over, so the result carries
+  that operand's own allocator instead. Unlike `std::gcd`, no argument
   can fail to be representable in the result type: `basic_big_int` is unbounded,
   so the precondition that `std::gcd` places on `|m|` and `|n|` is vacuous here.
   The operands are taken by forwarding reference and classified the way the
@@ -301,8 +308,8 @@ lcm(a, -462LL);        // signs are ignored
   magnitudes both fit a single limb are computed without allocating at all when
   their least common multiple fits a limb as well, and a zero argument allocates
   nothing either way.
-* *Remarks:* The function is usable in a constant expression. The result uses the
-  allocator of the `basic_big_int` argument, as `gcd`'s does. Unlike `std::lcm`,
+* *Remarks:* The function is usable in a constant expression. The result's
+  allocator is selected exactly as `gcd`'s is. Unlike `std::lcm`,
   neither the arguments nor the result can fail to be representable in the result
   type: `basic_big_int` is unbounded, so the preconditions `std::lcm` places on
   `|m|`, `|n|`, and the least common multiple itself are all vacuous here -- which
@@ -398,8 +405,8 @@ midpoint(big_int{5}, big_int{9});   //  7, and so is midpoint(9, 5)
   arithmetic works on (for example, `std::bad_alloc`). Arguments whose magnitudes
   both fit a single limb are computed without allocating at all, whatever their
   signs, since the midpoint of two such values fits a limb as well.
-* *Remarks:* The function is usable in a constant expression. The result uses the
-  allocator of the `basic_big_int` argument, as `gcd`'s and `lcm`'s do. Unlike
+* *Remarks:* The function is usable in a constant expression. The result's
+  allocator is selected exactly as `gcd`'s and `lcm`'s are. Unlike
   `std::midpoint`, this function is not `noexcept`, because a wide result has to
   be allocated. The guarantee that no overflow occurs is unconditional for the
   same reason it is vacuous in `gcd` and `lcm`: `basic_big_int` is unbounded, so

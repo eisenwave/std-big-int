@@ -25,6 +25,9 @@ namespace beman::big_int {
 // This cannot overflow since `basic_big_int` is unbounded
 template <std::size_t b, class L, class A>
 constexpr basic_big_int<b, L, A> abs(const basic_big_int<b, L, A>& j) {
+    // Plain copy construction, so the result's allocator comes from
+    // `select_on_container_copy_construction`: an allocator that declines to
+    // propagate into a copy declines to propagate into an arithmetic result too.
     basic_big_int<b, L, A> result(j);
     result.unchecked_set_sign(false);
     return result;
@@ -106,14 +109,15 @@ operand_magnitude(const T& x, const std::array<uint_multiprecision_t, n>& limbs)
 }
 
 // The allocator that every value a mixed-operand function creates -- including
-// the one it returns -- is built with: the allocator of the big_int argument,
-// which is also what `abs` does.
+// the one it returns -- is built with. Selected exactly as a binary operator's
+// result allocator is, so `gcd` and friends follow the same rule as `abs` and
+// `operator*`.
 template <class M, class N>
 [[nodiscard]] constexpr auto operand_allocator(const M& m, const N& n) noexcept {
     if constexpr (is_basic_big_int_v<M>) {
-        return m.get_allocator();
+        return result_allocator<M>(m, n);
     } else {
-        return n.get_allocator();
+        return result_allocator<N>(m, n);
     }
 }
 

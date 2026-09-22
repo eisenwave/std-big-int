@@ -279,6 +279,183 @@ TEST(Allocation, PropagatingAssignmentIsStrongWhenAllocationThrows) {
     EXPECT_EQ(dst, src);
 }
 
+// A stateful allocator whose `select_on_container_copy_construction` hands back a
+// distinct allocator (`id + 1`) instead of a copy. A copy-constructed container
+// must adopt that allocator, so `id` shows whether the constructor consulted the
+// trait or just copied the source's allocator.
+template <class T>
+struct soccc_alloc {
+    using value_type = T;
+
+    std::size_t id = 0;
+
+    soccc_alloc() = default;
+    explicit soccc_alloc(std::size_t allocator_id) noexcept : id{allocator_id} {}
+    template <class U>
+    soccc_alloc(const soccc_alloc<U>& other) noexcept : id{other.id} {}
+
+    [[nodiscard]] soccc_alloc select_on_container_copy_construction() const noexcept { return soccc_alloc{id + 1U}; }
+
+    [[nodiscard]] T* allocate(std::size_t n) { return std::allocator<T>{}.allocate(n); }
+    void             deallocate(T* p, std::size_t n) noexcept { std::allocator<T>{}.deallocate(p, n); }
+
+    template <class U>
+    bool operator==(const soccc_alloc<U>& other) const noexcept {
+        return id == other.id;
+    }
+};
+
+using soccc_big_int = beman::big_int::
+    basic_big_int<64, beman::big_int::uint_multiprecision_t, soccc_alloc<beman::big_int::uint_multiprecision_t>>;
+
+TEST(Allocation, CopyConstructionSelectsAllocator) {
+    const soccc_big_int src{7, soccc_alloc<beman::big_int::uint_multiprecision_t>{1U}};
+    const soccc_big_int dst = src;
+
+    EXPECT_EQ(dst, src);
+    EXPECT_EQ(src.get_allocator().id, 1U);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
+TEST(Allocation, CopyConstructionSelectsAllocatorForHeapValue) {
+    soccc_big_int src{1, soccc_alloc<beman::big_int::uint_multiprecision_t>{1U}};
+    src <<= 4000;
+    const soccc_big_int dst = src;
+
+    EXPECT_EQ(dst, src);
+    EXPECT_GT(dst.representation_size(), soccc_big_int::inplace_capacity);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
+TEST(Allocation, CopyConstructionKeepsAllocatorWhenTraitCopies) {
+    // `pocca_alloc` has no `select_on_container_copy_construction`, so the default
+    // `allocator_traits` behavior copies the source allocator.
+    pocca_big_int src{1, pocca_alloc<beman::big_int::uint_multiprecision_t>{2U}};
+    src <<= 4000;
+    const pocca_big_int dst = src;
+
+    EXPECT_EQ(dst, src);
+    EXPECT_EQ(dst.get_allocator().id, 2U);
+}
+
+// `soccc_alloc` separates the three allocators a result could plausibly get --
+// the operand's (id 1), the trait's choice (id 2) and a value-initialized one
+// (id 0) -- which `std::pmr::polymorphic_allocator` cannot, because there the
+// trait's choice and a value-initialized allocator are the same thing.
+using soccc_alloc_type = soccc_alloc<beman::big_int::uint_multiprecision_t>;
+
+TEST(Allocation, AbsSelectsAllocator) {
+    soccc_big_int x{-1, soccc_alloc_type{1U}};
+    x <<= 4000;
+
+    const soccc_big_int from_lvalue = abs(x);
+    EXPECT_EQ(from_lvalue, -x);
+    EXPECT_EQ(from_lvalue.get_allocator().id, 2U);
+
+    // Handed over rather than copied: the storage comes along, so the operand's
+    // own allocator does too.
+    const soccc_big_int from_rvalue = abs(std::move(x));
+    EXPECT_EQ(from_rvalue, from_lvalue);
+    EXPECT_EQ(from_rvalue.get_allocator().id, 1U);
+}
+
+TEST(Allocation, UnaryOperatorsSelectAllocator) {
+    soccc_big_int x{1, soccc_alloc_type{1U}};
+    x <<= 4000;
+
+    EXPECT_EQ((+x).get_allocator().id, 2U);
+    EXPECT_EQ((-x).get_allocator().id, 2U);
+    EXPECT_EQ((~x).get_allocator().id, 2U);
+    EXPECT_EQ((x++).get_allocator().id, 2U);
+    EXPECT_EQ((x--).get_allocator().id, 2U);
+    EXPECT_EQ(x.get_allocator().id, 1U); // the operand is untouched by the selection
+
+    // The `&&` overloads take over the storage, so they keep the operand's own
+    // allocator rather than selecting a new one.
+    soccc_big_int y{1, soccc_alloc_type{1U}};
+    y <<= 4000;
+    EXPECT_EQ((-std::move(y)).get_allocator().id, 1U);
+}
+
+TEST(Allocation, GcdAndLcmSelectAllocator) {
+    soccc_big_int a{12, soccc_alloc_type{1U}};
+    soccc_big_int b{18, soccc_alloc_type{1U}};
+    a <<= 4000;
+    b <<= 4000;
+
+    EXPECT_EQ(gcd(a, b).get_allocator().id, 2U);
+    EXPECT_EQ(lcm(a, b).get_allocator().id, 2U);
+    EXPECT_EQ(gcd(a, 42).get_allocator().id, 2U);
+    EXPECT_EQ(midpoint(a, b).get_allocator().id, 2U);
+}
+
+TEST(Allocation, BinaryOperatorsSelectAllocator) {
+    // Every binary operator builds a fresh result, so it selects the allocator
+    // through the trait rather than taking the operand's (id 1) or leaving a
+    // value-initialized one (id 0).
+    soccc_big_int a{12, soccc_alloc_type{1U}};
+    soccc_big_int b{18, soccc_alloc_type{1U}};
+    a <<= 4000;
+    b <<= 4000;
+
+    EXPECT_EQ((a + b).get_allocator().id, 2U);
+    EXPECT_EQ((a - b).get_allocator().id, 2U);
+    EXPECT_EQ((a * b).get_allocator().id, 2U);
+    EXPECT_EQ((a / b).get_allocator().id, 2U);
+    EXPECT_EQ((a % b).get_allocator().id, 2U);
+    EXPECT_EQ((a & b).get_allocator().id, 2U);
+    EXPECT_EQ((a | b).get_allocator().id, 2U);
+    EXPECT_EQ((a ^ b).get_allocator().id, 2U);
+    EXPECT_EQ((a << 100).get_allocator().id, 2U);
+    EXPECT_EQ((a >> 100).get_allocator().id, 2U);
+    EXPECT_EQ((a >> 100000).get_allocator().id, 2U); // the whole value is discarded
+    EXPECT_EQ((-a >> 100000).get_allocator().id, 2U);
+
+    const auto [quo, rem] = div_rem_to_zero(a, b);
+    EXPECT_EQ(quo.get_allocator().id, 2U);
+    EXPECT_EQ(rem.get_allocator().id, 2U);
+
+    EXPECT_EQ(a.get_allocator().id, 1U); // the operands are untouched
+    EXPECT_EQ(b.get_allocator().id, 1U);
+}
+
+TEST(Allocation, BinaryOperatorsWithIntegerSelectAllocator) {
+    // The same holds when only one side is a basic_big_int, whichever side it is.
+    soccc_big_int a{12, soccc_alloc_type{1U}};
+    a <<= 4000;
+
+    EXPECT_EQ((a + 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 + a).get_allocator().id, 2U);
+    EXPECT_EQ((a - 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 - a).get_allocator().id, 2U);
+    EXPECT_EQ((a * 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 * a).get_allocator().id, 2U);
+    EXPECT_EQ((a / 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 % a).get_allocator().id, 2U);
+    EXPECT_EQ((a & 7).get_allocator().id, 2U);
+    EXPECT_EQ((7 | a).get_allocator().id, 2U);
+    EXPECT_EQ((a ^ 7).get_allocator().id, 2U);
+}
+
+TEST(Allocation, BinaryOperatorsOnRvalueKeepAllocatorWhenStorageIsReused) {
+    // `+` and `-` fold into the operand's own buffer, so a handed-over operand
+    // takes its allocator along -- the same rule the move constructor follows.
+    // Multiplication and the bitwise operators always need a fresh buffer, so
+    // they select even for an rvalue.
+    const auto reused = [] {
+        soccc_big_int x{12, soccc_alloc_type{1U}};
+        x <<= 4000;
+        return x;
+    };
+
+    EXPECT_EQ((reused() + 7).get_allocator().id, 1U);
+    EXPECT_EQ((reused() - 7).get_allocator().id, 1U);
+    EXPECT_EQ((reused() << 100).get_allocator().id, 1U);
+    EXPECT_EQ((reused() >> 100).get_allocator().id, 1U);
+    EXPECT_EQ((reused() * 7).get_allocator().id, 2U);
+    EXPECT_EQ((reused() & 7).get_allocator().id, 2U);
+}
+
 TEST(Allocation, SizeDefault) {
     beman::big_int::big_int x;
     EXPECT_EQ(x.size(), 0);
