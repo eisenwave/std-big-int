@@ -103,13 +103,17 @@ if(
     enable_language(ASM)
     target_sources(
         beman.big_int
-        PRIVATE src/multiply_long_runtime_x86_64_generic.s
+        PRIVATE
+            src/multiply_long_runtime_x86_64_generic.s
+            src/square_long_runtime_x86_64_generic.s
     )
 elseif(MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
     enable_language(ASM_MASM)
     target_sources(
         beman.big_int
-        PRIVATE src/multiply_long_runtime_x86_64_generic.asm
+        PRIVATE
+            src/multiply_long_runtime_x86_64_generic.asm
+            src/square_long_runtime_x86_64_generic.asm
     )
 endif()
 
