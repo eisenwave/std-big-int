@@ -23,6 +23,7 @@
 
 #include <beman/big_int.hpp>
 #include <beman/big_int/detail/mul_impl.hpp>
+#include <beman/big_int/detail/square_long_runtime.hpp>
 
 #include <gtest/gtest.h>
 
@@ -232,6 +233,19 @@ double run_square_long_at(const std::size_t limbs, const unsigned trials) {
            scratch_for_test&) { ::beman::big_int::detail::square_long(r.first(2 * a.size()), a); });
 }
 
+// The runtime squaring basecase (x86_64 assembly or its portable fallback):
+// what square_runtime and square_karatsuba actually run below their cutoffs.
+double run_square_long_runtime_at(const std::size_t limbs, const unsigned trials) {
+    return measure_algorithm(
+        limbs,
+        trials,
+        /*scratch_size=*/0,
+        [](const std::span<uint_t>       r,
+           const std::span<const uint_t> a,
+           const std::span<const uint_t>,
+           scratch_for_test&) { ::beman_big_int_square_long_runtime(r.data(), a.data(), a.size()); });
+}
+
 double run_square_karatsuba_at(const std::size_t limbs, const unsigned trials) {
     // cutoff_override=1 forces at least one Karatsuba splitting level; recursive
     // sub-squares use the default cutoff, as in production.
@@ -353,6 +367,7 @@ constexpr algorithm_runner algorithms[] = {
     {"toom-cook-8.5", 2000, 300000, run_toom_cook_8_5_at},
     {"fft", 800, 300000, run_fft_at},
     {"square-long", 4, 400, run_square_long_at},
+    {"square-long-runtime", 2, 400, run_square_long_runtime_at},
     {"square-karatsuba", 32, 2000, run_square_karatsuba_at},
     {"square-toom-cook-3", 200, 10000, run_square_toom_cook_3_at},
     {"square-toom-cook-4", 300, 30000, run_square_toom_cook_4_at},

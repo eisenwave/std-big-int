@@ -359,6 +359,44 @@ to the runtime path. The `constexpr` path, however, remains available
 when compile-time evaluation is possible with no additional limitations
 imposed by the use of hand-coded assembly.
 
+[#benchmarks_arch_opts_squaring]
+=== Squaring
+
+Squaring has a companion routine, `beman_big_int_square_long_runtime()`,
+written in the same style and under the same constraints: baseline `x86_64`
+instructions only, with no SSE, AVX, BMI2 or ADX. It builds each cross product
+`a[i] * a[j]` just once (the off-diagonal triangle), using the same rows as
+the multiplication routine but each row only as long as the limbs above `a[i]`.
+A single final pass then doubles the triangle and adds the diagonal squares
+`a[i]^2`, which roughly halves the widening multiplies of a general product.
+The routine handles `x * x` from 5 limbs up to the Karatsuba squaring
+threshold and the leaves of the Karatsuba squaring recursion, so the
+Toom-Cook squaring tiers built on top of them speed up too. Below 5 limbs,
+`x * x` keeps using the multiplication routine, which is as fast or faster
+there once the whole dispatch is measured. On other architectures, a portable
+pass:[C++] version of the same algorithm takes its place.
+
+The table below compares the new routine with the two basecases that squares
+used before it: the portable pass:[C++] `square_long`, and the general
+assembly multiplication called with `a * a` (used for fewer than 8 limbs).
+Times are per square, measured on the same Intel(R) Core(TM) i9-11900K.
+
+[cols="1,1,1,1", options="header"]
+|===
+| limbs | pass:[C++] `square_long` [ns] | ASM multiply `a * a` [ns] | ASM square [ns]
+
+| 4     |    13                         |     9                     |     9
+| 8     |    33                         |    35                     |    25
+| 16    |   111                         |   113                     |    82
+| 32    |   421                         |   448                     |   273
+| 64    |  1549                         |  1796                     |   970
+|===
+
+The implementations can be found in
+https://github.com/eisenwave/std-big-int/blob/main/src/square_long_runtime_x86_64_generic.s[square_long_runtime_x86_64_generic.s]
+and
+https://github.com/eisenwave/std-big-int/blob/main/src/square_long_runtime_x86_64_generic.asm[square_long_runtime_x86_64_generic.asm].
+
 [#benchmarks_sources]
 == Source programs
 
