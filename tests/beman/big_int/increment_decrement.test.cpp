@@ -221,7 +221,7 @@ static_assert(increment_negative_is_normalized(128));
 
 // big_int_256 holds four limbs in the in-place buffer, so these never allocate.
 consteval big_int_256 decremented_inplace(unsigned shift) {
-    big_int_256 x{1};
+    big_int_256 x = 1;
     x <<= shift;
     --x;
     return x;
