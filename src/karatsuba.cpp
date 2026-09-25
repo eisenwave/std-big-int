@@ -3,6 +3,7 @@
 
 #include <beman/big_int/detail/mul_impl.hpp>
 #include <beman/big_int/detail/multiply_long_runtime.hpp>
+#include <beman/big_int/detail/square_long_runtime.hpp>
 
 namespace beman::big_int::detail {
 
@@ -145,11 +146,10 @@ void square_karatsuba(const std::span<uint_multiprecision_t>       result,
 
     const std::size_t effective_cutoff = cutoff_override == 0 ? square_karatsuba_cutoff : cutoff_override;
 
-    // Below the cutoff the three-pass squaring basecase wins. Unlike
-    // multiply_long it accumulates, so its window must be zeroed first.
+    // Below the cutoff the schoolbook squaring basecase wins. It writes its
+    // whole 2 * a.size() window, so nothing needs zeroing first.
     if (a.size() < effective_cutoff) {
-        std::ranges::fill(result.first(2 * a.size()), uint_multiprecision_t{0});
-        square_long(result.first(2 * a.size()), a);
+        ::beman_big_int_square_long_runtime(result.first(2 * a.size()).data(), a.data(), a.size());
         return;
     }
 
