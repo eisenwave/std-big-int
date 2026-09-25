@@ -12,6 +12,7 @@
 #include <beman/big_int/detail/multiply_long_runtime.hpp>
 #include <beman/big_int/detail/scratch_allocator.hpp>
 #include <beman/big_int/detail/span_ops.hpp>
+#include <beman/big_int/detail/square_long_runtime.hpp>
 
 // The runtime multiplication tier ladders, compiled once. The header
 // dispatchers (multiply_dispatch / square_dispatch) keep the constexpr
@@ -32,7 +33,7 @@ std::size_t square_runtime(const std::span<uint_multiprecision_t>       result,
     const std::size_t n            = a.size();
     const std::size_t result_total = 2 * n;
 
-    // Tiny squares: plain schoolbook beats the three-pass squaring basecase.
+    // Tiny squares: plain schoolbook beats the squaring basecase.
     if (n < square_long_cutoff) {
         if BEMAN_BIG_INT_IS_NOT_CONSTEVAL {
             ::beman_big_int_multiply_long_runtime(
@@ -49,7 +50,7 @@ std::size_t square_runtime(const std::span<uint_multiprecision_t>       result,
     }
 
     if (n < square_karatsuba_cutoff) {
-        square_long(result, a);
+        ::beman_big_int_square_long_runtime(result.first(result_total).data(), a.data(), n);
         return trimmed_size_span(std::span<const uint_multiprecision_t>{result.data(), result_total});
     }
 
