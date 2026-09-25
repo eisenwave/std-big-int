@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# detail/multiply_long_runtime.hpp and detail/simd/vec_*.hpp are deliberately
-# absent: they are included only by src/*.cpp, which are compiled into the static
-# library, so they are not part of the installed interface. The SIMD headers also
-# cannot satisfy VERIFY_INTERFACE_HEADER_SETS, since each one is valid only on its
-# own architecture.
+# detail/multiply_long_runtime.hpp, detail/square_long_runtime.hpp and
+# detail/simd/vec_*.hpp are deliberately absent: they are included only by
+# src/*.cpp, which are compiled into the static library, so they are not part of
+# the installed interface. The SIMD headers also cannot satisfy
+# VERIFY_INTERFACE_HEADER_SETS, since each one is valid only on its own
+# architecture.
 
 target_sources(
     beman.big_int

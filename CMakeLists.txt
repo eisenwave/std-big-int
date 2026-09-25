@@ -92,6 +92,8 @@ target_compile_features(beman.big_int PUBLIC cxx_std_23)
 # Only enable assembly and add the assembly source when using GCC or Clang
 # This avoids trying to compile .s files with toolchains that may not support
 # the same assembler syntax or where we don't want the assembly unit.
+# A build forcing 32-bit limbs (BEMAN_BIG_INT_FORCED_LIMB_WIDTH=32) still
+# assembles these, but never calls them: see detail/config.hpp.
 if(
     (
         CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
@@ -103,13 +105,17 @@ if(
     enable_language(ASM)
     target_sources(
         beman.big_int
-        PRIVATE src/multiply_long_runtime_x86_64_generic.s
+        PRIVATE
+            src/multiply_long_runtime_x86_64_generic.s
+            src/square_long_runtime_x86_64_generic.s
     )
 elseif(MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
     enable_language(ASM_MASM)
     target_sources(
         beman.big_int
-        PRIVATE src/multiply_long_runtime_x86_64_generic.asm
+        PRIVATE
+            src/multiply_long_runtime_x86_64_generic.asm
+            src/square_long_runtime_x86_64_generic.asm
     )
 endif()
 
