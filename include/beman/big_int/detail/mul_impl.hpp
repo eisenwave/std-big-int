@@ -115,11 +115,16 @@ constexpr void square_long(const std::span<uint_multiprecision_t>       result,
     BEMAN_BIG_INT_DEBUG_ASSERT(!carry_flag);
 }
 
-// Below this limb count square_dispatch routes squares back to plain
-// schoolbook: the three-pass structure of square_long loses there (OpenJDK's
-// MULTIPLY_SQUARE_THRESHOLD draws the same line at 640 bits).
-// Tuned via multiplication_stress_bench.
-inline constexpr std::size_t square_long_cutoff = 8;
+// Below this limb count square_runtime routes squares back to plain schoolbook
+// multiplication: the squaring basecase's doubling pass outweighs the few cross
+// products it saves. Tuned end to end on x * x, where the x86_64 assembly
+// basecase wins from 5 limbs and the portable one from 4 (kernel-only timings
+// flatter the assembly down to 2 limbs, which the full dispatch does not bear out).
+#if defined(BEMAN_BIG_INT_ARCH_X86_64)
+inline constexpr std::size_t square_long_cutoff = 5;
+#else
+inline constexpr std::size_t square_long_cutoff = 4;
+#endif
 
 // Minimum number of limbs for Karatsuba to be worthwhile
 // Directly from Boost, and reconfirmed as correct
