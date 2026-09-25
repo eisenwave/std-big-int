@@ -55,20 +55,6 @@
     #define BEMAN_BIG_INT_GNUC __GNUC__
 #endif // __GNUC__
 
-// Special architecture assembly long-multiplication optimization ==============
-// It is available for generic x86_64 on GCC/clang/MSVC ========================
-
-#if (defined(BEMAN_BIG_INT_CLANG) && (defined(__x86_64__) || defined(_M_X64))) || \
-    (defined(BEMAN_BIG_INT_GCC) && defined(__x86_64__)) || (defined(BEMAN_BIG_INT_MSVC) && defined(_M_X64))
-    #define BEMAN_BIG_INT_ARCH_X86_64
-#endif
-
-#if defined(BEMAN_BIG_INT_ARCH_X86_64)
-    #define BEMAN_BIG_INT_ARCH_X86_64_INLINE
-#else
-    #define BEMAN_BIG_INT_ARCH_X86_64_INLINE inline
-#endif
-
 // Builtin detection ===========================================================
 
 #ifdef __has_builtin
@@ -306,6 +292,24 @@ using int_wide_t = long long;
 #define BEMAN_BIG_INT_DOUBLE_LIMB_WIDTH (BEMAN_BIG_INT_LIMB_WIDTH * 2)
 
 } // namespace beman::big_int
+
+// Special architecture assembly long-multiplication optimization ==============
+// It is available for generic x86_64 on GCC/clang/MSVC ========================
+// The assembly kernels work on 64-bit limbs, so a build forcing 32-bit limbs
+// uses the portable kernels instead. Those have C++ linkage, so they cannot
+// bind to the assembly symbols that CMake still builds into the library.
+
+#if ((defined(BEMAN_BIG_INT_CLANG) && (defined(__x86_64__) || defined(_M_X64))) ||                               \
+     (defined(BEMAN_BIG_INT_GCC) && defined(__x86_64__)) || (defined(BEMAN_BIG_INT_MSVC) && defined(_M_X64))) && \
+    BEMAN_BIG_INT_LIMB_WIDTH == 64
+    #define BEMAN_BIG_INT_ARCH_X86_64
+#endif
+
+#if defined(BEMAN_BIG_INT_ARCH_X86_64)
+    #define BEMAN_BIG_INT_ARCH_X86_64_LINKAGE extern "C"
+#else
+    #define BEMAN_BIG_INT_ARCH_X86_64_LINKAGE inline
+#endif
 
 // Integer concepts and traits =================================================
 

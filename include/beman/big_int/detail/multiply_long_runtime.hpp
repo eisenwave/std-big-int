@@ -6,7 +6,7 @@
 
 #include <beman/big_int/detail/wide_ops.hpp>
 
-extern "C" void BEMAN_BIG_INT_ARCH_X86_64_INLINE
+BEMAN_BIG_INT_ARCH_X86_64_LINKAGE void
 beman_big_int_multiply_long_runtime(beman::big_int::uint_multiprecision_t*       p_result,
                                     const beman::big_int::uint_multiprecision_t* p_a,
                                     const std::size_t                            len_a,

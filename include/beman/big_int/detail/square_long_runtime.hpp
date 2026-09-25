@@ -10,7 +10,7 @@
 // product is written, so p_result need not be pre-zeroed; it must not alias p_a.
 // Builds the off-diagonal triangle, then doubles it and adds the diagonal
 // squares in a single pass (the x86_64 assembly follows the same plan).
-extern "C" void BEMAN_BIG_INT_ARCH_X86_64_INLINE
+BEMAN_BIG_INT_ARCH_X86_64_LINKAGE void
 beman_big_int_square_long_runtime(beman::big_int::uint_multiprecision_t*       p_result,
                                   const beman::big_int::uint_multiprecision_t* p_a,
                                   const std::size_t                            len_a) noexcept
