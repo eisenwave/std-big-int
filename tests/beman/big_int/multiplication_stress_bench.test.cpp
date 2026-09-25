@@ -233,8 +233,9 @@ double run_square_long_at(const std::size_t limbs, const unsigned trials) {
            scratch_for_test&) { ::beman::big_int::detail::square_long(r.first(2 * a.size()), a); });
 }
 
-// The runtime squaring basecase (x86_64 assembly or its portable fallback):
-// what square_runtime and square_karatsuba actually run below their cutoffs.
+// The runtime squaring basecase (the assembly kernel (x86_64/AArch64) or its
+// portable fallback): what square_runtime and square_karatsuba actually run
+// below their cutoffs.
 double run_square_long_runtime_at(const std::size_t limbs, const unsigned trials) {
     return measure_algorithm(
         limbs,
